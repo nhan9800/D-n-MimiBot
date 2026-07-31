@@ -8561,6 +8561,16 @@ client.on('interactionCreate', async interaction => {
                 
                 // Tạo category Thống Kê Máy Chủ và 3 channels
                 try {
+                    // Xóa các kênh thống kê cũ (chống spam)
+                    const oldCategories = interaction.guild.channels.cache.filter(c => c.type === ChannelType.GuildCategory && c.name === '📊 THỐNG KÊ MÁY CHỦ');
+                    for (const [, cat] of oldCategories) {
+                        const children = interaction.guild.channels.cache.filter(c => c.parentId === cat.id);
+                        for (const [, child] of children) {
+                            await child.delete().catch(() => null);
+                        }
+                        await cat.delete().catch(() => null);
+                    }
+
                     const statsCategory = await interaction.guild.channels.create({
                         name: '📊 THỐNG KÊ MÁY CHỦ',
                         type: ChannelType.GuildCategory
