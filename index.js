@@ -9343,7 +9343,7 @@ client.on('interactionCreate', async interaction => {
         
         if (customId === 'buy_ring') {
             const userData = getUserData(user.id);
-            if (userData.partner) {
+            if (userData.spouseId) {
                 return interaction.reply({ content: '❌ Bạn đã kết hôn rồi, không thể mua thêm nhẫn!', flags: MessageFlags.Ephemeral });
             }
             const price = 5000000;
@@ -10395,6 +10395,39 @@ if (!config.token || config.token.trim() === "") {
     console.error("❌ LỖI: Chưa nhập token trong config.json!"); 
     process.exit(1);
 } else {
+
+client.on('guildMemberAdd', async (member) => {
+    updateStatsChannels(member.guild);
+});
+client.on('guildMemberRemove', async (member) => {
+    updateStatsChannels(member.guild);
+});
+
+async function updateStatsChannels(guild) {
+    try {
+        const statsCategory = guild.channels.cache.find(c => c.type === ChannelType.GuildCategory && c.name === '📊 THỐNG KÊ MÁY CHỦ');
+        if (!statsCategory) return;
+        
+        await guild.members.fetch();
+        const memberCount = guild.members.cache.filter(m => !m.user.bot).size;
+        const botCount = guild.members.cache.filter(m => m.user.bot).size;
+        const totalCount = guild.memberCount;
+        
+        const children = guild.channels.cache.filter(c => c.parentId === statsCategory.id);
+        for (const [, child] of children) {
+            if (child.name.startsWith('Thành Viên:')) {
+                if (child.name !== `Thành Viên: ${memberCount}`) await child.setName(`Thành Viên: ${memberCount}`).catch(() => null);
+            } else if (child.name.startsWith('Bot:')) {
+                if (child.name !== `Bot: ${botCount}`) await child.setName(`Bot: ${botCount}`).catch(() => null);
+            } else if (child.name.startsWith('Tổng:')) {
+                if (child.name !== `Tổng: ${totalCount}`) await child.setName(`Tổng: ${totalCount}`).catch(() => null);
+            }
+        }
+    } catch (e) {
+        console.error("Lỗi cập nhật kênh thống kê:", e);
+    }
+}
+
     client.login(config.token.trim()).catch((err) => {
         console.error("❌ LỖI ĐĂNG NHẬP BOT — chi tiết:", err);
         console.error("👉 Nếu thấy 'disallowed intents': vào Discord Developer Portal → Bot → bật 'Server Members Intent' và 'Message Content Intent'.");
