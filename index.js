@@ -8566,6 +8566,7 @@ client.on('interactionCreate', async interaction => {
                         type: ChannelType.GuildCategory
                     });
                     
+                    await interaction.guild.members.fetch();
                     const memberCount = interaction.guild.members.cache.filter(m => !m.user.bot).size;
                     const botCount = interaction.guild.members.cache.filter(m => m.user.bot).size;
                     const totalCount = interaction.guild.memberCount;
