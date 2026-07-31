@@ -8574,7 +8574,7 @@ client.on('interactionCreate', async interaction => {
                         type: ChannelType.GuildVoice,
                         parent: statsCategory.id,
                         permissionOverwrites: [
-                            { id: interaction.guild.roles.everyone.id, deny: [PermissionsBitField.Flags.Connect] }
+                            { id: interaction.guild.roles.everyone.id, deny: [PermissionFlagsBits.Connect] }
                         ]
                     });
                     await interaction.guild.channels.create({
@@ -8582,7 +8582,7 @@ client.on('interactionCreate', async interaction => {
                         type: ChannelType.GuildVoice,
                         parent: statsCategory.id,
                         permissionOverwrites: [
-                            { id: interaction.guild.roles.everyone.id, deny: [PermissionsBitField.Flags.Connect] }
+                            { id: interaction.guild.roles.everyone.id, deny: [PermissionFlagsBits.Connect] }
                         ]
                     });
                     await interaction.guild.channels.create({
@@ -8590,7 +8590,7 @@ client.on('interactionCreate', async interaction => {
                         type: ChannelType.GuildVoice,
                         parent: statsCategory.id,
                         permissionOverwrites: [
-                            { id: interaction.guild.roles.everyone.id, deny: [PermissionsBitField.Flags.Connect] }
+                            { id: interaction.guild.roles.everyone.id, deny: [PermissionFlagsBits.Connect] }
                         ]
                     });
                 } catch (e) {
