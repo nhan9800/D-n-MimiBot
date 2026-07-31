@@ -5470,10 +5470,7 @@ client.on('messageCreate', async (message) => {
         );
         const embed = new EmbedBuilder()
             .setTitle('🛒 Cửa Hàng Mini')
-            .setDescription('Chào mừng đến với cửa hàng! Hiện tại có các mặt hàng sau:
-
-**💍 Nhẫn Cưới** - Giá: `50,000 Xu`
-Dùng để cầu hôn người khác bằng lệnh `mikethon @user`.')
+            .setDescription('Chào mừng đến với cửa hàng! Hiện tại có các mặt hàng sau:\n\n**💍 Nhẫn Cưới** - Giá: `50,000 Xu`\nDùng để cầu hôn người khác bằng lệnh `mikethon @user`.')
             .setColor('#F1C40F');
         return message.reply({ embeds: [embed], components: [row] });
     }
