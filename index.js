@@ -5466,11 +5466,11 @@ client.on('messageCreate', async (message) => {
 
     if (command === 'mishop' || command === 'mis') {
         const row = new ActionRowBuilder().addComponents(
-            new ButtonBuilder().setCustomId('buy_ring').setLabel('💍 Mua Nhẫn Cưới (50,000 Xu)').setStyle(ButtonStyle.Success)
+            new ButtonBuilder().setCustomId('buy_ring').setLabel('💍 Mua Nhẫn Cưới (5,000,000 Xu)').setStyle(ButtonStyle.Success)
         );
         const embed = new EmbedBuilder()
             .setTitle('🛒 Cửa Hàng Mini')
-            .setDescription('Chào mừng đến với cửa hàng! Hiện tại có các mặt hàng sau:\n\n**💍 Nhẫn Cưới** - Giá: `50,000 Xu`\nDùng để cầu hôn người khác bằng lệnh `mikethon @user`.')
+            .setDescription('Chào mừng đến với cửa hàng! Hiện tại có các mặt hàng sau:\n\n**💍 Nhẫn Cưới** - Giá: `5,000,000 Xu`\nDùng để cầu hôn người khác bằng lệnh `mikethon @user`.')
             .setColor('#F1C40F');
         return message.reply({ embeds: [embed], components: [row] });
     }
@@ -9320,18 +9320,18 @@ client.on('interactionCreate', async interaction => {
         }
         if (customId === 'profile_shop') {
             const row = new ActionRowBuilder().addComponents(
-                new ButtonBuilder().setCustomId('buy_ring').setLabel('💍 Mua Nhẫn Cưới (50,000 Xu)').setStyle(ButtonStyle.Success)
+                new ButtonBuilder().setCustomId('buy_ring').setLabel('💍 Mua Nhẫn Cưới (5,000,000 Xu)').setStyle(ButtonStyle.Success)
             );
             const embed = new EmbedBuilder()
                 .setTitle('🛒 Cửa Hàng Mini')
-                .setDescription('Chào mừng đến với cửa hàng! Hiện tại có các mặt hàng sau:\n\n**💍 Nhẫn Cưới** - Giá: `50,000 Xu`\nDùng để cầu hôn người khác bằng lệnh `mikethon @user`.')
+                .setDescription('Chào mừng đến với cửa hàng! Hiện tại có các mặt hàng sau:\n\n**💍 Nhẫn Cưới** - Giá: `5,000,000 Xu`\nDùng để cầu hôn người khác bằng lệnh `mikethon @user`.')
                 .setColor('#F1C40F');
             return interaction.reply({ embeds: [embed], components: [row], flags: MessageFlags.Ephemeral });
         }
         
         if (customId === 'buy_ring') {
             const userData = getUserData(user.id);
-            const price = 50000;
+            const price = 5000000;
             if (userData.balance < price) {
                 return interaction.reply({ content: '❌ Bạn không đủ Xu để mua Nhẫn Cưới!', flags: MessageFlags.Ephemeral });
             }
