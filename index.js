@@ -5502,7 +5502,7 @@ client.on('messageCreate', async (message) => {
             if (collected.customId.includes('accept')) {
                 userData.spouseId = target.id;
                 userData.marriageDate = Date.now();
-                userData.inventory.nhan_cuoi -= 1;
+                userData.inventory.nhan_cuoi = 0; // Clear all hoarded rings
                 targetData.spouseId = userId;
                 targetData.marriageDate = Date.now();
                 saveEconomy();
@@ -9345,6 +9345,9 @@ client.on('interactionCreate', async interaction => {
             const userData = getUserData(user.id);
             if (userData.spouseId) {
                 return interaction.reply({ content: '❌ Bạn đã kết hôn rồi, không thể mua thêm nhẫn!', flags: MessageFlags.Ephemeral });
+            }
+            if (userData.inventory && userData.inventory.nhan_cuoi >= 1) {
+                return interaction.reply({ content: '❌ Bạn đã có Nhẫn Cưới trong túi đồ rồi, không cần mua thêm!', flags: MessageFlags.Ephemeral });
             }
             const price = 5000000;
             if (userData.balance < price) {
