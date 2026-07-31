@@ -3498,7 +3498,8 @@ async function playNextTrack(guildId, opts = {}) {
             noPart: true,
             concurrentFragments: 4,
             socketTimeout: 5,
-            bufferSize: '1024K'
+            bufferSize: '1024K',
+            forceIpv4: true
         };
         const extArgs = YT_DOWNLOAD_CLIENT_FALLBACKS[clientAttempt];
         if (extArgs) ytdlOpts.extractorArgs = extArgs;
@@ -8495,11 +8496,15 @@ client.on('interactionCreate', async interaction => {
                 });
 
                 if (!archiveChan) {
-                    archiveChan = await guild.channels.create({ name: '📁-lưu-trữ-ticket', type: ChannelType.GuildText, parent: ticketCategory.id, permissionOverwrites: adminOverwrites });
+                    try {
+                        archiveChan = await guild.channels.create({ name: '📁-lưu-trữ-ticket', type: ChannelType.GuildText, parent: ticketCategory.id, permissionOverwrites: adminOverwrites });
+                    } catch (e) {
+                        console.error('❌ Thiếu quyền tạo kênh lưu trữ ticket:', e.message);
+                    }
                 }
-                gConfig.ticketArchiveChannelId = archiveChan.id;
+                if (archiveChan) gConfig.ticketArchiveChannelId = archiveChan.id;
 
-                await clearBotMessages(ticketControlChannel);
+                await clearBotMessages(ticketControlChannel).catch(() => null);
                 
                 const row = new ActionRowBuilder().addComponents(
                     new ButtonBuilder().setCustomId('create_ticket_btn:Default').setLabel('📩 Tạo Ticket').setStyle(ButtonStyle.Primary),
@@ -8507,7 +8512,7 @@ client.on('interactionCreate', async interaction => {
                 );
                 
                 const ticketPanelEmbed2 = new EmbedBuilder().setColor('#5865F2').setTitle('📩 Hệ Thống Hỗ Trợ').setDescription('Nhấn vào nút bên dưới để điền Form mở Ticket ẩn.');
-                await ticketControlChannel.send(embedToV2Payload(ticketPanelEmbed2, { components: [row] }));
+                await ticketControlChannel.send(embedToV2Payload(ticketPanelEmbed2, { components: [row] })).catch(() => null);
 
                 let attCategory = guild.channels.cache.get(gConfig.attendanceCategoryId) || guild.channels.cache.find(ch => ch.type === ChannelType.GuildCategory && ch.name.includes('chấm công'));
                 if (!attCategory) attCategory = await guild.channels.create({ name: '📊 Hệ thống chấm công', type: ChannelType.GuildCategory });
