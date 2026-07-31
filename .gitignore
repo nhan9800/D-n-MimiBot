@@ -1,0 +1,30 @@
+node_modules/
+.env
+.env.local
+.env.production
+
+# Dữ liệu runtime của bot — KHÔNG BAO GIỜ commit.
+# config.json chứa token Discord + mimiApiToken; các file còn lại là dữ liệu thật
+# của người dùng (số dư, ticket, thư viện nhạc). Lọt vào repo là lộ token, và
+# deploy sẽ ghi đè mất sạch dữ liệu trên host.
+config.json
+economy.json
+tickets.json
+created_channels.json
+music_sessions.json
+music_library.json
+music_guild_config.json
+
+# Dấu bản dựng do GitHub Actions sinh ra lúc deploy, không commit từ máy dev.
+build-info.json
+*.log
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+pnpm-debug.log*
+.DS_Store
+Thumbs.db
+dist/
+build/
+coverage/
+.sftp-config.json

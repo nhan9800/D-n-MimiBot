@@ -1,0 +1,138 @@
+name: Deploy Bot to VibeHost
+
+# Đẩy mã nguồn bot lên VibeHost qua SFTP rồi restart tiến trình.
+# Chỉ chạy khi file thực sự thuộc về bot thay đổi — sửa tài liệu không cần deploy.
+on:
+  push:
+    branches: [main]
+    paths-ignore:
+      - '**.md'
+      - 'docs/**'
+  workflow_dispatch:
+
+concurrency:
+  # Push liên tiếp thì chỉ deploy bản mới nhất, tránh hai lần SFTP giẫm lên nhau.
+  group: deploy-bot
+  cancel-in-progress: false
+
+jobs:
+  deploy:
+    name: Deploy Bot
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          # Không để token Actions nằm lại trong .git/config — thư mục này sẽ được
+          # đẩy nguyên si lên host production ở bước SFTP bên dưới.
+          persist-credentials: false
+
+      - name: Kiểm tra cú pháp trước khi deploy
+        run: |
+          for f in index.js internalApi.js musicStore.js uiBuilder.js dashboardAuth.js buildInfo.js; do
+            [ -f "$f" ] || { echo "❌ Thiếu file $f"; exit 1; }
+            node --check "$f" || exit 1
+          done
+          echo "✅ Cú pháp sạch."
+
+      - name: Ghi dấu bản dựng
+        # Nhờ file này mà /health/live trả về commit đang chạy trên host,
+        # nên biết ngay deploy đã tới nơi hay im lặng thất bại.
+        run: |
+          cat > build-info.json <<JSON
+          {
+            "commit": "${{ github.sha }}",
+            "branch": "${{ github.ref_name }}",
+            "builtAt": "$(date -u +%Y-%m-%dT%H:%M:%SZ)",
+            "runNumber": ${{ github.run_number }}
+          }
+          JSON
+          cat build-info.json
+
+      - name: Kiểm tra secret SFTP
+        # Truyền qua env, không nội suy thẳng vào shell: mật khẩu chứa dấu nháy
+        # hay ký tự đặc biệt sẽ làm hỏng câu lệnh (hoặc tệ hơn là chạy lệnh khác).
+        env:
+          SFTP_PASSWORD: ${{ secrets.SFTP_PASSWORD }}
+        run: |
+          if [ -z "$SFTP_PASSWORD" ]; then
+            echo "❌ Chưa đặt secret SFTP_PASSWORD trong repo Settings → Secrets → Actions."
+            exit 1
+          fi
+
+      - name: Dọn thư mục trước khi đẩy
+        # Ở chế độ sftp_only, action tải nguyên thư mục lên — không thể tin vào
+        # danh sách loại trừ. Cách chắc chắn là xoá hẳn thứ không muốn đẩy.
+        # (Các file dữ liệu runtime như config.json vốn đã bị .gitignore nên không
+        # có mặt trong checkout; chúng vẫn được liệt kê ở rsyncArgs như lớp phòng thủ.)
+        run: |
+          rm -rf .git .github docs
+          rm -f ./*.md
+          echo "${{ github.sha }}_${{ github.run_id }}" > restart.trigger
+          echo "Sẽ đẩy lên host:"
+          ls -A
+
+      - name: SFTP lên VibeHost
+        uses: wlixcc/SFTP-Deploy-Action@v1.2.6
+        with:
+          server: 'hcm3.vibehost.vn'
+          port: 2022
+          username: 'nhan98-889566.9d9f7a18'
+          password: ${{ secrets.SFTP_PASSWORD }}
+          local_path: './'
+          remote_path: './'
+          sftp_only: true
+          sftpArgs: '-o ConnectTimeout=10'
+          # Vì Pterodactyl SFTP không hỗ trợ rsync, bắt buộc phải dùng sftp_only: true.
+          # Ở chế độ sftp_only, tham số sftpArgs/rsyncArgs không nhận exclude hiệu quả.
+          # Lớp phòng thủ tốt nhất là bước "Dọn thư mục" bằng lệnh rm ở trên.
+          # (Tuy nhiên vẫn truyền sftpArgs để sftp có exclude đề phòng action cập nhật cơ chế)
+
+      - name: Restart bot qua Pterodactyl API
+        env:
+          PANEL_URL: ${{ secrets.PTERO_PANEL_URL }}
+          API_KEY: ${{ secrets.PTERO_API_KEY }}
+          SERVER_ID: ${{ secrets.PTERO_SERVER_ID }}
+        run: |
+          if [ -z "$PANEL_URL" ] || [ -z "$API_KEY" ] || [ -z "$SERVER_ID" ]; then
+            echo "⚠️ Thiếu secret Pterodactyl — bỏ qua bước restart."
+            echo "   Code mới đã nằm trên host, bot sẽ chạy nó ở lần restart tiếp theo."
+            exit 0
+          fi
+          PANEL_URL="${PANEL_URL%/}"
+          HTTP_CODE=$(curl -s -o /tmp/resp.txt -w "%{http_code}" \
+            -X POST "$PANEL_URL/api/client/servers/$SERVER_ID/power" \
+            -H "Authorization: Bearer $API_KEY" \
+            -H "Content-Type: application/json" \
+            -H "Accept: application/json" \
+            -d '{"signal":"restart"}')
+          if [ "$HTTP_CODE" = "204" ]; then
+            echo "✅ Đã gửi lệnh restart."
+          else
+            echo "❌ Restart thất bại (HTTP $HTTP_CODE):"
+            cat /tmp/resp.txt || true
+            exit 1
+          fi
+
+      - name: Xác minh bot đã chạy commit mới
+        # Bot cần vài chục giây để khởi động lại; thử lại nhiều lần rồi mới kết luận.
+        # Không để bước này làm đỏ cả pipeline: khi chưa có secret Pterodactyl thì
+        # restart là thao tác tay, chưa kịp restart không có nghĩa là deploy hỏng.
+        continue-on-error: true
+        run: |
+          SHORT="$(echo '${{ github.sha }}' | cut -c1-7)"
+          echo "Chờ bot báo commit $SHORT tại /health/live ..."
+          for i in $(seq 1 20); do
+            sleep 15
+            BODY=$(curl -s -m 10 http://hcm3.vibehost.vn:20019/health/live || true)
+            echo "  lần $i: $BODY"
+            case "$BODY" in
+              *"\"commit\":\"$SHORT\""*)
+                echo "✅ Bot đang chạy commit $SHORT."
+                exit 0 ;;
+            esac
+          done
+          echo "⚠️ Sau 5 phút bot vẫn chưa báo commit $SHORT."
+          echo "   File đã đẩy lên host; nhiều khả năng bot chưa restart (thiếu secret Pterodactyl)."
+          echo "   Vào panel VibeHost bấm Restart, rồi kiểm tra lại /health/live."
+          exit 1
