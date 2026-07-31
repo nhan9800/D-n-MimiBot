@@ -112,7 +112,8 @@ const client = new Client({
         GatewayIntentBits.MessageContent,
         GatewayIntentBits.GuildMessageReactions,
         GatewayIntentBits.GuildModeration,
-        GatewayIntentBits.GuildVoiceStates
+        GatewayIntentBits.GuildVoiceStates,
+        GatewayIntentBits.DirectMessages
     ],
     partials: [Partials.Message, Partials.Channel, Partials.Reaction, Partials.User]
 });
@@ -7797,7 +7798,7 @@ client.on('interactionCreate', async interaction => {
         // ==========================================
         if (commandName === 'unmute') {
             await interaction.deferReply();
-            if (!interaction.member.permissions.has(PermissionsBitField.Flags.ModerateMembers)) {
+            if (!interaction.member.permissions.has(PermissionFlagsBits.ModerateMembers)) {
                 return interaction.editReply({ content: '❌ Bạn cần quyền **Moderate Members** để dùng lệnh này.' });
             }
             const target = options.getMember('thành_viên');
@@ -9331,6 +9332,9 @@ client.on('interactionCreate', async interaction => {
         
         if (customId === 'buy_ring') {
             const userData = getUserData(user.id);
+            if (userData.partner) {
+                return interaction.reply({ content: '❌ Bạn đã kết hôn rồi, không thể mua thêm nhẫn!', flags: MessageFlags.Ephemeral });
+            }
             const price = 5000000;
             if (userData.balance < price) {
                 return interaction.reply({ content: '❌ Bạn không đủ Xu để mua Nhẫn Cưới!', flags: MessageFlags.Ephemeral });
