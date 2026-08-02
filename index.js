@@ -1959,21 +1959,20 @@ function startAutoCheckOut() {
                                     const inString = formatTimeVN(new Date(checkInTime)).split(' ')[0];
                                     const outString = formatTimeVN(new Date(outTime)).split(' ')[0];
                                     
-                                    const outEmbed = new EmbedBuilder()
-                                        .setColor('#E74C3C')
-                                        .setTitle('📤 THÔNG BÁO RA CA TỰ ĐỘNG (CHECK-OUT)')
-                                        .setThumbnail(member ? member.user.displayAvatarURL({ dynamic: true }) : null)
-                                        .setDescription(`Nhân sự **${member ? member.user.tag : userId}** đã bị hệ thống tự động chốt ca do làm việc quá 4 tiếng không nghỉ.`)
-                                        .addFields(
-                                            { name: '👤 Nhân Sự', value: member ? `<@${userId}>` : userId, inline: true },
-                                            { name: '📅 Ngày Làm Việc', value: `\`${dateString}\``, inline: true },
-                                            { name: '⏰ Giờ Vào Ca', value: `\`${inString}\``, inline: true },
-                                            { name: '⏰ Giờ Rời Ca', value: `\`${outString}\``, inline: true },
-                                            { name: '⏱️ Tổng Thời Gian Làm', value: `\`4 giờ 0 phút 0 giây\``, inline: false }
-                                        )
-                                        .setTimestamp();
-                                        
-                                    logChannel.send(embedToV2Payload(outEmbed)).catch(() => null);
+                                    const container = new ContainerBuilder()
+                                        .setAccentColor(0xE74C3C)
+                                        .addTextDisplayComponents(new TextDisplayBuilder().setContent('## ⚠️ THÔNG BÁO RA CA TỰ ĐỘNG'))
+                                        .addSeparatorComponents(new SeparatorBuilder().setSpacing(SeparatorSpacingSize.Medium).setDivider(true))
+                                        .addTextDisplayComponents(
+                                            new TextDisplayBuilder().setContent(
+                                                `> Nhân sự ${member ? `<@${userId}>` : userId} đã bị hệ thống tự động chốt ca.\n*Lý do: Làm việc quá 4 tiếng không nghỉ.*\n\n` +
+                                                `**📅 Ngày Làm Việc:** \`${dateString}\`\n` +
+                                                `**⏰ Giờ Vào Ca:** \`${inString}\`\n` +
+                                                `**⏰ Giờ Rời Ca:** \`${outString}\`\n` +
+                                                `**⏱️ Tổng Thời Gian Làm:** \`4 giờ 0 phút 0 giây\``
+                                            )
+                                        );
+                                    logChannel.send({ components: [container], flags: MessageFlags.IsComponentsV2 }).catch(() => null);
                                 }
                             }
                         }
@@ -10231,17 +10230,18 @@ if (commandName === 'setup') {
                 setTimeout(() => interaction.deleteReply().catch(() => null), 5000);
                 
                 if (logChannel) {
-                    const checkInEmbed = new EmbedBuilder()
-                        .setColor('#2ECC71')
-                        .setTitle('📥 THÔNG BÁO VÀO CA (CHECK-IN)')
-                        .setThumbnail(user.displayAvatarURL({ dynamic: true }))
-                        .setDescription(`Nhân sự **${user.tag}** vừa kích hoạt chấm công trực tuyến.`)
-                        .addFields(
-                            { name: '👤 Nhân Sự', value: `${user}`, inline: true },
-                            { name: '📅 Ngày Làm Việc', value: `\`${dateString}\``, inline: true },
-                            { name: '⏰ Giờ Vào Ca', value: `\`${formatTimeVN(Date.now()).split(' ')[0]}\``, inline: true }
-                        ).setTimestamp();
-                    logChannel.send(embedToV2Payload(checkInEmbed)).catch(() => null);
+                    const container = new ContainerBuilder()
+                        .setAccentColor(0x2ECC71)
+                        .addTextDisplayComponents(new TextDisplayBuilder().setContent('## 📥 THÔNG BÁO VÀO CA (CHECK-IN)'))
+                        .addSeparatorComponents(new SeparatorBuilder().setSpacing(SeparatorSpacingSize.Medium).setDivider(true))
+                        .addTextDisplayComponents(
+                            new TextDisplayBuilder().setContent(
+                                `> Nhân sự ${user} vừa kích hoạt chấm công trực tuyến.\n\n` +
+                                `**📅 Ngày Làm Việc:** \`${dateString}\`\n` +
+                                `**⏰ Giờ Vào Ca:** \`${formatTimeVN(Date.now()).split(' ')[0]}\``
+                            )
+                        );
+                    logChannel.send({ components: [container], flags: MessageFlags.IsComponentsV2 }).catch(() => null);
                 }
                 return;
             }
@@ -10274,19 +10274,20 @@ if (commandName === 'setup') {
                 setTimeout(() => interaction.deleteReply().catch(() => null), 5000);
                 
                 if (logChannel) {
-                    const checkOutEmbed = new EmbedBuilder()
-                        .setColor('#E74C3C')
-                        .setTitle('📤 THÔNG BÁO RA CA (CHECK-OUT)')
-                        .setThumbnail(user.displayAvatarURL({ dynamic: true }))
-                        .setDescription(`Nhân sự **${user.tag}** đã hoàn thành ca làm việc.`)
-                        .addFields(
-                            { name: '👤 Nhân Sự', value: `${user}`, inline: true },
-                            { name: '📅 Ngày Làm Việc', value: `\`${dateString}\``, inline: true },
-                            { name: '⏰ Giờ Vào Ca', value: `\`${formatTimeVN(checkInTime).split(' ')[0]}\``, inline: true },
-                            { name: '⏰ Giờ Rời Ca', value: `\`${formatTimeVN(Date.now()).split(' ')[0]}\``, inline: true },
-                            { name: '⏱️ Tổng Thời Gian Làm', value: `\`${displayHours} giờ ${displayMinutes} phút ${displaySeconds} giây\``, inline: false }
-                        ).setTimestamp();
-                    logChannel.send(embedToV2Payload(checkOutEmbed)).catch(() => null);
+                    const container = new ContainerBuilder()
+                        .setAccentColor(0xE74C3C)
+                        .addTextDisplayComponents(new TextDisplayBuilder().setContent('## 📤 THÔNG BÁO RA CA (CHECK-OUT)'))
+                        .addSeparatorComponents(new SeparatorBuilder().setSpacing(SeparatorSpacingSize.Medium).setDivider(true))
+                        .addTextDisplayComponents(
+                            new TextDisplayBuilder().setContent(
+                                `> Nhân sự ${user} đã hoàn thành ca làm việc.\n\n` +
+                                `**📅 Ngày Làm Việc:** \`${dateString}\`\n` +
+                                `**⏰ Giờ Vào Ca:** \`${formatTimeVN(checkInTime).split(' ')[0]}\`\n` +
+                                `**⏰ Giờ Rời Ca:** \`${formatTimeVN(Date.now()).split(' ')[0]}\`\n` +
+                                `**⏱️ Tổng Thời Gian Làm:** \`${displayHours} giờ ${displayMinutes} phút ${displaySeconds} giây\``
+                            )
+                        );
+                    logChannel.send({ components: [container], flags: MessageFlags.IsComponentsV2 }).catch(() => null);
                 }
                 return;
             }
