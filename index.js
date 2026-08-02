@@ -4301,89 +4301,48 @@ async function postUpdateAnnouncement() {
 // -----------------------------------------------------------------
 client.once('ready', async () => {
 
-    // --- ANNOUNCEMENT ---
-    const UPDATE_VERSION = "v2.1_hotfix"; // Thay đổi chuỗi này để gửi thông báo mới
-    if (config.lastUpdateAnnounced !== UPDATE_VERSION) {
-        const announceChannel = client.channels.cache.get('1527814721053655092');
-        if (announceChannel) {
-            const embed = new EmbedBuilder()
-                .setColor('#2C2F33') // Dark theme color
-                .setTitle('# Bản Cập Nhật Mới Nhất')
-                .setDescription(
-                    `***\n` +
-                    `- Đã làm lại nút **Bán Nhẫn** (nhận lại 70% xu).\n` +
-                    `- Tính năng truy tìm đồ cũ **mitimdo** & kho đồ **mikho**.\n` +
-                    `- Bổ sung tuỳ chỉnh Background **mibg**.\n` +
-                    `- Tự động **Check-Out** nếu quên sau 4 giờ.\n` +
-                    `- Khoá kênh / Mở khoá kênh với **/lock** & **/unlock**.\n` +
-                    `- Chức năng tự động xoá lịch sử hàng năm.\n` +
-                    `- Gửi thổ lộ ẩn danh **/confession**.\n` +
-                    `***`
-                )
-                .setFooter({ text: '-# dev nhân' });
-
-            announceChannel.send({ embeds: [embed] })
-                .then(() => {
-                    config.lastUpdateAnnounced = UPDATE_VERSION;
-                    saveConfig();
-                    console.log('✅ Đã gửi thông báo cập nhật thành công.');
-                })
-                .catch(e => console.error('❌ Không thể gửi thông báo cập nhật:', e));
-        }
-    }
-
-    // Tự động gửi thông báo cập nhật (chạy 1 lần rồi ghi file đánh dấu)
+    // --- XÓA CÁC THÔNG BÁO CŨ VÀ GỬI THÔNG BÁO MỚI (COMPONENTS V2) ---
+    const ANNOUNCE_FLAG = 'update_sent_v4.flag';
     const fsNode = require('fs');
-    if (!fsNode.existsSync('update_sent_v3.flag')) {
+    
+    if (!fsNode.existsSync(ANNOUNCE_FLAG)) {
         try {
             const targetChannel = await client.channels.fetch('1527814721053655092').catch(() => null);
             if (targetChannel) {
+                // Xóa 2 tin nhắn gần nhất của bot
+                const messages = await targetChannel.messages.fetch({ limit: 10 });
+                const botMsgs = messages.filter(m => m.author.id === client.user.id);
+                let count = 0;
+                for (const [id, msg] of botMsgs) {
+                    if (count >= 2) break;
+                    await msg.delete().catch(() => null);
+                    count++;
+                }
+
+                // Tạo thông báo mới bằng Component V2
                 const container = new ContainerBuilder()
-                    .setAccentColor(0x5865F2)
+                    .setAccentColor(0x2C2F33)
                     .addTextDisplayComponents(
-                        new TextDisplayBuilder().setContent('## 🚀 BẢN CẬP NHẬT HỆ THỐNG MIMIBOT 🚀\nPhiên bản 2026.07.28')
-                    )
-                    .addSeparatorComponents(new SeparatorBuilder().setSpacing(SeparatorSpacingSize.Large).setDivider(true))
-                    .addTextDisplayComponents(
-                        new TextDisplayBuilder().setContent(
-                            '### 🔧 CÁC LỖI ĐÃ ĐƯỢC FIX\n' +
-                            '> **1. Mất bảng điều khiển nhạc:** Khôi phục 100% bằng Embed tiêu chuẩn.\n' +
-                            '> **2. Lỗi `Premature close`:** Đã xử lý triệt để tình trạng văng log rác.\n' +
-                            '> **3. Lỗi Internal API (`urlObj`):** Đã vá lỗi kết nối API nội bộ.\n' +
-                            '> **4. Dọn dẹp Log:** Xóa sổ toàn bộ cảnh báo vàng từ hệ thống.'
-                        )
+                        new TextDisplayBuilder().setContent('# Bản Cập Nhật Mới Nhất')
                     )
                     .addSeparatorComponents(new SeparatorBuilder().setSpacing(SeparatorSpacingSize.Medium).setDivider(true))
                     .addTextDisplayComponents(
                         new TextDisplayBuilder().setContent(
-                            '### ✨ TÍNH NĂNG MỚI ĐƯỢC THÊM VÀO\n' +
-                            '> **1. Lệnh `/autoplay`:** Tự động phát nhạc Youtube đề xuất hoặc cùng thể loại khi hết hàng đợi. Âm nhạc không bao giờ tắt!\n' +
-                            '> **2. Lệnh `/247`:** Giữ bot online bám rễ trong kênh thoại 24/24 kể cả khi không có ai, sẵn sàng phục vụ bất cứ lúc nào.'
+                            '- Đã làm lại nút **Bán Đồ** (nhận lại 70% xu nếu là nhẫn, bán được đồ cổ).\n' +
+                            '- Tính năng truy tìm đồ cũ **mitimdo** & kho đồ **mikho**.\n' +
+                            '- Bổ sung tuỳ chỉnh Background **mibg**.\n' +
+                            '- Tự động **Check-Out** nếu quên sau 4 giờ (hiển thị giao diện mới).\n' +
+                            '- Khoá kênh / Mở khoá kênh với **/lock** & **/unlock**.\n' +
+                            '- Chức năng tự động xoá lịch sử hàng năm.\n' +
+                            '- Gửi thổ lộ ẩn danh **/confess**.\n\n' +
+                            '-# dev nhân'
                         )
-                    )
-                    .addSeparatorComponents(new SeparatorBuilder().setSpacing(SeparatorSpacingSize.Large).setDivider(true))
-                    .addTextDisplayComponents(
-                        new TextDisplayBuilder().setContent('*(Bản cập nhật được tự động triển khai qua Antigravity AI)*')
                     );
+
+                await targetChannel.send({ components: [container], flags: MessageFlags.IsComponentsV2 }).catch(e => console.error(e));
                 
-                await targetChannel.send({ components: [container], flags: MessageFlags.IsComponentsV2 }).catch(async () => {
-                    const embed = new EmbedBuilder()
-                        .setColor(0x5865F2)
-                        .setTitle('🚀 BẢN CẬP NHẬT HỆ THỐNG MIMIBOT 🚀')
-                        .setDescription(
-                            '### 🔧 CÁC LỖI ĐÃ ĐƯỢC FIX\n' +
-                            '> **1. Mất bảng điều khiển nhạc:** Khôi phục 100% bằng Embed tiêu chuẩn.\n' +
-                            '> **2. Lỗi `Premature close`:** Đã xử lý triệt để tình trạng văng log rác.\n' +
-                            '> **3. Lỗi Internal API (`urlObj`):** Đã vá lỗi kết nối API nội bộ.\n' +
-                            '> **4. Dọn dẹp Log:** Xóa sổ toàn bộ cảnh báo vàng từ hệ thống.\n\n' +
-                            '### ✨ TÍNH NĂNG MỚI ĐƯỢC THÊM VÀO\n' +
-                            '> **1. Lệnh `/autoplay`:** Tự động phát nhạc liên quan khi hết hàng đợi.\n' +
-                            '> **2. Lệnh `/247`:** Giữ bot online bám rễ trong kênh thoại 24/24.'
-                        );
-                    await targetChannel.send({ embeds: [embed] });
-                });
-                fsNode.writeFileSync('update_sent_v3.flag', 'true');
-                console.log('Đã gửi thông báo tự động!');
+                fsNode.writeFileSync(ANNOUNCE_FLAG, 'true');
+                console.log('Đã cập nhật thông báo V2 thành công!');
             }
         } catch (e) {
             console.error('Lỗi khi gửi thông báo tự động:', e);
