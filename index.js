@@ -224,7 +224,7 @@ function buildDonateEmbed() {
     const accountName = 'DAO NGOC QUANG';
 
     const qrParams = new URLSearchParams();
-    qrParams.set('addInfo', 'Ung ho MI BOT');
+    qrParams.set('addInfo', 'Ung ho MIMI BOT');
     qrParams.set('accountName', accountName);
     const qrUrl = `https://img.vietqr.io/image/${bankBin}-${accountNo}-compact2.png?${qrParams.toString()}`;
 
@@ -232,11 +232,11 @@ function buildDonateEmbed() {
         .setColor(colors.THEME)
         .setTitle('💖 THÔNG TIN ỦNG HỘ (DONATE)')
         .setDescription(
-            `> Mọi sự đóng góp của bạn đều giúp dự án duy trì máy chủ 24/7 tại Mimi Bot!\n\n` +
+            `> Mọi sự đóng góp của bạn đều giúp dự án duy trì máy chủ 24/7 tại MIMI BOT!\n\n` +
             `- **Ngân hàng:** Vietcombank (VCB)\n` +
             `- **Số tài khoản:** \`${accountNo}\`\n` +
             `- **Chủ tài khoản:** \`${accountName}\`\n` +
-            `- **Nội dung chuyển khoản:** \`Ung ho MI BOT\`\n\n` +
+            `- **Nội dung chuyển khoản:** \`Ung ho MIMI BOT\`\n\n` +
             `Quét mã QR dưới đây bằng ứng dụng ngân hàng bất kỳ để chuyển khoản nhanh.`
         )
         .setImage(qrUrl)
@@ -1898,6 +1898,73 @@ function startMonthlyModReset() {
 // không bao giờ bị xóa — để lâu sẽ làm config.json phình to và mọi lần saveConfig() chậm dần.
 // -----------------------------------------------------------------
 const GIVEAWAY_KEEP_MS = 7 * 24 * 60 * 60 * 1000; // giữ 7 ngày sau khi kết thúc để còn tra lại kết quả
+
+
+function startYearlyModReset() {
+    let lastResetYear = null;
+    setInterval(() => {
+        const nowVN = new Date(Date.now() + VN_OFFSET * 3_600_000);
+        const mmVN = nowVN.getUTCMonth();
+        const dayVN = nowVN.getUTCDate();
+        const yearKey = nowVN.getUTCFullYear().toString();
+
+        if (mmVN !== 0 || dayVN !== 1 || nowVN.getUTCHours() !== 0 || nowVN.getUTCMinutes() !== 0) return;
+        if (lastResetYear === yearKey) return;
+        lastResetYear = yearKey;
+
+        for (const guildId in config.guilds) {
+            const gConfig = config.guilds[guildId];
+            if (gConfig.modHistory) {
+                gConfig.modHistory = {}; // Xóa sạch lịch sử hàng năm
+            }
+        }
+        saveConfig();
+        console.log(`✅ [YearlyModReset] Đã reset toàn bộ lịch sử kỷ luật cho năm ${yearKey}`);
+    }, 30000);
+}
+
+function startAutoCheckOut() {
+    setInterval(() => {
+        const nowMs = Date.now();
+        let changed = false;
+        for (const guildId in config.guilds) {
+            const gConfig = config.guilds[guildId];
+            if (!gConfig.attendance) continue;
+            
+            for (const userId in gConfig.attendance) {
+                const checkInTime = new Date(gConfig.attendance[userId]).getTime();
+                if (nowMs - checkInTime > 4 * 60 * 60 * 1000) {
+                    // Auto check-out after 4 hours
+                    delete gConfig.attendance[userId];
+                    if (!gConfig.history) gConfig.history = {};
+                    if (!gConfig.history[userId]) gConfig.history[userId] = { username: "User " + userId, records: [] };
+                    
+                    const outTime = new Date(checkInTime + 4 * 60 * 60 * 1000);
+                    gConfig.history[userId].records.push({ 
+                        checkIn: new Date(checkInTime).toISOString(), 
+                        checkOut: outTime.toISOString(), 
+                        hours: 4 
+                    });
+                    changed = true;
+                    
+                    // Log to channel if exists
+                    try {
+                        if (gConfig.logChannelId) {
+                            const guild = client.guilds.cache.get(guildId);
+                            if (guild) {
+                                const logChannel = guild.channels.cache.get(gConfig.logChannelId);
+                                if (logChannel) {
+                                    logChannel.send(`⚠️ Tự động Check-Out cho <@${userId}> vì đã quá 4 giờ làm việc.`);
+                                }
+                            }
+                        }
+                    } catch(e) {}
+                }
+            }
+        }
+        if (changed) saveConfig();
+    }, 60000);
+}
 
 function pruneEndedGiveaways() {
     let removed = 0;
@@ -4323,6 +4390,21 @@ client.once('ready', async () => {
 
     const commands = [
         new SlashCommandBuilder()
+            .setName('lock')
+            .setDescription('Khóa kênh chat hiện tại')
+            .setDefaultMemberPermissions(PermissionFlagsBits.ManageChannels),
+            
+        new SlashCommandBuilder()
+            .setName('unlock')
+            .setDescription('Mở khóa kênh chat hiện tại')
+            .setDefaultMemberPermissions(PermissionFlagsBits.ManageChannels),
+
+        new SlashCommandBuilder()
+            .setName('confession')
+            .setDescription('Gửi một confession ẩn danh')
+            .addStringOption(o => o.setName('nội_dung').setDescription('Nội dung confession').setRequired(true)),
+
+        new SlashCommandBuilder()
             .setName('configwelcome')
             .setDescription('Thiết lập cố định kênh hiển thị lời chào (Khóa tính năng tự động của setup)')
             .setDefaultMemberPermissions(PermissionFlagsBits.ManageGuild)
@@ -4538,7 +4620,7 @@ client.once('ready', async () => {
             .setDescription('[Owner Only] Gửi thông báo tới tất cả server bot đang tham gia')
             .setDefaultMemberPermissions('0')
             .addStringOption(o => o.setName('noi_dung').setDescription('Nội dung thông báo').setRequired(true).setMaxLength(3000))
-            .addStringOption(o => o.setName('tieu_de').setDescription('Tiêu đề thông báo (mặc định: 📢 Thông Báo Từ MI BOT)').setRequired(false).setMaxLength(200)),
+            .addStringOption(o => o.setName('tieu_de').setDescription('Tiêu đề thông báo (mặc định: 📢 Thông Báo Từ MIMI BOT)').setRequired(false).setMaxLength(200)),
 
         new SlashCommandBuilder()
             .setName('thongbao')
@@ -4773,6 +4855,8 @@ client.once('ready', async () => {
     checkWeeklyReset();
     startDailyVerifyReset();
     startMonthlyModReset();
+    startYearlyModReset();
+    startAutoCheckOut();
 
     // Khôi phục timer đếm ngược cho các giveaway còn đang chạy sau khi bot restart
     for (const guildId in config.guilds) {
@@ -4850,14 +4934,14 @@ client.on('guildCreate', async (guild) => {
 
         const thanksEmbed = new EmbedBuilder()
             .setColor('#F5B942')
-            .setTitle('🎉 Cảm ơn vì đã thêm MI BOT!')
+            .setTitle('🎉 Cảm ơn vì đã thêm MIMI BOT!')
             .setDescription(
-                `Xin chào **${guild.name}**! Mình là **MI BOT** — trợ lý đa năng cho server của bạn 🤖\n\n` +
+                `Xin chào **${guild.name}**! Mình là **MIMI BOT** — trợ lý đa năng cho server của bạn 🤖\n\n` +
                 `👉 Gõ \`/setup\` để khởi tạo nhanh các hệ thống cơ bản (Welcome, Ticket, Chấm công).\n` +
                 `👉 Gõ \`/help\` để xem toàn bộ tính năng và lệnh có sẵn.\n\n` +
-                `Cảm ơn bạn đã tin tưởng MI BOT! 💛`
+                `Cảm ơn bạn đã tin tưởng MIMI BOT! 💛`
             )
-            .setFooter({ text: 'MI BOT — Một bot, toàn bộ server' })
+            .setFooter({ text: 'MIMI BOT — Một bot, toàn bộ server' })
             .setTimestamp();
         const thanksPayload = embedToV2Payload(thanksEmbed);
 
@@ -5355,7 +5439,7 @@ client.on('messageCreate', async (message) => {
                         `🕒 **Thời gian:** ${formatTimeVN(Date.now())}\n\n` +
                         `**Nội dung tin nhắn:**\n${message.content || '*(Không có văn bản)*'}${attachmentsText}`
                     )
-                    .setFooter({ text: 'Mimi Bot Notification System' });
+                    .setFooter({ text: 'MIMI BOT Notification System' });
 
                 await ownerUser.send(embedToV2Payload(dmEmbed)).catch(() => null);
             }
@@ -5387,7 +5471,7 @@ client.on('messageCreate', async (message) => {
                         `🔗 **Link tin nhắn:** [Mở tin nhắn trên Discord](${msgLink})\n\n` +
                         `**Nội dung:**\n${message.content}`
                     )
-                    .setFooter({ text: 'Mimi Bot Notification System' });
+                    .setFooter({ text: 'MIMI BOT Notification System' });
 
                 await ownerUser.send(embedToV2Payload(mentionEmbed)).catch(() => null);
             }
@@ -5417,8 +5501,8 @@ client.on('messageCreate', async (message) => {
         if (!channel) return message.reply('❌ Không tìm thấy kênh 1527814721053655092 (hoặc bot chưa được thấy kênh đó)');
         const embed = new EmbedBuilder()
             .setColor('#1ED760')
-            .setTitle('🚀 BẢN CẬP NHẬT LỚN: MIMI BOT V2.2 ĐÃ CHÍNH THỨC RA MẮT!')
-            .setDescription('Xin chào cộng đồng! **Mimi Bot** vừa trải qua đợt đại tu hệ thống lớn nhất từ trước đến nay, mang lại trải nghiệm mượt mà, xịn xò và ổn định tuyệt đối.\n\nDưới đây là những thay đổi chính trong bản cập nhật này:')
+            .setTitle('🚀 BẢN CẬP NHẬT LỚN: MIMIMI BOT V2.2 ĐÃ CHÍNH THỨC RA MẮT!')
+            .setDescription('Xin chào cộng đồng! **MIMI BOT** vừa trải qua đợt đại tu hệ thống lớn nhất từ trước đến nay, mang lại trải nghiệm mượt mà, xịn xò và ổn định tuyệt đối.\n\nDưới đây là những thay đổi chính trong bản cập nhật này:')
             .addFields(
                 {
                     name: '🎵 Cập Nhật Hệ Thống Nghe Nhạc',
@@ -5437,7 +5521,7 @@ client.on('messageCreate', async (message) => {
                 }
             )
             .setImage('https://mimibot.id.vn/og-image.jpg')
-            .setFooter({ text: 'Cảm ơn các bạn đã luôn ủng hộ Mimi Bot 💖', iconURL: message.client.user.displayAvatarURL() })
+            .setFooter({ text: 'Cảm ơn các bạn đã luôn ủng hộ MIMI BOT 💖', iconURL: message.client.user.displayAvatarURL() })
             .setTimestamp();
         await channel.send({ embeds: [embed] });
         return message.reply('✅ Đã gửi thông báo V2.2 thành công vào kênh!');
@@ -5455,7 +5539,61 @@ client.on('messageCreate', async (message) => {
             const h = Math.floor(remain / 3600000);
             const m = Math.floor((remain % 3600000) / 60000);
             return message.reply({ content: `❌ Bạn đã điểm danh rồi, hãy quay lại sau **${h} giờ ${m} phút**!`, allowedMentions: { repliedUser: false } });
+        
+    // COMMAND: mitimdo - Find items (mini game)
+    } else if (command === 'mitimdo' || command === 'timdo') {
+        const userData = getUserData(userId);
+        const now = Date.now();
+        if (userData.lastTimDo && now - userData.lastTimDo < 60000) {
+            return message.reply(`⏳ Bạn cần đợi ${Math.ceil((60000 - (now - userData.lastTimDo)) / 1000)}s nữa để tìm đồ tiếp.`);
         }
+        userData.lastTimDo = now;
+        if (!userData.inventory) userData.inventory = {};
+        if (!userData.inventory.ve_chai) userData.inventory.ve_chai = 0;
+        const found = Math.floor(Math.random() * 3) + 1; // 1 to 3 items
+        userData.inventory.ve_chai += found;
+        saveUserData(userId, userData);
+        return message.reply(`🔍 Bạn đã cất công tìm kiếm và nhặt được **${found} món đồ cũ (ve chai)**! Dùng \`mikho\` để bán.`);
+
+    // COMMAND: mikho - Inventory & Sell items
+    } else if (command === 'mikho' || command === 'kho') {
+        const userData = getUserData(userId);
+        const args = message.content.split(/\s+/);
+        if (args[1] === 'sell' || args[1] === 'bán' || args[1] === 'ban') {
+            if (!userData.inventory || !userData.inventory.ve_chai || userData.inventory.ve_chai <= 0) {
+                return message.reply('❌ Bạn không có món đồ cũ nào để bán!');
+            }
+            const amount = userData.inventory.ve_chai;
+            const price = Math.floor(Math.random() * 5001) + 5000; // 5000 to 10000 xu per item
+            const total = amount * price;
+            userData.inventory.ve_chai = 0;
+            userData.balance += total;
+            saveUserData(userId, userData);
+            return message.reply(`♻️ Bạn đã bán **${amount} món đồ cũ** với giá ${price.toLocaleString()} xu/món.\n💰 Tổng cộng thu được **${total.toLocaleString()} xu**!`);
+        }
+        
+        let invStr = `💍 Nhẫn cưới: ${userData.inventory?.nhan_cuoi ? '1' : '0'}\n`;
+        invStr += `📦 Đồ cũ (Ve chai): ${userData.inventory?.ve_chai || 0} món`;
+        return message.reply(`🎒 **KHO ĐỒ CỦA BẠN**\n${invStr}\n\n*(Gõ \`mikho bán\` để bán tất cả đồ cũ lấy xu)*`);
+
+    // COMMAND: mibg - Profile Background Shop
+    } else if (command === 'mibuybg' || command === 'mibg') {
+        const userData = getUserData(userId);
+        const cost = 50000;
+        const args = message.content.split(/\s+/);
+        const bgUrl = args[1];
+        if (!bgUrl || !bgUrl.startsWith('http')) {
+            return message.reply('🛒 **Cửa hàng Background Profile**\nGiá: **50,000 xu**\nCú pháp: `mibg <link_ảnh>`\n*(Lưu ý: Bạn cần có đủ 50,000 xu. Mua sẽ ghi đè background hiện tại)*');
+        }
+        if (userData.balance < cost) {
+            return message.reply(`❌ Bạn không đủ xu! Cần ${cost.toLocaleString()} xu.`);
+        }
+        userData.balance -= cost;
+        userData.bgUrl = bgUrl;
+        saveUserData(userId, userData);
+        return message.reply(`✅ Bạn đã mua thành công Background Profile! (Đã trừ ${cost.toLocaleString()} xu).`);
+    
+    }
 
         const reward = 1000;
         userData.balance += reward; recordEconomyIncome(userId, message.guild?.id, reward, 'daily');
@@ -5556,7 +5694,7 @@ client.on('messageCreate', async (message) => {
         const userAvatar = message.author.displayAvatarURL({ dynamic: true, size: 256 });
 
         const row = new ActionRowBuilder().addComponents(
-            new ButtonBuilder().setCustomId('profile_give').setLabel('💸 Chuyển Xu').setStyle(ButtonStyle.Primary),
+            new ButtonBuilder().setCustomId('profile_sell_ring').setLabel('💍 Bán Nhẫn (700k)').setStyle(ButtonStyle.Danger),
             new ButtonBuilder().setCustomId('profile_shop').setLabel('🛒 Mua Sắm').setStyle(ButtonStyle.Secondary)
         );
 
@@ -5587,7 +5725,8 @@ client.on('messageCreate', async (message) => {
                     `  ${generateProgressBar(userData.xp, xpNeeded, 10)}\n\n` +
                     `**Thông tin cá nhân:**\n` +
                     `- ❤️ Tình trạng: ${userData.spouseId ? `Đã kết hôn với <@${userData.spouseId}>` : 'Độc thân'}\n` +
-                    `- 💍 Nhẫn cưới: ${userData.inventory?.nhan_cuoi ? 'Có' : 'Không có'}`
+                    `- 💍 Nhẫn cưới: ${userData.inventory?.nhan_cuoi ? 'Có' : 'Không có'}` +
+                    `\n- 🖼️ Background: ${userData.bgUrl ? '[Đã trang bị](' + userData.bgUrl + ')' : 'Mặc định'}`
                 )
             )
             .addSeparatorComponents(
@@ -5708,6 +5847,7 @@ client.on('messageCreate', async (message) => {
     }
 
     // 5b. Lệnh top xu: mitop / mit — xem bảng xếp hạng người nhiều xu nhất
+    // 5b. Lệnh top xu: mitop / mit — xem bảng xếp hạng người nhiều xu nhất
     if (command === 'mitop' || command === 'mit') {
         const sorted = Object.values(economyData)
             .filter(u => u.balance > 0)
@@ -5717,15 +5857,32 @@ client.on('messageCreate', async (message) => {
         if (!sorted.length) return message.reply({ content: 'ℹ️ Chưa có dữ liệu xu nào.', allowedMentions: { repliedUser: false } });
 
         const medals = ['🥇', '🥈', '🥉'];
-        const lines = sorted.map((u, i) => {
-            const tag = `<@${u.userId}>`;
-            return `${medals[i] || `**${i + 1}.**`} ${tag} — \`${u.balance.toLocaleString()} xu\``;
-        }).join('\n');
+        const lines = [];
+        
+        for (let i = 0; i < sorted.length; i++) {
+            const u = sorted[i];
+            let nameTag = `<@${u.userId}>`;
+            
+            // Nếu không có trong cache, fetch từ API Discord để lấy username
+            try {
+                let userObj = client.users.cache.get(u.userId);
+                if (!userObj) {
+                    userObj = await client.users.fetch(u.userId);
+                }
+                if (userObj) {
+                    nameTag = `**${userObj.username}**`;
+                }
+            } catch (e) {
+                // Không tìm thấy user
+            }
+            
+            lines.push(`${medals[i] || `**${i + 1}.**`} ${nameTag} — \`${u.balance.toLocaleString()} xu\``);
+        }
 
         const embed = new EmbedBuilder()
             .setColor('#F1C40F')
             .setTitle('🏆 BẢNG XẾP HẠNG XU TOÀN HỆ THỐNG')
-            .setDescription(lines)
+            .setDescription(lines.join('\n'))
             .setFooter({ text: 'Top 10 người nhiều xu nhất' })
             .setTimestamp();
 
@@ -7276,7 +7433,7 @@ client.on('interactionCreate', async interaction => {
                 lines.push(`**${g.name}**\n🆔 \`${g.id}\` · 👥 ${g.memberCount.toLocaleString()} thành viên\n🔗 ${inviteUrl}`);
             }
 
-            const header = `🌐 **DANH SÁCH SERVER — MI BOT (${guildsList.length} server)**\n\n`;
+            const header = `🌐 **DANH SÁCH SERVER — MIMI BOT (${guildsList.length} server)**\n\n`;
             const chunks = [];
             let current = header;
             for (const line of lines) {
@@ -7403,13 +7560,13 @@ client.on('interactionCreate', async interaction => {
             await interaction.deferReply({ flags: MessageFlags.Ephemeral });
 
             const bContent = options.getString('noi_dung');
-            const bTitle = options.getString('tieu_de') || '📢 Thông Báo Từ MI BOT';
+            const bTitle = options.getString('tieu_de') || '📢 Thông Báo Từ MIMI BOT';
 
             const broadcastEmbed = new EmbedBuilder()
                 .setColor('#8C7CF0')
                 .setTitle(bTitle)
                 .setDescription(bContent)
-                .setFooter({ text: 'Thông báo hệ thống từ đội ngũ phát triển MI BOT' })
+                .setFooter({ text: 'Thông báo hệ thống từ đội ngũ phát triển MIMI BOT' })
                 .setTimestamp();
             const broadcastPayload = embedToV2Payload(broadcastEmbed);
 
@@ -8448,7 +8605,35 @@ client.on('interactionCreate', async interaction => {
             return interaction.editReply({ content: `✅ Đã tạo/làm mới kênh donate: ${donateChan}\nMọi người chỉ **xem** được, thông tin chuyển khoản + mã QR luôn hiển thị sẵn.` });
         }
 
-        if (commandName === 'setup') {
+        
+        if (commandName === 'lock') {
+            await interaction.channel.permissionOverwrites.edit(interaction.guild.id, { SendMessages: false });
+            return interaction.reply({ content: '🔒 Kênh đã được khóa.' });
+        }
+        if (commandName === 'unlock') {
+            await interaction.channel.permissionOverwrites.edit(interaction.guild.id, { SendMessages: true });
+            return interaction.reply({ content: '🔓 Kênh đã được mở khóa.' });
+        }
+        if (commandName === 'confession') {
+            const gConfig = config.guilds[interaction.guild.id];
+            if (!gConfig || !gConfig.confessionChannelId) {
+                return interaction.reply({ content: '❌ Kênh confession chưa được setup. Hãy báo Admin dùng /setup nhé.', flags: 64 });
+            }
+            const confChan = interaction.guild.channels.cache.get(gConfig.confessionChannelId);
+            if (!confChan) return interaction.reply({ content: '❌ Không tìm thấy kênh confession.', flags: 64 });
+            
+            const noiDung = interaction.options.getString('nội_dung');
+            const confEmbed = new EmbedBuilder()
+                .setColor('#FF69B4')
+                .setTitle('💌 Thổ Lộ (Confession)')
+                .setDescription(noiDung)
+                .setFooter({ text: 'Gửi ẩn danh qua MIMI BOT' })
+                .setTimestamp();
+            
+            await confChan.send({ embeds: [confEmbed] });
+            return interaction.reply({ content: '✅ Confession của bạn đã được gửi ẩn danh!', flags: 64 });
+        }
+if (commandName === 'setup') {
             try { await interaction.deferReply({ flags: MessageFlags.Ephemeral }); } catch (e) { return; }
             if (gConfig.isSetupCompleted === true) return interaction.editReply({ content: '⚠️ Hệ thống đã ở trạng thái setup trước đó.' });
 
@@ -8543,6 +8728,15 @@ client.on('interactionCreate', async interaction => {
                     bannedWordsChan = await guild.channels.create({ name: '📵-quản-lý-từ-cấm', type: ChannelType.GuildText, permissionOverwrites: adminOverwrites });
                 }
                 gConfig.bannedWordsChannelId = bannedWordsChan.id;
+                // -- CONFESSION & PICK ROLES --
+                let confChan = guild.channels.cache.get(gConfig.confessionChannelId) || guild.channels.cache.find(ch => ch.type === ChannelType.GuildText && ch.name.includes('confessions'));
+                if (!confChan) confChan = await guild.channels.create({ name: '💌-confessions', type: ChannelType.GuildText });
+                gConfig.confessionChannelId = confChan.id;
+
+                let pickChan = guild.channels.cache.get(gConfig.pickRolesChannelId) || guild.channels.cache.find(ch => ch.type === ChannelType.GuildText && ch.name.includes('pick-roles'));
+                if (!pickChan) pickChan = await guild.channels.create({ name: '🎭-pick-roles', type: ChannelType.GuildText });
+                gConfig.pickRolesChannelId = pickChan.id;
+
                 if (!gConfig.bannedWords) gConfig.bannedWords = [];
                 const bannedWordsEmbed = new EmbedBuilder()
                     .setColor('#E67E22')
@@ -9296,9 +9490,9 @@ client.on('interactionCreate', async interaction => {
                 ]
             },
             help_donate: {
-                emoji: '☕', title: 'Ủng Hộ Duy Trì MI BOT',
+                emoji: '☕', title: 'Ủng Hộ Duy Trì MIMI BOT',
                 color: '#F5B942',
-                desc: 'MI BOT được duy trì và phát triển thêm tính năng mới nhờ sự ủng hộ từ cộng đồng.',
+                desc: 'MIMI BOT được duy trì và phát triển thêm tính năng mới nhờ sự ủng hộ từ cộng đồng.',
                 fields: [
                     { name: '☕ Kênh donate riêng', value: 'Admin chạy `/setupdonate` để tạo/làm mới kênh **☕-donate** — mọi người chỉ **xem** được, không nhắn tin được, luôn hiển thị sẵn thông tin chuyển khoản + mã QR.' },
                     { name: '💬 Lệnh `/donate`', value: 'Bất kỳ ai cũng có thể gõ `/donate` để xem nhanh thông tin ủng hộ + mã QR ngay tại kênh đang chat.' },
@@ -9327,8 +9521,16 @@ client.on('interactionCreate', async interaction => {
         // ==========================================
         // 👤 XỬ LÝ NÚT PHÁT SINH TỪ HỒ SƠ (/profile)
         // ==========================================
-        if (customId === 'profile_give') {
-            return interaction.reply({ content: '💡 **Cách chuyển xu:** Bạn hãy dùng lệnh `migive <@thành_viên> <số_xu>` (hoặc `/give` nếu có) để chuyển xu cho người khác nhé!', flags: MessageFlags.Ephemeral });
+        if (customId === 'profile_sell_ring') {
+            const userData = getUserData(interaction.user.id);
+            if (!userData.inventory || !userData.inventory.nhan_cuoi) {
+                return interaction.reply({ content: '❌ Bạn không có nhẫn để bán!', flags: 64 });
+            }
+            // Sell ring
+            delete userData.inventory.nhan_cuoi;
+            userData.balance += 700000;
+            saveUserData(interaction.user.id, userData);
+            return interaction.reply({ content: '✅ Bạn đã bán nhẫn và thu lại **700,000 xu**!', flags: 64 });
         }
         if (customId === 'profile_shop') {
             const row = new ActionRowBuilder().addComponents(
