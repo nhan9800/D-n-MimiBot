@@ -1955,15 +1955,24 @@ function startAutoCheckOut() {
                                 const logChannel = guild.channels.cache.get(gConfig.logChannelId);
                                 if (logChannel) {
                                     const member = guild.members.cache.get(userId);
+                                    const dateString = new Date(checkInTime).toLocaleDateString('vi-VN', { timeZone: 'Asia/Ho_Chi_Minh' });
+                                    const inString = formatTimeVN(new Date(checkInTime)).split(' ')[0];
+                                    const outString = formatTimeVN(new Date(outTime)).split(' ')[0];
+                                    
                                     const outEmbed = new EmbedBuilder()
                                         .setColor('#E74C3C')
-                                        .setAuthor({ name: member ? member.user.username : 'User ' + userId, iconURL: member ? member.user.displayAvatarURL() : null })
-                                        .setTitle('👋 BÁO CÁO TỰ ĐỘNG CHECK-OUT')
-                                        .setDescription(`⚠️ Hệ thống tự động **Check-Out** do làm việc quá 4 tiếng không nghỉ.`)
+                                        .setTitle('📤 THÔNG BÁO RA CA TỰ ĐỘNG (CHECK-OUT)')
+                                        .setThumbnail(member ? member.user.displayAvatarURL({ dynamic: true }) : null)
+                                        .setDescription(`Nhân sự **${member ? member.user.tag : userId}** đã bị hệ thống tự động chốt ca do làm việc quá 4 tiếng không nghỉ.`)
                                         .addFields(
-                                            { name: '⏰ Thời gian làm', value: '`4.00 giờ`', inline: true }
+                                            { name: '👤 Nhân Sự', value: member ? `<@${userId}>` : userId, inline: true },
+                                            { name: '📅 Ngày Làm Việc', value: `\`${dateString}\``, inline: true },
+                                            { name: '⏰ Giờ Vào Ca', value: `\`${inString}\``, inline: true },
+                                            { name: '⏰ Giờ Rời Ca', value: `\`${outString}\``, inline: true },
+                                            { name: '⏱️ Tổng Thời Gian Làm', value: `\`4 giờ 0 phút 0 giây\``, inline: false }
                                         )
                                         .setTimestamp();
+                                        
                                     logChannel.send(embedToV2Payload(outEmbed)).catch(() => null);
                                 }
                             }
