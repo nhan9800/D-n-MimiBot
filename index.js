@@ -1954,7 +1954,17 @@ function startAutoCheckOut() {
                             if (guild) {
                                 const logChannel = guild.channels.cache.get(gConfig.logChannelId);
                                 if (logChannel) {
-                                    logChannel.send(`⚠️ Tự động Check-Out cho <@${userId}> vì đã quá 4 giờ làm việc.`);
+                                    const member = guild.members.cache.get(userId);
+                                    const outEmbed = new EmbedBuilder()
+                                        .setColor('#E74C3C')
+                                        .setAuthor({ name: member ? member.user.username : 'User ' + userId, iconURL: member ? member.user.displayAvatarURL() : null })
+                                        .setTitle('👋 BÁO CÁO TỰ ĐỘNG CHECK-OUT')
+                                        .setDescription(`⚠️ Hệ thống tự động **Check-Out** do làm việc quá 4 tiếng không nghỉ.`)
+                                        .addFields(
+                                            { name: '⏰ Thời gian làm', value: '`4.00 giờ`', inline: true }
+                                        )
+                                        .setTimestamp();
+                                    logChannel.send(embedToV2Payload(outEmbed)).catch(() => null);
                                 }
                             }
                         }
@@ -5637,11 +5647,11 @@ client.on('messageCreate', async (message) => {
 
     if (command === 'mishop' || command === 'mis') {
         const row = new ActionRowBuilder().addComponents(
-            new ButtonBuilder().setCustomId('buy_ring').setLabel('💍 Mua Nhẫn Cưới (5,000,000 Xu)').setStyle(ButtonStyle.Success)
+            new ButtonBuilder().setCustomId('buy_ring').setLabel('💍 Mua Nhẫn Cưới (1,000,000 Xu)').setStyle(ButtonStyle.Success)
         );
         const embed = new EmbedBuilder()
             .setTitle('🛒 Cửa Hàng Mini')
-            .setDescription('Chào mừng đến với cửa hàng! Hiện tại có các mặt hàng sau:\n\n**💍 Nhẫn Cưới** - Giá: `5,000,000 Xu`\nDùng để cầu hôn người khác bằng lệnh `mikethon @user`.')
+            .setDescription('Chào mừng đến với cửa hàng! Hiện tại có các mặt hàng sau:\n\n**💍 Nhẫn Cưới** - Giá: `1,000,000 Xu`\nDùng để cầu hôn người khác bằng lệnh `mikethon @user`.')
             .setColor('#F1C40F');
         return message.reply({ embeds: [embed], components: [row] });
     }
@@ -5726,7 +5736,7 @@ client.on('messageCreate', async (message) => {
         const userAvatar = message.author.displayAvatarURL({ dynamic: true, size: 256 });
 
         const row = new ActionRowBuilder().addComponents(
-            new ButtonBuilder().setCustomId('profile_sell_ring').setLabel('💍 Bán Nhẫn (700k)').setStyle(ButtonStyle.Danger),
+            new ButtonBuilder().setCustomId('profile_sell_item').setLabel('💰 Bán Đồ').setStyle(ButtonStyle.Danger),
             new ButtonBuilder().setCustomId('profile_shop').setLabel('🛒 Mua Sắm').setStyle(ButtonStyle.Secondary)
         );
 
@@ -5770,6 +5780,53 @@ client.on('messageCreate', async (message) => {
             components: [profileContainer], flags: MessageFlags.IsComponentsV2,
             allowedMentions: { repliedUser: false }
         });
+    }
+
+
+    if (command === 'mikho') {
+        const userData = getUserData(userId);
+        const inv = userData.inventory || {};
+        let text = '🎒 **KHO ĐỒ CỦA BẠN:**\n\n';
+        if (inv.nhan_cuoi) text += `- 💍 Nhẫn Cưới: ${inv.nhan_cuoi}\n`;
+        if (inv.do_co) text += `- 🏺 Đồ Cổ: ${inv.do_co}\n`;
+        if (inv.bg_profile) text += `- 🖼️ Quyền đổi Ảnh Bìa Profile\n`;
+        if (Object.keys(inv).length === 0) text += '*Túi đồ rỗng tuếch!*';
+        return message.reply(text);
+    }
+
+    if (command === 'mibg' || command === 'setbackground') {
+        const userData = getUserData(userId);
+        if (!userData.inventory || !userData.inventory.bg_profile) {
+            return message.reply('❌ Bạn chưa mua **Ảnh Bìa Profile** trong Cửa Hàng (`mishop`)!');
+        }
+        const url = args[1];
+        if (!url || !url.startsWith('http')) {
+            return message.reply('❌ Vui lòng cung cấp link ảnh hợp lệ!\nVí dụ: `mibg https://i.imgur.com/abc.png`');
+        }
+        userData.bgUrl = url;
+        saveEconomy();
+        return message.reply('✅ Đã cập nhật Ảnh Bìa Profile thành công! Dùng `miprofile` để xem.');
+    }
+    
+    if (command === 'mitimdo' || command === 'mitd') {
+        const userData = getUserData(userId);
+        const now = Date.now();
+        const cooldown = 30 * 60 * 1000; // 30 mins
+        if (userData.lastTimDo && now - userData.lastTimDo < cooldown) {
+            const left = Math.ceil((cooldown - (now - userData.lastTimDo)) / 60000);
+            return message.reply(`⏳ Bạn đang mệt, hãy nghỉ ngơi **${left} phút** rồi đi tìm đồ tiếp nhé!`);
+        }
+        userData.lastTimDo = now;
+        if (!userData.inventory) userData.inventory = {};
+        
+        if (Math.random() < 0.5) {
+            userData.inventory.do_co = (userData.inventory.do_co || 0) + 1;
+            saveEconomy();
+            return message.reply('🎉 Bạn lội bùn và nhặt được **1x 🏺 Đồ Cổ**! Hãy dùng `miprofile` -> Bán Đồ để lấy xu!');
+        } else {
+            saveEconomy();
+            return message.reply('🗑️ Bạn bới cả bãi rác nhưng chỉ tìm thấy... một chiếc tất rách. Không bán được đồng nào cả!');
+        }
     }
 
     // 3. Lệnh tung đồng xu: micf | micoinflip | giới hạn 250,000 xu / lần, hỗ trợ 'all'
@@ -8279,6 +8336,44 @@ client.on('interactionCreate', async interaction => {
             return interaction.reply({ content: `✅ Đã cấu hình lời chào Ticket thành công!`, flags: MessageFlags.Ephemeral });
         }
 
+        
+        if (commandName === 'lock') {
+            await interaction.deferReply();
+            if (!interaction.member.permissions.has(PermissionFlagsBits.ManageChannels)) {
+                return interaction.editReply('❌ Bạn cần quyền Quản lý Kênh để dùng lệnh này!');
+            }
+            await interaction.channel.permissionOverwrites.edit(interaction.guild.roles.everyone, { SendMessages: false });
+            return interaction.editReply('🔒 Kênh này đã bị **khóa**. Mọi người không thể nhắn tin được nữa.');
+        }
+
+        if (commandName === 'unlock') {
+            await interaction.deferReply();
+            if (!interaction.member.permissions.has(PermissionFlagsBits.ManageChannels)) {
+                return interaction.editReply('❌ Bạn cần quyền Quản lý Kênh để dùng lệnh này!');
+            }
+            await interaction.channel.permissionOverwrites.edit(interaction.guild.roles.everyone, { SendMessages: null });
+            return interaction.editReply('🔓 Kênh này đã được **mở khóa**. Mọi người có thể nhắn tin bình thường.');
+        }
+
+        if (commandName === 'confess') {
+            const noiDung = options.getString('nội_dung');
+            await interaction.deferReply({ flags: MessageFlags.Ephemeral });
+            const confId = gConfig.confessionChannelId;
+            if (!confId) return interaction.editReply('❌ Server chưa cài đặt kênh Confessions. Admin hãy chạy `/setup` để tạo.');
+            const confChan = guild.channels.cache.get(confId);
+            if (!confChan) return interaction.editReply('❌ Kênh Confessions không tồn tại hoặc đã bị xoá.');
+            
+            const confEmbed = new EmbedBuilder()
+                .setColor('#FF69B4')
+                .setTitle('💌 Thổ Lộ (Confession)')
+                .setDescription(noiDung)
+                .setFooter({ text: 'Gửi ẩn danh qua MIMI BOT' })
+                .setTimestamp();
+            
+            await confChan.send({ embeds: [confEmbed] });
+            return interaction.editReply('✅ Gửi Confession thành công!');
+        }
+
         if (commandName === 'resetsetup') {
             await interaction.deferReply({ flags: MessageFlags.Ephemeral });
             
@@ -9566,13 +9661,28 @@ if (commandName === 'setup') {
         }
         if (customId === 'profile_shop') {
             const row = new ActionRowBuilder().addComponents(
-                new ButtonBuilder().setCustomId('buy_ring').setLabel('💍 Mua Nhẫn Cưới (5,000,000 Xu)').setStyle(ButtonStyle.Success)
+                new ButtonBuilder().setCustomId('buy_ring').setLabel('💍 Mua Nhẫn Cưới (1,000,000 Xu)').setStyle(ButtonStyle.Success)
             );
             const embed = new EmbedBuilder()
                 .setTitle('🛒 Cửa Hàng Mini')
-                .setDescription('Chào mừng đến với cửa hàng! Hiện tại có các mặt hàng sau:\n\n**💍 Nhẫn Cưới** - Giá: `5,000,000 Xu`\nDùng để cầu hôn người khác bằng lệnh `mikethon @user`.')
+                .setDescription('Chào mừng đến với cửa hàng! Hiện tại có các mặt hàng sau:\n\n**💍 Nhẫn Cưới** - Giá: `1,000,000 Xu`\nDùng để cầu hôn người khác bằng lệnh `mikethon @user`.')
                 .setColor('#F1C40F');
             return interaction.reply({ embeds: [embed], components: [row], flags: MessageFlags.Ephemeral });
+        }
+        
+        if (customId === 'buy_bg') {
+            const userData = getUserData(interaction.user.id);
+            if (userData.inventory && userData.inventory.bg_profile) {
+                return interaction.reply({ content: '❌ Bạn đã sở hữu quyền đổi Background rồi!', flags: MessageFlags.Ephemeral });
+            }
+            if (userData.balance < 50000) {
+                return interaction.reply({ content: '❌ Bạn không đủ 50,000 xu!', flags: MessageFlags.Ephemeral });
+            }
+            userData.balance -= 50000;
+            if (!userData.inventory) userData.inventory = {};
+            userData.inventory.bg_profile = 1;
+            saveEconomy();
+            return interaction.reply({ content: '✅ Bạn đã mua **Ảnh Bìa Profile**! Hãy dùng lệnh `mibg <link_ảnh>` để cài đặt nền cho thẻ hồ sơ của bạn.', flags: MessageFlags.Ephemeral });
         }
         
         if (customId === 'buy_ring') {
@@ -9583,7 +9693,7 @@ if (commandName === 'setup') {
             if (userData.inventory && userData.inventory.nhan_cuoi >= 1) {
                 return interaction.reply({ content: '❌ Bạn đã có Nhẫn Cưới trong túi đồ rồi, không cần mua thêm!', flags: MessageFlags.Ephemeral });
             }
-            const price = 5000000;
+            const price = 1000000;
             if (userData.balance < price) {
                 return interaction.reply({ content: '❌ Bạn không đủ Xu để mua Nhẫn Cưới!', flags: MessageFlags.Ephemeral });
             }
