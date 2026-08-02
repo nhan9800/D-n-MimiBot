@@ -4290,6 +4290,38 @@ async function postUpdateAnnouncement() {
 // 🚀 ĐỒNG BỘ LỆNH SLASH COMMANDS
 // -----------------------------------------------------------------
 client.once('ready', async () => {
+
+    // --- ANNOUNCEMENT ---
+    const UPDATE_VERSION = "v2.1_hotfix"; // Thay đổi chuỗi này để gửi thông báo mới
+    if (config.lastUpdateAnnounced !== UPDATE_VERSION) {
+        const announceChannel = client.channels.cache.get('1527814721053655092');
+        if (announceChannel) {
+            const embed = new EmbedBuilder()
+                .setColor('#2C2F33') // Dark theme color
+                .setTitle('# Bản Cập Nhật Mới Nhất')
+                .setDescription(
+                    `***\n` +
+                    `- Đã làm lại nút **Bán Nhẫn** (nhận lại 70% xu).\n` +
+                    `- Tính năng truy tìm đồ cũ **mitimdo** & kho đồ **mikho**.\n` +
+                    `- Bổ sung tuỳ chỉnh Background **mibg**.\n` +
+                    `- Tự động **Check-Out** nếu quên sau 4 giờ.\n` +
+                    `- Khoá kênh / Mở khoá kênh với **/lock** & **/unlock**.\n` +
+                    `- Chức năng tự động xoá lịch sử hàng năm.\n` +
+                    `- Gửi thổ lộ ẩn danh **/confession**.\n` +
+                    `***`
+                )
+                .setFooter({ text: '-# dev nhân' });
+
+            announceChannel.send({ embeds: [embed] })
+                .then(() => {
+                    config.lastUpdateAnnounced = UPDATE_VERSION;
+                    saveConfig();
+                    console.log('✅ Đã gửi thông báo cập nhật thành công.');
+                })
+                .catch(e => console.error('❌ Không thể gửi thông báo cập nhật:', e));
+        }
+    }
+
     // Tự động gửi thông báo cập nhật (chạy 1 lần rồi ghi file đánh dấu)
     const fsNode = require('fs');
     if (!fsNode.existsSync('update_sent_v3.flag')) {
