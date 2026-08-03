@@ -1963,14 +1963,18 @@ function startAutoCheckOut() {
                                         .setAccentColor(0xE74C3C)
                                         .addTextDisplayComponents(new TextDisplayBuilder().setContent('## ⚠️ THÔNG BÁO RA CA TỰ ĐỘNG'))
                                         .addSeparatorComponents(new SeparatorBuilder().setSpacing(SeparatorSpacingSize.Medium).setDivider(true))
-                                        .addTextDisplayComponents(
-                                            new TextDisplayBuilder().setContent(
-                                                `> Nhân sự ${member ? `<@${userId}>` : userId} đã bị hệ thống tự động chốt ca.\n*Lý do: Làm việc quá 4 tiếng không nghỉ.*\n\n` +
-                                                `**📅 Ngày Làm Việc:** \`${dateString}\`\n` +
-                                                `**⏰ Giờ Vào Ca:** \`${inString}\`\n` +
-                                                `**⏰ Giờ Rời Ca:** \`${outString}\`\n` +
-                                                `**⏱️ Tổng Thời Gian Làm:** \`4 giờ 0 phút 0 giây\``
-                                            )
+                                        .addSectionComponents(
+                                            new SectionBuilder()
+                                                .addTextDisplayComponents(
+                                                    new TextDisplayBuilder().setContent(
+                                                        `> Nhân sự <@${userId}> đã bị hệ thống tự động chốt ca.\n*Lý do: Làm việc quá 4 tiếng không nghỉ.*\n\n` +
+                                                        `**📅 Ngày Làm Việc:** \`${dateString}\`\n` +
+                                                        `**⏰ Giờ Vào Ca:** \`${inString}\`\n` +
+                                                        `**⏰ Giờ Rời Ca:** \`${outString}\`\n` +
+                                                        `**⏱️ Tổng Thời Gian Làm:** \`4 giờ 0 phút 0 giây\``
+                                                    )
+                                                )
+                                                .setThumbnailAccessory(new ThumbnailBuilder().setURL(member ? member.user.displayAvatarURL({ dynamic: true }) : 'https://i.imgur.com/B1p6P6S.png'))
                                         );
                                     logChannel.send({ components: [container], flags: MessageFlags.IsComponentsV2 }).catch(() => null);
                                 }
@@ -4310,10 +4314,10 @@ async function postUpdateAnnouncement() {
 client.once('ready', async () => {
 
     // --- XÓA CÁC THÔNG BÁO CŨ VÀ GỬI THÔNG BÁO MỚI (COMPONENTS V2) ---
-    const ANNOUNCE_FLAG = 'update_sent_v4.flag';
+    const CURRENT_UPDATE_VER = 'v5';
     const fsNode = require('fs');
     
-    if (!fsNode.existsSync(ANNOUNCE_FLAG)) {
+    if (config.lastUpdateAnnounced !== CURRENT_UPDATE_VER) {
         try {
             const targetChannel = await client.channels.fetch('1527814721053655092').catch(() => null);
             if (targetChannel) {
@@ -4349,7 +4353,7 @@ client.once('ready', async () => {
 
                 await targetChannel.send({ components: [container], flags: MessageFlags.IsComponentsV2 }).catch(e => console.error(e));
                 
-                fsNode.writeFileSync(ANNOUNCE_FLAG, 'true');
+                config.lastUpdateAnnounced = CURRENT_UPDATE_VER; saveConfig();
                 console.log('Đã cập nhật thông báo V2 thành công!');
             }
         } catch (e) {
@@ -5756,7 +5760,10 @@ client.on('messageCreate', async (message) => {
         const inv = userData.inventory || {};
         let text = '🎒 **KHO ĐỒ CỦA BẠN:**\n\n';
         if (inv.nhan_cuoi) text += `- 💍 Nhẫn Cưới: ${inv.nhan_cuoi}\n`;
-        if (inv.do_co) text += `- 🏺 Đồ Cổ: ${inv.do_co}\n`;
+        if (inv.do_co) text += `- 🏺 Đồ Cổ (Thường): ${inv.do_co}\n`;
+        if (inv.do_co_2) text += `- 🏺 Đồ Cổ (Hiếm): ${inv.do_co_2}\n`;
+        if (inv.do_co_3) text += `- 🏺 Đồ Cổ (Sử Thi): ${inv.do_co_3}\n`;
+        if (inv.do_co_4) text += `- 🏺 Đồ Cổ (Truyền Thuyết): ${inv.do_co_4}\n`;
         if (inv.bg_profile) text += `- 🖼️ Quyền đổi Ảnh Bìa Profile\n`;
         if (Object.keys(inv).length === 0) text += '*Túi đồ rỗng tuếch!*';
         return message.reply(text);
@@ -5788,9 +5795,16 @@ client.on('messageCreate', async (message) => {
         if (!userData.inventory) userData.inventory = {};
         
         if (Math.random() < 0.5) {
-            userData.inventory.do_co = (userData.inventory.do_co || 0) + 1;
+            const rand = Math.random();
+            let rarity = 'Thường';
+            let key = 'do_co';
+            if (rand < 0.05) { rarity = 'Truyền Thuyết'; key = 'do_co_4'; }
+            else if (rand < 0.15) { rarity = 'Sử Thi'; key = 'do_co_3'; }
+            else if (rand < 0.4) { rarity = 'Hiếm'; key = 'do_co_2'; }
+            
+            userData.inventory[key] = (userData.inventory[key] || 0) + 1;
             saveEconomy();
-            return message.reply('🎉 Bạn lội bùn và nhặt được **1x 🏺 Đồ Cổ**! Hãy dùng `miprofile` -> Bán Đồ để lấy xu!');
+            return message.reply(`🎉 Bạn lội bùn và nhặt được **1x 🏺 Đồ Cổ (${rarity})**! Hãy dùng \`miprofile\` -> Bán Đồ để lấy xu!`);
         } else {
             saveEconomy();
             return message.reply('🗑️ Bạn bới cả bãi rác nhưng chỉ tìm thấy... một chiếc tất rách. Không bán được đồng nào cả!');
@@ -6290,6 +6304,9 @@ client.on('messageCreate', async (message) => {
 
     // 11c. Blackjack: mibj | miblackjack — Xì dách kiểu Mỹ, tương tác bằng nút bấm (Rút/Dừng/Nhân đôi)
     if (command === 'mibj' || command === 'miblackjack') {
+        if (!message.channel.permissionsFor(client.user).has(PermissionFlagsBits.EmbedLinks)) {
+            return message.reply({ content: '❌ **LỖI:** Bot đang thiếu quyền `Nhúng Liên Kết (Embed Links)` trong kênh này nên không thể hiển thị bàn chơi Blackjack! Vui lòng nhờ Quản trị viên cấp quyền cho bot.', allowedMentions: { repliedUser: false } }).catch(() => null);
+        }
         const userData = getUserData(userId);
 
         if (blackjackGames.has(userId)) {
@@ -8492,8 +8509,38 @@ client.on('interactionCreate', async interaction => {
             }
 
             gConfig.attendanceEnabled = true;
+            
+            const adminOverwrites = [
+                { id: guild.id, deny: [PermissionFlagsBits.ViewChannel] },
+                { id: client.user.id, allow: [PermissionFlagsBits.ViewChannel, PermissionFlagsBits.SendMessages, PermissionFlagsBits.ManageChannels, PermissionFlagsBits.EmbedLinks] }
+            ];
+
+            let attCategory = guild.channels.cache.get(gConfig.attendanceCategoryId) || guild.channels.cache.find(ch => ch.type === ChannelType.GuildCategory && ch.name.includes('chấm công'));
+            if (!attCategory) attCategory = await guild.channels.create({ name: '📊 Hệ thống chấm công', type: ChannelType.GuildCategory });
+            gConfig.attendanceCategoryId = attCategory.id;
+
+            let attendanceChan = guild.channels.cache.get(gConfig.attendanceChannelId) || await guild.channels.create({ name: '🕒-chấm-công', type: ChannelType.GuildText, parent: attCategory.id });
+            gConfig.attendanceChannelId = attendanceChan.id;
+
+            let logChan = guild.channels.cache.get(gConfig.logChannelId) || await guild.channels.create({ name: '📜-lịch-sử-chấm-công', type: ChannelType.GuildText, parent: attCategory.id });
+            gConfig.logChannelId = logChan.id;
+
+            let reportChan = guild.channels.cache.get(gConfig.weeklyReportChannelId) || await guild.channels.create({ name: '📅-báo-cáo-tuần', type: ChannelType.GuildText, parent: attCategory.id, permissionOverwrites: adminOverwrites });
+            gConfig.weeklyReportChannelId = reportChan.id;
+
+            await clearBotMessages(attendanceChan);
+            const attRow = new ActionRowBuilder().addComponents(
+                new ButtonBuilder().setCustomId('check_in_btn').setLabel('🟢 Check-In').setStyle(ButtonStyle.Success),
+                new ButtonBuilder().setCustomId('check_out_btn').setLabel('🔴 Check-Out').setStyle(ButtonStyle.Danger)
+            );
+            const attEmbed = new EmbedBuilder()
+                .setColor('#2ECC71')
+                .setTitle('🕒 KHU VỰC CHẤM CÔNG TRỰC TUYẾN')
+                .setDescription('Vui lòng nhấn nút dưới đây để khai báo giờ bắt đầu làm việc và kết thúc ca.');
+            
+            await attendanceChan.send(embedToV2Payload(attEmbed, { components: [attRow] }));
             saveConfig();
-            return interaction.editReply({ content: '🟢 **Đã BẬT hệ thống chấm công độc lập!**\nBảng nút chấm công đã sẵn sàng ghi nhận ca làm việc.' });
+            return interaction.editReply({ content: '🟢 **Đã khởi tạo hệ thống chấm công độc lập!**\nKênh chấm công và lịch sử đã được tạo/cập nhật.' });
         }
 
         if (commandName === 'resetverify') {
@@ -8792,30 +8839,7 @@ if (commandName === 'setup') {
                 const ticketPanelEmbed2 = new EmbedBuilder().setColor('#5865F2').setTitle('📩 Hệ Thống Hỗ Trợ').setDescription('Nhấn vào nút bên dưới để điền Form mở Ticket ẩn.');
                 await ticketControlChannel.send(embedToV2Payload(ticketPanelEmbed2, { components: [row] })).catch(() => null);
 
-                let attCategory = guild.channels.cache.get(gConfig.attendanceCategoryId) || guild.channels.cache.find(ch => ch.type === ChannelType.GuildCategory && ch.name.includes('chấm công'));
-                if (!attCategory) attCategory = await guild.channels.create({ name: '📊 Hệ thống chấm công', type: ChannelType.GuildCategory });
-                gConfig.attendanceCategoryId = attCategory.id;
-
-                let attendanceChan = guild.channels.cache.get(gConfig.attendanceChannelId) || await guild.channels.create({ name: '🕒-chấm-công', type: ChannelType.GuildText, parent: attCategory.id });
-                gConfig.attendanceChannelId = attendanceChan.id;
-
-                let logChan = guild.channels.cache.get(gConfig.logChannelId) || await guild.channels.create({ name: '📜-lịch-sử-chấm-công', type: ChannelType.GuildText, parent: attCategory.id });
-                gConfig.logChannelId = logChan.id;
-
-                let reportChan = guild.channels.cache.get(gConfig.weeklyReportChannelId) || await guild.channels.create({ name: '📅-báo-cáo-tuần', type: ChannelType.GuildText, parent: attCategory.id, permissionOverwrites: adminOverwrites });
-                gConfig.weeklyReportChannelId = reportChan.id;
-
-                await clearBotMessages(attendanceChan);
-                const attRow = new ActionRowBuilder().addComponents(
-                    new ButtonBuilder().setCustomId('check_in_btn').setLabel('🟢 Check-In').setStyle(ButtonStyle.Success),
-                    new ButtonBuilder().setCustomId('check_out_btn').setLabel('🔴 Check-Out').setStyle(ButtonStyle.Danger)
-                );
-                const attEmbed = new EmbedBuilder()
-                    .setColor('#2ECC71')
-                    .setTitle('🕒 KHU VỰC CHẤM CÔNG TRỰC TUYẾN')
-                    .setDescription('Vui lòng nhấn nút dưới đây để khai báo giờ bắt đầu làm việc và kết thúc ca.');
-                
-                await attendanceChan.send(embedToV2Payload(attEmbed, { components: [attRow] }));
+                // Hệ thống chấm công đã được tách riêng sang /setupattendance
 
                 // ── Kênh quản lý từ cấm (chỉ Admin thấy được) ──
                 let bannedWordsChan = guild.channels.cache.get(gConfig.bannedWordsChannelId) || guild.channels.cache.find(ch => ch.type === ChannelType.GuildText && ch.name.includes('quan-ly-tu-cam'));
@@ -9418,16 +9442,32 @@ if (commandName === 'setup') {
         }
         
         if (choice === 'sell_doco') {
-            if (!inv.do_co || inv.do_co <= 0) return interaction.reply({ content: '❌ Bạn không có đồ cổ để bán!', flags: MessageFlags.Ephemeral });
-            const amount = inv.do_co;
+            const totalDoCo = (inv.do_co || 0) + (inv.do_co_2 || 0) + (inv.do_co_3 || 0) + (inv.do_co_4 || 0);
+            if (totalDoCo <= 0) return interaction.reply({ content: '❌ Bạn không có đồ cổ để bán!', flags: MessageFlags.Ephemeral });
+            
             let total = 0;
-            for (let i = 0; i < amount; i++) {
-                total += Math.floor(Math.random() * 9001) + 1000; // 1000 to 10000
+            let soldMsg = [];
+            
+            if (inv.do_co) {
+                let t = 0; for(let i=0;i<inv.do_co;i++) t+= Math.floor(Math.random()*5000)+1000;
+                total += t; soldMsg.push(`**${inv.do_co}x** Đồ Cổ (Thường)`); delete inv.do_co;
             }
-            delete inv.do_co;
+            if (inv.do_co_2) {
+                let t = 0; for(let i=0;i<inv.do_co_2;i++) t+= Math.floor(Math.random()*15000)+5000;
+                total += t; soldMsg.push(`**${inv.do_co_2}x** Đồ Cổ (Hiếm)`); delete inv.do_co_2;
+            }
+            if (inv.do_co_3) {
+                let t = 0; for(let i=0;i<inv.do_co_3;i++) t+= Math.floor(Math.random()*50000)+20000;
+                total += t; soldMsg.push(`**${inv.do_co_3}x** Đồ Cổ (Sử Thi)`); delete inv.do_co_3;
+            }
+            if (inv.do_co_4) {
+                let t = 0; for(let i=0;i<inv.do_co_4;i++) t+= Math.floor(Math.random()*200000)+100000;
+                total += t; soldMsg.push(`**${inv.do_co_4}x** Đồ Cổ (Truyền Thuyết)`); delete inv.do_co_4;
+            }
+            
             userData.balance += total;
             saveEconomy();
-            return interaction.reply({ content: `✅ Bạn đã bán **${amount}x 🏺 Đồ Cổ** và thu được **${total.toLocaleString('en-US')} Xu**!`, flags: MessageFlags.Ephemeral });
+            return interaction.reply({ content: `✅ Bạn đã bán:\n${soldMsg.join('\n')}\n\n💰 Thu được tổng cộng: **${total.toLocaleString('en-US')} Xu**!`, flags: MessageFlags.Ephemeral });
         }
     }
     
@@ -9667,12 +9707,13 @@ if (commandName === 'setup') {
                         .setDescription('Thu hồi 70% giá trị nhẫn cưới')
                 );
             }
-            if (inv.do_co && inv.do_co > 0) {
+            const totalDoCo = (inv.do_co || 0) + (inv.do_co_2 || 0) + (inv.do_co_3 || 0) + (inv.do_co_4 || 0);
+            if (totalDoCo > 0) {
                 options.push(
                     new StringSelectMenuOptionBuilder()
-                        .setLabel(`🏺 Bán Đồ Cổ (x${inv.do_co})`)
+                        .setLabel(`🏺 Bán Tất Cả Đồ Cổ (x${totalDoCo})`)
                         .setValue('sell_doco')
-                        .setDescription('Nhận ngẫu nhiên 1,000 - 10,000 xu mỗi đồ cổ')
+                        .setDescription('Bán toàn bộ đồ cổ các loại lấy xu')
                 );
             }
             
@@ -9695,8 +9736,9 @@ if (commandName === 'setup') {
             );
             const embed = new EmbedBuilder()
                 .setTitle('🛒 Cửa Hàng Mini')
-                .setDescription('Chào mừng đến với cửa hàng! Hiện tại có các mặt hàng sau:\n\n**💍 Nhẫn Cưới** - Giá: `1,000,000 Xu`\nDùng để cầu hôn người khác bằng lệnh `mikethon @user`.')
-                .setColor('#F1C40F');
+                .setDescription('Chào mừng đến với cửa hàng! Hiện tại có các mặt hàng sau:\n\n**💍 Nhẫn Cưới** - Giá: `1,000,000 Xu`\nDùng để cầu hôn bằng lệnh `mikethon @user`.\n\n**🖼️ Ảnh Bìa Profile** - Giá: `50,000 Xu`\nDùng lệnh `mibg` để đổi nền thẻ hồ sơ của bạn.')
+                .setColor('#F1C40F')
+                .setImage('https://i.imgur.com/B1p6P6S.png');
             return interaction.reply({ embeds: [embed], components: [row], flags: MessageFlags.Ephemeral });
         }
         
@@ -10277,7 +10319,7 @@ if (commandName === 'setup') {
                     const lastRecord = historyRecords[historyRecords.length - 1];
                     const lastCheckIn = new Date(lastRecord.checkIn).getTime();
                     const diff = Date.now() - lastCheckIn;
-                    const cooldownMs = 4 * 60 * 60 * 1000;
+                    const cooldownMs = 0; // Removed 4-hour cooldown
                     if (diff < cooldownMs) {
                         const remain = cooldownMs - diff;
                         const h = Math.floor(remain / 3600000);
@@ -10297,12 +10339,16 @@ if (commandName === 'setup') {
                         .setAccentColor(0x2ECC71)
                         .addTextDisplayComponents(new TextDisplayBuilder().setContent('## 📥 THÔNG BÁO VÀO CA (CHECK-IN)'))
                         .addSeparatorComponents(new SeparatorBuilder().setSpacing(SeparatorSpacingSize.Medium).setDivider(true))
-                        .addTextDisplayComponents(
-                            new TextDisplayBuilder().setContent(
-                                `> Nhân sự ${user} vừa kích hoạt chấm công trực tuyến.\n\n` +
-                                `**📅 Ngày Làm Việc:** \`${dateString}\`\n` +
-                                `**⏰ Giờ Vào Ca:** \`${formatTimeVN(Date.now()).split(' ')[0]}\``
-                            )
+                        .addSectionComponents(
+                            new SectionBuilder()
+                                .addTextDisplayComponents(
+                                    new TextDisplayBuilder().setContent(
+                                        `> Nhân sự ${user} vừa kích hoạt chấm công trực tuyến.\n\n` +
+                                        `**📅 Ngày Làm Việc:** \`${dateString}\`\n` +
+                                        `**⏰ Giờ Vào Ca:** \`${formatTimeVN(Date.now()).split(' ')[0]}\``
+                                    )
+                                )
+                                .setThumbnailAccessory(new ThumbnailBuilder().setURL(user.displayAvatarURL({ dynamic: true })))
                         );
                     logChannel.send({ components: [container], flags: MessageFlags.IsComponentsV2 }).catch(() => null);
                 }
@@ -10341,14 +10387,18 @@ if (commandName === 'setup') {
                         .setAccentColor(0xE74C3C)
                         .addTextDisplayComponents(new TextDisplayBuilder().setContent('## 📤 THÔNG BÁO RA CA (CHECK-OUT)'))
                         .addSeparatorComponents(new SeparatorBuilder().setSpacing(SeparatorSpacingSize.Medium).setDivider(true))
-                        .addTextDisplayComponents(
-                            new TextDisplayBuilder().setContent(
-                                `> Nhân sự ${user} đã hoàn thành ca làm việc.\n\n` +
-                                `**📅 Ngày Làm Việc:** \`${dateString}\`\n` +
-                                `**⏰ Giờ Vào Ca:** \`${formatTimeVN(checkInTime).split(' ')[0]}\`\n` +
-                                `**⏰ Giờ Rời Ca:** \`${formatTimeVN(Date.now()).split(' ')[0]}\`\n` +
-                                `**⏱️ Tổng Thời Gian Làm:** \`${displayHours} giờ ${displayMinutes} phút ${displaySeconds} giây\``
-                            )
+                        .addSectionComponents(
+                            new SectionBuilder()
+                                .addTextDisplayComponents(
+                                    new TextDisplayBuilder().setContent(
+                                        `> Nhân sự ${user} đã hoàn thành ca làm việc.\n\n` +
+                                        `**📅 Ngày Làm Việc:** \`${dateString}\`\n` +
+                                        `**⏰ Giờ Vào Ca:** \`${formatTimeVN(checkInTime).split(' ')[0]}\`\n` +
+                                        `**⏰ Giờ Rời Ca:** \`${formatTimeVN(Date.now()).split(' ')[0]}\`\n` +
+                                        `**⏱️ Tổng Thời Gian Làm:** \`${displayHours} giờ ${displayMinutes} phút ${displaySeconds} giây\``
+                                    )
+                                )
+                                .setThumbnailAccessory(new ThumbnailBuilder().setURL(user.displayAvatarURL({ dynamic: true })))
                         );
                     logChannel.send({ components: [container], flags: MessageFlags.IsComponentsV2 }).catch(() => null);
                 }
