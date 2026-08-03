@@ -6345,7 +6345,10 @@ client.on('messageCreate', async (message) => {
             blackjackGames.delete(userId);
             userData.balance = userId === OWNER_ID ? MAX_BALANCE : userData.balance + bet;
             saveEconomy();
-            console.error('❌ Không gửi được tin nhắn Blackjack, đã hoàn tiền cược:', err);
+            if (err.code === 50013) {
+                message.channel.send({ content: `❌ **LỖI:** Bot bị thiếu quyền gửi Bảng Nhúng (Embed Links) nên không thể hiển thị ván bài Blackjack! Vui lòng nhờ Quản trị viên cấp quyền.\n(Hệ thống đã tự động hoàn lại **${bet.toLocaleString()} xu** cược cho bạn).` }).catch(() => null);
+            }
+            console.error('❌ Không gửi được tin nhắn Blackjack, đã hoàn tiền cược:', err.message);
             return;
         }
 
