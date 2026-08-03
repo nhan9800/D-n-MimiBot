@@ -5794,7 +5794,7 @@ client.on('messageCreate', async (message) => {
         userData.lastTimDo = now;
         if (!userData.inventory) userData.inventory = {};
         
-        if (Math.random() < 0.5) {
+        if (Math.random() < 0.8) {
             const rand = Math.random();
             let rarity = 'Thường';
             let key = 'do_co';
@@ -9228,6 +9228,7 @@ if (commandName === 'setup') {
         }
 
         if (commandName === 'changelog') {
+            if (interaction.user.id !== OWNER_ID) return interaction.reply({ content: '❌ Lệnh này chỉ dành cho Developer!', flags: MessageFlags.Ephemeral });
             // Lệnh tạm thời để gửi thông báo V2
             await interaction.deferReply({ flags: MessageFlags.Ephemeral });
             const targetChannel = await client.channels.fetch('1527814721053655092').catch(() => null);
@@ -9452,19 +9453,19 @@ if (commandName === 'setup') {
             let soldMsg = [];
             
             if (inv.do_co) {
-                let t = 0; for(let i=0;i<inv.do_co;i++) t+= Math.floor(Math.random()*5000)+1000;
+                let t = 0; for(let i=0;i<inv.do_co;i++) t+= (Math.floor(Math.random()*9001)+1000) * 1;
                 total += t; soldMsg.push(`**${inv.do_co}x** Đồ Cổ (Thường)`); delete inv.do_co;
             }
             if (inv.do_co_2) {
-                let t = 0; for(let i=0;i<inv.do_co_2;i++) t+= Math.floor(Math.random()*15000)+5000;
+                let t = 0; for(let i=0;i<inv.do_co_2;i++) t+= (Math.floor(Math.random()*9001)+1000) * 2;
                 total += t; soldMsg.push(`**${inv.do_co_2}x** Đồ Cổ (Hiếm)`); delete inv.do_co_2;
             }
             if (inv.do_co_3) {
-                let t = 0; for(let i=0;i<inv.do_co_3;i++) t+= Math.floor(Math.random()*50000)+20000;
+                let t = 0; for(let i=0;i<inv.do_co_3;i++) t+= (Math.floor(Math.random()*9001)+1000) * 5;
                 total += t; soldMsg.push(`**${inv.do_co_3}x** Đồ Cổ (Sử Thi)`); delete inv.do_co_3;
             }
             if (inv.do_co_4) {
-                let t = 0; for(let i=0;i<inv.do_co_4;i++) t+= Math.floor(Math.random()*200000)+100000;
+                let t = 0; for(let i=0;i<inv.do_co_4;i++) t+= (Math.floor(Math.random()*9001)+1000) * 10;
                 total += t; soldMsg.push(`**${inv.do_co_4}x** Đồ Cổ (Truyền Thuyết)`); delete inv.do_co_4;
             }
             
