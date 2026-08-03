@@ -5614,11 +5614,12 @@ client.on('messageCreate', async (message) => {
 
     if (command === 'mishop' || command === 'mis') {
         const row = new ActionRowBuilder().addComponents(
-            new ButtonBuilder().setCustomId('buy_ring').setLabel('💍 Mua Nhẫn Cưới (1,000,000 Xu)').setStyle(ButtonStyle.Success)
+            new ButtonBuilder().setCustomId('buy_ring').setLabel('💍 Mua Nhẫn Cưới').setStyle(ButtonStyle.Success),
+                new ButtonBuilder().setCustomId('buy_bg').setLabel('🖼️ Mua Nền (50,000 Xu)').setStyle(ButtonStyle.Primary)
         );
         const embed = new EmbedBuilder()
             .setTitle('🛒 Cửa Hàng Mini')
-            .setDescription('Chào mừng đến với cửa hàng! Hiện tại có các mặt hàng sau:\n\n**💍 Nhẫn Cưới** - Giá: `1,000,000 Xu`\nDùng để cầu hôn người khác bằng lệnh `mikethon @user`.')
+            .setDescription('Chào mừng đến với cửa hàng! Hiện tại có các mặt hàng sau:\n\n**💍 Nhẫn Cưới** - Giá: `1,000,000 Xu`\nDùng để cầu hôn bằng lệnh `mikethon @user`.\n\n**🖼️ Ảnh Bìa Profile** - Giá: `50,000 Xu`\nDùng lệnh `mibg` để đổi nền thẻ hồ sơ của bạn.')
             .setColor('#F1C40F');
         return message.reply({ embeds: [embed], components: [row] });
     }
@@ -9403,6 +9404,33 @@ if (commandName === 'setup') {
     // ==========================================
     // 📂 HANDLER SELECT MENU: PHÂN NHÁNH /HELP
     // ==========================================
+    if (interaction.isStringSelectMenu() && interaction.customId === 'sell_item_select') {
+        const choice = interaction.values[0];
+        const userData = getUserData(interaction.user.id);
+        const inv = userData.inventory || {};
+        
+        if (choice === 'sell_ring') {
+            if (!inv.nhan_cuoi) return interaction.reply({ content: '❌ Bạn không có nhẫn cưới để bán!', flags: MessageFlags.Ephemeral });
+            delete inv.nhan_cuoi;
+            userData.balance += 700000;
+            saveEconomy();
+            return interaction.reply({ content: '✅ Bạn đã bán **Nhẫn Cưới** và thu lại **700,000 Xu**!', flags: MessageFlags.Ephemeral });
+        }
+        
+        if (choice === 'sell_doco') {
+            if (!inv.do_co || inv.do_co <= 0) return interaction.reply({ content: '❌ Bạn không có đồ cổ để bán!', flags: MessageFlags.Ephemeral });
+            const amount = inv.do_co;
+            let total = 0;
+            for (let i = 0; i < amount; i++) {
+                total += Math.floor(Math.random() * 9001) + 1000; // 1000 to 10000
+            }
+            delete inv.do_co;
+            userData.balance += total;
+            saveEconomy();
+            return interaction.reply({ content: `✅ Bạn đã bán **${amount}x 🏺 Đồ Cổ** và thu được **${total.toLocaleString('en-US')} Xu**!`, flags: MessageFlags.Ephemeral });
+        }
+    }
+    
     if (interaction.isStringSelectMenu() && interaction.customId === 'help_select') {
         const selected = interaction.values[0];
 
@@ -9626,6 +9654,41 @@ if (commandName === 'setup') {
             saveUserData(interaction.user.id, userData);
             return interaction.reply({ content: '✅ Bạn đã bán nhẫn và thu lại **700,000 xu**!', flags: 64 });
         }
+        if (customId === 'profile_sell_item') {
+            const userData = getUserData(interaction.user.id);
+            const inv = userData.inventory || {};
+            
+            const options = [];
+            if (inv.nhan_cuoi) {
+                options.push(
+                    new StringSelectMenuOptionBuilder()
+                        .setLabel('💍 Bán Nhẫn Cưới (700,000 Xu)')
+                        .setValue('sell_ring')
+                        .setDescription('Thu hồi 70% giá trị nhẫn cưới')
+                );
+            }
+            if (inv.do_co && inv.do_co > 0) {
+                options.push(
+                    new StringSelectMenuOptionBuilder()
+                        .setLabel(`🏺 Bán Đồ Cổ (x${inv.do_co})`)
+                        .setValue('sell_doco')
+                        .setDescription('Nhận ngẫu nhiên 1,000 - 10,000 xu mỗi đồ cổ')
+                );
+            }
+            
+            if (options.length === 0) {
+                return interaction.reply({ content: '❌ Túi đồ của bạn không có vật phẩm nào có thể bán được!', flags: MessageFlags.Ephemeral });
+            }
+            
+            const selectMenu = new StringSelectMenuBuilder()
+                .setCustomId('sell_item_select')
+                .setPlaceholder('Chọn vật phẩm muốn bán...')
+                .addOptions(options);
+                
+            const row = new ActionRowBuilder().addComponents(selectMenu);
+            return interaction.reply({ content: '🛒 **CHỢ ĐEN MINIBOT**\nHãy chọn vật phẩm bạn muốn bán lấy xu:', components: [row], flags: MessageFlags.Ephemeral });
+        }
+
         if (customId === 'profile_shop') {
             const row = new ActionRowBuilder().addComponents(
                 new ButtonBuilder().setCustomId('buy_ring').setLabel('💍 Mua Nhẫn Cưới (1,000,000 Xu)').setStyle(ButtonStyle.Success)
