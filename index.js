@@ -5786,7 +5786,7 @@ client.on('messageCreate', async (message) => {
     if (command === 'mitimdo' || command === 'mitd') {
         const userData = getUserData(userId);
         const now = Date.now();
-        const cooldown = 30 * 60 * 1000; // 30 mins
+        const cooldown = 5 * 60 * 1000; // 5 mins
         if (userData.lastTimDo && now - userData.lastTimDo < cooldown) {
             const left = Math.ceil((cooldown - (now - userData.lastTimDo)) / 60000);
             return message.reply(`⏳ Bạn đang mệt, hãy nghỉ ngơi **${left} phút** rồi đi tìm đồ tiếp nhé!`);
