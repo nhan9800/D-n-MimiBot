@@ -103,6 +103,7 @@ if (!config.guilds) config.guilds = {};
 
 const ticketTimeouts = new Map();
 const buttonCooldowns = new Map();
+const spamTracker = new Map();
 
 const client = new Client({
     intents: [
@@ -1080,6 +1081,54 @@ async function getOrCreateModLogChannel(guild, gConfig) {
     }
 }
 
+client.on('channelCreate', async channel => {
+    if (!channel.guild) return;
+    const gConfig = getGuildConfig(channel.guild.id);
+    if (!gConfig.isModLogSetup || !gConfig.modLogChanChannelId) return;
+    // Ignore ticket/voice automatically created
+    if (channel.name.includes('ticket') || channel.name.includes('phòng')) return;
+    
+    const embed = new EmbedBuilder().setColor('#2ECC71').setTitle('📁 Kênh Mới Được Tạo').setDescription(`Kênh: ${channel.name} (${channel.id})`).setTimestamp();
+    const logChan = channel.guild.channels.cache.get(gConfig.modLogChanChannelId);
+    if (logChan) logChan.send(embedToV2Payload(embed)).catch(()=>null);
+});
+
+client.on('channelDelete', async channel => {
+    if (!channel.guild) return;
+    const gConfig = getGuildConfig(channel.guild.id);
+    if (!gConfig.isModLogSetup || !gConfig.modLogChanChannelId) return;
+    if (channel.name.includes('ticket') || channel.name.includes('phòng')) return;
+    
+    const embed = new EmbedBuilder().setColor('#E74C3C').setTitle('📁 Kênh Bị Xoá').setDescription(`Kênh: ${channel.name}`).setTimestamp();
+    const logChan = channel.guild.channels.cache.get(gConfig.modLogChanChannelId);
+    if (logChan) logChan.send(embedToV2Payload(embed)).catch(()=>null);
+});
+
+client.on('guildMemberUpdate', async (oldMember, newMember) => {
+    const gConfig = getGuildConfig(newMember.guild.id);
+    if (!gConfig.isModLogSetup || !gConfig.modLogRoleChannelId) return;
+    
+    const oldRoles = oldMember.roles.cache;
+    const newRoles = newMember.roles.cache;
+    if (oldRoles.size === newRoles.size) return;
+    
+    const addedRoles = newRoles.filter(role => !oldRoles.has(role.id));
+    const removedRoles = oldRoles.filter(role => !newRoles.has(role.id));
+    
+    if (addedRoles.size === 0 && removedRoles.size === 0) return;
+    
+    const embed = new EmbedBuilder().setColor('#3498DB').setTitle('🎭 Thay Đổi Vai Trò (Role)').setAuthor({name: newMember.user.tag, iconURL: newMember.user.displayAvatarURL()}).setTimestamp();
+    let desc = `<@${newMember.id}>`;
+    if (addedRoles.size > 0) desc += `\n**+ Thêm:** ${addedRoles.map(r => r.name).join(', ')}`;
+    if (removedRoles.size > 0) desc += `\n**- Gỡ:** ${removedRoles.map(r => r.name).join(', ')}`;
+    
+    embed.setDescription(desc);
+    const logChan = newMember.guild.channels.cache.get(gConfig.modLogRoleChannelId);
+    if (logChan) logChan.send(embedToV2Payload(embed)).catch(()=>null);
+});
+
+// Replace sendModLog calls to use modLogMsgChannelId for messages
+// We will just patch the sendModLog function directly
 async function sendModLog(guild, gConfig, payload) {
     if (!gConfig.isModLogSetup) return;
     const chan = await getOrCreateModLogChannel(guild, gConfig);
@@ -1974,7 +2023,7 @@ function startAutoCheckOut() {
                                                         `**⏱️ Tổng Thời Gian Làm:** \`4 giờ 0 phút 0 giây\``
                                                     )
                                                 )
-                                                .setThumbnailAccessory(new ThumbnailBuilder().setURL(member ? member.user.displayAvatarURL({ dynamic: true }) : 'https://i.imgur.com/B1p6P6S.png'))
+                                                .setThumbnailAccessory(new ThumbnailBuilder().setURL(member ? member.user.displayAvatarURL({ dynamic: true }) : client.user.displayAvatarURL()))
                                         );
                                     logChannel.send({ components: [container], flags: MessageFlags.IsComponentsV2 }).catch(() => null);
                                 }
@@ -5343,7 +5392,7 @@ client.on('guildMemberAdd', async (member) => {
         .setAuthor({ name: member.user.tag, iconURL: member.user.displayAvatarURL({ dynamic: true }) }) 
         .setTitle(guild.name) 
         .setThumbnail(finalThumbnail)  // Avatar cá nhân của người mới vào
-        .setDescription(gConfig.embedDescription ? gConfig.embedDescription.replace(/\\n/g, '\n') : `Chào mừng bạn đã tham gia vào máy chủ nhé! 🎉`)
+        .setDescription(gConfig.embedDescription ? gConfig.embedDescription.replace(/\\n/g, '\n').replace(/{user}/g, `<@${member.id}>`).replace(/{server}/g, guild.name) : `Chào mừng bạn đã tham gia vào máy chủ nhé! 🎉`)
         .setFooter({ text: `You are member #${guild.memberCount}` })
         .setTimestamp();
 
@@ -5496,6 +5545,23 @@ client.on('messageCreate', async (message) => {
     if (message.author.bot || !message.guild) return;
 
     const userId = message.author.id;
+    const minigameCommands = ['mibj', 'miblackjack', 'misl', 'mislot', 'mixd', 'mixocdia', 'mibc', 'mibaucua', 'mitx', 'mitaixiu', 'mitimdo', 'mitd', 'midaily', 'mid'];
+    const userDataForBan = economyData[userId];
+    if (minigameCommands.includes(command) && userDataForBan?.isBannedFromMinigames) {
+        return message.reply("🚫 Bạn đã bị Admin cấm chơi hệ thống minigame do nghi ngờ lạm dụng bug!");
+    }
+    
+    if (command === 'mibanminigame' || command === 'miunbanminigame') {
+        if (message.author.id !== OWNER_ID && !message.member.permissions.has(PermissionFlagsBits.Administrator)) return;
+        const target = message.mentions.users.first();
+        if (!target) return message.reply("Tag user cần ban/unban");
+        const tData = getUserData(target.id);
+        const isBan = command === 'mibanminigame';
+        tData.isBannedFromMinigames = isBan;
+        saveEconomy();
+        if (isBan) target.send("⚠️ Bạn đã bị cấm chơi minigame do sử dụng bug kiếm xu!").catch(()=>null);
+        return message.reply(`Đã ${isBan ? 'CẤM' : 'GỠ CẤM'} minigame user ${target.tag}`);
+    }
     const chId = message.channel.id;
     const gConfig = getGuildConfig(message.guild.id);
     const serverPrefix = gConfig.prefix || 'mi';
@@ -6257,12 +6323,15 @@ client.on('messageCreate', async (message) => {
         const spinText = spin.map(x => x.s).join('  ');
 
         if (isTriple) {
-            const winAmount = bet * spin[0].mult;
-            userData.balance = userId === OWNER_ID ? MAX_BALANCE : userData.balance + winAmount;
+            const winAmount = bet * 10;
+            userData.balance = userId === OWNER_ID ? MAX_BALANCE : userData.balance + winAmount - bet;
             saveEconomy();
-            return message.reply({ content: `🎰 | ${spinText} |\n🎉 **NỔ HŨ 3 KÝ HIỆU!** +**${winAmount.toLocaleString()} xu** (x${spin[0].mult})\nSố dư: **${userData.balance.toLocaleString()} xu**`, allowedMentions: { repliedUser: false } });
+            return message.reply({ content: `🎰 | ${spinText} |\n🎉 **NỔ HŨ 3 KÝ HIỆU!** +**${winAmount.toLocaleString()} xu** (x10)\nSố dư: **${userData.balance.toLocaleString()} xu**`, allowedMentions: { repliedUser: false } });
         } else if (isDouble) {
-            return message.reply({ content: `🎰 | ${spinText} |\n🤝 Trúng cặp đôi — Hoàn lại tiền cược, không lời không lỗ.\nSố dư: **${userData.balance.toLocaleString()} xu**`, allowedMentions: { repliedUser: false } });
+            const winAmount = bet * 3;
+            userData.balance = userId === OWNER_ID ? MAX_BALANCE : userData.balance + winAmount - bet;
+            saveEconomy();
+            return message.reply({ content: `🎰 | ${spinText} |\n🎉 Trúng cặp đôi — +**${winAmount.toLocaleString()} xu** (x3).\nSố dư: **${userData.balance.toLocaleString()} xu**`, allowedMentions: { repliedUser: false } });
         } else {
             userData.balance -= bet;
             saveEconomy();
@@ -8799,38 +8868,7 @@ if (commandName === 'setup') {
                     gConfig.welcomeChannelId = welcomeChan.id;
                 }
 
-                let ticketCategory = guild.channels.cache.get(gConfig.ticketCategoryId) || guild.channels.cache.find(ch => ch.type === ChannelType.GuildCategory && ch.name.toLowerCase().includes('ticket system'));
-                if (!ticketCategory) ticketCategory = await guild.channels.create({ name: '🎫 Ticket System', type: ChannelType.GuildCategory });
-                gConfig.ticketCategoryId = ticketCategory.id;
-
-                let ticketControlChannel = guild.channels.cache.get(gConfig.ticketControlChannelId) || guild.channels.cache.find(ch => ch.type === ChannelType.GuildText && ch.name.includes('hỗ-trợ-ticket'));
-                if (!ticketControlChannel) {
-                    ticketControlChannel = await guild.channels.create({ 
-                        name: '⚙️-hỗ-trợ-ticket', type: ChannelType.GuildText, parent: ticketCategory.id,
-                        permissionOverwrites: [{ id: guild.id, allow: [PermissionFlagsBits.ViewChannel], deny: [PermissionFlagsBits.SendMessages] }]
-                    });
-                }
-                gConfig.ticketControlChannelId = ticketControlChannel.id;
-
-                let archiveChan = guild.channels.cache.get(gConfig.ticketArchiveChannelId) || guild.channels.cache.find(ch => ch.type === ChannelType.GuildText && ch.name.includes('lưu-trữ-ticket'));
-                const adminOverwrites = [
-                    { id: guild.id, deny: [PermissionFlagsBits.ViewChannel] }, 
-                    { id: client.user.id, allow: [PermissionFlagsBits.ViewChannel, PermissionFlagsBits.SendMessages, PermissionFlagsBits.AttachFiles] }
-                ];
-                guild.roles.cache.forEach(role => {
-                    if (role.id !== guild.id && role.permissions.has(PermissionFlagsBits.ManageChannels)) {
-                        adminOverwrites.push({ id: role.id, allow: [PermissionFlagsBits.ViewChannel, PermissionFlagsBits.SendMessages] });
-                    }
-                });
-
-                if (!archiveChan) {
-                    try {
-                        archiveChan = await guild.channels.create({ name: '📁-lưu-trữ-ticket', type: ChannelType.GuildText, parent: ticketCategory.id, permissionOverwrites: adminOverwrites });
-                    } catch (e) {
-                        console.error('❌ Thiếu quyền tạo kênh lưu trữ ticket:', e.message);
-                    }
-                }
-                if (archiveChan) gConfig.ticketArchiveChannelId = archiveChan.id;
+                // Ticket creation moved to /setupticket
 
                 await clearBotMessages(ticketControlChannel).catch(() => null);
                 
@@ -9742,7 +9780,7 @@ if (commandName === 'setup') {
                 .setTitle('🛒 Cửa Hàng Mini')
                 .setDescription('Chào mừng đến với cửa hàng! Hiện tại có các mặt hàng sau:\n\n**💍 Nhẫn Cưới** - Giá: `1,000,000 Xu`\nDùng để cầu hôn bằng lệnh `mikethon @user`.\n\n**🖼️ Ảnh Bìa Profile** - Giá: `50,000 Xu`\nDùng lệnh `mibg` để đổi nền thẻ hồ sơ của bạn.')
                 .setColor('#F1C40F')
-                .setImage('https://i.imgur.com/B1p6P6S.png');
+                
             return interaction.reply({ embeds: [embed], components: [row], flags: MessageFlags.Ephemeral });
         }
         
