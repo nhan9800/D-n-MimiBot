@@ -4362,55 +4362,6 @@ async function postUpdateAnnouncement() {
 // -----------------------------------------------------------------
 client.once('ready', async () => {
 
-    // --- XÓA CÁC THÔNG BÁO CŨ VÀ GỬI THÔNG BÁO MỚI (COMPONENTS V2) ---
-    const CURRENT_UPDATE_VER = 'v5';
-    const fsNode = require('fs');
-    
-    if (config.lastUpdateAnnounced !== CURRENT_UPDATE_VER) {
-        try {
-            const targetChannel = await client.channels.fetch('1527814721053655092').catch(() => null);
-            if (targetChannel) {
-                // Xóa 2 tin nhắn gần nhất của bot
-                const messages = await targetChannel.messages.fetch({ limit: 10 });
-                const botMsgs = messages.filter(m => m.author.id === client.user.id);
-                let count = 0;
-                for (const [id, msg] of botMsgs) {
-                    if (count >= 2) break;
-                    await msg.delete().catch(() => null);
-                    count++;
-                }
-
-                // Tạo thông báo mới bằng Component V2
-                const container = new ContainerBuilder()
-                    .setAccentColor(0x2C2F33)
-                    .addTextDisplayComponents(
-                        new TextDisplayBuilder().setContent('# Bản Cập Nhật Mới Nhất')
-                    )
-                    .addSeparatorComponents(new SeparatorBuilder().setSpacing(SeparatorSpacingSize.Medium).setDivider(true))
-                    .addTextDisplayComponents(
-                        new TextDisplayBuilder().setContent(
-                            '- Đã làm lại nút **Bán Đồ** (nhận lại 70% xu nếu là nhẫn, bán được đồ cổ).\n' +
-                            '- Tính năng truy tìm đồ cũ **mitimdo** & kho đồ **mikho**.\n' +
-                            '- Bổ sung tuỳ chỉnh Background **mibg**.\n' +
-                            '- Tự động **Check-Out** nếu quên sau 4 giờ (hiển thị giao diện mới).\n' +
-                            '- Khoá kênh / Mở khoá kênh với **/lock** & **/unlock**.\n' +
-                            '- Chức năng tự động xoá lịch sử hàng năm.\n' +
-                            '- Gửi thổ lộ ẩn danh **/confess**.\n\n' +
-                            '-# dev nhân'
-                        )
-                    );
-
-                await targetChannel.send({ components: [container], flags: MessageFlags.IsComponentsV2 }).catch(e => console.error(e));
-                
-                config.lastUpdateAnnounced = CURRENT_UPDATE_VER; saveConfig();
-                console.log('Đã cập nhật thông báo V2 thành công!');
-            }
-        } catch (e) {
-            console.error('Lỗi khi gửi thông báo tự động:', e);
-        }
-    }
-
-    console.log(`🤖 Bot ${client.user.tag} đã Online thành công!`);
     // 🎨 Tự cấp Application Emoji cho panel nhạc (an toàn, không cần quyền server).
     await provisionAppEmojis().catch(e => console.error('🎨 [Emoji] provisionAppEmojis lỗi:', e?.message));
     await syncChannels();
