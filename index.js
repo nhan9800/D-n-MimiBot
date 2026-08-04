@@ -8864,7 +8864,13 @@ if (commandName === 'setup') {
             try {
                 if (!gConfig.welcomeChannelId) {
                     let welcomeChan = guild.channels.cache.find(ch => ch.type === ChannelType.GuildText && ch.name.includes('welcome'));
-                    if (!welcomeChan) welcomeChan = await guild.channels.create({ name: '👋-welcome', type: ChannelType.GuildText });
+                    if (!welcomeChan) {
+                        try {
+                            welcomeChan = await guild.channels.create({ name: '👋-welcome', type: ChannelType.GuildText });
+                        } catch(e) {
+                            return interaction.editReply({ content: '❌ [Lỗi] Bot không đủ quyền (Manage Channels) để tạo kênh Welcome.' });
+                        }
+                    }
                     gConfig.welcomeChannelId = welcomeChan.id;
                 }
 
