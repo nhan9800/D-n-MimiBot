@@ -8782,6 +8782,105 @@ client.on('interactionCreate', async interaction => {
             await confChan.send({ embeds: [confEmbed] });
             return interaction.reply({ content: '✅ Confession của bạn đã được gửi ẩn danh!', flags: 64 });
         }
+if (commandName === 'setupticket') {
+
+    await interaction.deferReply({ flags: MessageFlags.Ephemeral });
+
+    const state = options.getString('trạng_thái');
+
+    if (state === 'off') {
+
+        gConfig.isTicketSetup = false; saveConfig();
+
+        return interaction.editReply('❌ Đã **TẮT** hệ thống Ticket.');
+
+    }
+
+    gConfig.isTicketSetup = true;
+
+    let ticketCategory = guild.channels.cache.get(gConfig.ticketCategoryId) || guild.channels.cache.find(ch => ch.type === ChannelType.GuildCategory && ch.name.toLowerCase().includes('ticket system'));
+
+    if (!ticketCategory) ticketCategory = await guild.channels.create({ name: '🎫 Ticket System', type: ChannelType.GuildCategory });
+
+    gConfig.ticketCategoryId = ticketCategory.id;
+
+
+    let ticketControlChannel = guild.channels.cache.get(gConfig.ticketControlChannelId) || guild.channels.cache.find(ch => ch.type === ChannelType.GuildText && ch.name.includes('hỗ-trợ-ticket'));
+
+    if (!ticketControlChannel) {
+
+        ticketControlChannel = await guild.channels.create({ 
+
+            name: '📩-hỗ-trợ-ticket', type: ChannelType.GuildText, parent: ticketCategory.id,
+
+            permissionOverwrites: [{ id: guild.id, allow: [PermissionFlagsBits.ViewChannel], deny: [PermissionFlagsBits.SendMessages] }]
+
+        });
+
+    }
+
+    gConfig.ticketControlChannelId = ticketControlChannel.id;
+
+
+    let archiveChan = guild.channels.cache.get(gConfig.ticketArchiveChannelId) || guild.channels.cache.find(ch => ch.type === ChannelType.GuildText && ch.name.includes('lưu-trữ-ticket'));
+
+    const adminOverwrites = [
+
+        { id: guild.id, deny: [PermissionFlagsBits.ViewChannel] }, 
+
+        { id: client.user.id, allow: [PermissionFlagsBits.ViewChannel, PermissionFlagsBits.SendMessages, PermissionFlagsBits.ManageChannels] }
+
+    ];
+
+    if (!archiveChan) archiveChan = await guild.channels.create({ name: '🗃️-lưu-trữ-ticket', type: ChannelType.GuildText, parent: ticketCategory.id, permissionOverwrites: adminOverwrites });
+
+    gConfig.ticketArchiveChannelId = archiveChan.id;
+
+    saveConfig();
+
+    
+
+    const embed = new EmbedBuilder().setColor('#EB459E').setTitle('HỆ THỐNG TICKET HỖ TRỢ').setDescription('Nhấn vào nút bên dưới để tạo Ticket mới. Đội ngũ hỗ trợ sẽ phản hồi sớm nhất có thể!');
+
+    const row = new ActionRowBuilder().addComponents(new ButtonBuilder().setCustomId('btn_create_ticket').setLabel('Mở Ticket Mới').setStyle(ButtonStyle.Primary).setEmoji('📝'));
+
+    await ticketControlChannel.send(embedToV2Payload(embed, { components: [row] }));
+
+    return interaction.editReply('✅ Đã **BẬT** và khởi tạo hệ thống Ticket!');
+
+}
+
+
+
+if (commandName === 'setupcategory') {
+
+    await interaction.deferReply({ flags: MessageFlags.Ephemeral });
+
+    const state = options.getString('trạng_thái');
+
+    if (state === 'off') {
+
+        gConfig.isCategorySetup = false; saveConfig();
+
+        return interaction.editReply('❌ Đã **TẮT** Danh Mục.');
+
+    }
+
+    gConfig.isCategorySetup = true;
+
+    let cat = await guild.channels.create({ name: 'DANH MỤC', type: ChannelType.GuildCategory });
+
+    let chan = await guild.channels.create({ name: 'danh-muc', type: ChannelType.GuildText, parent: cat.id });
+
+    gConfig.categoryChannelId = chan.id;
+
+    saveConfig();
+
+    return interaction.editReply('✅ Đã **BẬT** Danh Mục và tạo kênh ' + chan.toString() + '. Dùng `/category add` (nếu có) để thêm nội dung!');
+
+}
+
+
 if (commandName === 'setup') {
             try { await interaction.deferReply({ flags: MessageFlags.Ephemeral }); } catch (e) { return; }
             if (gConfig.isSetupCompleted === true) return interaction.editReply({ content: '⚠️ Hệ thống đã ở trạng thái setup trước đó.' });
