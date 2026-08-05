@@ -8816,9 +8816,17 @@ if (commandName === 'setup') {
                 // Hệ thống chấm công đã được tách riêng sang /setupattendance
 
                 // ── Kênh quản lý từ cấm (chỉ Admin thấy được) ──
+                const adminOverwritesBanned = [
+                    { id: guild.id, deny: [PermissionFlagsBits.ViewChannel] }, 
+                    { id: client.user.id, allow: [PermissionFlagsBits.ViewChannel, PermissionFlagsBits.SendMessages, PermissionFlagsBits.ManageChannels] }
+                ];
                 let bannedWordsChan = guild.channels.cache.get(gConfig.bannedWordsChannelId) || guild.channels.cache.find(ch => ch.type === ChannelType.GuildText && ch.name.includes('quan-ly-tu-cam'));
                 if (!bannedWordsChan) {
-                    bannedWordsChan = await guild.channels.create({ name: '📵-quản-lý-từ-cấm', type: ChannelType.GuildText, permissionOverwrites: adminOverwrites });
+                    try {
+                        bannedWordsChan = await guild.channels.create({ name: '📵-quản-lý-từ-cấm', type: ChannelType.GuildText, permissionOverwrites: adminOverwritesBanned });
+                    } catch (e) {
+                        return interaction.editReply('❌ [Lỗi] Thiếu quyền tạo kênh quản lý từ cấm.');
+                    }
                 }
                 gConfig.bannedWordsChannelId = bannedWordsChan.id;
                 // -- CONFESSION & PICK ROLES --
