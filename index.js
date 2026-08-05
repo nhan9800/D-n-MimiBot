@@ -5318,16 +5318,26 @@ client.on('guildMemberAdd', async (member) => {
         if (member.user.bot) {
             // Bot vào server → tự động cấp role ĐÃ XÁC THỰC (bỏ qua bước xác thực thủ công)
             if (gConfig.verifiedRoleId) {
-                member.roles.add(gConfig.verifiedRoleId).catch(err => 
-                    console.error(`❌ Không thể cấp role Đã Xác Thực cho bot ${member.user.tag}:`, err.message)
-                );
+                member.roles.add(gConfig.verifiedRoleId).catch(err => {
+                    console.error(`❌ Không thể cấp role Đã Xác Thực cho bot ${member.user.tag}:`, err.message);
+                    if (err.code === 10011) { // Unknown Role
+                        console.log('Role Đã Xác Thực đã bị xóa trên server. Đang gỡ bỏ cấu hình...');
+                        gConfig.verifiedRoleId = null;
+                        saveConfig();
+                    }
+                });
             }
         } else {
             // Người dùng thường → cấp role CHƯA XÁC THỰC như bình thường
             if (gConfig.unverifiedRoleId) {
-                member.roles.add(gConfig.unverifiedRoleId).catch(err => 
-                    console.error(`❌ Không thể gán role Chưa Xác Thực cho ${member.user.tag}:`, err.message)
-                );
+                member.roles.add(gConfig.unverifiedRoleId).catch(err => {
+                    console.error(`❌ Không thể gán role Chưa Xác Thực cho ${member.user.tag}:`, err.message);
+                    if (err.code === 10011) { // Unknown Role
+                        console.log('Role Chưa Xác Thực đã bị xóa trên server. Đang gỡ bỏ cấu hình...');
+                        gConfig.unverifiedRoleId = null;
+                        saveConfig();
+                    }
+                });
             }
         }
     }
