@@ -5496,23 +5496,7 @@ client.on('messageCreate', async (message) => {
     if (message.author.bot || !message.guild) return;
 
     const userId = message.author.id;
-    const minigameCommands = ['mibj', 'miblackjack', 'misl', 'mislot', 'mixd', 'mixocdia', 'mibc', 'mibaucua', 'mitx', 'mitaixiu', 'mitimdo', 'mitd', 'midaily', 'mid'];
-    const userDataForBan = economyData[userId];
-    if (minigameCommands.includes(command) && userDataForBan?.isBannedFromMinigames) {
-        return message.reply("🚫 Bạn đã bị Admin cấm chơi hệ thống minigame do nghi ngờ lạm dụng bug!");
-    }
-    
-    if (command === 'mibanminigame' || command === 'miunbanminigame') {
-        if (message.author.id !== OWNER_ID && !message.member.permissions.has(PermissionFlagsBits.Administrator)) return;
-        const target = message.mentions.users.first();
-        if (!target) return message.reply("Tag user cần ban/unban");
-        const tData = getUserData(target.id);
-        const isBan = command === 'mibanminigame';
-        tData.isBannedFromMinigames = isBan;
-        saveEconomy();
-        if (isBan) target.send("⚠️ Bạn đã bị cấm chơi minigame do sử dụng bug kiếm xu!").catch(()=>null);
-        return message.reply(`Đã ${isBan ? 'CẤM' : 'GỠ CẤM'} minigame user ${target.tag}`);
-    }
+
     const chId = message.channel.id;
     const gConfig = getGuildConfig(message.guild.id);
     const serverPrefix = gConfig.prefix || 'mi';
@@ -8827,15 +8811,7 @@ if (commandName === 'setup') {
 
                 // Ticket creation moved to /setupticket
 
-                await clearBotMessages(ticketControlChannel).catch(() => null);
-                
-                const row = new ActionRowBuilder().addComponents(
-                    new ButtonBuilder().setCustomId('create_ticket_btn:Default').setLabel('📩 Tạo Ticket').setStyle(ButtonStyle.Primary),
-                    new ButtonBuilder().setLabel('🌐 Máy Chủ Hỗ Trợ').setStyle(ButtonStyle.Link).setURL('https://discord.gg/KwHvTG2EmW') 
-                );
-                
-                const ticketPanelEmbed2 = new EmbedBuilder().setColor('#5865F2').setTitle('📩 Hệ Thống Hỗ Trợ').setDescription('Nhấn vào nút bên dưới để điền Form mở Ticket ẩn.');
-                await ticketControlChannel.send(embedToV2Payload(ticketPanelEmbed2, { components: [row] })).catch(() => null);
+                // Ticket send logic removed
 
                 // Hệ thống chấm công đã được tách riêng sang /setupattendance
 
