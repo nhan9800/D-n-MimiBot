@@ -8840,11 +8840,7 @@ if (commandName === 'setupticket') {
 
     
 
-    const embed = new EmbedBuilder().setColor('#EB459E').setTitle('HỆ THỐNG TICKET HỖ TRỢ').setDescription('Nhấn vào nút bên dưới để tạo Ticket mới. Đội ngũ hỗ trợ sẽ phản hồi sớm nhất có thể!');
-
-    const row = new ActionRowBuilder().addComponents(new ButtonBuilder().setCustomId('btn_create_ticket').setLabel('Mở Ticket Mới').setStyle(ButtonStyle.Primary).setEmoji('📝'));
-
-    await ticketControlChannel.send(embedToV2Payload(embed, { components: [row] }));
+    
 
     return interaction.editReply('✅ Đã **BẬT** và khởi tạo hệ thống Ticket!');
 
