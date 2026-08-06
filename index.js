@@ -4473,17 +4473,26 @@ client.once('ready', async () => {
             .addStringOption(option => option.setName('nội_dung').setDescription('Nội dung lời nhắn mới (Dùng \\n để xuống dòng)').setRequired(true)),
 
         new SlashCommandBuilder()
-            .setName('sendticket')
-            .setDescription('Gửi bảng tạo Ticket hỗ trợ tùy biến nâng cao')
+            .setName('addnutticket')
+            .setDescription('Gửi bảng tạo Ticket với tối đa 3 nút bấm tuỳ chỉnh (Màu sắc, Loại nút, Hình ảnh)')
             .setDefaultMemberPermissions(PermissionFlagsBits.ManageGuild)
-            .addChannelOption(option => option.setName('kênh_gửi').setDescription('Kênh hiển thị bảng Ticket').addChannelTypes(ChannelType.GuildText))
-            .addChannelOption(option => option.setName('danh_mục_ticket').setDescription('Danh mục chứa các phòng ẩn').addChannelTypes(ChannelType.GuildCategory))
+            .addChannelOption(option => option.setName('kênh_gửi').setDescription('Kênh hiển thị bảng Ticket').addChannelTypes(ChannelType.GuildText).setRequired(true))
             .addStringOption(option => option.setName('tiêu_đề').setDescription('Tiêu đề của bảng Ticket'))
-            .addStringOption(option => option.setName('nội_dung').setDescription('Nội dung mô tả'))
-            .addStringOption(option => option.setName('chữ_nút_bấm').setDescription('Thay đổi chữ trên nút mở Ticket chính'))
-            .addStringOption(option => option.setName('nút_phụ_tạo_ticket').setDescription('Nhập tên hiển thị cho nút phụ tạo Ticket thứ hai'))
-            .addStringOption(option => option.setName('tên_nút_gắn_link').setDescription('Nhập tên hiển thị cho nút liên kết ngoài'))
-            .addStringOption(option => option.setName('đường_dẫn_nút_gắn_link').setDescription('Đường dẫn URL của trang web')),
+            .addStringOption(option => option.setName('nội_dung').setDescription('Nội dung mô tả (hỗ trợ \\n để xuống dòng)'))
+            .addAttachmentOption(option => option.setName('hình_nhỏ').setDescription('Ảnh thumbnail bên góc phải (Mặc định: Logo Server)'))
+            .addAttachmentOption(option => option.setName('hình_lớn').setDescription('Ảnh banner to bên dưới'))
+            .addStringOption(option => option.setName('nút1_loại').setDescription('Loại chức năng của nút 1').addChoices({ name: 'Tạo Ticket', value: 'ticket' }, { name: 'Liên Kết', value: 'link' }))
+            .addStringOption(option => option.setName('nút1_tên').setDescription('Tên hiển thị của nút 1'))
+            .addStringOption(option => option.setName('nút1_màu').setDescription('Màu của nút 1 (chỉ áp dụng Tạo Ticket)').addChoices({ name: 'Xanh dương', value: 'Primary' }, { name: 'Xanh lá', value: 'Success' }, { name: 'Đỏ', value: 'Danger' }, { name: 'Xám', value: 'Secondary' }))
+            .addStringOption(option => option.setName('nút1_link').setDescription('Link URL (Bắt buộc nếu nút 1 là Liên Kết)'))
+            .addStringOption(option => option.setName('nút2_loại').setDescription('Loại chức năng của nút 2').addChoices({ name: 'Tạo Ticket', value: 'ticket' }, { name: 'Liên Kết', value: 'link' }))
+            .addStringOption(option => option.setName('nút2_tên').setDescription('Tên hiển thị của nút 2'))
+            .addStringOption(option => option.setName('nút2_màu').setDescription('Màu của nút 2').addChoices({ name: 'Xanh dương', value: 'Primary' }, { name: 'Xanh lá', value: 'Success' }, { name: 'Đỏ', value: 'Danger' }, { name: 'Xám', value: 'Secondary' }))
+            .addStringOption(option => option.setName('nút2_link').setDescription('Link URL của nút 2'))
+            .addStringOption(option => option.setName('nút3_loại').setDescription('Loại chức năng của nút 3').addChoices({ name: 'Tạo Ticket', value: 'ticket' }, { name: 'Liên Kết', value: 'link' }))
+            .addStringOption(option => option.setName('nút3_tên').setDescription('Tên hiển thị của nút 3'))
+            .addStringOption(option => option.setName('nút3_màu').setDescription('Màu của nút 3').addChoices({ name: 'Xanh dương', value: 'Primary' }, { name: 'Xanh lá', value: 'Success' }, { name: 'Đỏ', value: 'Danger' }, { name: 'Xám', value: 'Secondary' }))
+            .addStringOption(option => option.setName('nút3_link').setDescription('Link URL của nút 3')),
 
         new SlashCommandBuilder()
             .setName('setupverify')
@@ -5556,7 +5565,7 @@ client.on('messageCreate', async (message) => {
         const userData = getUserData(userId);
         
         const nowMs = Date.now();
-        const cooldown = 4 * 60 * 60 * 1000;
+        const cooldown = 24 * 60 * 60 * 1000;
 
         if (userData.lastDailyTimestamp && nowMs - userData.lastDailyTimestamp < cooldown) {
             const remain = cooldown - (nowMs - userData.lastDailyTimestamp);
@@ -8845,14 +8854,15 @@ if (commandName === 'setupticket') {
     if (!archiveChan) archiveChan = await guild.channels.create({ name: '🗃️-lưu-trữ-ticket', type: ChannelType.GuildText, parent: ticketCategory.id, permissionOverwrites: adminOverwrites });
 
     gConfig.ticketArchiveChannelId = archiveChan.id;
-
-    saveConfig();
-
-    
-
-    
-
-    return interaction.editReply('✅ Đã **BẬT** và khởi tạo hệ thống Ticket!');
+            saveConfig();
+            
+            const embed = new EmbedBuilder().setColor('#EB459E').setTitle('HỆ THỐNG TICKET HỖ TRỢ').setDescription('Nhấn vào nút bên dưới để tạo Ticket mới. Đội ngũ hỗ trợ sẽ phản hồi sớm nhất có thể!');
+            const row = new ActionRowBuilder().addComponents(
+                new ButtonBuilder().setCustomId('btn_create_ticket').setLabel('Mở Ticket Mới').setStyle(ButtonStyle.Primary).setEmoji('📝'),
+                new ButtonBuilder().setLabel('🌐 Máy Chủ Hỗ Trợ').setStyle(ButtonStyle.Link).setURL('https://discord.gg/KwHvTG2EmW')
+            );
+            await ticketControlChannel.send(embedToV2Payload(embed, { components: [row] }));
+            return interaction.editReply('✅ Đã **BẬT** và khởi tạo hệ thống Ticket!');
 
 }
 
@@ -9022,35 +9032,62 @@ if (commandName === 'setup') {
             }
         }
 
-        if (commandName === 'sendticket') {
-            let targetChannel = options.getChannel('kênh_gửi') || guild.channels.cache.get(gConfig.ticketControlChannelId);
-            let category = options.getChannel('danh_mục_ticket') || guild.channels.cache.get(gConfig.ticketCategoryId);
+        if (commandName === 'addnutticket') {
+            await interaction.deferReply({ flags: MessageFlags.Ephemeral });
 
-            if (!targetChannel || !category) return interaction.reply({ content: '❌ Vui lòng dùng `/setup` trước.', flags: MessageFlags.Ephemeral });
+            let targetChannel = options.getChannel('kênh_gửi');
+            if (!targetChannel) return interaction.editReply({ content: '❌ Kênh gửi không hợp lệ.' });
+
+            if (!gConfig.ticketCategoryId) return interaction.editReply({ content: '❌ Vui lòng dùng `/setupticket bật` để khởi tạo hệ thống Ticket trước.' });
 
             const title = options.getString('tiêu_đề') || '📩 Hệ Thống Hỗ Trợ & Báo Lỗi';
             const rawDescription = options.getString('nội_dung') || 'Nhấn nút phía dưới để gửi Form yêu cầu hỗ trợ đến admin.';
-            const buttonLabel = options.getString('chữ_nút_bấm') || '📩 Tạo Ticket';
-            const customTicketButtonLabel = options.getString('nút_phụ_tạo_ticket');
             
-            const linkLabel = options.getString('tên_nút_gắn_link');
-            const linkURL = options.getString('đường_dẫn_nút_gắn_link') || 'https://discord.gg/KwHvTG2EmW';
+            const thumbAttachment = options.getAttachment('hình_nhỏ');
+            const thumbUrl = thumbAttachment ? thumbAttachment.url : (guild.iconURL({ dynamic: true, size: 256 }) || null);
+            
+            const imageAttachment = options.getAttachment('hình_lớn');
+            const imageUrl = imageAttachment ? imageAttachment.url : null;
 
-            gConfig.ticketCategoryId = category.id; saveConfig();
+            const ticketEmbed = new EmbedBuilder()
+                .setColor('#5865F2')
+                .setTitle(title)
+                .setDescription(rawDescription.replace(/\\n/g, '\n'));
+                
+            if (thumbUrl) ticketEmbed.setThumbnail(thumbUrl);
+            if (imageUrl) ticketEmbed.setImage(imageUrl);
 
-            const ticketEmbed = new EmbedBuilder().setColor('#5865F2').setTitle(title).setDescription(rawDescription.replace(/\\n/g, '\n'));
-            const row = new ActionRowBuilder().addComponents(new ButtonBuilder().setCustomId(`create_ticket_btn:${buttonLabel}`).setLabel(buttonLabel).setStyle(ButtonStyle.Primary));
+            const row = new ActionRowBuilder();
+            let buttonCount = 0;
 
-            if (customTicketButtonLabel) {
-                row.addComponents(new ButtonBuilder().setCustomId(`create_ticket_btn:${customTicketButtonLabel}`).setLabel(customTicketButtonLabel).setStyle(ButtonStyle.Success));
+            for (let i = 1; i <= 3; i++) {
+                const type = options.getString(`nút${i}_loại`);
+                const name = options.getString(`nút${i}_tên`);
+                const color = options.getString(`nút${i}_màu`) || 'Primary';
+                const link = options.getString(`nút${i}_link`);
+
+                if (type && name) {
+                    const btn = new ButtonBuilder().setLabel(name);
+                    if (type === 'ticket') {
+                        btn.setCustomId(`create_ticket_btn:${name}`);
+                        btn.setStyle(ButtonStyle[color]);
+                    } else if (type === 'link') {
+                        if (!link) return interaction.editReply({ content: `❌ Lỗi: Bạn chọn Nút ${i} là Liên Kết nhưng không nhập Link.` });
+                        if (!link.startsWith('http')) return interaction.editReply({ content: `❌ Lỗi: Link ở Nút ${i} phải bắt đầu bằng http:// hoặc https://` });
+                        btn.setStyle(ButtonStyle.Link).setURL(link);
+                    }
+                    row.addComponents(btn);
+                    buttonCount++;
+                }
             }
 
-            if (linkLabel) {
-                row.addComponents(new ButtonBuilder().setLabel(linkLabel).setStyle(ButtonStyle.Link).setURL(linkURL));
+            if (buttonCount === 0) {
+                // Thêm nút mặc định nếu không set nút nào
+                row.addComponents(new ButtonBuilder().setCustomId('create_ticket_btn:Ticket').setLabel('Mở Ticket Mới').setStyle(ButtonStyle.Primary));
             }
 
             await targetChannel.send(embedToV2Payload(ticketEmbed, { components: [row] }));
-            return interaction.reply({ content: `✅ Đã gửi bảng Ticket phụ thành công!`, flags: MessageFlags.Ephemeral });
+            return interaction.editReply({ content: `✅ Đã gửi bảng Ticket tùy chỉnh tới ${targetChannel} thành công!` });
         }
 
         // ==========================================
