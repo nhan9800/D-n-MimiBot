@@ -8886,7 +8886,7 @@ if (commandName === 'setupticket') {
             
             const embed = new EmbedBuilder().setColor('#EB459E').setTitle('HỆ THỐNG TICKET HỖ TRỢ').setDescription('Nhấn vào nút bên dưới để tạo Ticket mới. Đội ngũ hỗ trợ sẽ phản hồi sớm nhất có thể!');
             const row = new ActionRowBuilder().addComponents(
-                new ButtonBuilder().setCustomId('btn_create_ticket').setLabel('Mở Ticket Mới').setStyle(ButtonStyle.Primary).setEmoji('📝'),
+                new ButtonBuilder().setCustomId('create_ticket_btn:Ticket').setLabel('Mở Ticket Mới').setStyle(ButtonStyle.Primary).setEmoji('📝'),
                 new ButtonBuilder().setLabel('🌐 Máy Chủ Hỗ Trợ').setStyle(ButtonStyle.Link).setURL('https://discord.gg/KwHvTG2EmW')
             );
             await ticketControlChannel.send(embedToV2Payload(embed, { components: [row] }));
@@ -10560,8 +10560,8 @@ if (commandName === 'setup') {
         }
 
         if (customId.startsWith('create_ticket_btn')) {
-            if (!gConfig.isSetupCompleted) {
-                await interaction.reply({ content: '⚠️ Hệ thống chưa sẵn sàng, vui lòng liên hệ admin.', flags: MessageFlags.Ephemeral });
+            if (!gConfig.isTicketSetup) {
+                await interaction.reply({ content: '⚠️ Hệ thống Ticket chưa được bật, vui lòng liên hệ admin.', flags: MessageFlags.Ephemeral });
                 return;
             }
             const buttonLabel = customId.includes(':') ? customId.split(':')[1] : 'Ticket';
