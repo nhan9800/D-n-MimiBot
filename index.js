@@ -4448,6 +4448,34 @@ client.once('ready', async () => {
             .setDefaultMemberPermissions(PermissionFlagsBits.ManageGuild),
 
         new SlashCommandBuilder()
+            .setName('setupticket')
+            .setDescription('Bật/Tắt hệ thống Ticket hỗ trợ')
+            .setDefaultMemberPermissions(PermissionFlagsBits.ManageGuild)
+            .addStringOption(option => 
+                option.setName('trạng_thái')
+                .setDescription('Bật hoặc Tắt hệ thống')
+                .setRequired(true)
+                .addChoices(
+                    { name: '✅ Bật', value: 'on' },
+                    { name: '🔌 Tắt', value: 'off' }
+                )
+            ),
+
+        new SlashCommandBuilder()
+            .setName('setupcategory')
+            .setDescription('Bật/Tắt danh mục kênh')
+            .setDefaultMemberPermissions(PermissionFlagsBits.ManageGuild)
+            .addStringOption(option => 
+                option.setName('trạng_thái')
+                .setDescription('Bật hoặc Tắt danh mục')
+                .setRequired(true)
+                .addChoices(
+                    { name: '✅ Bật', value: 'on' },
+                    { name: '🔌 Tắt', value: 'off' }
+                )
+            ),
+
+        new SlashCommandBuilder()
             .setName('dashboard')
             .setDescription('Lấy link Dashboard web kèm khoá truy cập cho server này')
             .setDefaultMemberPermissions(PermissionFlagsBits.ManageGuild),
