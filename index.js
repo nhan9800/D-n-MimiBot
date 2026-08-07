@@ -5597,7 +5597,98 @@ client.on('messageCreate', async (message) => {
     }
 
     // 1. Lệnh điểm danh: midaily hoặc mid
-    if (command === 'midaily' || command === 'mid') {
+    
+    if (command === 'mihelp') {
+        const introEmbed = new EmbedBuilder()
+            .setColor('#FF69B4')
+            .setTitle('🎀 DANH SÁCH LỆNH MINI BOT 🎀')
+            .setDescription('Chào mừng bạn đến với **MINI BOT**! Dưới đây là danh sách các tính năng hiện có.\nHãy chọn một mục trong menu thả xuống để xem hướng dẫn chi tiết nhé!')
+            .setThumbnail(client.user.displayAvatarURL())
+            .addFields(
+                { name: '🌟 Nổi Bật', value: '`/setup`, `/giveawaycreate`, `/thongbao`' },
+                { name: '💎 Cập Nhật Mới', value: 'Hệ thống **Giveaway**, **Ticket**, và **Voice Room** đã được tự động hóa hoàn toàn!' }
+            )
+            .setFooter({ text: 'Sử dụng menu bên dưới để chuyển trang' });
+
+        const selectMenu = new StringSelectMenuBuilder()
+            .setCustomId('help_select')
+            .setPlaceholder('📂 Chọn tính năng muốn xem hướng dẫn...')
+            .addOptions(
+                new StringSelectMenuOptionBuilder().setLabel('Khởi Tạo Hệ Thống').setDescription('Lệnh /setup và /resetsetup để khởi tạo server').setValue('help_setup').setEmoji('⚙️'),
+                new StringSelectMenuOptionBuilder().setLabel('Hệ Thống Xác Thực (Verify)').setDescription('Bảo vệ máy chủ với tính năng Verify mạnh mẽ').setValue('help_verify').setEmoji('🛡️'),
+                new StringSelectMenuOptionBuilder().setLabel('Hệ Thống Quản Lý (Mod)').setDescription('Avatar, Emoji, Xóa tin nhắn, Kick, Ban, Mute').setValue('help_mod').setEmoji('🛡️'),
+                new StringSelectMenuOptionBuilder().setLabel('Tiện Ích Thành Viên (AFK, v.v)').setDescription('Các lệnh cá nhân như /afk').setValue('help_utility').setEmoji('🛠️'),
+                new StringSelectMenuOptionBuilder().setLabel('Hệ Thống Giveaway').setDescription('Tạo kênh và tổ chức giveaway tặng quà').setValue('help_giveaway').setEmoji('🎁'),
+                new StringSelectMenuOptionBuilder().setLabel('Phòng Thoại Tự Động (Voice Room)').setDescription('Hệ thống tạo phòng thoại riêng tư tự động').setValue('help_voiceroom').setEmoji('🔊'),
+                new StringSelectMenuOptionBuilder().setLabel('Hệ Thống Kinh Tế & Giải Trí').setDescription('Điểm danh, Coin Flip, Tài Xỉu, Chợ Đen...').setValue('help_economy').setEmoji('💰'),
+                new StringSelectMenuOptionBuilder().setLabel('Hệ Thống Nghe Nhạc').setDescription('Phát nhạc từ YouTube, Spotify, Soundcloud...').setValue('help_music').setEmoji('🎵'),
+                new StringSelectMenuOptionBuilder().setLabel('Ủng Hộ Bot').setDescription('Thông tin donate & mã QR chuyển khoản duy trì bot').setValue('help_donate').setEmoji('☕')
+            );
+
+        const row = new ActionRowBuilder().addComponents(selectMenu);
+        return message.reply({ embeds: [introEmbed], components: [row] }).catch(() => null);
+    }
+\n
+    if (command === 'mikethon') {
+        const target = message.mentions.users.first();
+        if (!target || target.id === userId || target.bot) {
+            return message.reply({ content: '❌ Bạn phải tag một người dùng hợp lệ để cầu hôn!' });
+        }
+        const userData = getUserData(userId);
+        const targetData = getUserData(target.id);
+
+        if (userData.partner) return message.reply({ content: '❌ Bạn đã kết hôn rồi, không thể cầu hôn người khác!' });
+        if (targetData.partner) return message.reply({ content: '❌ Người này đã kết hôn rồi!' });
+
+        if (!userData.inventory || !userData.inventory.ring) {
+            return message.reply({ content: '❌ Bạn không có **💍 Nhẫn Cưới** trong túi đồ! (Vào `miprofile` -> `Cửa Hàng` để mua giá 1,000,000 Xu)' });
+        }
+
+        const confirmRow = new ActionRowBuilder().addComponents(
+            new ButtonBuilder().setCustomId('accept_marry').setLabel('Đồng Ý').setStyle(ButtonStyle.Success),
+            new ButtonBuilder().setCustomId('decline_marry').setLabel('Từ Chối').setStyle(ButtonStyle.Danger)
+        );
+
+        const msg = await message.reply({ content: '💍 <@' + target.id + '>, bạn có đồng ý kết hôn với <@' + message.author.id + '> không?', components: [confirmRow] });
+
+        const filter = i => i.user.id === target.id && (i.customId === 'accept_marry' || i.customId === 'decline_marry');
+        try {
+            const collected = await msg.awaitMessageComponent({ filter, time: 60000 });
+            if (collected.customId === 'accept_marry') {
+                userData.inventory.ring -= 1;
+                userData.partner = target.id;
+                targetData.partner = userId;
+                userData.marryTime = Date.now();
+                targetData.marryTime = Date.now();
+                saveEconomy();
+                await collected.update({ content: '🎉 Chúc mừng <@' + message.author.id + '> và <@' + target.id + '> đã chính thức trở thành vợ chồng! 💍', components: [] });
+            } else {
+                await collected.update({ content: '💔 <@' + target.id + '> đã từ chối lời cầu hôn của <@' + message.author.id + '>.', components: [] });
+            }
+        } catch (e) {
+            await msg.edit({ content: '⏳ Quá thời gian, lời cầu hôn đã bị hủy.', components: [] });
+        }
+        return;
+    }
+
+    if (command === 'milyhon') {
+        const userData = getUserData(userId);
+        if (!userData.partner) {
+            return message.reply({ content: '❌ Bạn chưa kết hôn với ai cả!' });
+        }
+        const partnerId = userData.partner;
+        const targetData = getUserData(partnerId);
+
+        userData.partner = null;
+        userData.marryTime = null;
+        if (targetData) {
+            targetData.partner = null;
+            targetData.marryTime = null;
+        }
+        saveEconomy();
+        return message.reply({ content: '💔 Bạn đã chính thức ly hôn. Chúc bạn tìm được hạnh phúc mới!' });
+    }
+\n    if (command === 'midaily' || command === 'mid') {
         const userData = getUserData(userId);
         
         const nowMs = Date.now();
