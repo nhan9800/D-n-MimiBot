@@ -4446,6 +4446,12 @@ client.once('ready', async () => {
             .setName('setup')
             .setDescription('Tự động khởi tạo hoặc sử dụng lại các kênh để làm mới nút bấm')
             .setDefaultMemberPermissions(PermissionFlagsBits.ManageGuild),
+        new SlashCommandBuilder()
+            .setName('afk')
+            .setDescription('Treo máy (AFK). Tự động thông báo nếu ai đó nhắc đến bạn.')
+            .addStringOption(option => option.setName('lý_do').setDescription('Lý do bạn AFK').setRequired(true))
+            .setIntegrationTypes([0, 1]).setContexts([0, 1, 2]),
+
 
         new SlashCommandBuilder()
             .setName('setupticket')
@@ -4629,7 +4635,8 @@ client.once('ready', async () => {
                     { name: 'Giờ', value: 'hours' },
                     { name: 'Ngày', value: 'days' }
                 ))
-            .addIntegerOption(o => o.setName('số_người_thắng').setDescription('Số người thắng (mặc định: 1)').setMinValue(1).setMaxValue(20)),
+            .addIntegerOption(o => o.setName('số_người_thắng').setDescription('Số người thắng (mặc định: 1)').setMinValue(1).setMaxValue(20))
+            .addRoleOption(o => o.setName('vai_trò_tag').setDescription('Vai trò cần tag khi bắt đầu (tùy chọn)')),
 
         new SlashCommandBuilder()
             .setName('resetverify-all')
@@ -4681,7 +4688,8 @@ client.once('ready', async () => {
             .addStringOption(o => o.setName('nội_dung').setDescription('Các mục, cách nhau bằng " | ". Mỗi mục dạng "Tiêu đề mục :: nội dung"').setRequired(true).setMaxLength(3500))
             .addStringOption(o => o.setName('màu').setDescription('Màu viền (hex, VD: #5865F2). Mặc định: xanh Discord').setRequired(false).setMaxLength(7))
             .addStringOption(o => o.setName('chân_trang').setDescription('Dòng ghi chú nhỏ ở cuối (tùy chọn)').setRequired(false).setMaxLength(300))
-            .addBooleanOption(o => o.setName('gắn_mọi_người').setDescription('Có gắn @everyone kèm thông báo không? (mặc định: Không)').setRequired(false)),
+            .addBooleanOption(o => o.setName('gắn_mọi_người').setDescription('Có gắn @everyone kèm thông báo không? (mặc định: Không)').setRequired(false))
+            .addRoleOption(o => o.setName('vai_trò_tag').setDescription('Vai trò cần ping (tùy chọn)')),
 
         new SlashCommandBuilder()
             .setName('setprefix')
@@ -7175,6 +7183,7 @@ client.on('interactionCreate', async interaction => {
             const duration = options.getInteger('thời_gian');
             const unit = options.getString('đơn_vị');
             const winners = options.getInteger('số_người_thắng') || 1;
+            const roleTag = options.getRole('vai_trò_tag');
 
             const unitMs = { minutes: 60_000, hours: 3_600_000, days: 86_400_000 };
             const unitLabel = { minutes: 'phút', hours: 'giờ', days: 'ngày' };
@@ -7628,8 +7637,13 @@ client.on('interactionCreate', async interaction => {
             const container = new ContainerBuilder().setAccentColor(accent);
             // ⚠️ Components V2 KHÔNG cho kèm message.content -> @everyone phải nằm TRONG component (TextDisplay).
             // Vẫn cần allowedMentions.parse=['everyone'] ở payload thì mention mới THẬT SỰ kêu.
-            if (pingEveryone) {
+            const thongbaoRole = options.getRole('vai_trò_tag');
+            if (pingEveryone && thongbaoRole) {
+                container.addTextDisplayComponents(new TextDisplayBuilder().setContent(`@everyone ${thongbaoRole}`));
+            } else if (pingEveryone) {
                 container.addTextDisplayComponents(new TextDisplayBuilder().setContent('@everyone'));
+            } else if (thongbaoRole) {
+                container.addTextDisplayComponents(new TextDisplayBuilder().setContent(`${thongbaoRole}`));
             }
             // Tiêu đề lớn ở đầu.
             container.addTextDisplayComponents(new TextDisplayBuilder().setContent(`# ${tbTitle}`));
@@ -7665,7 +7679,7 @@ client.on('interactionCreate', async interaction => {
             // Chỉ cần allowedMentions để mention THẬT SỰ kêu; mặc định tắt hết mention để không ping ngoài ý muốn.
             const payload = {
                 components: [container], flags: MessageFlags.IsComponentsV2,
-                allowedMentions: pingEveryone ? { parse: ['everyone'] } : { parse: [] }
+                allowedMentions: { parse: ['everyone', 'roles'] }
             };
 
             const sent = await targetChannel.send(payload).catch(err => {
@@ -8288,6 +8302,11 @@ client.on('interactionCreate', async interaction => {
                         .setDescription('Avatar, Emoji, Xóa tin nhắn, Kick, Ban, Mute')
                         .setValue('help_mod')
                         .setEmoji('🛡️'),
+                    new StringSelectMenuOptionBuilder()
+                        .setLabel('Tiện Ích Thành Viên (AFK, v.v)')
+                        .setDescription('Các lệnh cá nhân như /afk')
+                        .setValue('help_utility')
+                        .setEmoji('🛠️'),
                     new StringSelectMenuOptionBuilder()
                         .setLabel('Hệ Thống Giveaway')
                         .setDescription('Tạo kênh và tổ chức giveaway tặng quà')
@@ -9429,7 +9448,9 @@ if (commandName === 'setup') {
                         '> **1. Lệnh `/autoplay`:** Tự động phát nhạc liên quan khi hết hàng đợi.\n' +
                         '> **2. Lệnh `/247`:** Giữ bot online bám rễ trong kênh thoại 24/24.'
                     );
-                await targetChannel.send({ embeds: [embed] });
+                const tbMsg = thongbaoRole ? `${thongbaoRole}` : '';
+            if (tbMsg) await targetChannel.send({ content: tbMsg, embeds: [embed] });
+            else await targetChannel.send({ embeds: [embed] });
                 return interaction.editReply('Discord chặn V2 Component, đã gửi bằng Embed tiêu chuẩn thay thế!');
             }
         }
@@ -9655,7 +9676,8 @@ if (commandName === 'setup') {
                 fields: [
                     { name: 'Quy trình hoạt động', value: '① Thành viên bấm nút tạo Ticket → Bot mở phòng chat riêng\n② Staff bấm "Nhận ca" → Được gán vào phòng đó\n③ Staff bấm "Đóng Ticket" → Bot lưu log toàn bộ chat\n④ Log được gửi vào kênh lưu trữ + DM cho người tạo Ticket' },
                     { name: '`/configticket [nội_dung]`', value: 'Tùy chỉnh lời nhắc hướng dẫn hiển thị bên trong phòng Ticket khi vừa được tạo.' },
-                    { name: '`/sendticket [kênh] [danh_mục] [tiêu_đề] [nội_dung]`', value: 'Gửi bảng tạo Ticket tùy chỉnh sang một kênh bất kỳ, có thể đặt embed riêng và chọn danh mục lưu phòng.' },
+                    { name: '`/addnutticket`', value: 'Gửi bảng tạo Ticket tùy chỉnh có hỗ trợ hình ảnh và tối đa 3 nút bấm có gắn link/màu sắc.' },
+                    { name: '`/setupticket`', value: 'Bật/Tắt và tự động gửi hệ thống Ticket hỗ trợ mặc định.' },
                     { name: '⏱️ Tự động', value: 'Ticket không được nhận ca sau **24 giờ** sẽ tự đóng và gửi thông báo. Hủy nhận ca có cooldown **12 giờ**.' },
                 ]
             },
@@ -9711,6 +9733,14 @@ if (commandName === 'setup') {
                     { name: '`/setupgiveaway [Bật/Tắt]`', value: 'Tạo kênh `🎉-giveaway`, khóa chat mọi người, gửi embed giới thiệu.\nYêu cầu quyền **Manage Channels**.' },
                     { name: '`/giveawaycreate [tiêu_đề] [phần_thưởng] [thời_gian] [đơn_vị] [số_người_thắng]`', value: 'Tạo giveaway mới gửi vào kênh giveaway, có 2 nút:\n• **🎉 Tham Gia** — bấm để vào/rút khỏi, số người cập nhật realtime\n• **🌐 Máy Chủ Hỗ Trợ** — link cố định\n\nEmbed hiển thị tiêu đề, phần thưởng, số người thắng, giờ kết thúc và **đếm ngược realtime** (cập nhật mỗi 30 giây).\nKhi hết giờ, bot tự chọn người thắng ngẫu nhiên và thông báo.\nYêu cầu quyền **Manage Server**.' },
                     { name: '🔗 `/invite`', value: 'Tạo link mời **vĩnh viễn** (không hết hạn, không giới hạn lượt dùng) cho server.\nYêu cầu quyền **Create Instant Invite**.' },
+                ]
+            },
+            help_utility: {
+                emoji: '🛠️', title: 'Tiện Ích Cá Nhân',
+                color: '#E67E22',
+                desc: 'Các lệnh tiện ích dành cho mọi thành viên trên server.',
+                fields: [
+                    { name: '`/afk [lý_do]`', value: 'Bật chế độ treo máy. Bot sẽ tự động trả lời thay bạn nếu có ai đó tag bạn vào tin nhắn.\n**Cách tắt:** Nhắn một tin bất kỳ lên server.' }
                 ]
             },
             help_feedback: {
@@ -10808,6 +10838,7 @@ if (commandName === 'setup') {
     // KHỐI 3: XỬ LÝ KHI USER SUBMIT FORM MODAL
     // ==========================================
     if (interaction.isModalSubmit() && interaction.customId.startsWith('ticket_modal:')) {
+        await interaction.deferReply({ flags: MessageFlags.Ephemeral });
         const buttonText = interaction.customId.split(':')[1] || 'Ticket';
         const userReason = interaction.fields.getTextInputValue('ticket_reason_input');
         
@@ -10817,7 +10848,7 @@ if (commandName === 'setup') {
 
         const existingChannel = guild.channels.cache.find(ch => ch.parentId === gConfig.ticketCategoryId && ch.name === channelName);
         if (existingChannel) {
-            await interaction.reply({ content: `⚠️ Bạn có một kênh hỗ trợ tương tự đang mở: ${existingChannel}`, flags: MessageFlags.Ephemeral });
+            await interaction.editReply({ content: `⚠️ Bạn có một kênh hỗ trợ tương tự đang mở: ${existingChannel}` });
             return;
         }
 
@@ -10833,7 +10864,7 @@ if (commandName === 'setup') {
         });
 
         const ticketChannel = await guild.channels.create({
-            name: channelName, type: ChannelType.GuildText, parent: gConfig.ticketCategoryId || null, permissionOverwrites: baseOverwrites
+            name: channelName, type: ChannelType.GuildText, parent: (guild.channels.cache.get(gConfig.ticketCategoryId) ? gConfig.ticketCategoryId : null), permissionOverwrites: baseOverwrites
         });
 
         registerCreatedChannel(ticketChannel.id, guild.id);
@@ -10858,6 +10889,7 @@ if (commandName === 'setup') {
 
         await ticketChannel.send({ content: `🔔 **Yêu cầu mới!** ${user} | Ban Quản Trị: ${getAdminRoleMention(guild)}`, embeds: [insideEmbed], components: [ticketRow] });
         await ticketChannel.send({ content: `⚠️ **THÔNG BÁO CHỜ DUYỆT:** Tự động xóa sau **<t:${expireTimestamp}:R>** nếu không có admin nhận.` }).catch(() => null);
+        await interaction.editReply({ content: `✅ Đã tạo kênh hỗ trợ cho bạn: ${ticketChannel}` });
 
         if (ticketTimeouts.has(ticketChannel.id)) clearTimeout(ticketTimeouts.get(ticketChannel.id));
         const timeoutId = setTimeout(async () => {
