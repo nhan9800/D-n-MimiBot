@@ -5628,7 +5628,7 @@ client.on('messageCreate', async (message) => {
         const row = new ActionRowBuilder().addComponents(selectMenu);
         return message.reply({ embeds: [introEmbed], components: [row] }).catch(() => null);
     }
-\n
+
     if (command === 'mikethon') {
         const target = message.mentions.users.first();
         if (!target || target.id === userId || target.bot) {
@@ -5688,7 +5688,7 @@ client.on('messageCreate', async (message) => {
         saveEconomy();
         return message.reply({ content: '💔 Bạn đã chính thức ly hôn. Chúc bạn tìm được hạnh phúc mới!' });
     }
-\n    
+
     if (command === 'mihelp') {
         const introEmbed = new EmbedBuilder()
             .setColor('#FF69B4')
