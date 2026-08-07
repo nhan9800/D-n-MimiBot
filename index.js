@@ -10889,8 +10889,6 @@ if (commandName === 'setup') {
 
         await ticketChannel.send({ content: `🔔 **Yêu cầu mới!** ${user} | Ban Quản Trị: ${getAdminRoleMention(guild)}`, embeds: [insideEmbed], components: [ticketRow] });
         await ticketChannel.send({ content: `⚠️ **THÔNG BÁO CHỜ DUYỆT:** Tự động xóa sau **<t:${expireTimestamp}:R>** nếu không có admin nhận.` }).catch(() => null);
-        await interaction.editReply({ content: `✅ Đã tạo kênh hỗ trợ cho bạn: ${ticketChannel}` });
-
         if (ticketTimeouts.has(ticketChannel.id)) clearTimeout(ticketTimeouts.get(ticketChannel.id));
         const timeoutId = setTimeout(async () => {
             ticketTimeouts.delete(ticketChannel.id);
@@ -10899,7 +10897,7 @@ if (commandName === 'setup') {
         }, waitTime);
         ticketTimeouts.set(ticketChannel.id, timeoutId);
         
-        await interaction.reply({ content: `🎉 Đã tạo phòng hỗ trợ thành công: ${ticketChannel}`, flags: MessageFlags.Ephemeral });
+        await interaction.editReply({ content: `🎉 Đã tạo phòng hỗ trợ thành công: ${ticketChannel}` });
         setTimeout(() => interaction.deleteReply().catch(() => null), 5000);
         return;
     }
