@@ -3729,7 +3729,7 @@ async function playNextTrack(guildId, opts = {}) {
             }
             // 🔊 LUÔN bật inlineVolume để nút Tăng/Giảm âm CHỈNH TỨC THÌ (setVolume) mà KHÔNG phải
             // phát lại bài từ đầu. Đánh đổi: inlineVolume tốn CPU hơn truyền thẳng; chấp nhận để chỉnh âm mượt.
-            resource = voiceLib.createAudioResource(probe.stream, { inputType: probe.type, inlineVolume: true });
+            resource = voiceLib.createAudioResource(probe.stream, { inputType: probe.type, inlineVolume: false });
         }
         if (resource.volume) resource.volume.setVolume(mq.volume);
         mq.currentResource = resource;
@@ -5363,26 +5363,24 @@ client.on('guildMemberAdd', async (member) => {
         if (member.user.bot) {
             // Bot vào server → tự động cấp role ĐÃ XÁC THỰC (bỏ qua bước xác thực thủ công)
             if (gConfig.verifiedRoleId) {
-                member.roles.add(gConfig.verifiedRoleId).catch(err => {
-                    console.error(`❌ Không thể cấp role Đã Xác Thực cho bot ${member.user.tag}:`, err.message);
-                    if (err.code === 10011) { // Unknown Role
-                        console.log('Role Đã Xác Thực đã bị xóa trên server. Đang gỡ bỏ cấu hình...');
-                        gConfig.verifiedRoleId = null;
-                        saveConfig();
-                    }
-                });
+                const vRole = guild.roles.cache.get(gConfig.verifiedRoleId);
+                if (!vRole) {
+                    gConfig.verifiedRoleId = null;
+                    saveConfig();
+                } else {
+                    member.roles.add(vRole).catch(() => null);
+                }
             }
         } else {
             // Người dùng thường → cấp role CHƯA XÁC THỰC như bình thường
             if (gConfig.unverifiedRoleId) {
-                member.roles.add(gConfig.unverifiedRoleId).catch(err => {
-                    console.error(`❌ Không thể gán role Chưa Xác Thực cho ${member.user.tag}:`, err.message);
-                    if (err.code === 10011) { // Unknown Role
-                        console.log('Role Chưa Xác Thực đã bị xóa trên server. Đang gỡ bỏ cấu hình...');
-                        gConfig.unverifiedRoleId = null;
-                        saveConfig();
-                    }
-                });
+                const uRole = guild.roles.cache.get(gConfig.unverifiedRoleId);
+                if (!uRole) {
+                    gConfig.unverifiedRoleId = null;
+                    saveConfig();
+                } else {
+                    member.roles.add(uRole).catch(() => null);
+                }
             }
         }
     }
