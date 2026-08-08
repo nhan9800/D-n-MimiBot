@@ -5550,6 +5550,26 @@ client.on('messageCreate', async (message) => {
 
     const userId = message.author.id;
 
+    // AFK System Logic
+    const userData = getUserData(userId);
+    if (userData && userData.afk) {
+        delete userData.afk;
+        saveEconomy();
+        message.reply({ content: `👋 Chào mừng trở lại ${message.author}, tôi đã tắt chế độ AFK của bạn.` }).catch(() => null);
+    }
+    
+    if (message.mentions.users.size > 0) {
+        message.mentions.users.forEach(user => {
+            if (user.bot || user.id === userId) return;
+            const tData = getUserData(user.id);
+            if (tData && tData.afk) {
+                message.reply({ content: `💤 **${user.tag}** hiện đang AFK.
+📝 **Lý do:** ${tData.afk.reason}
+⏱️ **Từ:** <t:${Math.floor(tData.afk.timestamp / 1000)}:R>` }).catch(() => null);
+            }
+        });
+    }
+
     const chId = message.channel.id;
     const gConfig = getGuildConfig(message.guild.id);
     const serverPrefix = gConfig.prefix || 'mi';
@@ -9030,6 +9050,17 @@ client.on('interactionCreate', async interaction => {
             await confChan.send({ embeds: [confEmbed] });
             return interaction.reply({ content: '✅ Confession của bạn đã được gửi ẩn danh!', flags: 64 });
         }
+if (commandName === 'afk') {
+    const reason = interaction.options.getString('ly_do') || 'Không có lý do';
+    const userData = getUserData(interaction.user.id);
+    userData.afk = {
+        reason: reason,
+        timestamp: Date.now()
+    };
+    saveEconomy();
+    return interaction.reply({ content: `✅ Bạn đã bật chế độ treo máy (AFK).\n📝 **Lý do:** ${reason}\n*(Bot sẽ tự động thông báo khi có ai tag bạn. Nhắn 1 tin bất kỳ để tắt AFK)*` });
+}
+
 if (commandName === 'setupticket') {
 
     await interaction.deferReply({ flags: MessageFlags.Ephemeral });
