@@ -9051,14 +9051,31 @@ client.on('interactionCreate', async interaction => {
             return interaction.reply({ content: '✅ Confession của bạn đã được gửi ẩn danh!', flags: 64 });
         }
 if (commandName === 'afk') {
-    const reason = interaction.options.getString('ly_do') || 'Không có lý do';
-    const userData = getUserData(interaction.user.id);
-    userData.afk = {
-        reason: reason,
-        timestamp: Date.now()
-    };
-    saveEconomy();
-    return interaction.reply({ content: `✅ Bạn đã bật chế độ treo máy (AFK).\n📝 **Lý do:** ${reason}\n*(Bot sẽ tự động thông báo khi có ai tag bạn. Nhắn 1 tin bất kỳ để tắt AFK)*` });
+    const reason = interaction.options.getString('ly_do');
+    
+    if (!reason) {
+        const modal = new ModalBuilder()
+            .setCustomId('afk_modal')
+            .setTitle('Cài đặt AFK');
+            
+        const reasonInput = new TextInputBuilder()
+            .setCustomId('afk_reason')
+            .setLabel('Lý do bạn AFK là gì?')
+            .setStyle(TextInputStyle.Paragraph)
+            .setRequired(true)
+            .setPlaceholder('Vd: Đi ăn cơm, bận học...');
+            
+        modal.addComponents(new ActionRowBuilder().addComponents(reasonInput));
+        return interaction.showModal(modal);
+    } else {
+        const userData = getUserData(interaction.user.id);
+        userData.afk = {
+            reason: reason,
+            timestamp: Date.now()
+        };
+        saveEconomy();
+        return interaction.reply({ content: `✅ Bạn đã bật chế độ treo máy (AFK).\n📝 **Lý do:** ${reason}\n*(Bot sẽ tự động thông báo khi có ai tag bạn. Nhắn 1 tin bất kỳ để tắt AFK)*` });
+    }
 }
 
 if (commandName === 'setupticket') {
