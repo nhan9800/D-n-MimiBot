@@ -11067,6 +11067,17 @@ if (commandName === 'setup') {
     // ==========================================
     // KHỐI 3: XỬ LÝ KHI USER SUBMIT FORM MODAL
     // ==========================================
+    if (interaction.isModalSubmit() && interaction.customId === 'afk_modal') {
+        const reason = interaction.fields.getTextInputValue('afk_reason') || 'Không có lý do';
+        const userData = getUserData(interaction.user.id);
+        userData.afk = {
+            reason: reason,
+            timestamp: Date.now()
+        };
+        saveEconomy();
+        return interaction.reply({ content: `✅ Bạn đã bật chế độ treo máy (AFK).\n📝 **Lý do:** ${reason}\n*(Bot sẽ tự động thông báo khi có ai tag bạn. Nhắn 1 tin bất kỳ để tắt AFK)*` });
+    }
+
     if (interaction.isModalSubmit() && interaction.customId.startsWith('ticket_modal:')) {
         await interaction.deferReply({ flags: MessageFlags.Ephemeral });
         const buttonText = interaction.customId.split(':')[1] || 'Ticket';
