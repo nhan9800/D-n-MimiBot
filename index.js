@@ -9125,7 +9125,7 @@ client.on('interactionCreate', async interaction => {
             } catch (e) {
                 if (e.code === 50013) return interaction.reply({ content: '❌ Bot không có quyền gửi tin nhắn vào kênh Confession. Vui lòng báo Admin cấp quyền `SendMessages` cho bot tại kênh đó!', flags: 64 });
                 return interaction.reply({ content: '❌ Đã xảy ra lỗi khi gửi confession.', flags: 64 });
-            }, flags: 64 });
+            }
         }
 if (commandName === 'afk') {
     const reason = interaction.options.getString('ly_do');
