@@ -9272,12 +9272,14 @@ client.on('interactionCreate', async interaction => {
             return interaction.editReply({ content: `🎉 **Sự kiện Liên Server đã được tạo!**\n📢 Đã gửi tới **${successCount}/${totalSetups}** server.\n⏰ Tự động kết thúc sau **${timeDisplay.join(' ')}**.\n🏆 Phần thưởng: **${xuReward.toLocaleString()} xu** × **${numWinners}** người thắng.` });
         }
 
-        if (commandName === 'confession') {
+                if (commandName === 'confession') {
+            await interaction.deferReply({ flags: 64 });
+            
             if (!gConfig || !gConfig.confessionChannelId) {
-                return interaction.reply({ content: '❌ Kênh confession chưa được setup. Hãy báo Admin dùng /setup nhé.', flags: 64 });
+                return interaction.editReply({ content: '❌ Kênh confession chưa được setup. Hãy báo Admin dùng /setup nhé.' });
             }
             const confChan = interaction.guild.channels.cache.get(gConfig.confessionChannelId);
-            if (!confChan) return interaction.reply({ content: '❌ Không tìm thấy kênh confession.', flags: 64 });
+            if (!confChan) return interaction.editReply({ content: '❌ Không tìm thấy kênh confession.' });
             
             const noiDung = interaction.options.getString('nội_dung');
             const confEmbed = new EmbedBuilder()
@@ -9289,10 +9291,10 @@ client.on('interactionCreate', async interaction => {
             
             try {
                 await confChan.send({ embeds: [confEmbed] });
-                return interaction.reply({ content: '✅ Confession của bạn đã được gửi ẩn danh!', flags: 64 });
+                return interaction.editReply({ content: '✅ Confession của bạn đã được gửi ẩn danh!' });
             } catch (e) {
-                if (e.code === 50013) return interaction.reply({ content: '❌ Bot không có quyền gửi tin nhắn vào kênh Confession. Vui lòng báo Admin cấp quyền `SendMessages` cho bot tại kênh đó!', flags: 64 });
-                return interaction.reply({ content: '❌ Đã xảy ra lỗi khi gửi confession.', flags: 64 });
+                if (e.code === 50013) return interaction.editReply({ content: '❌ Bot không có quyền gửi tin nhắn vào kênh Confession. Vui lòng báo Admin cấp quyền `SendMessages` cho bot tại kênh đó!' });
+                return interaction.editReply({ content: '❌ Đã xảy ra lỗi khi gửi confession.' });
             }
         }
 if (commandName === 'afk') {
