@@ -4403,6 +4403,26 @@ client.once('ready', async () => {
 
     const commands = [
         new SlashCommandBuilder()
+            .setName('setupsystem')
+            .setDescription('Cài đặt kênh nhận thông báo toàn hệ thống từ Admin Bot')
+            .setDefaultMemberPermissions(PermissionFlagsBits.ManageGuild)
+            .addChannelOption(option => 
+                option.setName('kênh')
+                    .setDescription('Chọn kênh để nhận thông báo hệ thống')
+                    .addChannelTypes(ChannelType.GuildText)
+                    .setRequired(true)
+            ),
+
+        new SlashCommandBuilder()
+            .setName('sendsystem')
+            .setDescription('Gửi thông báo đến tất cả các server đã cài đặt kênh system (Chỉ dành cho Owner Bot)')
+            .addStringOption(option => 
+                option.setName('nội_dung')
+                    .setDescription('Nội dung thông báo (hỗ trợ xuống dòng bằng \\n)')
+                    .setRequired(true)
+            ),
+
+        new SlashCommandBuilder()
             .setName('lock')
             .setDescription('Khóa kênh chat hiện tại')
             .setDefaultMemberPermissions(PermissionFlagsBits.ManageChannels),
@@ -9031,8 +9051,55 @@ client.on('interactionCreate', async interaction => {
             await interaction.channel.permissionOverwrites.edit(interaction.guild.id, { SendMessages: true });
             return interaction.reply({ content: '🔓 Kênh đã được mở khóa.' });
         }
+
+        if (commandName === 'setupsystem') {
+            const channel = interaction.options.getChannel('kênh');
+            const gConfig = getGuildConfig(interaction.guild.id);
+            gConfig.systemChannelId = channel.id;
+            saveConfig();
+            return interaction.reply({ content: `✅ Đã cài đặt kênh ${channel} làm kênh nhận thông báo hệ thống từ Admin Bot.`, flags: 64 });
+        }
+
+        if (commandName === 'sendsystem') {
+            if (interaction.user.id !== OWNER_ID) {
+                return interaction.reply({ content: '❌ Lệnh này chỉ dành riêng cho Chủ Bot.', flags: 64 });
+            }
+            
+            await interaction.deferReply({ flags: 64 });
+            
+            const noiDung = interaction.options.getString('nội_dung').replace(/\\n/g, '\n');
+            const embed = new EmbedBuilder()
+                .setTitle('📢 THÔNG BÁO HỆ THỐNG')
+                .setDescription(noiDung)
+                .setColor('#FF0000')
+                .setFooter({ text: 'Tin nhắn từ Admin Bot', iconURL: client.user.displayAvatarURL() })
+                .setTimestamp();
+                
+            let successCount = 0;
+            let totalSetups = 0;
+            
+            for (const [guildId, gConfig] of Object.entries(config.guilds)) {
+                if (gConfig.systemChannelId) {
+                    totalSetups++;
+                    try {
+                        const guild = await client.guilds.fetch(guildId).catch(() => null);
+                        if (guild) {
+                            const channel = guild.channels.cache.get(gConfig.systemChannelId) || await guild.channels.fetch(gConfig.systemChannelId).catch(() => null);
+                            if (channel) {
+                                await channel.send({ embeds: [embed] }).catch(() => null);
+                                successCount++;
+                            }
+                        }
+                    } catch (e) {
+                        // ignore
+                    }
+                }
+            }
+            
+            return interaction.editReply({ content: `✅ Đã gửi thông báo thành công đến **${successCount}/${totalSetups}** server có cài đặt kênh nhận thông báo.` });
+        }
+
         if (commandName === 'confession') {
-            const gConfig = config.guilds[interaction.guild.id];
             if (!gConfig || !gConfig.confessionChannelId) {
                 return interaction.reply({ content: '❌ Kênh confession chưa được setup. Hãy báo Admin dùng /setup nhé.', flags: 64 });
             }
