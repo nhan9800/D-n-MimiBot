@@ -9251,9 +9251,10 @@ client.on('interactionCreate', async interaction => {
                             if (!channel) continue;
                             const originalMsg = await channel.messages.fetch(m.messageId).catch(() => null);
                             if (originalMsg) {
-                                await originalMsg.edit({ components: [disabledButton] }).catch(() => null);
+                                await originalMsg.edit({ embeds: [resultEmbed], components: [disabledButton] }).catch(() => null);
+                            } else {
+                                await channel.send({ embeds: [resultEmbed] }).catch(() => null);
                             }
-                            await channel.send({ embeds: [resultEmbed] }).catch(() => null);
                         } catch (e) { /* ignore */ }
                     }
                     
