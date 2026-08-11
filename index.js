@@ -6044,9 +6044,20 @@ client.on('messageCreate', async (message) => {
                     `**Thông tin cá nhân:**\n` +
                     `- ❤️ Tình trạng: ${userData.spouseId ? `Đã kết hôn với <@${userData.spouseId}>` : 'Độc thân'}\n` +
                     `- 💍 Nhẫn cưới: ${userData.inventory?.nhan_cuoi ? 'Có' : 'Không có'}` +
-                    `\n- 🖼️ Background: ${userData.bgUrl ? '[Đã trang bị](' + userData.bgUrl + ')' : 'Mặc định'}`
+                    `\n- 🖼️ Background: ${userData.bgUrl ? 'Đã trang bị' : 'Mặc định'}`
                 )
-            )
+            );
+        
+        // Hiển thị ảnh Background nếu đã trang bị
+        if (userData.bgUrl) {
+            profileContainer.addMediaGalleryComponents(
+                new MediaGalleryBuilder().addItems(
+                    new MediaGalleryItemBuilder().setURL(userData.bgUrl)
+                )
+            );
+        }
+        
+        profileContainer
             .addSeparatorComponents(
                 new SeparatorBuilder().setSpacing(SeparatorSpacingSize.Small).setDivider(true)
             )
