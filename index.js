@@ -11365,9 +11365,10 @@ if (commandName === 'setup') {
         const cleanUsername = removeAccentsAndSpaces(user.username);
         const channelName = `🎫-${cleanReasonPrefix}-${cleanUsername}`;
 
-        const existingChannel = guild.channels.cache.find(ch => ch.parentId === gConfig.ticketCategoryId && ch.name === channelName);
+        // Giới hạn 1 người chỉ được tạo 1 ticket (kiểm tra phần đuôi tên kênh chứa tên user)
+        const existingChannel = guild.channels.cache.find(ch => ch.parentId === gConfig.ticketCategoryId && ch.name.endsWith(`-${cleanUsername}`));
         if (existingChannel) {
-            await interaction.editReply({ content: `⚠️ Bạn có một kênh hỗ trợ tương tự đang mở: ${existingChannel}` });
+            await interaction.editReply({ content: `⚠️ Bạn đang có một kênh hỗ trợ đang mở: ${existingChannel}. Vui lòng đóng kênh đó trước khi tạo yêu cầu mới!` });
             return;
         }
 
