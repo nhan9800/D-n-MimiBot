@@ -8650,8 +8650,13 @@ client.on('interactionCreate', async interaction => {
                 .setFooter({ text: 'Gửi ẩn danh qua MIMI BOT' })
                 .setTimestamp();
             
-            await confChan.send({ embeds: [confEmbed] });
-            return interaction.editReply('✅ Gửi Confession thành công!');
+            try {
+                await confChan.send({ embeds: [confEmbed] });
+                return interaction.editReply('✅ Gửi Confession thành công!');
+            } catch (e) {
+                if (e.code === 50013) return interaction.editReply('❌ Bot không có quyền gửi tin nhắn vào kênh Confession. Vui lòng báo Admin cấp quyền `SendMessages` cho bot tại kênh đó!');
+                return interaction.editReply('❌ Đã xảy ra lỗi khi gửi confession.');
+            }
         }
 
         if (commandName === 'resetsetup') {
@@ -9114,8 +9119,13 @@ client.on('interactionCreate', async interaction => {
                 .setFooter({ text: 'Gửi ẩn danh qua MIMI BOT' })
                 .setTimestamp();
             
-            await confChan.send({ embeds: [confEmbed] });
-            return interaction.reply({ content: '✅ Confession của bạn đã được gửi ẩn danh!', flags: 64 });
+            try {
+                await confChan.send({ embeds: [confEmbed] });
+                return interaction.reply({ content: '✅ Confession của bạn đã được gửi ẩn danh!', flags: 64 });
+            } catch (e) {
+                if (e.code === 50013) return interaction.reply({ content: '❌ Bot không có quyền gửi tin nhắn vào kênh Confession. Vui lòng báo Admin cấp quyền `SendMessages` cho bot tại kênh đó!', flags: 64 });
+                return interaction.reply({ content: '❌ Đã xảy ra lỗi khi gửi confession.', flags: 64 });
+            }, flags: 64 });
         }
 if (commandName === 'afk') {
     const reason = interaction.options.getString('ly_do');
