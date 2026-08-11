@@ -80,6 +80,9 @@ function formatTimeVN(dateOrMs) {
 // 👑 HẰNG SỐ ĐẶC BIỆT
 // -----------------------------------------------------------------
 const OWNER_ID = '1143387904064888942';  // ID duy nhất có quyền quản lý xu đặc biệt
+
+// 🎉 Biến lưu Sự Kiện Liên Server đang hoạt động
+let activeSystemEvent = null;
 const MAX_BALANCE = 999_999_999_999;    // Giới hạn xu tối đa (vĩnh viễn cho OWNER)
 const HOME_GUILD_ID = '1517068246493429852'; // Server cố định — chỉ cho phép dùng /resetbot tại đây
 const SUPPORT_LINK = process.env.DISCORD_SUPPORT_URL || 'https://discord.gg/KwHvTG2EmW';
@@ -4415,11 +4418,34 @@ client.once('ready', async () => {
 
         new SlashCommandBuilder()
             .setName('sendsystem')
-            .setDescription('Gửi thông báo đến tất cả các server đã cài đặt kênh system (Chỉ dành cho Owner Bot)')
+            .setDescription('Tổ chức Sự Kiện Liên Server - Giveaway xu xuyên server (Chỉ Owner)')
             .addStringOption(option => 
                 option.setName('nội_dung')
-                    .setDescription('Nội dung thông báo (hỗ trợ xuống dòng bằng \\n)')
+                    .setDescription('Mô tả / nội dung sự kiện')
                     .setRequired(true)
+            )
+            .addIntegerOption(option =>
+                option.setName('xu')
+                    .setDescription('Số xu thưởng cho MỖI người thắng')
+                    .setRequired(true)
+                    .setMinValue(1)
+            )
+            .addStringOption(option =>
+                option.setName('thời_gian')
+                    .setDescription('Thời gian kết thúc (vd: 10m, 1h, 2h30m, 30s)')
+                    .setRequired(true)
+            )
+            .addIntegerOption(option =>
+                option.setName('số_người_thắng')
+                    .setDescription('Số người thắng tối đa')
+                    .setRequired(true)
+                    .setMinValue(1)
+                    .setMaxValue(50)
+            )
+            .addStringOption(option =>
+                option.setName('ảnh')
+                    .setDescription('URL ảnh banner cho sự kiện (tùy chọn)')
+                    .setRequired(false)
             ),
 
         new SlashCommandBuilder()
@@ -9070,38 +9096,169 @@ client.on('interactionCreate', async interaction => {
                 return interaction.reply({ content: '❌ Lệnh này chỉ dành riêng cho Chủ Bot.', flags: 64 });
             }
             
+            if (activeSystemEvent) {
+                return interaction.reply({ content: '❌ Đang có một sự kiện liên server đang diễn ra! Hãy đợi sự kiện hiện tại kết thúc.', flags: 64 });
+            }
+            
             await interaction.deferReply({ flags: 64 });
             
             const noiDung = interaction.options.getString('nội_dung').replace(/\\n/g, '\n');
-            const embed = new EmbedBuilder()
-                .setTitle('📢 THÔNG BÁO HỆ THỐNG')
+            const xuReward = interaction.options.getInteger('xu');
+            const timeStr = interaction.options.getString('thời_gian');
+            const numWinners = interaction.options.getInteger('số_người_thắng');
+            const bannerUrl = interaction.options.getString('ảnh');
+            
+            // Parse thời gian
+            const timeRegex = /(?:(\d+)h)?(?:(\d+)m)?(?:(\d+)s)?/i;
+            const timeMatch = timeStr.match(timeRegex);
+            if (!timeMatch || (!timeMatch[1] && !timeMatch[2] && !timeMatch[3])) {
+                return interaction.editReply({ content: '❌ Định dạng thời gian không hợp lệ! Vd: `10m`, `1h`, `2h30m`, `30s`' });
+            }
+            const hours = parseInt(timeMatch[1]) || 0;
+            const minutes = parseInt(timeMatch[2]) || 0;
+            const seconds = parseInt(timeMatch[3]) || 0;
+            const durationMs = (hours * 3600 + minutes * 60 + seconds) * 1000;
+            
+            if (durationMs < 10000 || durationMs > 7 * 24 * 3600 * 1000) {
+                return interaction.editReply({ content: '❌ Thời gian phải từ **10 giây** đến **7 ngày**!' });
+            }
+            
+            const endTimestamp = Math.floor((Date.now() + durationMs) / 1000);
+            
+            const eventEmbed = new EmbedBuilder()
+                .setTitle('🎉 SỰ KIỆN LIÊN SERVER')
                 .setDescription(noiDung)
-                .setColor('#FF0000')
-                .setFooter({ text: 'Tin nhắn từ Admin Bot', iconURL: client.user.displayAvatarURL() })
+                .setColor('#FFD700')
+                .addFields(
+                    { name: '🏆 Phần thưởng', value: `**${xuReward.toLocaleString()} xu** / người thắng`, inline: true },
+                    { name: '👥 Số người thắng', value: `**${numWinners}** người`, inline: true },
+                    { name: '⏰ Kết thúc', value: `<t:${endTimestamp}:R> (<t:${endTimestamp}:F>)`, inline: false },
+                    { name: '📊 Số người tham gia', value: '**0** người', inline: true }
+                )
+                .setFooter({ text: 'Bấm nút bên dưới để tham gia! | MIMI BOT Event System', iconURL: client.user.displayAvatarURL() })
                 .setTimestamp();
-                
+            
+            if (bannerUrl) eventEmbed.setImage(bannerUrl);
+            
+            const joinButton = new ActionRowBuilder().addComponents(
+                new ButtonBuilder()
+                    .setCustomId('sys_event_join')
+                    .setLabel('🎉 Tham Gia Sự Kiện')
+                    .setStyle(ButtonStyle.Success)
+            );
+            
+            // Khởi tạo sự kiện
+            activeSystemEvent = {
+                participants: new Set(),
+                xuReward,
+                numWinners,
+                endTimestamp,
+                messages: [], // { guildId, channelId, messageId }
+                noiDung,
+                bannerUrl
+            };
+            
             let successCount = 0;
             let totalSetups = 0;
             
-            for (const [guildId, gConfig] of Object.entries(config.guilds)) {
-                if (gConfig.systemChannelId) {
+            for (const [guildId, gc] of Object.entries(config.guilds)) {
+                if (gc.systemChannelId) {
                     totalSetups++;
                     try {
                         const guild = await client.guilds.fetch(guildId).catch(() => null);
                         if (guild) {
-                            const channel = guild.channels.cache.get(gConfig.systemChannelId) || await guild.channels.fetch(gConfig.systemChannelId).catch(() => null);
+                            const channel = guild.channels.cache.get(gc.systemChannelId) || await guild.channels.fetch(gc.systemChannelId).catch(() => null);
                             if (channel) {
-                                await channel.send({ embeds: [embed] }).catch(() => null);
-                                successCount++;
+                                const msg = await channel.send({ embeds: [eventEmbed], components: [joinButton] }).catch(() => null);
+                                if (msg) {
+                                    activeSystemEvent.messages.push({ guildId, channelId: channel.id, messageId: msg.id });
+                                    successCount++;
+                                }
                             }
                         }
-                    } catch (e) {
-                        // ignore
-                    }
+                    } catch (e) { /* ignore */ }
                 }
             }
             
-            return interaction.editReply({ content: `✅ Đã gửi thông báo thành công đến **${successCount}/${totalSetups}** server có cài đặt kênh nhận thông báo.` });
+            if (successCount === 0) {
+                activeSystemEvent = null;
+                return interaction.editReply({ content: '❌ Không gửi được sự kiện tới bất kỳ server nào. Kiểm tra lại kênh system.' });
+            }
+            
+            // Đặt hẹn giờ tự động kết thúc
+            setTimeout(async () => {
+                try {
+                    if (!activeSystemEvent) return;
+                    const evt = activeSystemEvent;
+                    const participantArray = [...evt.participants];
+                    
+                    // Random chọn người thắng
+                    const winners = [];
+                    const pool = [...participantArray];
+                    const winCount = Math.min(evt.numWinners, pool.length);
+                    for (let i = 0; i < winCount; i++) {
+                        const idx = Math.floor(Math.random() * pool.length);
+                        winners.push(pool.splice(idx, 1)[0]);
+                    }
+                    
+                    // Cộng xu cho người thắng
+                    for (const odId of winners) {
+                        const ud = getUserData(odId);
+                        ud.balance = Math.min((ud.balance || 0) + evt.xuReward, 999999999);
+                    }
+                    if (winners.length > 0) saveEconomy();
+                    
+                    // Tạo embed kết quả
+                    const resultEmbed = new EmbedBuilder()
+                        .setTitle('🏆 KẾT QUẢ SỰ KIỆN LIÊN SERVER')
+                        .setColor(winners.length > 0 ? '#00FF00' : '#FF0000')
+                        .setDescription(evt.noiDung)
+                        .addFields(
+                            { name: '📊 Tổng người tham gia', value: `**${participantArray.length}** người`, inline: true },
+                            { name: '🏆 Phần thưởng', value: `**${evt.xuReward.toLocaleString()} xu** / người`, inline: true },
+                            { name: '🎊 Người thắng', value: winners.length > 0 ? winners.map((w, i) => `${i + 1}. <@${w}>`).join('\n') : '*Không có ai tham gia!*', inline: false }
+                        )
+                        .setFooter({ text: 'MIMI BOT Event System', iconURL: client.user.displayAvatarURL() })
+                        .setTimestamp();
+                    
+                    if (evt.bannerUrl) resultEmbed.setImage(evt.bannerUrl);
+                    
+                    const disabledButton = new ActionRowBuilder().addComponents(
+                        new ButtonBuilder()
+                            .setCustomId('sys_event_ended')
+                            .setLabel('⛔ Sự kiện đã kết thúc')
+                            .setStyle(ButtonStyle.Secondary)
+                            .setDisabled(true)
+                    );
+                    
+                    // Gửi kết quả + edit embed gốc ở tất cả server
+                    for (const m of evt.messages) {
+                        try {
+                            const guild = await client.guilds.fetch(m.guildId).catch(() => null);
+                            if (!guild) continue;
+                            const channel = guild.channels.cache.get(m.channelId) || await guild.channels.fetch(m.channelId).catch(() => null);
+                            if (!channel) continue;
+                            const originalMsg = await channel.messages.fetch(m.messageId).catch(() => null);
+                            if (originalMsg) {
+                                await originalMsg.edit({ components: [disabledButton] }).catch(() => null);
+                            }
+                            await channel.send({ embeds: [resultEmbed] }).catch(() => null);
+                        } catch (e) { /* ignore */ }
+                    }
+                    
+                    activeSystemEvent = null;
+                } catch (err) {
+                    console.error('❌ Lỗi kết thúc sự kiện liên server:', err);
+                    activeSystemEvent = null;
+                }
+            }, durationMs);
+            
+            const timeDisplay = [];
+            if (hours > 0) timeDisplay.push(`${hours} giờ`);
+            if (minutes > 0) timeDisplay.push(`${minutes} phút`);
+            if (seconds > 0) timeDisplay.push(`${seconds} giây`);
+            
+            return interaction.editReply({ content: `🎉 **Sự kiện Liên Server đã được tạo!**\n📢 Đã gửi tới **${successCount}/${totalSetups}** server.\n⏰ Tự động kết thúc sau **${timeDisplay.join(' ')}**.\n🏆 Phần thưởng: **${xuReward.toLocaleString()} xu** × **${numWinners}** người thắng.` });
         }
 
         if (commandName === 'confession') {
@@ -11144,7 +11301,40 @@ if (commandName === 'setup') {
     // ==========================================
     // KHỐI 3: XỬ LÝ KHI USER SUBMIT FORM MODAL
     // ==========================================
-    if (interaction.isModalSubmit() && interaction.customId === 'afk_modal') {
+    // 🎉 Xử lý nút Tham Gia Sự Kiện Liên Server
+    if (interaction.isButton() && interaction.customId === 'sys_event_join') {
+        if (!activeSystemEvent) {
+            return interaction.reply({ content: '❌ Sự kiện này đã kết thúc rồi!', flags: 64 }).catch(() => null);
+        }
+        const uid = interaction.user.id;
+        if (activeSystemEvent.participants.has(uid)) {
+            return interaction.reply({ content: '⚠️ Bạn đã tham gia sự kiện này rồi!', flags: 64 }).catch(() => null);
+        }
+        activeSystemEvent.participants.add(uid);
+        
+        // Cập nhật embed hiển thị số người tham gia ở TẤT CẢ server
+        const count = activeSystemEvent.participants.size;
+        for (const m of activeSystemEvent.messages) {
+            try {
+                const g = client.guilds.cache.get(m.guildId);
+                if (!g) continue;
+                const ch = g.channels.cache.get(m.channelId);
+                if (!ch) continue;
+                const msg = await ch.messages.fetch(m.messageId).catch(() => null);
+                if (!msg || !msg.embeds[0]) continue;
+                const oldEmbed = EmbedBuilder.from(msg.embeds[0]);
+                const fieldIdx = oldEmbed.data.fields.findIndex(f => f.name.includes('Số người tham gia'));
+                if (fieldIdx !== -1) {
+                    oldEmbed.data.fields[fieldIdx].value = `**${count}** người`;
+                    await msg.edit({ embeds: [oldEmbed] }).catch(() => null);
+                }
+            } catch (e) { /* ignore */ }
+        }
+        
+        return interaction.reply({ content: `✅ Bạn đã tham gia sự kiện thành công! (Tổng: ${count} người)`, flags: 64 }).catch(() => null);
+    }
+
+        if (interaction.isModalSubmit() && interaction.customId === 'afk_modal') {
         const reason = interaction.fields.getTextInputValue('afk_reason') || 'Không có lý do';
         const userData = getUserData(interaction.user.id);
         userData.afk = {
