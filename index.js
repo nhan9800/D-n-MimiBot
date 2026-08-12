@@ -11331,26 +11331,30 @@ if (commandName === 'setup') {
         }
         activeSystemEvent.participants.add(uid);
         
-        // Cập nhật embed hiển thị số người tham gia ở TẤT CẢ server
         const count = activeSystemEvent.participants.size;
-        for (const m of activeSystemEvent.messages) {
-            try {
-                const g = client.guilds.cache.get(m.guildId);
-                if (!g) continue;
-                const ch = g.channels.cache.get(m.channelId);
-                if (!ch) continue;
-                const msg = await ch.messages.fetch(m.messageId).catch(() => null);
-                if (!msg || !msg.embeds[0]) continue;
-                const oldEmbed = EmbedBuilder.from(msg.embeds[0]);
-                const fieldIdx = oldEmbed.data.fields.findIndex(f => f.name.includes('Số người tham gia'));
-                if (fieldIdx !== -1) {
-                    oldEmbed.data.fields[fieldIdx].value = `**${count}** người`;
-                    await msg.edit({ embeds: [oldEmbed] }).catch(() => null);
-                }
-            } catch (e) { /* ignore */ }
-        }
-        
-        return interaction.reply({ content: `✅ Bạn đã tham gia sự kiện thành công! (Tổng: ${count} người)`, flags: 64 }).catch(() => null);
+        // Phản hồi người dùng ngay lập tức để tránh lỗi timeout 10062
+        await interaction.reply({ content: `✅ Bạn đã tham gia sự kiện thành công! (Tổng: ${count} người)`, flags: 64 }).catch(() => null);
+
+        // Cập nhật embed hiển thị số người tham gia ở TẤT CẢ server (chạy ngầm)
+        (async () => {
+            for (const m of activeSystemEvent.messages) {
+                try {
+                    const g = client.guilds.cache.get(m.guildId);
+                    if (!g) continue;
+                    const ch = g.channels.cache.get(m.channelId);
+                    if (!ch) continue;
+                    const msg = await ch.messages.fetch(m.messageId).catch(() => null);
+                    if (!msg || !msg.embeds[0]) continue;
+                    const oldEmbed = EmbedBuilder.from(msg.embeds[0]);
+                    const fieldIdx = oldEmbed.data.fields.findIndex(f => f.name.includes('Số người tham gia'));
+                    if (fieldIdx !== -1) {
+                        oldEmbed.data.fields[fieldIdx].value = `**${count}** người`;
+                        await msg.edit({ embeds: [oldEmbed] }).catch(() => null);
+                    }
+                } catch (e) { /* ignore */ }
+            }
+        })();
+        return;
     }
 
         if (interaction.isModalSubmit() && interaction.customId === 'afk_modal') {
