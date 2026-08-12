@@ -5623,9 +5623,14 @@ client.on('messageCreate', async (message) => {
     const rawCommand = args[0].toLowerCase();
     // Mọi nhánh lệnh viết liền bên dưới so khớp theo dạng chuẩn "mi...",
     // nên tiền tố tùy chỉnh của server được quy đổi về dạng chuẩn ngay tại đây.
-    const command = (serverPrefix !== 'mi' && !rawCommand.startsWith('mi') && rawCommand.startsWith(serverPrefix))
-        ? `mi${rawCommand.slice(serverPrefix.length)}`
-        : rawCommand;
+        let command = rawCommand;
+    if (serverPrefix !== 'mi') {
+        if (rawCommand.startsWith(serverPrefix)) {
+            command = `mi${rawCommand.slice(serverPrefix.length)}`;
+        } else {
+            command = ''; // Invalid command, doesn't match server prefix
+        }
+    }
 
     // --- A. LẮNG NGHE LỆNH GIẢI TRÍ VIẾT LIỀN (CÓ HỖ TRỢ VIẾT TẮT) ---
 
