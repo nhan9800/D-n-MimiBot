@@ -9099,6 +9099,51 @@ client.on('interactionCreate', async interaction => {
             return interaction.reply({ content: '🔓 Kênh đã được mở khóa.' });
         }
 
+        if (commandName === 'addrole') {
+            const targetUser = interaction.options.getUser('nguoi_dung');
+            const targetRole = interaction.options.getRole('vai_tro');
+            
+            if (targetRole.position >= interaction.guild.members.me.roles.highest.position) {
+                return interaction.reply({ content: '❌ Bot không thể cấp vai trò này vì nó cao hơn hoặc bằng vai trò cao nhất của Bot.', flags: 64 });
+            }
+            if (targetRole.position >= interaction.member.roles.highest.position && interaction.user.id !== interaction.guild.ownerId) {
+                return interaction.reply({ content: '❌ Bạn không thể cấp vai trò cao hơn hoặc bằng vai trò cao nhất của bạn.', flags: 64 });
+            }
+            
+            try {
+                const member = await interaction.guild.members.fetch(targetUser.id);
+                await member.roles.add(targetRole);
+                return interaction.reply({ content: `✅ Đã thêm vai trò ${targetRole} cho ${targetUser}.` });
+            } catch (err) {
+                console.error(err);
+                return interaction.reply({ content: '❌ Có lỗi xảy ra, có thể do bot thiếu quyền `Manage Roles` hoặc lỗi API.', flags: 64 });
+            }
+        }
+        
+        if (commandName === 'removerole') {
+            const targetUser = interaction.options.getUser('nguoi_dung');
+            const targetRole = interaction.options.getRole('vai_tro');
+            
+            if (targetRole.position >= interaction.guild.members.me.roles.highest.position) {
+                return interaction.reply({ content: '❌ Bot không thể gỡ vai trò này vì nó cao hơn hoặc bằng vai trò cao nhất của Bot.', flags: 64 });
+            }
+            if (targetRole.position >= interaction.member.roles.highest.position && interaction.user.id !== interaction.guild.ownerId) {
+                return interaction.reply({ content: '❌ Bạn không thể gỡ vai trò cao hơn hoặc bằng vai trò cao nhất của bạn.', flags: 64 });
+            }
+            
+            try {
+                const member = await interaction.guild.members.fetch(targetUser.id);
+                if (!member.roles.cache.has(targetRole.id)) {
+                    return interaction.reply({ content: `⚠️ ${targetUser} hiện không có vai trò ${targetRole}.`, flags: 64 });
+                }
+                await member.roles.remove(targetRole);
+                return interaction.reply({ content: `✅ Đã gỡ vai trò ${targetRole} khỏi ${targetUser}.` });
+            } catch (err) {
+                console.error(err);
+                return interaction.reply({ content: '❌ Có lỗi xảy ra, có thể do bot thiếu quyền `Manage Roles` hoặc lỗi API.', flags: 64 });
+            }
+        }
+
         if (commandName === 'setupsystem') {
             const channel = interaction.options.getChannel('kênh');
             const gConfig = getGuildConfig(interaction.guild.id);
