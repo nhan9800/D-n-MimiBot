@@ -2099,16 +2099,32 @@ try {
     const ffmpegPath = require('ffmpeg-static');
     if (ffmpegPath) {
         process.env.FFMPEG_PATH = ffmpegPath;
-        // 🔧 SỬA LỖI "spawn .../ffmpeg-static/ffmpeg EACCES":
-        // Khi deploy qua SFTP (như VibeHost), file binary được copy lên nhưng MẤT bit
-        // thực thi (executable) -> Node spawn ffmpeg bị từ chối quyền (EACCES) -> không
-        // phát được nhạc/đọc tin. Host dạng panel thường KHÔNG cho chạy `chmod` trên console,
-        // nên ta tự cấp quyền thực thi cho ffmpeg ngay lúc khởi động (chỉ trên POSIX/Linux).
-        if (process.platform !== 'win32') {
-            try {
-                fs.chmodSync(ffmpegPath, 0o755);
-            } catch (e) {
-                console.warn('⚠️ [Music] Không thể cấp quyền thực thi cho ffmpeg tại ' + ffmpegPath + ':', e.message);
+        
+        // KIỂM TRA & TỰ TẢI FFMPEG NẾU LỖI HOST KHÔNG CÀI ĐƯỢC
+        if (!fs.existsSync(ffmpegPath)) {
+            console.log('⚠️ [Music] Không tìm thấy ffmpeg tại ' + ffmpegPath + ' (do host chặn npm install script). Đang tự động tải về...');
+            const ffmpegUrlBase = 'https://github.com/eugeneware/ffmpeg-static/releases/latest/download/';
+            let ffmpegUrl = ffmpegUrlBase + 'linux-x64';
+            if (process.platform === 'win32') ffmpegUrl = ffmpegUrlBase + 'win32-x64';
+            else if (process.arch === 'arm64') ffmpegUrl = ffmpegUrlBase + (process.platform === 'darwin' ? 'darwin-arm64' : 'linux-arm64');
+            else if (process.platform === 'darwin') ffmpegUrl = ffmpegUrlBase + 'darwin-x64';
+            
+            // Tải đồng bộ/ngầm ngay lặp tức
+            downloadFileFollowRedirect(ffmpegUrl, ffmpegPath + '.download').then(() => {
+                fs.renameSync(ffmpegPath + '.download', ffmpegPath);
+                if (process.platform !== 'win32') fs.chmodSync(ffmpegPath, 0o755);
+                console.log('✅ [Music] Đã tự động tải xong ffmpeg - tính năng phát nhạc đã sẵn sàng!');
+            }).catch(err => {
+                console.error('❌ [Music] Lỗi tự động tải ffmpeg:', err.message);
+            });
+        } else {
+            // Cấp quyền thực thi nếu đã có
+            if (process.platform !== 'win32') {
+                try {
+                    fs.chmodSync(ffmpegPath, 0o755);
+                } catch (e) {
+                    console.warn('⚠️ [Music] Không thể cấp quyền thực thi cho ffmpeg tại ' + ffmpegPath + ':', e.message);
+                }
             }
         }
     }
