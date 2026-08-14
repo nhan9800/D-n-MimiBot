@@ -2103,7 +2103,9 @@ try {
         // KIỂM TRA & TỰ TẢI FFMPEG NẾU LỖI HOST KHÔNG CÀI ĐƯỢC
         if (!fs.existsSync(ffmpegPath)) {
             console.log('⚠️ [Music] Không tìm thấy ffmpeg tại ' + ffmpegPath + ' (do host chặn npm install script). Đang tự động tải về...');
-            const ffmpegUrlBase = 'https://github.com/eugeneware/ffmpeg-static/releases/latest/download/';
+            // Tên file release đúng có tiền tố 'ffmpeg-' (VD: ffmpeg-linux-x64 chứ không phải linux-x64)
+            const FFMPEG_VER = 'b6.1.1';
+            const ffmpegUrlBase = `https://github.com/eugeneware/ffmpeg-static/releases/download/${FFMPEG_VER}/ffmpeg-`;
             let ffmpegUrl = ffmpegUrlBase + 'linux-x64';
             if (process.platform === 'win32') ffmpegUrl = ffmpegUrlBase + 'win32-x64';
             else if (process.arch === 'arm64') ffmpegUrl = ffmpegUrlBase + (process.platform === 'darwin' ? 'darwin-arm64' : 'linux-arm64');
