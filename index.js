@@ -2796,6 +2796,27 @@ function buildMusicProgressBar(currentSec, totalSec, size = 14) {
 // Các hiệu ứng đổi tốc độ (nightcore/vaporwave/sped) làm thời lượng thực thay đổi,
 // nên thanh tiến trình có thể lệch nhẹ — chấp nhận được.
 // =====================================================================
+// =====================================================================
+// ⭐ HỆ THỐNG LEVEL CHAT THEO SERVER
+// =====================================================================
+function getLevelFromExp(totalExp) {
+    let exp = totalExp, level = 0;
+    while (exp >= getExpForLevel(level + 1)) { exp -= getExpForLevel(level + 1); level++; }
+    return level;
+}
+function getExpForLevel(level) { return Math.floor(level * 100 * Math.pow(1.5, level - 1)); }
+function getCurrentLevelExp(totalExp) {
+    let exp = totalExp, level = 0;
+    while (exp >= getExpForLevel(level + 1)) { exp -= getExpForLevel(level + 1); level++; }
+    return { level, currentExp: Math.floor(exp), neededExp: getExpForLevel(level + 1) };
+}
+function buildLevelBar(current, needed, length = 12) {
+    const filled = Math.round((current / needed) * length);
+    return '█'.repeat(filled) + '░'.repeat(length - filled);
+}
+const levelExpCooldown = new Map();
+// =====================================================================
+
 const AUDIO_EFFECTS = {
     none:      { label: 'Tắt',            af: null },
     bassboost: { label: 'Bassboost',      af: 'bass=g=15,dynaudnorm=f=200' },
@@ -2831,12 +2852,21 @@ function spawnFfmpegAudio(inputStream, { seekSec = 0, effectKey = 'none' } = {})
         '-loglevel', 'error',
         'pipe:1'
     );
-    const ff = spawn(getFfmpegPath(), args, { stdio: ['pipe', 'pipe', 'pipe'] });
-    // Bơm dữ liệu từ yt-dlp vào ffmpeg; nuốt lỗi EPIPE khi ffmpeg đóng sớm (skip/stop)
-    inputStream.pipe(ff.stdin);
-    inputStream.on('error', () => { try { ff.stdin.destroy(); } catch { /* bỏ qua */ } });
-    ff.stdin.on('error', () => { /* EPIPE khi ffmpeg thoát trước — bỏ qua an toàn */ });
-    return ff;
+    const ffmpegPath = getFfmpegPath();
+    if (!fs.existsSync(ffmpegPath)) {
+        console.warn('⚠️ [Music] ffmpeg chưa sẵn sàng — đang tải ngầm, bỏ qua hiệu ứng lần này.');
+        return null;
+    }
+    try {
+        const ff = spawn(ffmpegPath, args, { stdio: ['pipe', 'pipe', 'pipe'] });
+        inputStream.pipe(ff.stdin);
+        inputStream.on('error', () => { try { ff.stdin.destroy(); } catch { /* bỏ qua */ } });
+        ff.stdin.on('error', () => { /* EPIPE khi ffmpeg thoát trước — bỏ qua an toàn */ });
+        return ff;
+    } catch (e) {
+        console.error('❌ [Music] Không thể spawn ffmpeg:', e.message);
+        return null;
+    }
 }
 
 // Chuyển chuỗi thời gian người dùng nhập thành số giây. Chấp nhận nhiều định dạng:
@@ -3718,22 +3748,28 @@ async function playNextTrack(guildId, opts = {}) {
 
         let resource;
         if (useFfmpeg) {
-            // 🎚️ ĐƯỜNG FFMPEG: cần tua tới giây X (khôi phục/seek) hoặc áp hiệu ứng âm thanh.
-            // ffmpeg đọc audio thô từ yt-dlp, tua/lọc, xuất PCM s16le 48kHz stereo -> StreamType.Raw.
             const ff = spawnFfmpegAudio(audioBuffer, { seekSec, effectKey });
-            mq.currentFfmpeg = ff;
-            let ffErr = '';
-            ff.stderr?.on('data', (c) => { ffErr += c.toString(); if (ffErr.length > 2000) ffErr = ffErr.slice(-2000); });
-            ff.on('error', (e) => console.error(`❌ [Music] ffmpeg lỗi ở server ${guildId}:`, e.message));
-            // Trong lúc chờ, người dùng có thể đã Skip/Stop/seek/đổi hiệu ứng -> bỏ qua. Dùng genId (thế
-            // hệ phát) thay cho so sánh object: khi replayCurrent (seek/hiệu ứng) thì next === mq.current
-            // nên so object KHÔNG phát hiện được lần gọi mới chen vào -> tạo 2 resource/ffmpeg cùng lúc.
-            if (mq.playGeneration !== genId) {
-                try { ff.kill('SIGKILL'); } catch { /* bỏ qua */ }
-                try { ytdlProcess.kill('SIGKILL'); } catch { /* bỏ qua */ }
-                return;
+            if (!ff) {
+                if (mq.textChannel && effectKey && effectKey !== 'none') {
+                    mq.textChannel.send({ embeds: [buildMusicNoticeContainer('⚠️ ffmpeg chưa sẵn sàng', 'Bot vừa khởi động lại và ffmpeg đang được tải về. Hiệu ứng sẽ hoạt động sau ~30 giây.', 0xF1C40F)] }).catch(() => null);
+                }
+                mq.effect = 'none';
+                const probe2 = await voiceLib.demuxProbe(audioBuffer).catch(() => null);
+                if (!probe2) return;
+                if (mq.playGeneration !== genId) { try { probe2.stream.destroy(); } catch {} return; }
+                resource = voiceLib.createAudioResource(probe2.stream, { inputType: probe2.type, inlineVolume: false });
+            } else {
+                mq.currentFfmpeg = ff;
+                let ffErr = '';
+                ff.stderr?.on('data', (chunk) => { ffErr += chunk.toString(); if (ffErr.length > 2000) ffErr = ffErr.slice(-2000); });
+                ff.on('error', (e) => console.error(`❌ [Music] ffmpeg lỗi ở server ${guildId}:`, e.message));
+                if (mq.playGeneration !== genId) {
+                    try { ff.kill('SIGKILL'); } catch { /* bỏ qua */ }
+                    try { ytdlProcess.kill('SIGKILL'); } catch { /* bỏ qua */ }
+                    return;
+                }
+                resource = voiceLib.createAudioResource(ff.stdout, { inputType: voiceLib.StreamType.Raw, inlineVolume: true });
             }
-            resource = voiceLib.createAudioResource(ff.stdout, { inputType: voiceLib.StreamType.Raw, inlineVolume: true });
         } else {
             // ⚡ ĐƯỜNG OPUS PASSTHROUGH (mặc định, nhẹ CPU): demuxProbe nhận đúng loại rồi truyền thẳng.
             // NGUYÊN NHÂN GỐC của bug "bài trong hàng đợi không tự phát": trước đây inputType luôn
@@ -4423,6 +4459,36 @@ client.once('ready', async () => {
     }, 15000);
 
     const commands = [
+        new SlashCommandBuilder()
+            .setName('addrole')
+            .setDescription('Thêm vai trò cho người dùng (chọn menu hoặc nhập tên)')
+            .setDefaultMemberPermissions(PermissionFlagsBits.ManageRoles)
+            .addUserOption(o => o.setName('nguoi_dung').setDescription('Người dùng cần thêm vai trò').setRequired(true))
+            .addRoleOption(o => o.setName('vai_tro').setDescription('Chọn vai trò từ menu (ưu tiên)').setRequired(false))
+            .addStringOption(o => o.setName('ten_vai_tro').setDescription('Nhập tên vai trò bằng text nếu không chọn từ menu').setRequired(false)),
+        new SlashCommandBuilder()
+            .setName('removerole')
+            .setDescription('Gỡ vai trò của người dùng (chọn menu hoặc nhập tên)')
+            .setDefaultMemberPermissions(PermissionFlagsBits.ManageRoles)
+            .addUserOption(o => o.setName('nguoi_dung').setDescription('Người dùng cần gỡ vai trò').setRequired(true))
+            .addRoleOption(o => o.setName('vai_tro').setDescription('Chọn vai trò từ menu (ưu tiên)').setRequired(false))
+            .addStringOption(o => o.setName('ten_vai_tro').setDescription('Nhập tên vai trò bằng text nếu không chọn từ menu').setRequired(false)),
+        new SlashCommandBuilder()
+            .setName('level')
+            .setDescription('Xem cấp độ & EXP chat của bạn hoặc người khác trong server')
+            .addUserOption(o => o.setName('nguoi_dung').setDescription('Người dùng cần xem (để trống = xem của bạn)').setRequired(false)),
+        new SlashCommandBuilder()
+            .setName('leaderboard')
+            .setDescription('Bảng xếp hạng cấp độ chat trong server này'),
+        new SlashCommandBuilder()
+            .setName('levelsetup')
+            .setDescription('Cấu hình hệ thống Level chat cho server')
+            .setDefaultMemberPermissions(PermissionFlagsBits.ManageGuild)
+            .addSubcommand(s => s.setName('toggle').setDescription('Bật/Tắt hệ thống level chat'))
+            .addSubcommand(s => s.setName('kenh').setDescription('Đặt kênh thông báo khi lên cấp')
+                .addChannelOption(o => o.setName('kenh').setDescription('Kênh thông báo lên cấp').setRequired(false)))
+            .addSubcommand(s => s.setName('multiplier').setDescription('Nhân EXP nhận được')
+                .addNumberOption(o => o.setName('he_so').setDescription('Hệ số nhân EXP (1.5 = 1.5x EXP)').setMinValue(0.1).setMaxValue(5).setRequired(true))),
         new SlashCommandBuilder()
             .setName('setupsystem')
             .setDescription('Cài đặt kênh nhận thông báo toàn hệ thống từ Admin Bot')
@@ -5647,6 +5713,41 @@ client.on('messageCreate', async (message) => {
             command = `mi${rawCommand.slice(serverPrefix.length)}`;
         } else {
             command = ''; // Invalid command, doesn't match server prefix
+        }
+    }
+
+    // --- 0. TÍCH LŨY EXP LEVEL CHAT THEO SERVER (NẾU SERVER CÓ BẬT) ---
+    {
+        const lvSys = gConfig.levelSystem;
+        if (lvSys && lvSys.enabled && !message.author.bot) {
+            const coolKey = `${message.guild.id}:${message.author.id}`;
+            const now = Date.now();
+            if (!levelExpCooldown.has(coolKey) || now - levelExpCooldown.get(coolKey) > 60000) {
+                levelExpCooldown.set(coolKey, now);
+                const multi = lvSys.multiplier || 1;
+                const earn = Math.floor((15 + Math.random() * 10) * multi);
+                if (!lvSys.users) lvSys.users = {};
+                const prev = lvSys.users[message.author.id] || 0;
+                lvSys.users[message.author.id] = prev + earn;
+                const prevLv = getLevelFromExp(prev);
+                const newLv = getLevelFromExp(lvSys.users[message.author.id]);
+                if (newLv > prevLv) {
+                    const notifCh = lvSys.notifyChannelId
+                        ? message.guild.channels.cache.get(lvSys.notifyChannelId)
+                        : message.channel;
+                    if (notifCh) {
+                        const { level: lv, currentExp: ce, neededExp: ne } = getCurrentLevelExp(lvSys.users[message.author.id]);
+                        notifCh.send({ embeds: [new EmbedBuilder()
+                            .setColor(0xF1C40F)
+                            .setTitle('⭐ Lên Cấp Chat Server!')
+                            .setDescription(`🎉 Chúc mừng ${message.author}! Bạn đã đạt **Cấp ${lv}** trong server!\n\n\`${buildLevelBar(ce, ne)}\` ${ce}/${ne} EXP`)
+                            .setThumbnail(message.author.displayAvatarURL())
+                            .setTimestamp()
+                        ]}).catch(() => null);
+                    }
+                }
+                saveConfig();
+            }
         }
     }
 
@@ -9117,48 +9218,124 @@ client.on('interactionCreate', async interaction => {
             return interaction.reply({ content: '🔓 Kênh đã được mở khóa.' });
         }
 
+        // ===== HỆ THỐNG LEVEL CHAT THEO SERVER =====
+        if (commandName === 'level') {
+            const gConfig = getGuildConfig(interaction.guild.id);
+            if (!gConfig.levelSystem?.enabled) return interaction.reply({ content: '❌ Server này chưa bật hệ thống Level. Admin dùng `/levelsetup toggle` để bật!', flags: MessageFlags.Ephemeral });
+            const tUser = interaction.options.getUser('nguoi_dung') || interaction.user;
+            const exp = gConfig.levelSystem?.users?.[tUser.id] || 0;
+            const { level: lv, currentExp: ce, neededExp: ne } = getCurrentLevelExp(exp);
+            const sorted = Object.entries(gConfig.levelSystem?.users || {}).sort((a,b)=>b[1]-a[1]);
+            const rank = sorted.findIndex(([id])=>id===tUser.id)+1;
+            return interaction.reply({ embeds: [new EmbedBuilder()
+                .setColor(0xF1C40F).setTitle(`⭐ Cấp Độ Chat Server - ${tUser.username}`)
+                .setThumbnail(tUser.displayAvatarURL())
+                .addFields(
+                    { name: '🏅 Cấp', value: `**${lv}**`, inline: true },
+                    { name: '📊 Hạng Server', value: rank > 0 ? `**#${rank}**` : 'Chưa có', inline: true },
+                    { name: '✨ Tổng EXP', value: `${exp.toLocaleString()} EXP`, inline: true },
+                    { name: `Tiến trình đến Cấp ${lv + 1}`, value: `\`${buildLevelBar(ce, ne)}\` ${ce}/${ne} EXP` }
+                )
+                .setFooter({ text: 'Nhận EXP bằng cách chat trong server (cooldown 60s)' })
+            ]});
+        }
+
+        if (commandName === 'leaderboard') {
+            const gConfig = getGuildConfig(interaction.guild.id);
+            if (!gConfig.levelSystem?.enabled) return interaction.reply({ content: '❌ Server này chưa bật hệ thống Level. Admin dùng `/levelsetup toggle` để bật!', flags: MessageFlags.Ephemeral });
+            const sorted = Object.entries(gConfig.levelSystem?.users || {}).sort((a,b)=>b[1]-a[1]).slice(0,10);
+            if (!sorted.length) return interaction.reply({ content: '📊 Chưa có ai tích lũy EXP trong server này.', flags: MessageFlags.Ephemeral });
+            const medals = ['🥇','🥈','🥉'];
+            const lines = sorted.map(([id, exp], i) => {
+                const { level: lv } = getCurrentLevelExp(exp);
+                return `${medals[i] || `**#${i+1}**`} <@${id}> — Cấp **${lv}** | ${exp.toLocaleString()} EXP`;
+            });
+            return interaction.reply({ embeds: [new EmbedBuilder()
+                .setColor(0xF1C40F)
+                .setTitle(`⭐ Bảng Xếp Hạng Level Chat - ${interaction.guild.name}`)
+                .setDescription(lines.join('\n'))
+                .setFooter({ text: 'Top 10 thành viên hoạt động tích cực nhất' })
+            ]});
+        }
+
+        if (commandName === 'levelsetup') {
+            const gConfig = getGuildConfig(interaction.guild.id);
+            if (!gConfig.levelSystem) gConfig.levelSystem = { enabled: false, users: {}, multiplier: 1 };
+            const sub = interaction.options.getSubcommand();
+            if (sub === 'toggle') {
+                gConfig.levelSystem.enabled = !gConfig.levelSystem.enabled;
+                saveConfig();
+                return interaction.reply({ content: `${gConfig.levelSystem.enabled ? '✅ Đã **BẬT**' : '🔴 Đã **TẮT**'} hệ thống Level chat cho server này!` });
+            }
+            if (sub === 'kenh') {
+                const ch = interaction.options.getChannel('kenh');
+                gConfig.levelSystem.notifyChannelId = ch?.id || null;
+                saveConfig();
+                return interaction.reply({ content: ch ? `✅ Thông báo lên cấp sẽ gửi vào ${ch}.` : '✅ Thông báo lên cấp sẽ gửi ngay trong kênh chat của người dùng.' });
+            }
+            if (sub === 'multiplier') {
+                const heSo = interaction.options.getNumber('he_so');
+                gConfig.levelSystem.multiplier = heSo;
+                saveConfig();
+                return interaction.reply({ content: `✅ Đã đặt hệ số nhân EXP thành **${heSo}x** (mỗi tin nhắn nhận ${Math.floor(15*heSo)}-${Math.floor(25*heSo)} EXP).` });
+            }
+        }
+
         if (commandName === 'addrole') {
             const targetUser = interaction.options.getUser('nguoi_dung');
-            const targetRole = interaction.options.getRole('vai_tro');
-            
-            if (targetRole.position >= interaction.guild.members.me.roles.highest.position) {
-                return interaction.reply({ content: '❌ Bot không thể cấp vai trò này vì nó cao hơn hoặc bằng vai trò cao nhất của Bot.', flags: 64 });
+            let targetRole = interaction.options.getRole('vai_tro');
+            const tenVaiTro = interaction.options.getString('ten_vai_tro');
+            if (!targetRole && tenVaiTro) {
+                const q = tenVaiTro.trim().toLowerCase();
+                targetRole = interaction.guild.roles.cache.find(r => r.name.toLowerCase() === q)
+                          || interaction.guild.roles.cache.find(r => r.name.toLowerCase().includes(q));
+                if (!targetRole) {
+                    const sug = interaction.guild.roles.cache.filter(r => r.name.toLowerCase().includes(q)).map(r => `\`${r.name}\``).slice(0,5).join(', ');
+                    return interaction.reply({ content: `❌ Không tìm thấy vai trò **"${tenVaiTro}"** trong server này.${sug ? `\n💡 Gợi ý: ${sug}` : ''}`, flags: MessageFlags.Ephemeral });
+                }
             }
-            if (targetRole.position >= interaction.member.roles.highest.position && interaction.user.id !== interaction.guild.ownerId) {
-                return interaction.reply({ content: '❌ Bạn không thể cấp vai trò cao hơn hoặc bằng vai trò cao nhất của bạn.', flags: 64 });
-            }
-            
+            if (!targetRole) return interaction.reply({ content: '❌ Vui lòng chọn **vai_tro** từ menu hoặc nhập **ten_vai_tro** bằng text.', flags: MessageFlags.Ephemeral });
+            if (targetRole.position >= interaction.guild.members.me.roles.highest.position)
+                return interaction.reply({ content: '❌ Bot không thể cấp vai trò này vì nó cao hơn hoặc bằng vai trò cao nhất của Bot.', flags: MessageFlags.Ephemeral });
+            if (targetRole.position >= interaction.member.roles.highest.position && interaction.user.id !== interaction.guild.ownerId)
+                return interaction.reply({ content: '❌ Bạn không thể cấp vai trò cao hơn hoặc bằng vai trò cao nhất của bạn.', flags: MessageFlags.Ephemeral });
             try {
                 const member = await interaction.guild.members.fetch(targetUser.id);
                 await member.roles.add(targetRole);
-                return interaction.reply({ content: `✅ Đã thêm vai trò ${targetRole} cho ${targetUser}.` });
+                return interaction.reply({ content: `✅ Đã thêm vai trò **${targetRole.name}** cho ${targetUser}.` });
             } catch (err) {
                 console.error(err);
-                return interaction.reply({ content: '❌ Có lỗi xảy ra, có thể do bot thiếu quyền `Manage Roles` hoặc lỗi API.', flags: 64 });
+                return interaction.reply({ content: '❌ Có lỗi xảy ra, có thể do bot thiếu quyền `Manage Roles` hoặc lỗi API.', flags: MessageFlags.Ephemeral });
             }
         }
         
         if (commandName === 'removerole') {
             const targetUser = interaction.options.getUser('nguoi_dung');
-            const targetRole = interaction.options.getRole('vai_tro');
-            
-            if (targetRole.position >= interaction.guild.members.me.roles.highest.position) {
-                return interaction.reply({ content: '❌ Bot không thể gỡ vai trò này vì nó cao hơn hoặc bằng vai trò cao nhất của Bot.', flags: 64 });
+            let targetRole = interaction.options.getRole('vai_tro');
+            const tenVaiTro = interaction.options.getString('ten_vai_tro');
+            if (!targetRole && tenVaiTro) {
+                const q = tenVaiTro.trim().toLowerCase();
+                targetRole = interaction.guild.roles.cache.find(r => r.name.toLowerCase() === q)
+                          || interaction.guild.roles.cache.find(r => r.name.toLowerCase().includes(q));
+                if (!targetRole) {
+                    const sug = interaction.guild.roles.cache.filter(r => r.name.toLowerCase().includes(q)).map(r => `\`${r.name}\``).slice(0,5).join(', ');
+                    return interaction.reply({ content: `❌ Không tìm thấy vai trò **"${tenVaiTro}"** trong server này.${sug ? `\n💡 Gợi ý: ${sug}` : ''}`, flags: MessageFlags.Ephemeral });
+                }
             }
-            if (targetRole.position >= interaction.member.roles.highest.position && interaction.user.id !== interaction.guild.ownerId) {
-                return interaction.reply({ content: '❌ Bạn không thể gỡ vai trò cao hơn hoặc bằng vai trò cao nhất của bạn.', flags: 64 });
-            }
-            
+            if (!targetRole) return interaction.reply({ content: '❌ Vui lòng chọn **vai_tro** từ menu hoặc nhập **ten_vai_tro** bằng text.', flags: MessageFlags.Ephemeral });
+            if (targetRole.position >= interaction.guild.members.me.roles.highest.position)
+                return interaction.reply({ content: '❌ Bot không thể gỡ vai trò này vì nó cao hơn hoặc bằng vai trò cao nhất của Bot.', flags: MessageFlags.Ephemeral });
+            if (targetRole.position >= interaction.member.roles.highest.position && interaction.user.id !== interaction.guild.ownerId)
+                return interaction.reply({ content: '❌ Bạn không thể gỡ vai trò cao hơn hoặc bằng vai trò cao nhất của bạn.', flags: MessageFlags.Ephemeral });
             try {
                 const member = await interaction.guild.members.fetch(targetUser.id);
-                if (!member.roles.cache.has(targetRole.id)) {
-                    return interaction.reply({ content: `⚠️ ${targetUser} hiện không có vai trò ${targetRole}.`, flags: 64 });
-                }
+                if (!member.roles.cache.has(targetRole.id))
+                    return interaction.reply({ content: `⚠️ ${targetUser} hiện không có vai trò **${targetRole.name}**.`, flags: MessageFlags.Ephemeral });
                 await member.roles.remove(targetRole);
-                return interaction.reply({ content: `✅ Đã gỡ vai trò ${targetRole} khỏi ${targetUser}.` });
+                return interaction.reply({ content: `✅ Đã gỡ vai trò **${targetRole.name}** khỏi ${targetUser}.` });
             } catch (err) {
                 console.error(err);
-                return interaction.reply({ content: '❌ Có lỗi xảy ra, có thể do bot thiếu quyền `Manage Roles` hoặc lỗi API.', flags: 64 });
+                return interaction.reply({ content: '❌ Có lỗi xảy ra, có thể do bot thiếu quyền `Manage Roles` hoặc lỗi API.', flags: MessageFlags.Ephemeral });
             }
         }
 
@@ -9912,10 +10089,16 @@ if (commandName === 'setup') {
         if (commandName === 'autoplay') {
             const mq = musicQueues.get(guild.id);
             if (!mq) return interaction.reply({ embeds: [buildMusicNoticeContainer('Chưa có nhạc', 'Hãy phát nhạc trước khi bật autoplay.', 0xF1C40F)], flags: MessageFlags.Ephemeral });
-            if (!voiceChannel || voiceChannel.id !== guild.members.me.voice.channelId) {
+            const voiceChannel = member.voice?.channel;
+            const botVoiceChannelId = guild.members.me?.voice?.channelId;
+            if (!voiceChannel || (botVoiceChannelId && voiceChannel.id !== botVoiceChannelId)) {
                 return interaction.reply({ embeds: [buildMusicNoticeContainer('Sai kênh thoại', 'Bạn phải ở cùng kênh thoại với bot.', 0xE74C3C)], flags: MessageFlags.Ephemeral });
             }
+            if (!canControlMusic(guild.id, member, mq)) {
+                return interaction.reply({ embeds: [buildMusicNoticeContainer('Không có quyền', 'Chỉ DJ, Quản trị viên hoặc người mở panel mới được bật/tắt Autoplay.', 0xE74C3C)], flags: MessageFlags.Ephemeral });
+            }
             mq.autoplay = !mq.autoplay;
+            if (mq.autoplay && !mq.lastSeed && mq.current) mq.lastSeed = mq.current;
             persistSession(guild.id);
             if (mq.nowPlayingMessage) mq.nowPlayingMessage.edit(buildMusicPayload(mq)).catch(() => null);
             return interaction.reply({ embeds: [buildMusicNoticeContainer(
@@ -9928,8 +10111,13 @@ if (commandName === 'setup') {
         if (commandName === '247') {
             const mq = musicQueues.get(guild.id);
             if (!mq) return interaction.reply({ embeds: [buildMusicNoticeContainer('Chưa có nhạc', 'Hãy phát nhạc trước khi bật 24/7.', 0xF1C40F)], flags: MessageFlags.Ephemeral });
-            if (!voiceChannel || voiceChannel.id !== guild.members.me.voice.channelId) {
+            const voiceChannel = member.voice?.channel;
+            const botVoiceChannelId = guild.members.me?.voice?.channelId;
+            if (!voiceChannel || (botVoiceChannelId && voiceChannel.id !== botVoiceChannelId)) {
                 return interaction.reply({ embeds: [buildMusicNoticeContainer('Sai kênh thoại', 'Bạn phải ở cùng kênh thoại với bot.', 0xE74C3C)], flags: MessageFlags.Ephemeral });
+            }
+            if (!canControlMusic(guild.id, member, mq)) {
+                return interaction.reply({ embeds: [buildMusicNoticeContainer('Không có quyền', 'Chỉ DJ, Quản trị viên hoặc người mở panel mới được bật/tắt chế độ 24/7.', 0xE74C3C)], flags: MessageFlags.Ephemeral });
             }
             mq.stay247 = !mq.stay247;
             persistSession(guild.id);
