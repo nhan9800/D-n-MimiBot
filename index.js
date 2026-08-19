@@ -6162,16 +6162,17 @@ client.on('messageCreate', async (message) => {
     }
 
     // ==========================================
-    // 🌾 LỆNH NÔNG TRẠI: mifarm | minongtrai
     // ==========================================
-    if (command === 'mifarm' || command === 'minongtrai' || command === 'farm') {
+    // 🌾 LỆNH NÔNG TRẠI: mifarm | minongtrai | farm
+    // ==========================================
+    if (command === 'mifarm' || command === 'minongtrai' || command === 'farm' || rawCommand === 'mifarm' || rawCommand === 'farm') {
         const userData = getUserData(userId);
         const payload = buildFarmPayload(message.author, userData);
         return message.reply(payload);
     }
 
-    // 💧 LỆNH TƯỚI CÂY: mituoicay | mituoi
-    if (command === 'mituoicay' || command === 'mituoi') {
+    // 💧 LỆNH TƯỚI CÂY: mituoicay | mituoi | tuoicay | tuoi
+    if (command === 'mituoicay' || command === 'mituoi' || command === 'tuoicay' || command === 'tuoi' || rawCommand === 'mituoi' || rawCommand === 'tuoi') {
         const userData = getUserData(userId);
         const farm = getFarmData(userId);
         const now = Date.now();
@@ -6219,8 +6220,8 @@ client.on('messageCreate', async (message) => {
         }
     }
 
-    // 🌾 LỆNH THU HOẠCH: mithuhoach | mith
-    if (command === 'mithuhoach' || command === 'mith') {
+    // 🌾 LỆNH THU HOẠCH: mithuhoach | mith | thuhoach | th
+    if (command === 'mithuhoach' || command === 'mith' || command === 'thuhoach' || command === 'th' || rawCommand === 'mith' || rawCommand === 'th') {
         const userData = getUserData(userId);
         const farm = getFarmData(userId);
         let harvestedCrops = [];
@@ -6257,8 +6258,8 @@ client.on('messageCreate', async (message) => {
         }
     }
 
-    // 🧺 LỆNH BÁN NÔNG SẢN: mibannongsan | mibns
-    if (command === 'mibannongsan' || command === 'mibns') {
+    // 🧺 LỆNH BÁN NÔNG SẢN: mibannongsan | mibns | bannongsan
+    if (command === 'mibannongsan' || command === 'mibns' || command === 'bannongsan' || rawCommand === 'mibns' || rawCommand === 'bns') {
         const userData = getUserData(userId);
         const farm = getFarmData(userId);
         let totalSold = 0;
@@ -6290,8 +6291,8 @@ client.on('messageCreate', async (message) => {
         }
     }
 
-    // 🛒 LỆNH CỬA HÀNG: mishop | mis
-    if (command === 'mishop' || command === 'mis') {
+    // 🛒 LỆNH CỬA HÀNG: mishop | mis | shop | cuahang
+    if (command === 'mishop' || command === 'mis' || command === 'shop' || command === 'cuahang' || rawCommand === 'mishop' || rawCommand === 'shop') {
         const userData = getUserData(userId);
         const farm = getFarmData(userId);
         const nextPlot = farm.plots.length + 1;
