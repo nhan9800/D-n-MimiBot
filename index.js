@@ -5057,10 +5057,12 @@ client.once('ready', async () => {
 
         new SlashCommandBuilder()
             .setName('broadcast')
-            .setDescription('[Owner Only] Gửi thông báo tới tất cả server bot đang tham gia')
+            .setDescription('[Owner Only] Gửi thông báo chia mục tới tất cả server bot đang tham gia')
             .setDefaultMemberPermissions('0')
-            .addStringOption(o => o.setName('noi_dung').setDescription('Nội dung thông báo').setRequired(true).setMaxLength(3000))
-            .addStringOption(o => o.setName('tieu_de').setDescription('Tiêu đề thông báo (mặc định: 📢 Thông Báo Từ MIMI BOT)').setRequired(false).setMaxLength(200)),
+            .addStringOption(o => o.setName('noi_dung').setDescription('Nội dung các mục cách nhau bằng " | ", dạng "Tiêu đề :: nội dung", dùng \\n để xuống dòng').setRequired(true).setMaxLength(3800))
+            .addStringOption(o => o.setName('tieu_de').setDescription('Tiêu đề thông báo lớn ở đầu (mặc định: 📢 THÔNG BÁO TỪ MIMI BOT)').setRequired(false).setMaxLength(200))
+            .addStringOption(o => o.setName('mau').setDescription('Màu viền HEX (VD: #8C7CF0, #5865F2, #2ECC71)').setRequired(false).setMaxLength(7))
+            .addStringOption(o => o.setName('chan_trang').setDescription('Dòng ghi chú nhỏ ở cuối (tùy chọn)').setRequired(false).setMaxLength(300)),
 
         new SlashCommandBuilder()
             .setName('thongbao')
@@ -8375,16 +8377,68 @@ client.on('interactionCreate', async interaction => {
 
             await interaction.deferReply({ flags: MessageFlags.Ephemeral });
 
-            const bContent = options.getString('noi_dung');
-            const bTitle = options.getString('tieu_de') || '📢 Thông Báo Từ MIMI BOT';
+            const rawContent = options.getString('noi_dung');
+            const bTitle = options.getString('tieu_de') || '📢 THÔNG BÁO TỪ MIMI BOT';
+            const bColorHex = options.getString('mau') || '#8C7CF0';
+            const bFooter = options.getString('chan_trang') || 'Thông báo hệ thống từ đội ngũ phát triển MIMI BOT';
 
+            // Xử lý xuống dòng \n và tách các mục bằng dấu "|"
+            const parsedContent = rawContent.replace(/\\n/g, '\n');
+            const sections = parsedContent.split('|').map(s => s.trim()).filter(Boolean);
+
+            let accentColor = 0x8C7CF0;
+            if (/^#[0-9A-Fa-f]{6}$/.test(bColorHex)) {
+                accentColor = parseInt(bColorHex.slice(1), 16);
+            }
+
+            // 1. Xây dựng giao diện Components V2 (Chuẩn đẹp chia mục)
+            const container = new ContainerBuilder().setAccentColor(accentColor);
+            container.addTextDisplayComponents(new TextDisplayBuilder().setContent(`# ${bTitle}`));
+            container.addSeparatorComponents(new SeparatorBuilder().setSpacing(SeparatorSpacingSize.Large).setDivider(true));
+
+            // 2. Xây dựng Embed Fallback (cho các server hoặc kênh không hỗ trợ V2)
             const broadcastEmbed = new EmbedBuilder()
-                .setColor('#8C7CF0')
+                .setColor(accentColor)
                 .setTitle(bTitle)
-                .setDescription(bContent)
-                .setFooter({ text: 'Thông báo hệ thống từ đội ngũ phát triển MIMI BOT' })
+                .setFooter({ text: bFooter })
                 .setTimestamp();
-            const broadcastPayload = embedToV2Payload(broadcastEmbed);
+
+            if (sections.length === 0) {
+                container.addTextDisplayComponents(new TextDisplayBuilder().setContent('*(Không có nội dung)*'));
+                broadcastEmbed.setDescription('*(Không có nội dung)*');
+            } else {
+                let hasFields = false;
+                sections.forEach((sec, idx) => {
+                    const sepIndex = sec.indexOf('::');
+                    let content;
+                    if (sepIndex >= 0) {
+                        const secTitle = sec.slice(0, sepIndex).trim();
+                        const secBody = sec.slice(sepIndex + 2).trim();
+                        content = `## ${secTitle}\n${secBody}`;
+                        broadcastEmbed.addFields({ name: secTitle, value: secBody.slice(0, 1024) || '...', inline: false });
+                        hasFields = true;
+                    } else {
+                        content = sec;
+                        if (!hasFields && idx === 0) {
+                            broadcastEmbed.setDescription(content.slice(0, 4000));
+                        } else {
+                            broadcastEmbed.addFields({ name: `Mục ${idx + 1}`, value: content.slice(0, 1024) || '...', inline: false });
+                        }
+                    }
+                    container.addTextDisplayComponents(new TextDisplayBuilder().setContent(content.slice(0, 3900)));
+                    if (idx < sections.length - 1) {
+                        container.addSeparatorComponents(new SeparatorBuilder().setSpacing(SeparatorSpacingSize.Small).setDivider(true));
+                    }
+                });
+            }
+
+            if (bFooter) {
+                container.addSeparatorComponents(new SeparatorBuilder().setSpacing(SeparatorSpacingSize.Large).setDivider(true));
+                container.addTextDisplayComponents(new TextDisplayBuilder().setContent(`-# ${bFooter}`));
+            }
+
+            const v2Payload = { components: [container], flags: MessageFlags.IsComponentsV2 };
+            const embedPayload = { embeds: [broadcastEmbed] };
 
             const guildsList = [...client.guilds.cache.values()];
             let sentCount = 0;
@@ -8403,14 +8457,19 @@ client.on('interactionCreate', async interaction => {
                         : g.channels.cache.find(canSend);
 
                     if (!targetChannel) throw new Error('Không tìm thấy kênh phù hợp');
-                    await targetChannel.send(broadcastPayload);
+
+                    try {
+                        await targetChannel.send(v2Payload);
+                    } catch (v2Err) {
+                        await targetChannel.send(embedPayload);
+                    }
                     sentCount++;
                 } catch {
                     failedGuilds.push(g.name);
                 }
             }
 
-            let summary = `📢 **Đã gửi thông báo tới ${sentCount}/${guildsList.length} server.**`;
+            let summary = `📢 **Đã phát sóng thông báo (${sections.length} mục) tới ${sentCount}/${guildsList.length} server.**`;
             if (failedGuilds.length > 0) {
                 summary += `\n⚠️ Thất bại tại **${failedGuilds.length}** server (thiếu quyền hoặc không có kênh phù hợp):\n` +
                     failedGuilds.slice(0, 15).map(n => `• ${n}`).join('\n') +
