@@ -8386,8 +8386,11 @@ client.on('interactionCreate', async interaction => {
             const pingEveryone = options.getBoolean('gắn_mọi_người') || options.getBoolean('gan_moi_nguoi') || false;
             const bannerUrl = options.getString('ảnh_banner') || options.getString('anh_banner');
 
-            // Xử lý xuống dòng \n và tách các mục bằng dấu "|"
-            const parsedContent = rawContent.replace(/\\n/g, '\n');
+            // Xử lý xuống dòng \n (mọi biến thể) và tách các mục bằng dấu "|"
+            const parsedContent = rawContent
+                .replace(/\\r\\n/g, '\n')
+                .replace(/\\n/g, '\n')
+                .replace(/\\r/g, '\n');
             const sections = parsedContent.split('|').map(s => s.trim()).filter(Boolean);
 
             let accentColor = 0x8C7CF0;
