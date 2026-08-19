@@ -5963,18 +5963,15 @@ client.on('messageCreate', async (message) => {
 
     const chId = message.channel.id;
     const gConfig = getGuildConfig(message.guild.id);
-    const serverPrefix = gConfig.prefix || 'mi';
+    const serverPrefix = (gConfig.prefix || 'mi').toLowerCase();
     const args = message.content.trim().split(/ +/);
     const rawCommand = args[0].toLowerCase();
-    // Mọi nhánh lệnh viết liền bên dưới so khớp theo dạng chuẩn "mi...",
-    // nên tiền tố tùy chỉnh của server được quy đổi về dạng chuẩn ngay tại đây.
-        let command = rawCommand;
-    if (serverPrefix !== 'mi') {
-        if (rawCommand.startsWith(serverPrefix)) {
-            command = `mi${rawCommand.slice(serverPrefix.length)}`;
-        } else {
-            command = ''; // Invalid command, doesn't match server prefix
-        }
+    
+    // Bắt buộc tin nhắn phải bắt đầu bằng đúng tiền tố của server (mặc định: 'mi')
+    // Nếu chỉ gõ chữ 'farm', 'shop' mà không có tiền tố 'mi' -> Bỏ qua, không nhận là lệnh.
+    let command = '';
+    if (rawCommand.startsWith(serverPrefix)) {
+        command = `mi${rawCommand.slice(serverPrefix.length)}`;
     }
 
     // --- 0. TÍCH LŨY EXP LEVEL CHAT THEO SERVER (NẾU SERVER CÓ BẬT) ---
@@ -6106,7 +6103,7 @@ client.on('messageCreate', async (message) => {
     }
 
     // COMMAND: mitimdo - Tìm đồ ve chai
-    if (command === 'mitimdo' || command === 'timdo') {
+    if (command === 'mitimdo') {
         const userData = getUserData(userId);
         const now = Date.now();
         if (userData.lastTimDo && now - userData.lastTimDo < 60000) {
@@ -6122,7 +6119,7 @@ client.on('messageCreate', async (message) => {
     }
 
     // COMMAND: mikho - Kho đồ và bán ve chai
-    if (command === 'mikho' || command === 'kho') {
+    if (command === 'mikho') {
         const userData = getUserData(userId);
         const args = message.content.split(/\s+/);
         if (args[1] === 'sell' || args[1] === 'bán' || args[1] === 'ban') {
@@ -6162,17 +6159,16 @@ client.on('messageCreate', async (message) => {
     }
 
     // ==========================================
+    // 🌾 LỆNH NÔNG TRẠI: mifarm | minongtrai
     // ==========================================
-    // 🌾 LỆNH NÔNG TRẠI: mifarm | minongtrai | farm
-    // ==========================================
-    if (command === 'mifarm' || command === 'minongtrai' || command === 'farm' || rawCommand === 'mifarm' || rawCommand === 'farm') {
+    if (command === 'mifarm' || command === 'minongtrai') {
         const userData = getUserData(userId);
         const payload = buildFarmPayload(message.author, userData);
         return message.reply(payload);
     }
 
-    // 💧 LỆNH TƯỚI CÂY: mituoicay | mituoi | tuoicay | tuoi
-    if (command === 'mituoicay' || command === 'mituoi' || command === 'tuoicay' || command === 'tuoi' || rawCommand === 'mituoi' || rawCommand === 'tuoi') {
+    // 💧 LỆNH TƯỚI CÂY: mituoicay | mituoi
+    if (command === 'mituoicay' || command === 'mituoi') {
         const userData = getUserData(userId);
         const farm = getFarmData(userId);
         const now = Date.now();
@@ -6220,8 +6216,8 @@ client.on('messageCreate', async (message) => {
         }
     }
 
-    // 🌾 LỆNH THU HOẠCH: mithuhoach | mith | thuhoach | th
-    if (command === 'mithuhoach' || command === 'mith' || command === 'thuhoach' || command === 'th' || rawCommand === 'mith' || rawCommand === 'th') {
+    // 🌾 LỆNH THU HOẠCH: mithuhoach | mith
+    if (command === 'mithuhoach' || command === 'mith') {
         const userData = getUserData(userId);
         const farm = getFarmData(userId);
         let harvestedCrops = [];
@@ -6258,8 +6254,8 @@ client.on('messageCreate', async (message) => {
         }
     }
 
-    // 🧺 LỆNH BÁN NÔNG SẢN: mibannongsan | mibns | bannongsan
-    if (command === 'mibannongsan' || command === 'mibns' || command === 'bannongsan' || rawCommand === 'mibns' || rawCommand === 'bns') {
+    // 🧺 LỆNH BÁN NÔNG SẢN: mibannongsan | mibns
+    if (command === 'mibannongsan' || command === 'mibns') {
         const userData = getUserData(userId);
         const farm = getFarmData(userId);
         let totalSold = 0;
@@ -6291,8 +6287,8 @@ client.on('messageCreate', async (message) => {
         }
     }
 
-    // 🛒 LỆNH CỬA HÀNG: mishop | mis | shop | cuahang
-    if (command === 'mishop' || command === 'mis' || command === 'shop' || command === 'cuahang' || rawCommand === 'mishop' || rawCommand === 'shop') {
+    // 🛒 LỆNH CỬA HÀNG: mishop | mis
+    if (command === 'mishop' || command === 'mis') {
         const userData = getUserData(userId);
         const farm = getFarmData(userId);
         const nextPlot = farm.plots.length + 1;
@@ -6346,7 +6342,7 @@ client.on('messageCreate', async (message) => {
         return message.reply({ embeds: [shopEmbed], components: [rowMenu, rowButtons] });
     }
 
-    if (command === 'mikethon' || command === 'kethon') {
+    if (command === 'mikethon') {
         const userData = getUserData(userId);
         if (userData.spouseId) return message.reply('❌ Bạn đã kết hôn rồi! Hãy ly hôn trước nếu muốn đi bước nữa.');
         if (!userData.inventory || !userData.inventory.nhan_cuoi) return message.reply('❌ Bạn cần có **💍 Nhẫn Cưới** để cầu hôn! Hãy mua trong cửa hàng (`mishop`).');
@@ -7403,10 +7399,10 @@ client.on('messageCreate', async (message) => {
         'mixd','mixocdia',
         'mibj','miblackjack',
         'miplay','mipl',
-        'mifarm','minongtrai','farm',
+        'mifarm','minongtrai',
         'mituoicay','mituoi','mithuhoach','mith',
         'mibannongsan','mibns','mishop','mis',
-        'mitimdo','timdo','mikho','kho','mibuybg','mibg',
+        'mitimdo','mikho','mibuybg','mibg',
         // Prefix động của server
         `${serverPrefix}daily`,`${serverPrefix}d`,`${serverPrefix}profile`,`${serverPrefix}p`,
         `${serverPrefix}coinflip`,`${serverPrefix}cf`,`${serverPrefix}sl`,
@@ -7418,7 +7414,7 @@ client.on('messageCreate', async (message) => {
         `${serverPrefix}xocdia`,`${serverPrefix}xd`,
         `${serverPrefix}farm`,`${serverPrefix}shop`,`${serverPrefix}tuoi`,`${serverPrefix}th`,
     ];
-    if (!allowedPrefixes.includes(command) && !allowedPrefixes.includes(rawCommand)) {
+    if (!allowedPrefixes.includes(rawCommand)) {
         const xpGain = Math.floor(Math.random() * 11) + 15;
         const coinGain = 5;
 
