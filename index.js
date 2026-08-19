@@ -902,6 +902,259 @@ function getUserData(userId) {
 }
 
 // -----------------------------------------------------------------
+// 🌾 HỆ THỐNG NÔNG TRẠI (MIMI FARM GAME)
+// -----------------------------------------------------------------
+const FARM_CROPS = {
+    lua_mi: {
+        id: 'lua_mi',
+        name: 'Lúa Mì',
+        emoji: '🌾',
+        seedEmoji: '🌱',
+        seedPrice: 500,
+        harvestPrice: 2000,
+        waterCooldownMs: 3 * 60 * 1000, // 3 phút
+        witherGraceMs: 6 * 60 * 1000,   // Quá 6 phút không tưới -> héo
+        totalWatersNeeded: 3,
+        description: 'Lúa mì lớn nhanh, thích hợp cho nông dân mới vào nghề.'
+    },
+    ca_chua: {
+        id: 'ca_chua',
+        name: 'Cà Chua',
+        emoji: '🍅',
+        seedEmoji: '🌱',
+        seedPrice: 2000,
+        harvestPrice: 8000,
+        waterCooldownMs: 10 * 60 * 1000, // 10 phút
+        witherGraceMs: 20 * 60 * 1000,   // Quá 20 phút không tưới -> héo
+        totalWatersNeeded: 3,
+        description: 'Cà chua mọng nước, thơm ngon, thu nhập ổn định.'
+    },
+    bap: {
+        id: 'bap',
+        name: 'Bắp Ngô',
+        emoji: '🌽',
+        seedEmoji: '🌱',
+        seedPrice: 5000,
+        harvestPrice: 20000,
+        waterCooldownMs: 20 * 60 * 1000, // 20 phút
+        witherGraceMs: 40 * 60 * 1000,   // Quá 40 phút không tưới -> héo
+        totalWatersNeeded: 3,
+        description: 'Bắp ngô vàng óng, béo ngậy, giá trị kinh tế cao.'
+    },
+    dau_tay: {
+        id: 'dau_tay',
+        name: 'Dâu Tây',
+        emoji: '🍓',
+        seedEmoji: '🌱',
+        seedPrice: 15000,
+        harvestPrice: 65000,
+        waterCooldownMs: 45 * 60 * 1000, // 45 phút
+        witherGraceMs: 90 * 60 * 1000,   // Quá 90 phút không tưới -> héo
+        totalWatersNeeded: 3,
+        description: 'Dâu tây đỏ rực ngọt ngào, nông sản thượng hạng.'
+    },
+    dua_hau: {
+        id: 'dua_hau',
+        name: 'Dưa Hấu Khổng Lồ',
+        emoji: '🍉',
+        seedEmoji: '🌱',
+        seedPrice: 40000,
+        harvestPrice: 180000,
+        waterCooldownMs: 90 * 60 * 1000, // 1.5 tiếng
+        witherGraceMs: 180 * 60 * 1000,  // Quá 3 tiếng không tưới -> héo
+        totalWatersNeeded: 3,
+        description: 'Dưa hấu siêu to khổng lồ, làm giàu cực nhanh.'
+    },
+    cay_vang: {
+        id: 'cay_vang',
+        name: 'Cây Tiền Vàng Hoàng Kim',
+        emoji: '🌟',
+        seedEmoji: '✨',
+        seedPrice: 100000,
+        harvestPrice: 450000,
+        waterCooldownMs: 180 * 60 * 1000, // 3 tiếng
+        witherGraceMs: 360 * 60 * 1000,   // Quá 6 tiếng không tưới -> héo
+        totalWatersNeeded: 3,
+        description: 'Cây thần thoại sinh ra những đồng tiền vàng lấp lánh!'
+    }
+};
+
+const PLOT_UPGRADE_PRICES = {
+    2: 10000,
+    3: 30000,
+    4: 75000,
+    5: 150000,
+    6: 300000,
+    7: 600000,
+    8: 1200000,
+    9: 2500000
+};
+const MAX_FARM_PLOTS = 9;
+
+function formatDurationSec(sec) {
+    if (sec <= 0) return '0s';
+    const h = Math.floor(sec / 3600);
+    const m = Math.floor((sec % 3600) / 60);
+    const s = sec % 60;
+    if (h > 0) return `${h}h ${m}m ${s}s`;
+    if (m > 0) return `${m}m ${s}s`;
+    return `${s}s`;
+}
+
+function getFarmData(userId) {
+    const userData = getUserData(userId);
+    if (!userData.farm) {
+        userData.farm = {
+            plotsCount: 1,
+            plots: [
+                { id: 0, crop: null, waterCount: 0, plantedAt: null, lastWateredAt: null, withered: false }
+            ],
+            inventory: {
+                seeds: {},
+                harvest: {}
+            }
+        };
+        saveEconomy();
+    }
+    if (!userData.farm.plotsCount) userData.farm.plotsCount = 1;
+    if (!Array.isArray(userData.farm.plots)) userData.farm.plots = [];
+    while (userData.farm.plots.length < userData.farm.plotsCount) {
+        userData.farm.plots.push({
+            id: userData.farm.plots.length,
+            crop: null,
+            waterCount: 0,
+            plantedAt: null,
+            lastWateredAt: null,
+            withered: false
+        });
+    }
+    if (!userData.farm.inventory) userData.farm.inventory = { seeds: {}, harvest: {} };
+    if (!userData.farm.inventory.seeds) userData.farm.inventory.seeds = {};
+    if (!userData.farm.inventory.harvest) userData.farm.inventory.harvest = {};
+    return userData.farm;
+}
+
+function updatePlotStatus(plot) {
+    if (!plot.crop) return plot;
+    if (plot.withered) return plot;
+    if (plot.waterCount >= 3) return plot;
+
+    const cropInfo = FARM_CROPS[plot.crop];
+    if (!cropInfo) return plot;
+
+    const now = Date.now();
+    if (plot.waterCount === 0) {
+        if (now - plot.plantedAt > cropInfo.witherGraceMs) {
+            plot.withered = true;
+        }
+        return plot;
+    }
+
+    const elapsed = now - plot.lastWateredAt;
+    const cooldown = cropInfo.waterCooldownMs;
+    const witherTime = cooldown + cropInfo.witherGraceMs;
+
+    if (elapsed > witherTime) {
+        plot.withered = true;
+    }
+    return plot;
+}
+
+function buildFarmPayload(user, userData) {
+    const farm = getFarmData(user.id);
+    let totalSeeds = 0;
+    for (const s in farm.inventory.seeds) totalSeeds += farm.inventory.seeds[s] || 0;
+    let totalHarvest = 0;
+    let estimatedHarvestValue = 0;
+    for (const h in farm.inventory.harvest) {
+        const count = farm.inventory.harvest[h] || 0;
+        totalHarvest += count;
+        if (FARM_CROPS[h]) estimatedHarvestValue += count * FARM_CROPS[h].harvestPrice;
+    }
+
+    let plotsDesc = [];
+    let hasWithered = false;
+    let hasReadyToWater = false;
+    let hasReadyToHarvest = false;
+    let hasEmptyPlot = false;
+
+    const now = Date.now();
+
+    farm.plots.forEach((plot, index) => {
+        updatePlotStatus(plot);
+        const plotNum = index + 1;
+        if (!plot.crop) {
+            hasEmptyPlot = true;
+            plotsDesc.push(`**Ô ${plotNum}:** 🟫 Đất trống *(Chưa gieo hạt)*`);
+            return;
+        }
+
+        const cropInfo = FARM_CROPS[plot.crop] || { name: plot.crop, emoji: '🌱' };
+        if (plot.withered) {
+            hasWithered = true;
+            plotsDesc.push(`**Ô ${plotNum}:** 🥀 **${cropInfo.name}** — ⚠️ **ĐÃ KHÔ HÉO!** *(Bấm Dọn Cây Héo)*`);
+            return;
+        }
+
+        if (plot.waterCount >= 3) {
+            hasReadyToHarvest = true;
+            plotsDesc.push(`**Ô ${plotNum}:** ${cropInfo.emoji} **${cropInfo.name}** — 🌟 **ĐÃ CHÍN RỘ!** *(Sẵn sàng thu hoạch 🎉)*`);
+            return;
+        }
+
+        const waterBar = '💧'.repeat(plot.waterCount) + '⚪'.repeat(3 - plot.waterCount);
+        if (plot.waterCount === 0) {
+            hasReadyToWater = true;
+            const timeLeft = Math.max(0, (plot.plantedAt + cropInfo.witherGraceMs) - now);
+            plotsDesc.push(`**Ô ${plotNum}:** 🌱 **${cropInfo.name}** [${waterBar}] — 💧 **CẦN TƯỚI LẦN 1!** *(Héo sau: \`${formatDurationSec(Math.ceil(timeLeft / 1000))}\`)*`);
+            return;
+        }
+
+        const elapsed = now - plot.lastWateredAt;
+        const cooldown = cropInfo.waterCooldownMs;
+        if (elapsed < cooldown) {
+            const waitLeft = Math.ceil((cooldown - elapsed) / 1000);
+            plotsDesc.push(`**Ô ${plotNum}:** 🌿 **${cropInfo.name}** [${waterBar}] (Lần ${plot.waterCount}/3) — ⏳ *Đang lớn, tưới tiếp sau:* \`${formatDurationSec(waitLeft)}\``);
+        } else {
+            hasReadyToWater = true;
+            const witherTime = cooldown + cropInfo.witherGraceMs;
+            const timeLeft = Math.max(0, witherTime - elapsed);
+            plotsDesc.push(`**Ô ${plotNum}:** 🌿 **${cropInfo.name}** [${waterBar}] (Lần ${plot.waterCount}/3) — 💧 **ĐẾN LƯỢT TƯỚI!** *(Héo sau: \`${formatDurationSec(Math.ceil(timeLeft / 1000))}\`)*`);
+        }
+    });
+
+    const embed = new EmbedBuilder()
+        .setColor('#2ECC71')
+        .setTitle(`🌾 NÔNG TRẠI MIMI — ${user.username.toUpperCase()}`)
+        .setDescription(
+            `💰 **Số dư ví:** \`${userData.balance.toLocaleString('en-US')} xu\`\n` +
+            `🏡 **Khu đất:** \`${farm.plots.length}/${MAX_FARM_PLOTS} ô\` | 🌱 **Hạt trong kho:** \`${totalSeeds} hạt\` | 🧺 **Nông sản chưa bán:** \`${totalHarvest} cái\` (~${estimatedHarvestValue.toLocaleString()} xu)\n\n` +
+            `──────────────────────────────\n` +
+            plotsDesc.join('\n') +
+            `\n──────────────────────────────\n` +
+            `💡 *Mẹo: Cây cần tưới đủ 3 lần đúng hạn để chín. Quá thời gian không tưới sẽ bị khô héo!*`
+        )
+        .setThumbnail(user.displayAvatarURL({ dynamic: true }))
+        .setFooter({ text: 'MIMI Farm • Trồng cây làm giàu cùng Mimi Bot', iconURL: client.user.displayAvatarURL() })
+        .setTimestamp();
+
+    const row1 = new ActionRowBuilder().addComponents(
+        new ButtonBuilder().setCustomId('farm_water').setLabel('💧 Tưới Cây').setStyle(ButtonStyle.Success).setDisabled(!hasReadyToWater),
+        new ButtonBuilder().setCustomId('farm_plant_menu').setLabel('🌱 Gieo Hạt').setStyle(ButtonStyle.Primary).setDisabled(!hasEmptyPlot || totalSeeds === 0),
+        new ButtonBuilder().setCustomId('farm_harvest').setLabel('🌾 Thu Hoạch').setStyle(ButtonStyle.Success).setDisabled(!hasReadyToHarvest),
+        new ButtonBuilder().setCustomId('farm_clear_withered').setLabel('🧹 Dọn Héo').setStyle(ButtonStyle.Danger).setDisabled(!hasWithered)
+    );
+
+    const row2 = new ActionRowBuilder().addComponents(
+        new ButtonBuilder().setCustomId('farm_shop').setLabel('🏪 Cửa Hàng Hạt & Đất').setStyle(ButtonStyle.Secondary),
+        new ButtonBuilder().setCustomId('farm_sell_all').setLabel(`🧺 Bán Hết Nông Sản (${totalHarvest})`).setStyle(ButtonStyle.Primary).setDisabled(totalHarvest === 0),
+        new ButtonBuilder().setCustomId('farm_refresh').setLabel('🔄 Làm Mới').setStyle(ButtonStyle.Secondary)
+    );
+
+    return { embeds: [embed], components: [row1, row2] };
+}
+
+// -----------------------------------------------------------------
 // 🔐 HÀM ĐÓNG TICKET: XÓA KÊNH TRƯỚC, SAO LƯU VÀ GỬI LOG SAU
 // -----------------------------------------------------------------
 async function closeAndArchiveTicket(channel, guild, userWhoClosed, gConfig, creatorId) {
@@ -4997,6 +5250,14 @@ client.once('ready', async () => {
             .addStringOption(o => o.setName('tên_bài').setDescription('Tên bài muốn tìm lời. Bỏ trống = bài đang phát.').setRequired(false)),
 
         new SlashCommandBuilder()
+            .setName('farm')
+            .setDescription('Mở nông trại MIMI Farm: Trồng trọt, tưới nước, thu hoạch và làm giàu'),
+
+        new SlashCommandBuilder()
+            .setName('shop')
+            .setDescription('Mở siêu thị MIMI Bot: Mua hạt giống, mở rộng đất, nhẫn cưới, ảnh bìa'),
+
+        new SlashCommandBuilder()
             .setName('help')
             .setDescription('Xem bảng hướng dẫn sử dụng tất cả các tính năng của bot')
     ];
@@ -5041,7 +5302,7 @@ client.once('ready', async () => {
     });
 
     checkWeeklyReset();
-    startDailyVerifyReset();
+    // startDailyVerifyReset(); // ⏹️ ĐÃ NGẮT: Theo yêu cầu vô hiệu hóa tự động reset bot / xác thực hàng ngày
     startMonthlyModReset();
     startYearlyModReset();
     startAutoCheckOut();
@@ -5784,194 +6045,47 @@ client.on('messageCreate', async (message) => {
         return message.reply('✅ Đã gửi thông báo V2.2 thành công vào kênh!');
     }
 
-    // 1. Lệnh điểm danh: midaily hoặc mid
-    
+    // ==========================================
+    // 📖 LỆNH TRỢ GIÚP: mihelp
+    // ==========================================
     if (command === 'mihelp') {
         const introEmbed = new EmbedBuilder()
             .setColor('#FF69B4')
-            .setTitle('🎀 DANH SÁCH LỆNH MINI BOT 🎀')
-            .setDescription('Chào mừng bạn đến với **MINI BOT**! Dưới đây là danh sách các tính năng hiện có.\nHãy chọn một mục trong menu thả xuống để xem hướng dẫn chi tiết nhé!')
+            .setTitle('🎀 DANH SÁCH LỆNH MIMI BOT 🎀')
+            .setDescription(
+                'Chào mừng bạn đến với **MIMI BOT**! Dưới đây là danh sách các tính năng hiện có.\n' +
+                'Hãy chọn một mục trong menu thả xuống bên dưới để xem hướng dẫn chi tiết nhé!'
+            )
             .setThumbnail(client.user.displayAvatarURL())
             .addFields(
-                { name: '🌟 Nổi Bật', value: '`/setup`, `/giveawaycreate`, `/thongbao`' },
-                { name: '💎 Cập Nhật Mới', value: 'Hệ thống **Giveaway**, **Ticket**, và **Voice Room** đã được tự động hóa hoàn toàn!' }
+                { name: '🌟 Nổi Bật', value: '`/setup`, `/farm`, `/shop`, `/giveawaycreate`, `/play`' },
+                { name: '🌾 Cập Nhật Mới', value: 'Hệ thống **Nông Trại (MIMI Farm)**, **Cửa Hàng Hạt Giống & Đất Đai**, và **Nghe Nhạc Tự Động** đã chính thức ra mắt!' }
             )
-            .setFooter({ text: 'Sử dụng menu bên dưới để chuyển trang' });
+            .setFooter({ text: 'Sử dụng menu bên dưới để chuyển trang hướng dẫn' })
+            .setTimestamp();
 
         const selectMenu = new StringSelectMenuBuilder()
             .setCustomId('help_select')
             .setPlaceholder('📂 Chọn tính năng muốn xem hướng dẫn...')
             .addOptions(
                 new StringSelectMenuOptionBuilder().setLabel('Khởi Tạo Hệ Thống').setDescription('Lệnh /setup và /resetsetup để khởi tạo server').setValue('help_setup').setEmoji('⚙️'),
-                new StringSelectMenuOptionBuilder().setLabel('Hệ Thống Xác Thực (Verify)').setDescription('Bảo vệ máy chủ với tính năng Verify mạnh mẽ').setValue('help_verify').setEmoji('🛡️'),
-                new StringSelectMenuOptionBuilder().setLabel('Hệ Thống Quản Lý (Mod)').setDescription('Avatar, Emoji, Xóa tin nhắn, Kick, Ban, Mute').setValue('help_mod').setEmoji('🛡️'),
+                new StringSelectMenuOptionBuilder().setLabel('Xác Thực Thành Viên (Verify)').setDescription('Bảo vệ máy chủ với tính năng Verify').setValue('help_verify').setEmoji('🛡️'),
+                new StringSelectMenuOptionBuilder().setLabel('Quản Lý Server & Mod').setDescription('Avatar, Emoji, Xóa tin nhắn, Kick, Ban, Mute').setValue('help_mod').setEmoji('⚔️'),
                 new StringSelectMenuOptionBuilder().setLabel('Tiện Ích Thành Viên (AFK, v.v)').setDescription('Các lệnh cá nhân như /afk').setValue('help_utility').setEmoji('🛠️'),
                 new StringSelectMenuOptionBuilder().setLabel('Hệ Thống Giveaway').setDescription('Tạo kênh và tổ chức giveaway tặng quà').setValue('help_giveaway').setEmoji('🎁'),
                 new StringSelectMenuOptionBuilder().setLabel('Phòng Thoại Tự Động (Voice Room)').setDescription('Hệ thống tạo phòng thoại riêng tư tự động').setValue('help_voiceroom').setEmoji('🔊'),
-                new StringSelectMenuOptionBuilder().setLabel('Hệ Thống Kinh Tế & Giải Trí').setDescription('Điểm danh, Coin Flip, Tài Xỉu, Chợ Đen...').setValue('help_economy').setEmoji('💰'),
+                new StringSelectMenuOptionBuilder().setLabel('Hệ Thống Kinh Tế & Nông Trại').setDescription('Farm, Gieo hạt, Tưới cây, Mua đất, Siêu thị, Daily...').setValue('help_economy').setEmoji('💰'),
+                new StringSelectMenuOptionBuilder().setLabel('Trò Chơi Giải Trí & Casino').setDescription('Coin Flip, Tài Xỉu, Bầu Cua, Slot, Blackjack...').setValue('help_game').setEmoji('🎰'),
                 new StringSelectMenuOptionBuilder().setLabel('Hệ Thống Nghe Nhạc').setDescription('Phát nhạc từ YouTube, Spotify, Soundcloud...').setValue('help_music').setEmoji('🎵'),
                 new StringSelectMenuOptionBuilder().setLabel('Ủng Hộ Bot').setDescription('Thông tin donate & mã QR chuyển khoản duy trì bot').setValue('help_donate').setEmoji('☕')
             );
 
         const row = new ActionRowBuilder().addComponents(selectMenu);
         return message.reply({ embeds: [introEmbed], components: [row] }).catch(() => null);
-    }
-
-    if (command === 'mikethon') {
-        const target = message.mentions.users.first();
-        if (!target || target.id === userId || target.bot) {
-            return message.reply({ content: '❌ Bạn phải tag một người dùng hợp lệ để cầu hôn!' });
-        }
-        const userData = getUserData(userId);
-        const targetData = getUserData(target.id);
-
-        if (userData.partner) return message.reply({ content: '❌ Bạn đã kết hôn rồi, không thể cầu hôn người khác!' });
-        if (targetData.partner) return message.reply({ content: '❌ Người này đã kết hôn rồi!' });
-
-        if (!userData.inventory || !userData.inventory.ring) {
-            return message.reply({ content: '❌ Bạn không có **💍 Nhẫn Cưới** trong túi đồ! (Vào `miprofile` -> `Cửa Hàng` để mua giá 1,000,000 Xu)' });
-        }
-
-        const confirmRow = new ActionRowBuilder().addComponents(
-            new ButtonBuilder().setCustomId('accept_marry').setLabel('Đồng Ý').setStyle(ButtonStyle.Success),
-            new ButtonBuilder().setCustomId('decline_marry').setLabel('Từ Chối').setStyle(ButtonStyle.Danger)
-        );
-
-        const msg = await message.reply({ content: '💍 <@' + target.id + '>, bạn có đồng ý kết hôn với <@' + message.author.id + '> không?', components: [confirmRow] });
-
-        const filter = i => i.user.id === target.id && (i.customId === 'accept_marry' || i.customId === 'decline_marry');
-        try {
-            const collected = await msg.awaitMessageComponent({ filter, time: 60000 });
-            if (collected.customId === 'accept_marry') {
-                userData.inventory.ring -= 1;
-                userData.partner = target.id;
-                targetData.partner = userId;
-                userData.marryTime = Date.now();
-                targetData.marryTime = Date.now();
-                saveEconomy();
-                await collected.update({ content: '🎉 Chúc mừng <@' + message.author.id + '> và <@' + target.id + '> đã chính thức trở thành vợ chồng! 💍', components: [] });
-            } else {
-                await collected.update({ content: '💔 <@' + target.id + '> đã từ chối lời cầu hôn của <@' + message.author.id + '>.', components: [] });
-            }
-        } catch (e) {
-            await msg.edit({ content: '⏳ Quá thời gian, lời cầu hôn đã bị hủy.', components: [] });
-        }
-        return;
-    }
-
-    if (command === 'milyhon') {
-        const userData = getUserData(userId);
-        if (!userData.partner) {
-            return message.reply({ content: '❌ Bạn chưa kết hôn với ai cả!' });
-        }
-        const partnerId = userData.partner;
-        const targetData = getUserData(partnerId);
-
-        userData.partner = null;
-        userData.marryTime = null;
-        if (targetData) {
-            targetData.partner = null;
-            targetData.marryTime = null;
-        }
-        saveEconomy();
-        return message.reply({ content: '💔 Bạn đã chính thức ly hôn. Chúc bạn tìm được hạnh phúc mới!' });
-    }
-
-    if (command === 'mihelp') {
-        const introEmbed = new EmbedBuilder()
-            .setColor('#FF69B4')
-            .setTitle('🎀 DANH SÁCH LỆNH MINI BOT 🎀')
-            .setDescription('Chào mừng bạn đến với **MINI BOT**! Dưới đây là danh sách các tính năng hiện có.\nHãy chọn một mục trong menu thả xuống để xem hướng dẫn chi tiết nhé!')
-            .setThumbnail(client.user.displayAvatarURL())
-            .addFields(
-                { name: '🌟 Nổi Bật', value: '`/setup`, `/giveawaycreate`, `/thongbao`' },
-                { name: '💎 Cập Nhật Mới', value: 'Hệ thống **Giveaway**, **Ticket**, và **Voice Room** đã được tự động hóa hoàn toàn!' }
-            )
-            .setFooter({ text: 'Sử dụng menu bên dưới để chuyển trang' });
-
-        const selectMenu = new StringSelectMenuBuilder()
-            .setCustomId('help_select')
-            .setPlaceholder('📂 Chọn tính năng muốn xem hướng dẫn...')
-            .addOptions(
-                new StringSelectMenuOptionBuilder().setLabel('Khởi Tạo Hệ Thống').setDescription('Lệnh /setup và /resetsetup để khởi tạo server').setValue('help_setup').setEmoji('⚙️'),
-                new StringSelectMenuOptionBuilder().setLabel('Hệ Thống Xác Thực (Verify)').setDescription('Bảo vệ máy chủ với tính năng Verify mạnh mẽ').setValue('help_verify').setEmoji('🛡️'),
-                new StringSelectMenuOptionBuilder().setLabel('Hệ Thống Quản Lý (Mod)').setDescription('Avatar, Emoji, Xóa tin nhắn, Kick, Ban, Mute').setValue('help_mod').setEmoji('🛡️'),
-                new StringSelectMenuOptionBuilder().setLabel('Tiện Ích Thành Viên (AFK, v.v)').setDescription('Các lệnh cá nhân như /afk').setValue('help_utility').setEmoji('🛠️'),
-                new StringSelectMenuOptionBuilder().setLabel('Hệ Thống Giveaway').setDescription('Tạo kênh và tổ chức giveaway tặng quà').setValue('help_giveaway').setEmoji('🎁'),
-                new StringSelectMenuOptionBuilder().setLabel('Phòng Thoại Tự Động (Voice Room)').setDescription('Hệ thống tạo phòng thoại riêng tư tự động').setValue('help_voiceroom').setEmoji('🔊'),
-                new StringSelectMenuOptionBuilder().setLabel('Hệ Thống Kinh Tế & Giải Trí').setDescription('Điểm danh, Coin Flip, Tài Xỉu, Chợ Đen...').setValue('help_economy').setEmoji('💰'),
-                new StringSelectMenuOptionBuilder().setLabel('Hệ Thống Nghe Nhạc').setDescription('Phát nhạc từ YouTube, Spotify, Soundcloud...').setValue('help_music').setEmoji('🎵'),
-                new StringSelectMenuOptionBuilder().setLabel('Ủng Hộ Bot').setDescription('Thông tin donate & mã QR chuyển khoản duy trì bot').setValue('help_donate').setEmoji('☕')
-            );
-
-        const row = new ActionRowBuilder().addComponents(selectMenu);
-        return message.reply({ embeds: [introEmbed], components: [row] }).catch(() => null);
-    }
-
-
-    if (command === 'mikethon') {
-        const target = message.mentions.users.first();
-        if (!target || target.id === userId || target.bot) {
-            return message.reply({ content: '❌ Bạn phải tag một người dùng hợp lệ để cầu hôn!' });
-        }
-        const userData = getUserData(userId);
-        const targetData = getUserData(target.id);
-
-        if (userData.partner) return message.reply({ content: '❌ Bạn đã kết hôn rồi, không thể cầu hôn người khác!' });
-        if (targetData.partner) return message.reply({ content: '❌ Người này đã kết hôn rồi!' });
-
-        if (!userData.inventory || !userData.inventory.ring) {
-            return message.reply({ content: '❌ Bạn không có **💍 Nhẫn Cưới** trong túi đồ! (Vào `miprofile` -> `Cửa Hàng` để mua giá 1,000,000 Xu)' });
-        }
-
-        const confirmRow = new ActionRowBuilder().addComponents(
-            new ButtonBuilder().setCustomId('accept_marry').setLabel('Đồng Ý').setStyle(ButtonStyle.Success),
-            new ButtonBuilder().setCustomId('decline_marry').setLabel('Từ Chối').setStyle(ButtonStyle.Danger)
-        );
-
-        const msg = await message.reply({ content: '💍 <@' + target.id + '>, bạn có đồng ý kết hôn với <@' + message.author.id + '> không?', components: [confirmRow] });
-
-        const filter = i => i.user.id === target.id && (i.customId === 'accept_marry' || i.customId === 'decline_marry');
-        try {
-            const collected = await msg.awaitMessageComponent({ filter, time: 60000 });
-            if (collected.customId === 'accept_marry') {
-                userData.inventory.ring -= 1;
-                userData.partner = target.id;
-                targetData.partner = userId;
-                userData.marryTime = Date.now();
-                targetData.marryTime = Date.now();
-                saveEconomy();
-                await collected.update({ content: '🎉 Chúc mừng <@' + message.author.id + '> và <@' + target.id + '> đã chính thức trở thành vợ chồng! 💍', components: [] });
-            } else {
-                await collected.update({ content: '💔 <@' + target.id + '> đã từ chối lời cầu hôn của <@' + message.author.id + '>.', components: [] });
-            }
-        } catch (e) {
-            await msg.edit({ content: '⏳ Quá thời gian, lời cầu hôn đã bị hủy.', components: [] });
-        }
-        return;
-    }
-
-    if (command === 'milyhon') {
-        const userData = getUserData(userId);
-        if (!userData.partner) {
-            return message.reply({ content: '❌ Bạn chưa kết hôn với ai cả!' });
-        }
-        const partnerId = userData.partner;
-        const targetData = getUserData(partnerId);
-
-        userData.partner = null;
-        userData.marryTime = null;
-        if (targetData) {
-            targetData.partner = null;
-            targetData.marryTime = null;
-        }
-        saveEconomy();
-        return message.reply({ content: '💔 Bạn đã chính thức ly hôn. Chúc bạn tìm được hạnh phúc mới!' });
     }
 
     if (command === 'midaily' || command === 'mid') {
         const userData = getUserData(userId);
-        
         const nowMs = Date.now();
         const cooldown = 24 * 60 * 60 * 1000;
 
@@ -5980,9 +6094,19 @@ client.on('messageCreate', async (message) => {
             const h = Math.floor(remain / 3600000);
             const m = Math.floor((remain % 3600000) / 60000);
             return message.reply({ content: `❌ Bạn đã điểm danh rồi, hãy quay lại sau **${h} giờ ${m} phút**!`, allowedMentions: { repliedUser: false } });
-        
-    // COMMAND: mitimdo - Find items (mini game)
-    } else if (command === 'mitimdo' || command === 'timdo') {
+        }
+
+        const reward = 1000;
+        userData.balance += reward;
+        recordEconomyIncome(userId, message.guild?.id, reward, 'daily');
+        userData.lastDailyTimestamp = nowMs;
+        saveEconomy();
+
+        return message.reply({ content: `🎁 **${message.author.username}** điểm danh thành công và nhận được **+${reward.toLocaleString()} xu**!`, allowedMentions: { repliedUser: false } });
+    }
+
+    // COMMAND: mitimdo - Tìm đồ ve chai
+    if (command === 'mitimdo' || command === 'timdo') {
         const userData = getUserData(userId);
         const now = Date.now();
         if (userData.lastTimDo && now - userData.lastTimDo < 60000) {
@@ -5993,11 +6117,12 @@ client.on('messageCreate', async (message) => {
         if (!userData.inventory.ve_chai) userData.inventory.ve_chai = 0;
         const found = Math.floor(Math.random() * 3) + 1; // 1 to 3 items
         userData.inventory.ve_chai += found;
-        saveUserData(userId, userData);
+        saveEconomy();
         return message.reply(`🔍 Bạn đã cất công tìm kiếm và nhặt được **${found} món đồ cũ (ve chai)**! Dùng \`mikho\` để bán.`);
+    }
 
-    // COMMAND: mikho - Inventory & Sell items
-    } else if (command === 'mikho' || command === 'kho') {
+    // COMMAND: mikho - Kho đồ và bán ve chai
+    if (command === 'mikho' || command === 'kho') {
         const userData = getUserData(userId);
         const args = message.content.split(/\s+/);
         if (args[1] === 'sell' || args[1] === 'bán' || args[1] === 'ban') {
@@ -6009,16 +6134,17 @@ client.on('messageCreate', async (message) => {
             const total = amount * price;
             userData.inventory.ve_chai = 0;
             userData.balance += total;
-            saveUserData(userId, userData);
+            saveEconomy();
             return message.reply(`♻️ Bạn đã bán **${amount} món đồ cũ** với giá ${price.toLocaleString()} xu/món.\n💰 Tổng cộng thu được **${total.toLocaleString()} xu**!`);
         }
         
         let invStr = `💍 Nhẫn cưới: ${userData.inventory?.nhan_cuoi ? '1' : '0'}\n`;
         invStr += `📦 Đồ cũ (Ve chai): ${userData.inventory?.ve_chai || 0} món`;
         return message.reply(`🎒 **KHO ĐỒ CỦA BẠN**\n${invStr}\n\n*(Gõ \`mikho bán\` để bán tất cả đồ cũ lấy xu)*`);
+    }
 
-    // COMMAND: mibg - Profile Background Shop
-    } else if (command === 'mibuybg' || command === 'mibg') {
+    // COMMAND: mibg - Mua background profile
+    if (command === 'mibuybg' || command === 'mibg') {
         const userData = getUserData(userId);
         const cost = 50000;
         const args = message.content.split(/\s+/);
@@ -6031,29 +6157,192 @@ client.on('messageCreate', async (message) => {
         }
         userData.balance -= cost;
         userData.bgUrl = bgUrl;
-        saveUserData(userId, userData);
-        return message.reply(`✅ Bạn đã mua thành công Background Profile! (Đã trừ ${cost.toLocaleString()} xu).`);
-    
-    }
-
-        const reward = 1000;
-        userData.balance += reward; recordEconomyIncome(userId, message.guild?.id, reward, 'daily');
-        userData.lastDailyTimestamp = nowMs;
         saveEconomy();
-
-        return message.reply({ content: `🎁 **${message.author.username}** điểm danh thành công và nhận được **+${reward.toLocaleString()} xu**!`, allowedMentions: { repliedUser: false } });
+        return message.reply(`✅ Bạn đã mua thành công Background Profile! (Đã trừ ${cost.toLocaleString()} xu).`);
     }
 
+    // ==========================================
+    // 🌾 LỆNH NÔNG TRẠI: mifarm | minongtrai
+    // ==========================================
+    if (command === 'mifarm' || command === 'minongtrai' || command === 'farm') {
+        const userData = getUserData(userId);
+        const payload = buildFarmPayload(message.author, userData);
+        return message.reply(payload);
+    }
+
+    // 💧 LỆNH TƯỚI CÂY: mituoicay | mituoi
+    if (command === 'mituoicay' || command === 'mituoi') {
+        const userData = getUserData(userId);
+        const farm = getFarmData(userId);
+        const now = Date.now();
+        let wateredCount = 0;
+        let waitingCount = 0;
+        let witheredCount = 0;
+        let readyHarvestCount = 0;
+
+        farm.plots.forEach(plot => {
+            if (!plot.crop) return;
+            updatePlotStatus(plot);
+            if (plot.withered) { witheredCount++; return; }
+            if (plot.waterCount >= 3) { readyHarvestCount++; return; }
+
+            const cropInfo = FARM_CROPS[plot.crop];
+            if (!cropInfo) return;
+
+            if (plot.waterCount === 0) {
+                plot.waterCount = 1;
+                plot.lastWateredAt = now;
+                wateredCount++;
+            } else {
+                const elapsed = now - plot.lastWateredAt;
+                if (elapsed >= cropInfo.waterCooldownMs) {
+                    plot.waterCount += 1;
+                    plot.lastWateredAt = now;
+                    wateredCount++;
+                } else {
+                    waitingCount++;
+                }
+            }
+        });
+
+        if (wateredCount > 0) {
+            saveEconomy();
+            return message.reply(`💧 Bạn đã tưới nước thành công cho **${wateredCount} ô cây**! Hãy nhớ tưới đúng giờ để cây không bị héo nhé.`);
+        } else if (waitingCount > 0) {
+            return message.reply(`⏳ Các ô cây của bạn đang hút nước và chưa đến lượt tưới tiếp! Gõ \`mifarm\` để xem thời gian chờ.`);
+        } else if (readyHarvestCount > 0) {
+            return message.reply(`🌾 Cây đã chín rộ rồi! Hãy gõ \`mithuhoach\` hoặc \`mifarm\` để thu hoạch lấy xu ngay.`);
+        } else if (witheredCount > 0) {
+            return message.reply(`🥀 Các ô cây đã bị khô héo do không được tưới đúng hạn! Hãy vào \`mifarm\` để dọn cỏ và gieo mầm mới.`);
+        } else {
+            return message.reply(`🌱 Bạn chưa gieo hạt giống nào! Hãy vào \`mifarm\` hoặc \`mishop\` để mua hạt giống.`);
+        }
+    }
+
+    // 🌾 LỆNH THU HOẠCH: mithuhoach | mith
+    if (command === 'mithuhoach' || command === 'mith') {
+        const userData = getUserData(userId);
+        const farm = getFarmData(userId);
+        let harvestedCrops = [];
+        let totalCoins = 0;
+
+        farm.plots.forEach((plot) => {
+            if (!plot.crop) return;
+            updatePlotStatus(plot);
+            if (!plot.withered && plot.waterCount >= 3) {
+                const cropInfo = FARM_CROPS[plot.crop];
+                if (cropInfo) {
+                    harvestedCrops.push(`${cropInfo.emoji} **${cropInfo.name}** (+${cropInfo.harvestPrice.toLocaleString()} xu)`);
+                    totalCoins += cropInfo.harvestPrice;
+                }
+                plot.crop = null;
+                plot.waterCount = 0;
+                plot.plantedAt = null;
+                plot.lastWateredAt = null;
+                plot.withered = false;
+            }
+        });
+
+        if (harvestedCrops.length > 0) {
+            userData.balance += totalCoins;
+            recordEconomyIncome(userId, message.guild?.id, totalCoins, 'farm_harvest');
+            saveEconomy();
+            return message.reply(
+                `🎉 **BỘI THU RỒI!** Bạn đã thu hoạch thành công:\n` +
+                harvestedCrops.join('\n') +
+                `\n💰 **Tổng thu nhập:** \`+${totalCoins.toLocaleString()} xu\` (Số dư mới: \`${userData.balance.toLocaleString()} xu\`)`
+            );
+        } else {
+            return message.reply('🌾 Hiện chưa có ô cây nào chín rộ để thu hoạch! Hãy vào `mifarm` kiểm tra.');
+        }
+    }
+
+    // 🧺 LỆNH BÁN NÔNG SẢN: mibannongsan | mibns
+    if (command === 'mibannongsan' || command === 'mibns') {
+        const userData = getUserData(userId);
+        const farm = getFarmData(userId);
+        let totalSold = 0;
+        let totalCoins = 0;
+        let details = [];
+
+        for (const cropId in farm.inventory.harvest) {
+            const count = farm.inventory.harvest[cropId] || 0;
+            if (count > 0 && FARM_CROPS[cropId]) {
+                const price = count * FARM_CROPS[cropId].harvestPrice;
+                totalCoins += price;
+                totalSold += count;
+                details.push(`${FARM_CROPS[cropId].emoji} **${count}x ${FARM_CROPS[cropId].name}** → \`${price.toLocaleString()} xu\``);
+                farm.inventory.harvest[cropId] = 0;
+            }
+        }
+
+        if (totalSold > 0) {
+            userData.balance += totalCoins;
+            recordEconomyIncome(userId, message.guild?.id, totalCoins, 'farm_sell');
+            saveEconomy();
+            return message.reply(
+                `🧺 **ĐÃ BÁN NÔNG SẢN TRONG KHO!**\n` +
+                details.join('\n') +
+                `\n💰 **Thu về:** \`+${totalCoins.toLocaleString()} xu\` (Số dư: \`${userData.balance.toLocaleString()} xu\`)`
+            );
+        } else {
+            return message.reply('🧺 Kho nông sản của bạn đang trống! Hãy trồng cây và thu hoạch để có nông sản bán.');
+        }
+    }
+
+    // 🛒 LỆNH CỬA HÀNG: mishop | mis
     if (command === 'mishop' || command === 'mis') {
-        const row = new ActionRowBuilder().addComponents(
-            new ButtonBuilder().setCustomId('buy_ring').setLabel('💍 Mua Nhẫn Cưới').setStyle(ButtonStyle.Success),
-                new ButtonBuilder().setCustomId('buy_bg').setLabel('🖼️ Mua Nền (50,000 Xu)').setStyle(ButtonStyle.Primary)
+        const userData = getUserData(userId);
+        const farm = getFarmData(userId);
+        const nextPlot = farm.plots.length + 1;
+        const nextPlotPrice = PLOT_UPGRADE_PRICES[nextPlot] || 0;
+
+        const shopEmbed = new EmbedBuilder()
+            .setColor('#F1C40F')
+            .setTitle('🛒 SIÊU THỊ MIMI BOT')
+            .setDescription(
+                `Chào mừng **${message.author.username}** đến với siêu thị tổng hợp!\n` +
+                `💰 **Số dư của bạn:** \`${userData.balance.toLocaleString('en-US')} xu\`\n\n` +
+                `🌱 **1. HẠT GIỐNG NÔNG TRẠI:**\n` +
+                `• 🌾 **Hạt Lúa Mì** — \`500 xu\` *(Tưới 3p/lần | Thu hoạch: 2,000 xu)*\n` +
+                `• 🍅 **Hạt Cà Chua** — \`2,000 xu\` *(Tưới 10p/lần | Thu hoạch: 8,000 xu)*\n` +
+                `• 🌽 **Hạt Bắp Ngô** — \`5,000 xu\` *(Tưới 20p/lần | Thu hoạch: 20,000 xu)*\n` +
+                `• 🍓 **Hạt Dâu Tây** — \`15,000 xu\` *(Tưới 45p/lần | Thu hoạch: 65,000 xu)*\n` +
+                `• 🍉 **Hạt Dưa Hấu** — \`40,000 xu\` *(Tưới 90p/lần | Thu hoạch: 180,000 xu)*\n` +
+                `• 🌟 **Cây Tiền Vàng** — \`100,000 xu\` *(Tưới 180p/lần | Thu hoạch: 450,000 xu)*\n\n` +
+                `🏡 **2. MỞ RỘNG Ô ĐẤT:**\n` +
+                `• Ô hiện tại: \`${farm.plots.length}/${MAX_FARM_PLOTS} ô\`\n` +
+                `• Mua thêm Ô thứ **${nextPlot <= MAX_FARM_PLOTS ? nextPlot : 'MAX'}**: ` +
+                (nextPlot <= MAX_FARM_PLOTS ? `\`${nextPlotPrice.toLocaleString()} xu\`` : `*(Đã đạt tối đa)*`) + `\n\n` +
+                `💍 **3. VẬT PHẨM ĐẶC BIỆT:**\n` +
+                `• 💍 **Nhẫn Cưới** — \`1,000,000 xu\` *(Dùng cầu hôn \`mikethon @user\`)*\n` +
+                `• 🖼️ **Ảnh Bìa Profile** — \`50,000 xu\` *(Đổi hình nền \`miprofile\`)*`
+            )
+            .setFooter({ text: 'Chọn nút bên dưới hoặc menu để mua hàng tức thì' })
+            .setTimestamp();
+
+        const selectMenu = new StringSelectMenuBuilder()
+            .setCustomId('shop_seed_select')
+            .setPlaceholder('🌱 Chọn loại Hạt Giống muốn mua...')
+            .addOptions(
+                new StringSelectMenuOptionBuilder().setLabel('Hạt Lúa Mì (500 xu)').setValue('buy_seed_lua_mi').setEmoji('🌾').setDescription('Thu hoạch: 2,000 xu | Lớn nhanh 3p/lần'),
+                new StringSelectMenuOptionBuilder().setLabel('Hạt Cà Chua (2,000 xu)').setValue('buy_seed_ca_chua').setEmoji('🍅').setDescription('Thu hoạch: 8,000 xu | Tưới 10p/lần'),
+                new StringSelectMenuOptionBuilder().setLabel('Hạt Bắp Ngô (5,000 xu)').setValue('buy_seed_bap').setEmoji('🌽').setDescription('Thu hoạch: 20,000 xu | Tưới 20p/lần'),
+                new StringSelectMenuOptionBuilder().setLabel('Hạt Dâu Tây (15,000 xu)').setValue('buy_seed_dau_tay').setEmoji('🍓').setDescription('Thu hoạch: 65,000 xu | Tưới 45p/lần'),
+                new StringSelectMenuOptionBuilder().setLabel('Hạt Dưa Hấu (40,000 xu)').setValue('buy_seed_dua_hau').setEmoji('🍉').setDescription('Thu hoạch: 180,000 xu | Tưới 90p/lần'),
+                new StringSelectMenuOptionBuilder().setLabel('Cây Tiền Vàng (100,000 xu)').setValue('buy_seed_cay_vang').setEmoji('🌟').setDescription('Thu hoạch: 450,000 xu | Cực thịnh 3h/lần')
+            );
+
+        const rowMenu = new ActionRowBuilder().addComponents(selectMenu);
+
+        const rowButtons = new ActionRowBuilder().addComponents(
+            new ButtonBuilder().setCustomId('shop_buy_plot').setLabel(`🚜 Mua Thêm Đất (${nextPlot <= MAX_FARM_PLOTS ? nextPlotPrice.toLocaleString() + ' xu' : 'Đã Đạt Max'})`).setStyle(ButtonStyle.Success).setDisabled(nextPlot > MAX_FARM_PLOTS),
+            new ButtonBuilder().setCustomId('buy_ring').setLabel('💍 Mua Nhẫn Cưới').setStyle(ButtonStyle.Secondary),
+            new ButtonBuilder().setCustomId('buy_bg').setLabel('🖼️ Mua Nền Profile (50k)').setStyle(ButtonStyle.Secondary),
+            new ButtonBuilder().setCustomId('farm_open_btn').setLabel('🌾 Vào Nông Trại').setStyle(ButtonStyle.Primary)
         );
-        const embed = new EmbedBuilder()
-            .setTitle('🛒 Cửa Hàng Mini')
-            .setDescription('Chào mừng đến với cửa hàng! Hiện tại có các mặt hàng sau:\n\n**💍 Nhẫn Cưới** - Giá: `1,000,000 Xu`\nDùng để cầu hôn bằng lệnh `mikethon @user`.\n\n**🖼️ Ảnh Bìa Profile** - Giá: `50,000 Xu`\nDùng lệnh `mibg` để đổi nền thẻ hồ sơ của bạn.')
-            .setColor('#F1C40F');
-        return message.reply({ embeds: [embed], components: [row] });
+
+        return message.reply({ embeds: [shopEmbed], components: [rowMenu, rowButtons] });
     }
 
     if (command === 'mikethon' || command === 'kethon') {
@@ -7113,6 +7402,10 @@ client.on('messageCreate', async (message) => {
         'mixd','mixocdia',
         'mibj','miblackjack',
         'miplay','mipl',
+        'mifarm','minongtrai','farm',
+        'mituoicay','mituoi','mithuhoach','mith',
+        'mibannongsan','mibns','mishop','mis',
+        'mitimdo','timdo','mikho','kho','mibuybg','mibg',
         // Prefix động của server
         `${serverPrefix}daily`,`${serverPrefix}d`,`${serverPrefix}profile`,`${serverPrefix}p`,
         `${serverPrefix}coinflip`,`${serverPrefix}cf`,`${serverPrefix}sl`,
@@ -7122,6 +7415,7 @@ client.on('messageCreate', async (message) => {
         `${serverPrefix}guess`,`${serverPrefix}top`,`${serverPrefix}t`,
         `${serverPrefix}play`,`${serverPrefix}pl`,
         `${serverPrefix}xocdia`,`${serverPrefix}xd`,
+        `${serverPrefix}farm`,`${serverPrefix}shop`,`${serverPrefix}tuoi`,`${serverPrefix}th`,
     ];
     if (!allowedPrefixes.includes(command) && !allowedPrefixes.includes(rawCommand)) {
         const xpGain = Math.floor(Math.random() * 11) + 15;
@@ -8620,6 +8914,66 @@ client.on('interactionCreate', async interaction => {
             return interaction.editReply({ content: `✅ Đã **BẬT** hệ thống nhật ký quản trị tại ${modLogChan} — chỉ **Admin** thấy được kênh này.\n📋 Từ giờ mọi lượt kick/ban/mute, tin nhắn bị sửa/xóa, đổi biệt danh/tên/avatar đều sẽ được ghi lại tự động.` });
         }
 
+        if (commandName === 'farm') {
+            const userData = getUserData(user.id);
+            const payload = buildFarmPayload(user, userData);
+            return interaction.reply(payload);
+        }
+
+        if (commandName === 'shop') {
+            const userData = getUserData(user.id);
+            const farm = getFarmData(user.id);
+            const nextPlot = farm.plots.length + 1;
+            const nextPlotPrice = PLOT_UPGRADE_PRICES[nextPlot] || 0;
+
+            const shopEmbed = new EmbedBuilder()
+                .setColor('#F1C40F')
+                .setTitle('🛒 SIÊU THỊ MIMI BOT')
+                .setDescription(
+                    `Chào mừng **${user.username}** đến với siêu thị tổng hợp!\n` +
+                    `💰 **Số dư của bạn:** \`${userData.balance.toLocaleString('en-US')} xu\`\n\n` +
+                    `🌱 **1. HẠT GIỐNG NÔNG TRẠI:**\n` +
+                    `• 🌾 **Hạt Lúa Mì** — \`500 xu\` *(Tưới 3p/lần | Thu hoạch: 2,000 xu)*\n` +
+                    `• 🍅 **Hạt Cà Chua** — \`2,000 xu\` *(Tưới 10p/lần | Thu hoạch: 8,000 xu)*\n` +
+                    `• 🌽 **Hạt Bắp Ngô** — \`5,000 xu\` *(Tưới 20p/lần | Thu hoạch: 20,000 xu)*\n` +
+                    `• 🍓 **Hạt Dâu Tây** — \`15,000 xu\` *(Tưới 45p/lần | Thu hoạch: 65,000 xu)*\n` +
+                    `• 🍉 **Hạt Dưa Hấu** — \`40,000 xu\` *(Tưới 90p/lần | Thu hoạch: 180,000 xu)*\n` +
+                    `• 🌟 **Cây Tiền Vàng** — \`100,000 xu\` *(Tưới 180p/lần | Thu hoạch: 450,000 xu)*\n\n` +
+                    `🏡 **2. MỞ RỘNG Ô ĐẤT:**\n` +
+                    `• Ô hiện tại: \`${farm.plots.length}/${MAX_FARM_PLOTS} ô\`\n` +
+                    `• Mua thêm Ô thứ **${nextPlot <= MAX_FARM_PLOTS ? nextPlot : 'MAX'}**: ` +
+                    (nextPlot <= MAX_FARM_PLOTS ? `\`${nextPlotPrice.toLocaleString()} xu\`` : `*(Đã đạt tối đa)*`) + `\n\n` +
+                    `💍 **3. VẬT PHẨM ĐẶC BIỆT:**\n` +
+                    `• 💍 **Nhẫn Cưới** — \`1,000,000 xu\` *(Dùng cầu hôn \`mikethon @user\`)*\n` +
+                    `• 🖼️ **Ảnh Bìa Profile** — \`50,000 xu\` *(Đổi hình nền \`miprofile\`)*`
+                )
+                .setFooter({ text: 'Chọn nút bên dưới hoặc menu để mua hàng tức thì' })
+                .setTimestamp();
+
+            const selectMenu = new StringSelectMenuBuilder()
+                .setCustomId('shop_seed_select')
+                .setPlaceholder('🌱 Chọn loại Hạt Giống muốn mua...')
+                .addOptions(
+                    new StringSelectMenuOptionBuilder().setLabel('Hạt Lúa Mì (500 xu)').setValue('buy_seed_lua_mi').setEmoji('🌾').setDescription('Thu hoạch: 2,000 xu | Lớn nhanh 3p/lần'),
+                    new StringSelectMenuOptionBuilder().setLabel('Hạt Cà Chua (2,000 xu)').setValue('buy_seed_ca_chua').setEmoji('🍅').setDescription('Thu hoạch: 8,000 xu | Tưới 10p/lần'),
+                    new StringSelectMenuOptionBuilder().setLabel('Hạt Bắp Ngô (5,000 xu)').setValue('buy_seed_bap').setEmoji('🌽').setDescription('Thu hoạch: 20,000 xu | Tưới 20p/lần'),
+                    new StringSelectMenuOptionBuilder().setLabel('Hạt Dâu Tây (15,000 xu)').setValue('buy_seed_dau_tay').setEmoji('🍓').setDescription('Thu hoạch: 65,000 xu | Tưới 45p/lần'),
+                    new StringSelectMenuOptionBuilder().setLabel('Hạt Dưa Hấu (40,000 xu)').setValue('buy_seed_dua_hau').setEmoji('🍉').setDescription('Thu hoạch: 180,000 xu | Tưới 90p/lần'),
+                    new StringSelectMenuOptionBuilder().setLabel('Cây Tiền Vàng (100,000 xu)').setValue('buy_seed_cay_vang').setEmoji('🌟').setDescription('Thu hoạch: 450,000 xu | Cực thịnh 3h/lần')
+                );
+
+            const rowMenu = new ActionRowBuilder().addComponents(selectMenu);
+
+            const rowButtons = new ActionRowBuilder().addComponents(
+                new ButtonBuilder().setCustomId('shop_buy_plot').setLabel(`🚜 Mua Thêm Đất (${nextPlot <= MAX_FARM_PLOTS ? nextPlotPrice.toLocaleString() + ' xu' : 'Đã Đạt Max'})`).setStyle(ButtonStyle.Success).setDisabled(nextPlot > MAX_FARM_PLOTS),
+                new ButtonBuilder().setCustomId('buy_ring').setLabel('💍 Mua Nhẫn Cưới').setStyle(ButtonStyle.Secondary),
+                new ButtonBuilder().setCustomId('buy_bg').setLabel('🖼️ Mua Nền Profile (50k)').setStyle(ButtonStyle.Secondary),
+                new ButtonBuilder().setCustomId('farm_open_btn').setLabel('🌾 Vào Nông Trại').setStyle(ButtonStyle.Primary)
+            );
+
+            return interaction.reply({ embeds: [shopEmbed], components: [rowMenu, rowButtons] });
+        }
+
         if (commandName === 'help') {
             const introEmbed = new EmbedBuilder()
                 .setColor('#5865F2')
@@ -8633,6 +8987,7 @@ client.on('interactionCreate', async interaction => {
                     '🎭 Phân vai trò bằng Emoji Reaction\n' +
                     '🕒 Chấm công và báo cáo giờ làm hàng tuần\n' +
                     '📢 Công cụ thông báo ẩn danh cho Admin\n' +
+                    '🌾 Hệ thống nông trại MIMI Farm thời gian thực\n' +
                     '🎵 Nghe nhạc đa nền tảng — hiệu ứng live, autoplay, 24/7, lyrics\n' +
                     '🎰 Hệ thống giải trí & cày cuốc XP/xu\n\n' +
                     '👇 **Chọn một danh mục bên dưới để xem hướng dẫn chi tiết:**'
@@ -8706,8 +9061,13 @@ client.on('interactionCreate', async interaction => {
                         .setValue('help_embed')
                         .setEmoji('📝'),
                     new StringSelectMenuOptionBuilder()
-                        .setLabel('Giải Trí & Cày Cuốc')
-                        .setDescription('Hệ thống XP, xu, lật đồng xu và chuyển xu')
+                        .setLabel('Hệ Thống Kinh Tế & Nông Trại')
+                        .setDescription('Nông trại, gieo hạt, tưới cây, mua đất, siêu thị, daily')
+                        .setValue('help_economy')
+                        .setEmoji('💰'),
+                    new StringSelectMenuOptionBuilder()
+                        .setLabel('Trò Chơi Giải Trí & Casino')
+                        .setDescription('Coinflip, Tài Xỉu, Bầu Cua, Slot, Blackjack...')
                         .setValue('help_game')
                         .setEmoji('🎰'),
                     new StringSelectMenuOptionBuilder()
@@ -10517,29 +10877,42 @@ if (commandName === 'setup') {
                     { name: '⚖️ Tự động leo thang kỷ luật', value: 'Hệ thống tự đếm dồn theo từng thành viên:\n• Cứ **5 lần Mute** → bot tự động **Kick** người đó.\n• Cứ **5 lần Kick** (kể cả kick thủ công lẫn tự động) → bot tự động **Ban vĩnh viễn**.' },
                 ]
             },
-            help_game: {
-                emoji: '🎰', title: 'Giải Trí & Cày Cuốc',
-                color: '#ED4245',
-                desc: '🌐 Dữ liệu XP và xu **đồng bộ toàn cầu** giữa tất cả server có bot.\n⚠️ **Tất cả lệnh cược giới hạn tối đa 250,000 xu/lần. Dùng `all` thay cho 250,000.**\nLệnh prefix — **không** bắt đầu bằng `/`.',
+            help_economy: {
+                emoji: '💰', title: 'Hệ Thống Kinh Tế & Nông Trại',
+                color: '#2ECC71',
+                desc: '🌐 Dữ liệu XP, xu và nông trại **đồng bộ toàn cầu** giữa tất cả server có bot.',
                 fields: [
-                    { name: '`midaily` / `mid`', value: 'Điểm danh hàng ngày nhận **1,000 xu**. Reset lúc **00:00 VN** mỗi ngày.' },
-                    { name: '`miprofile` / `mip`', value: 'Xem hồ sơ cá nhân: Cấp độ, thanh XP, số dư xu.' },
-                    { name: '`micash` / `mic`', value: 'Xem nhanh số dư ví.' },
-                    { name: '`migive @người [số]` / `mig`', value: 'Chuyển xu cho người khác.' },
+                    { name: '🌾 `mifarm` / `minongtrai` / `/farm`', value: 'Mở nông trại MIMI Farm thời gian thực: Gieo hạt, tưới nước, thu hoạch và làm giàu.' },
+                    { name: '💧 `mituoicay` / `mituoi`', value: 'Tưới nước nhanh cho các ô cây trồng. Cây cần tưới đủ **3 lần** đúng hạn mới chín. Quá hạn không tưới cây sẽ **khô héo**!' },
+                    { name: '🌾 `mithuhoach` / `mith`', value: 'Thu hoạch tất cả cây đã chín rộ lấy Xu và nông sản.' },
+                    { name: '🧺 `mibannongsan` / `mibns`', value: 'Bán toàn bộ nông sản tích trữ trong kho lấy Xu thưởng.' },
+                    { name: '🛒 `mishop` / `mis` / `/shop`', value: 'Siêu thị mua Hạt giống (Lúa mì, Cà chua, Bắp, Dâu tây, Dưa hấu, Cây Vàng), Mua thêm ô đất (tối đa 9 ô), Nhẫn Cưới, Ảnh Bìa Profile.' },
+                    { name: '🎁 `midaily` / `mid`', value: 'Điểm danh hàng ngày nhận **1,000 xu**. Cooldown 24h.' },
+                    { name: '👤 `miprofile` / `mip`', value: 'Xem hồ sơ cá nhân: Cấp độ, thanh XP, số dư ví, tình trạng kết hôn.' },
+                    { name: '💳 `micash` / `mic`', value: 'Xem nhanh số dư ví hiện có.' },
+                    { name: '💸 `migive @người [số]` / `mig`', value: 'Chuyển xu cho người khác trong server.' },
+                    { name: '💍 `mikethon @người` & `milyhon`', value: 'Cầu hôn người bạn yêu (cần có Nhẫn Cưới trong túi đồ) hoặc ly hôn.' },
+                    { name: '🔍 `mitimdo` & `mikho`', value: 'Nhặt đồ ve chai giải trí và bán lấy xu.' },
+                    { name: '🤖 Tự động cộng XP khi chat', value: 'Chat bình thường tự cộng XP + 5 xu. Đủ ngưỡng bot thông báo **Level Up** và thưởng **5,000 xu**.' }
+                ]
+            },
+            help_game: {
+                emoji: '🎰', title: 'Trò Chơi Giải Trí & Casino',
+                color: '#ED4245',
+                desc: '⚠️ **Tất cả lệnh cược giới hạn tối đa 250,000 xu/lần. Dùng `all` thay cho 250,000.**\nLệnh prefix — **không** bắt đầu bằng `/`.',
+                fields: [
                     { name: '🪙 `micf` / `micoinflip [số/all] [ngua/sap]`', value: 'Lật đồng xu — đoán đúng nhân đôi cược.\nVd: `micf all ngua`' },
-                    { name: '⚀ `mid6` / `mixucxac [số/all] [cao/thap/le/chan]`', value: 'Tung 2 xúc xắc — đặt Cao (tổng ≥7) / Thấp (<7) / Lẻ / Chẵn.\nVd: `mid6 all cao`' },
                     { name: '🎲 `mitx` / `mitaixiu [số/all] [tai/xiu]`', value: 'Tung 1 xúc xắc — Tài (4-6) / Xỉu (1-3). Đoán đúng nhân đôi.\nVd: `mitx all tai`' },
-                    { name: '🎯 `mig3` / `midoanso [số/all] [1-10]`', value: 'Đoán đúng số bí ẩn từ 1-10 → thắng **x5** tiền cược!\nVd: `mig3 all 7`' },
-                    { name: '🎲 `mibc` / `mibaucua [số/all] [bau/cua/tom/ca/ga/nai]`', value: 'Bầu Cua Tôm Cá — chọn 1 trong 6 con vật, tung 3 xúc xắc. Trúng bao nhiêu viên ăn gấp bấy nhiêu lần cược (x1/x2/x3).\nVd: `mibc all cua`' },
-                    { name: '✂️ `mikbg` / `mikeobuagiay [số/all] [keo/bua/giay]`', value: 'Kéo Búa Giấy — đấu trực tiếp với Bot. Thắng nhân đôi cược, hòa hoàn lại, thua mất cược.\nVd: `mikbg all bua`' },
-                    { name: '🎰 `misl` / `mislot [số/all]`', value: 'Máy Kéo Slot — quay 3 ô ngẫu nhiên. Trúng 3 ký hiệu giống nhau ăn theo hệ số (x2 → x10), trúng cặp đôi hoàn cược, không trúng gì mất cược.\nVd: `misl all`' },
-                    { name: '🥣 `mixd` / `mixocdia [số/all] [chan/le]`', value: 'Xóc Đĩa — lắc 4 đĩa, đặt Chẵn hoặc Lẻ số mặt Đỏ. Đoán đúng nhân đôi cược.\nVd: `mixd all chan`' },
-                    { name: '🃏 `mibj` / `miblackjack [số/all]`', value: 'Blackjack — chơi bằng nút bấm 🃏 Rút / ✋ Dừng / 💰 Nhân Đôi. Blackjack tự nhiên (21 ngay từ đầu) thắng **x1.5**, thắng thường **x1**, hòa hoàn cược. Tự động Dừng nếu không thao tác sau 60 giây.\nVd: `mibj all`' },
-                    { name: '🤖 Tự động cộng XP khi chat', value: 'Chat bình thường tự cộng XP + 5 xu. Đủ ngưỡng bot thông báo **Level Up** và thưởng **5,000 xu**.' },
-                    { name: '🏆 `mitop` / `mit`', value: 'Xem bảng xếp hạng **Top 10 người nhiều xu nhất** toàn hệ thống.' },
+                    { name: '⚀ `mid6` / `mixucxac [số/all] [cao/thap/le/chan]`', value: 'Tung 2 xúc xắc — đặt Cao (tổng ≥7) / Thấp (<7) / Lẻ / Chẵn.\nVd: `mid6 all cao`' },
+                    { name: '🎲 `mibc` / `mibaucua [số/all] [con_vật]`', value: 'Bầu Cua Tôm Cá — chọn 1 trong 6 con vật (bau/cua/tom/ca/ga/nai), trúng ăn x1/x2/x3.' },
+                    { name: '✂️ `mikbg` / `mikeobuagiay [số/all] [keo/bua/giay]`', value: 'Kéo Búa Giấy — đấu trực tiếp với Bot. Thắng x2, hòa hoàn, thua mất cược.' },
+                    { name: '🎰 `misl` / `mislot [số/all]`', value: 'Máy Kéo Slot — quay 3 ô ngẫu nhiên ăn theo hệ số x2 → x10.' },
+                    { name: '🥣 `mixd` / `mixocdia [số/all] [chan/le]`', value: 'Xóc Đĩa — lắc 4 đĩa, đặt Chẵn hoặc Lẻ số mặt Đỏ.' },
+                    { name: '🃏 `mibj` / `miblackjack [số/all]`', value: 'Blackjack (Xì dách 21 điểm) đấu trí với Bot bằng nút bấm.' },
+                    { name: '🎯 `mig3` / `midoanso [số/all] [1-10]`', value: 'Đoán đúng số bí ẩn từ 1-10 → thắng **x5** tiền cược!' },
+                    { name: '🏆 `mitop` / `mit`', value: 'Xem bảng xếp hạng **Top 10 đại gia nhiều xu nhất** toàn hệ thống.' },
                     { name: '🛠️ `/resetbalance` (Chỉ Owner)', value: '`add [số]` — Thêm xu | `max` — Về tối đa | `resetuser [@tag]` — Reset 1 người | `resetall` — Xóa toàn bộ' },
-                    { name: '🔧 `/setprefix [tiền_tố]` (Admin)', value: 'Thay tiền tố lệnh prefix cả server (mặc định: `mi`). VD: `/setprefix m` → `mdaily`, `mcash`, `mtop`...' },
-                    { name: '🛠️ `/resetbalance` (Chỉ Owner — ẩn với người khác)', value: '• `add [số]` — Thêm xu cho bản thân\n• `max` — Đặt xu về mức tối đa\n• `resetuser [@người]` — Reset xu 1 người bằng cách tag\n• `resetall` — Xóa xu toàn bộ (trừ Owner)' },
+                    { name: '🔧 `/setprefix [tiền_tố]` (Admin)', value: 'Thay tiền tố lệnh prefix cả server (mặc định: `mi`). VD: `/setprefix m` → `mdaily`, `mcash`, `mtop`...' }
                 ]
             },
             help_music: {
@@ -10596,7 +10969,318 @@ if (commandName === 'setup') {
         return interaction.update({ embeds: [pageEmbed], components: interaction.message.components });
     }
 
+    if (interaction.isStringSelectMenu() && interaction.customId === 'shop_seed_select') {
+        const seedId = interaction.values[0].replace('buy_seed_', '');
+        const crop = FARM_CROPS[seedId];
+        if (!crop) return interaction.reply({ content: '❌ Loại hạt giống không hợp lệ!', flags: MessageFlags.Ephemeral });
+
+        const userData = getUserData(interaction.user.id);
+        if (userData.balance < crop.seedPrice) {
+            return interaction.reply({ content: `❌ Bạn không đủ xu để mua **Hạt ${crop.name}** (Cần \`${crop.seedPrice.toLocaleString()} xu\`, bạn đang có \`${userData.balance.toLocaleString()} xu\`)!`, flags: MessageFlags.Ephemeral });
+        }
+
+        userData.balance -= crop.seedPrice;
+        const farm = getFarmData(interaction.user.id);
+        farm.inventory.seeds[seedId] = (farm.inventory.seeds[seedId] || 0) + 1;
+        saveEconomy();
+
+        const row = new ActionRowBuilder().addComponents(
+            new ButtonBuilder().setCustomId('farm_open_btn').setLabel('🌾 Vào Nông Trại Trồng Ngay').setStyle(ButtonStyle.Success)
+        );
+
+        return interaction.reply({
+            content: `🌱 Mua thành công **1x Hạt ${crop.name}** với giá \`${crop.seedPrice.toLocaleString()} xu\`!\n🎒 Số hạt hiện có trong túi: **${farm.inventory.seeds[seedId]} hạt** | 💰 Số dư còn lại: \`${userData.balance.toLocaleString()} xu\``,
+            components: [row],
+            flags: MessageFlags.Ephemeral
+        });
+    }
+
+    if (interaction.isStringSelectMenu() && interaction.customId === 'farm_plant_seed_select') {
+        const seedId = interaction.values[0];
+        const crop = FARM_CROPS[seedId];
+        if (!crop) return interaction.reply({ content: '❌ Loại hạt giống không hợp lệ!', flags: MessageFlags.Ephemeral });
+
+        const farm = getFarmData(interaction.user.id);
+        if (!farm.inventory.seeds[seedId] || farm.inventory.seeds[seedId] <= 0) {
+            return interaction.reply({ content: `❌ Bạn không có **Hạt ${crop.name}** nào trong kho! Hãy vào Cửa Hàng để mua thêm.`, flags: MessageFlags.Ephemeral });
+        }
+
+        const emptyPlot = farm.plots.find(p => !p.crop);
+        if (!emptyPlot) {
+            return interaction.reply({ content: '❌ Tất cả ô đất của bạn đều đã được gieo trồng! Hãy mua thêm ô đất trong Cửa Hàng hoặc chờ thu hoạch.', flags: MessageFlags.Ephemeral });
+        }
+
+        farm.inventory.seeds[seedId] -= 1;
+        emptyPlot.crop = seedId;
+        emptyPlot.waterCount = 0;
+        emptyPlot.plantedAt = Date.now();
+        emptyPlot.lastWateredAt = null;
+        emptyPlot.withered = false;
+        saveEconomy();
+
+        const payload = buildFarmPayload(interaction.user, getUserData(interaction.user.id));
+        await interaction.update(payload).catch(() => null);
+        return interaction.followUp({ content: `🌱 Đã gieo thành công **${crop.name}** vào **Ô ${emptyPlot.id + 1}**! Hãy tưới nước lần 1 ngay để cây lớn nhé.`, flags: MessageFlags.Ephemeral });
+    }
+
     if (interaction.isButton()) {
+        // ==========================================
+        // 🌾 XỬ LÝ CÁC NÚT NÔNG TRẠI & CỬA HÀNG
+        // ==========================================
+        if (customId === 'farm_open_btn' || customId === 'farm_refresh') {
+            const userData = getUserData(interaction.user.id);
+            const payload = buildFarmPayload(interaction.user, userData);
+            if (interaction.message && interaction.message.editable) {
+                return interaction.update(payload).catch(() => interaction.reply(payload));
+            }
+            return interaction.reply(payload);
+        }
+
+        if (customId === 'farm_water') {
+            const userData = getUserData(interaction.user.id);
+            const farm = getFarmData(interaction.user.id);
+            const now = Date.now();
+            let wateredCount = 0;
+
+            farm.plots.forEach(plot => {
+                if (!plot.crop) return;
+                updatePlotStatus(plot);
+                if (plot.withered || plot.waterCount >= 3) return;
+
+                const cropInfo = FARM_CROPS[plot.crop];
+                if (!cropInfo) return;
+
+                if (plot.waterCount === 0) {
+                    plot.waterCount = 1;
+                    plot.lastWateredAt = now;
+                    wateredCount++;
+                } else {
+                    const elapsed = now - plot.lastWateredAt;
+                    if (elapsed >= cropInfo.waterCooldownMs) {
+                        plot.waterCount += 1;
+                        plot.lastWateredAt = now;
+                        wateredCount++;
+                    }
+                }
+            });
+
+            saveEconomy();
+            const payload = buildFarmPayload(interaction.user, userData);
+            await interaction.update(payload).catch(() => null);
+            if (wateredCount > 0) {
+                return interaction.followUp({ content: `💧 Đã tưới nước thành công cho **${wateredCount} ô cây**!`, flags: MessageFlags.Ephemeral });
+            }
+            return;
+        }
+
+        if (customId === 'farm_plant_menu') {
+            const farm = getFarmData(interaction.user.id);
+            const availableSeeds = [];
+            for (const s in farm.inventory.seeds) {
+                if (farm.inventory.seeds[s] > 0 && FARM_CROPS[s]) {
+                    const c = FARM_CROPS[s];
+                    availableSeeds.push(
+                        new StringSelectMenuOptionBuilder()
+                            .setLabel(`${c.name} (Có: ${farm.inventory.seeds[s]} hạt)`)
+                            .setValue(s)
+                            .setEmoji(c.emoji)
+                            .setDescription(`Tưới ${c.waterCooldownMs / 60000}p/lần | Thu hoạch: ${c.harvestPrice.toLocaleString()} xu`)
+                    );
+                }
+            }
+
+            if (availableSeeds.length === 0) {
+                return interaction.reply({ content: '❌ Bạn chưa có hạt giống nào trong kho! Hãy vào **Cửa Hàng Hạt & Đất** để mua.', flags: MessageFlags.Ephemeral });
+            }
+
+            const plantMenu = new StringSelectMenuBuilder()
+                .setCustomId('farm_plant_seed_select')
+                .setPlaceholder('🌱 Chọn loại hạt giống để gieo vào ô trống...')
+                .addOptions(availableSeeds);
+
+            const row = new ActionRowBuilder().addComponents(plantMenu);
+            return interaction.reply({ content: '🌱 **CHỌN HẠT GIỐNG ĐỂ GIEO:**', components: [row], flags: MessageFlags.Ephemeral });
+        }
+
+        if (customId === 'farm_harvest') {
+            const userData = getUserData(interaction.user.id);
+            const farm = getFarmData(interaction.user.id);
+            let harvestedCrops = [];
+            let totalCoins = 0;
+
+            farm.plots.forEach(plot => {
+                if (!plot.crop) return;
+                updatePlotStatus(plot);
+                if (!plot.withered && plot.waterCount >= 3) {
+                    const cropInfo = FARM_CROPS[plot.crop];
+                    if (cropInfo) {
+                        harvestedCrops.push(`${cropInfo.emoji} **${cropInfo.name}** (+${cropInfo.harvestPrice.toLocaleString()} xu)`);
+                        totalCoins += cropInfo.harvestPrice;
+                        farm.inventory.harvest[plot.crop] = (farm.inventory.harvest[plot.crop] || 0) + 1;
+                    }
+                    plot.crop = null;
+                    plot.waterCount = 0;
+                    plot.plantedAt = null;
+                    plot.lastWateredAt = null;
+                    plot.withered = false;
+                }
+            });
+
+            if (harvestedCrops.length > 0) {
+                userData.balance += totalCoins;
+                recordEconomyIncome(interaction.user.id, interaction.guild?.id, totalCoins, 'farm_harvest');
+                saveEconomy();
+                const payload = buildFarmPayload(interaction.user, userData);
+                await interaction.update(payload).catch(() => null);
+                return interaction.followUp({
+                    content: `🎉 **BỘI THU RỒI!** Bạn đã thu hoạch:\n${harvestedCrops.join('\n')}\n💰 Nhận ngay: \`+${totalCoins.toLocaleString()} xu\` (Số dư mới: \`${userData.balance.toLocaleString()} xu\`)`,
+                    flags: MessageFlags.Ephemeral
+                });
+            }
+            return interaction.reply({ content: '🌾 Chưa có cây nào chín rộ để thu hoạch!', flags: MessageFlags.Ephemeral });
+        }
+
+        if (customId === 'farm_clear_withered') {
+            const userData = getUserData(interaction.user.id);
+            const farm = getFarmData(interaction.user.id);
+            let clearedCount = 0;
+
+            farm.plots.forEach(plot => {
+                updatePlotStatus(plot);
+                if (plot.withered) {
+                    plot.crop = null;
+                    plot.waterCount = 0;
+                    plot.plantedAt = null;
+                    plot.lastWateredAt = null;
+                    plot.withered = false;
+                    clearedCount++;
+                }
+            });
+
+            if (clearedCount > 0) {
+                saveEconomy();
+                const payload = buildFarmPayload(interaction.user, userData);
+                await interaction.update(payload).catch(() => null);
+                return interaction.followUp({ content: `🧹 Đã dọn sạch cỏ và rác cho **${clearedCount} ô đất**! Giờ bạn có thể gieo hạt mới.`, flags: MessageFlags.Ephemeral });
+            }
+            return interaction.reply({ content: '🌱 Không có ô đất nào bị héo cần dọn!', flags: MessageFlags.Ephemeral });
+        }
+
+        if (customId === 'farm_shop') {
+            const userData = getUserData(interaction.user.id);
+            const farm = getFarmData(interaction.user.id);
+            const nextPlot = farm.plots.length + 1;
+            const nextPlotPrice = PLOT_UPGRADE_PRICES[nextPlot] || 0;
+
+            const shopEmbed = new EmbedBuilder()
+                .setColor('#F1C40F')
+                .setTitle('🛒 SIÊU THỊ NÔNG DÂN MIMI')
+                .setDescription(
+                    `💰 **Số dư của bạn:** \`${userData.balance.toLocaleString('en-US')} xu\`\n\n` +
+                    `🌱 **DANH MỤC HẠT GIỐNG:**\n` +
+                    `• 🌾 **Hạt Lúa Mì** — \`500 xu\` *(Tưới 3p/lần | Thu hoạch: 2,000 xu)*\n` +
+                    `• 🍅 **Hạt Cà Chua** — \`2,000 xu\` *(Tưới 10p/lần | Thu hoạch: 8,000 xu)*\n` +
+                    `• 🌽 **Hạt Bắp Ngô** — \`5,000 xu\` *(Tưới 20p/lần | Thu hoạch: 20,000 xu)*\n` +
+                    `• 🍓 **Hạt Dâu Tây** — \`15,000 xu\` *(Tưới 45p/lần | Thu hoạch: 65,000 xu)*\n` +
+                    `• 🍉 **Hạt Dưa Hấu** — \`40,000 xu\` *(Tưới 90p/lần | Thu hoạch: 180,000 xu)*\n` +
+                    `• 🌟 **Cây Tiền Vàng** — \`100,000 xu\` *(Tưới 180p/lần | Thu hoạch: 450,000 xu)*\n\n` +
+                    `🏡 **MỞ RỘNG Ô ĐẤT:**\n` +
+                    `• Hiện tại: \`${farm.plots.length}/${MAX_FARM_PLOTS} ô\`\n` +
+                    `• Mua thêm Ô thứ **${nextPlot <= MAX_FARM_PLOTS ? nextPlot : 'MAX'}**: ` +
+                    (nextPlot <= MAX_FARM_PLOTS ? `\`${nextPlotPrice.toLocaleString()} xu\`` : `*(Đã đạt tối đa)*`)
+                )
+                .setFooter({ text: 'Chọn hạt giống trong menu bên dưới để mua' });
+
+            const selectMenu = new StringSelectMenuBuilder()
+                .setCustomId('shop_seed_select')
+                .setPlaceholder('🌱 Chọn loại Hạt Giống muốn mua...')
+                .addOptions(
+                    new StringSelectMenuOptionBuilder().setLabel('Hạt Lúa Mì (500 xu)').setValue('buy_seed_lua_mi').setEmoji('🌾').setDescription('Thu hoạch: 2,000 xu | Lớn nhanh 3p/lần'),
+                    new StringSelectMenuOptionBuilder().setLabel('Hạt Cà Chua (2,000 xu)').setValue('buy_seed_ca_chua').setEmoji('🍅').setDescription('Thu hoạch: 8,000 xu | Tưới 10p/lần'),
+                    new StringSelectMenuOptionBuilder().setLabel('Hạt Bắp Ngô (5,000 xu)').setValue('buy_seed_bap').setEmoji('🌽').setDescription('Thu hoạch: 20,000 xu | Tưới 20p/lần'),
+                    new StringSelectMenuOptionBuilder().setLabel('Hạt Dâu Tây (15,000 xu)').setValue('buy_seed_dau_tay').setEmoji('🍓').setDescription('Thu hoạch: 65,000 xu | Tưới 45p/lần'),
+                    new StringSelectMenuOptionBuilder().setLabel('Hạt Dưa Hấu (40,000 xu)').setValue('buy_seed_dua_hau').setEmoji('🍉').setDescription('Thu hoạch: 180,000 xu | Tưới 90p/lần'),
+                    new StringSelectMenuOptionBuilder().setLabel('Cây Tiền Vàng (100,000 xu)').setValue('buy_seed_cay_vang').setEmoji('🌟').setDescription('Thu hoạch: 450,000 xu | Cực thịnh 3h/lần')
+                );
+
+            const rowMenu = new ActionRowBuilder().addComponents(selectMenu);
+            const rowButtons = new ActionRowBuilder().addComponents(
+                new ButtonBuilder().setCustomId('shop_buy_plot').setLabel(`🚜 Mua Thêm Đất (${nextPlot <= MAX_FARM_PLOTS ? nextPlotPrice.toLocaleString() + ' xu' : 'Đã Đạt Max'})`).setStyle(ButtonStyle.Success).setDisabled(nextPlot > MAX_FARM_PLOTS),
+                new ButtonBuilder().setCustomId('farm_open_btn').setLabel('🌾 Quay Lại Vườn').setStyle(ButtonStyle.Primary)
+            );
+
+            return interaction.reply({ embeds: [shopEmbed], components: [rowMenu, rowButtons], flags: MessageFlags.Ephemeral });
+        }
+
+        if (customId === 'farm_sell_all') {
+            const userData = getUserData(interaction.user.id);
+            const farm = getFarmData(interaction.user.id);
+            let totalSold = 0;
+            let totalCoins = 0;
+            let details = [];
+
+            for (const cropId in farm.inventory.harvest) {
+                const count = farm.inventory.harvest[cropId] || 0;
+                if (count > 0 && FARM_CROPS[cropId]) {
+                    const price = count * FARM_CROPS[cropId].harvestPrice;
+                    totalCoins += price;
+                    totalSold += count;
+                    details.push(`${FARM_CROPS[cropId].emoji} **${count}x ${FARM_CROPS[cropId].name}** → \`${price.toLocaleString()} xu\``);
+                    farm.inventory.harvest[cropId] = 0;
+                }
+            }
+
+            if (totalSold > 0) {
+                userData.balance += totalCoins;
+                recordEconomyIncome(interaction.user.id, interaction.guild?.id, totalCoins, 'farm_sell');
+                saveEconomy();
+                const payload = buildFarmPayload(interaction.user, userData);
+                await interaction.update(payload).catch(() => null);
+                return interaction.followUp({
+                    content: `🧺 **ĐÃ BÁN HẾT NÔNG SẢN!**\n${details.join('\n')}\n💰 Nhận về: \`+${totalCoins.toLocaleString()} xu\` (Số dư mới: \`${userData.balance.toLocaleString()} xu\`)`,
+                    flags: MessageFlags.Ephemeral
+                });
+            }
+            return interaction.reply({ content: '🧺 Kho nông sản của bạn đang trống!', flags: MessageFlags.Ephemeral });
+        }
+
+        if (customId === 'shop_buy_plot') {
+            const userData = getUserData(interaction.user.id);
+            const farm = getFarmData(interaction.user.id);
+            const nextPlot = farm.plots.length + 1;
+
+            if (nextPlot > MAX_FARM_PLOTS) {
+                return interaction.reply({ content: `❌ Bạn đã sở hữu tối đa **${MAX_FARM_PLOTS} ô đất**!`, flags: MessageFlags.Ephemeral });
+            }
+
+            const price = PLOT_UPGRADE_PRICES[nextPlot] || 50000;
+            if (userData.balance < price) {
+                return interaction.reply({ content: `❌ Bạn không đủ xu để mở rộng thêm Ô đất thứ ${nextPlot}! (Cần \`${price.toLocaleString()} xu\`, bạn có \`${userData.balance.toLocaleString()} xu\`)`, flags: MessageFlags.Ephemeral });
+            }
+
+            userData.balance -= price;
+            farm.plotsCount = nextPlot;
+            farm.plots.push({
+                id: farm.plots.length,
+                crop: null,
+                waterCount: 0,
+                plantedAt: null,
+                lastWateredAt: null,
+                withered: false
+            });
+            saveEconomy();
+
+            const row = new ActionRowBuilder().addComponents(
+                new ButtonBuilder().setCustomId('farm_open_btn').setLabel('🌾 Vào Nông Trại Ngay').setStyle(ButtonStyle.Success)
+            );
+
+            return interaction.reply({
+                content: `🎉 Chúc mừng bạn đã mở rộng thành công **Ô Đất Thứ ${nextPlot}** với giá \`${price.toLocaleString()} xu\`!\n🏡 Tổng số ô đất hiện tại: **${farm.plots.length}/${MAX_FARM_PLOTS} ô** | 💰 Số dư còn lại: \`${userData.balance.toLocaleString()} xu\``,
+                components: [row],
+                flags: MessageFlags.Ephemeral
+            });
+        }
+
         // ==========================================
         // 👤 XỬ LÝ NÚT PHÁT SINH TỪ HỒ SƠ (/profile)
         // ==========================================
