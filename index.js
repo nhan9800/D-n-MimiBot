@@ -5057,12 +5057,14 @@ client.once('ready', async () => {
 
         new SlashCommandBuilder()
             .setName('broadcast')
-            .setDescription('[Owner Only] Gửi thông báo chia mục tới tất cả server bot đang tham gia')
+            .setDescription('[Owner Only] Gửi thông báo CHIA MỤC tới TẤT CẢ server bot đang tham gia')
             .setDefaultMemberPermissions('0')
-            .addStringOption(o => o.setName('noi_dung').setDescription('Nội dung các mục cách nhau bằng " | ", dạng "Tiêu đề :: nội dung", dùng \\n để xuống dòng').setRequired(true).setMaxLength(3800))
-            .addStringOption(o => o.setName('tieu_de').setDescription('Tiêu đề thông báo lớn ở đầu (mặc định: 📢 THÔNG BÁO TỪ MIMI BOT)').setRequired(false).setMaxLength(200))
-            .addStringOption(o => o.setName('mau').setDescription('Màu viền HEX (VD: #8C7CF0, #5865F2, #2ECC71)').setRequired(false).setMaxLength(7))
-            .addStringOption(o => o.setName('chan_trang').setDescription('Dòng ghi chú nhỏ ở cuối (tùy chọn)').setRequired(false).setMaxLength(300)),
+            .addStringOption(o => o.setName('tiêu_đề').setDescription('Tiêu đề lớn ở đầu thông báo').setRequired(true).setMaxLength(200))
+            .addStringOption(o => o.setName('nội_dung').setDescription('Các mục, cách nhau bằng " | ". Mỗi mục dạng "Tiêu đề mục :: nội dung", dùng \\n để xuống dòng').setRequired(true).setMaxLength(3800))
+            .addStringOption(o => o.setName('màu').setDescription('Màu viền (hex, VD: #8C7CF0, #5865F2). Mặc định: tím Mimi Bot').setRequired(false).setMaxLength(7))
+            .addStringOption(o => o.setName('chân_trang').setDescription('Dòng ghi chú nhỏ ở cuối (tùy chọn)').setRequired(false).setMaxLength(300))
+            .addBooleanOption(o => o.setName('gắn_mọi_người').setDescription('Có gắn @everyone kèm thông báo không? (mặc định: Không)').setRequired(false))
+            .addStringOption(o => o.setName('ảnh_banner').setDescription('URL ảnh banner phía dưới (tùy chọn)').setRequired(false)),
 
         new SlashCommandBuilder()
             .setName('thongbao')
@@ -8377,10 +8379,12 @@ client.on('interactionCreate', async interaction => {
 
             await interaction.deferReply({ flags: MessageFlags.Ephemeral });
 
-            const rawContent = options.getString('noi_dung');
-            const bTitle = options.getString('tieu_de') || '📢 THÔNG BÁO TỪ MIMI BOT';
-            const bColorHex = options.getString('mau') || '#8C7CF0';
-            const bFooter = options.getString('chan_trang') || 'Thông báo hệ thống từ đội ngũ phát triển MIMI BOT';
+            const tbTitle = options.getString('tiêu_đề') || options.getString('tieu_de') || '📢 THÔNG BÁO TỪ MIMI BOT';
+            const rawContent = options.getString('nội_dung') || options.getString('noi_dung') || '';
+            const bColorHex = options.getString('màu') || options.getString('mau') || '#8C7CF0';
+            const bFooter = options.getString('chân_trang') || options.getString('chan_trang') || 'Thông báo hệ thống từ đội ngũ phát triển MIMI BOT';
+            const pingEveryone = options.getBoolean('gắn_mọi_người') || options.getBoolean('gan_moi_nguoi') || false;
+            const bannerUrl = options.getString('ảnh_banner') || options.getString('anh_banner');
 
             // Xử lý xuống dòng \n và tách các mục bằng dấu "|"
             const parsedContent = rawContent.replace(/\\n/g, '\n');
@@ -8391,17 +8395,23 @@ client.on('interactionCreate', async interaction => {
                 accentColor = parseInt(bColorHex.slice(1), 16);
             }
 
-            // 1. Xây dựng giao diện Components V2 (Chuẩn đẹp chia mục)
+            // 1. Xây dựng giao diện Components V2 (Chuẩn đẹp chia mục như /thongbao)
             const container = new ContainerBuilder().setAccentColor(accentColor);
-            container.addTextDisplayComponents(new TextDisplayBuilder().setContent(`# ${bTitle}`));
+            if (pingEveryone) {
+                container.addTextDisplayComponents(new TextDisplayBuilder().setContent('@everyone'));
+            }
+            container.addTextDisplayComponents(new TextDisplayBuilder().setContent(`# ${tbTitle}`));
             container.addSeparatorComponents(new SeparatorBuilder().setSpacing(SeparatorSpacingSize.Large).setDivider(true));
 
             // 2. Xây dựng Embed Fallback (cho các server hoặc kênh không hỗ trợ V2)
             const broadcastEmbed = new EmbedBuilder()
                 .setColor(accentColor)
-                .setTitle(bTitle)
+                .setTitle(tbTitle)
                 .setFooter({ text: bFooter })
                 .setTimestamp();
+            if (bannerUrl && bannerUrl.startsWith('http')) {
+                broadcastEmbed.setImage(bannerUrl);
+            }
 
             if (sections.length === 0) {
                 container.addTextDisplayComponents(new TextDisplayBuilder().setContent('*(Không có nội dung)*'));
@@ -8419,7 +8429,7 @@ client.on('interactionCreate', async interaction => {
                         hasFields = true;
                     } else {
                         content = sec;
-                        if (!hasFields && idx === 0) {
+                        if (!hasFields && idx === 0 && sections.length === 1) {
                             broadcastEmbed.setDescription(content.slice(0, 4000));
                         } else {
                             broadcastEmbed.addFields({ name: `Mục ${idx + 1}`, value: content.slice(0, 1024) || '...', inline: false });
@@ -8432,13 +8442,26 @@ client.on('interactionCreate', async interaction => {
                 });
             }
 
+            if (bannerUrl && bannerUrl.startsWith('http')) {
+                container.addSeparatorComponents(new SeparatorBuilder().setSpacing(SeparatorSpacingSize.Small).setDivider(true));
+                container.addMediaGalleryComponents(new MediaGalleryBuilder().addMediaItems(new MediaGalleryItemBuilder().setMediaUrl(bannerUrl)));
+            }
+
             if (bFooter) {
                 container.addSeparatorComponents(new SeparatorBuilder().setSpacing(SeparatorSpacingSize.Large).setDivider(true));
                 container.addTextDisplayComponents(new TextDisplayBuilder().setContent(`-# ${bFooter}`));
             }
 
-            const v2Payload = { components: [container], flags: MessageFlags.IsComponentsV2 };
-            const embedPayload = { embeds: [broadcastEmbed] };
+            const v2Payload = {
+                components: [container],
+                flags: MessageFlags.IsComponentsV2,
+                allowedMentions: { parse: pingEveryone ? ['everyone'] : [] }
+            };
+            const embedPayload = {
+                content: pingEveryone ? '@everyone' : undefined,
+                embeds: [broadcastEmbed],
+                allowedMentions: { parse: pingEveryone ? ['everyone'] : [] }
+            };
 
             const guildsList = [...client.guilds.cache.values()];
             let sentCount = 0;
