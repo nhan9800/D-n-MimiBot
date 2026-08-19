@@ -6106,61 +6106,8 @@ client.on('messageCreate', async (message) => {
         return message.reply({ content: `🎁 **${message.author.username}** điểm danh thành công và nhận được **+${reward.toLocaleString()} xu**!`, allowedMentions: { repliedUser: false } });
     }
 
-    // COMMAND: mitimdo - Tìm đồ ve chai
-    if (command === 'mitimdo') {
-        const userData = getUserData(userId);
-        const now = Date.now();
-        if (userData.lastTimDo && now - userData.lastTimDo < 60000) {
-            return message.reply(`⏳ Bạn cần đợi ${Math.ceil((60000 - (now - userData.lastTimDo)) / 1000)}s nữa để tìm đồ tiếp.`);
-        }
-        userData.lastTimDo = now;
-        if (!userData.inventory) userData.inventory = {};
-        if (!userData.inventory.ve_chai) userData.inventory.ve_chai = 0;
-        const found = Math.floor(Math.random() * 3) + 1; // 1 to 3 items
-        userData.inventory.ve_chai += found;
-        saveEconomy();
-        return message.reply(`🔍 Bạn đã cất công tìm kiếm và nhặt được **${found} món đồ cũ (ve chai)**! Dùng \`mikho\` để bán.`);
-    }
 
-    // COMMAND: mikho - Kho đồ và bán ve chai
-    if (command === 'mikho') {
-        const userData = getUserData(userId);
-        const args = message.content.split(/\s+/);
-        if (args[1] === 'sell' || args[1] === 'bán' || args[1] === 'ban') {
-            if (!userData.inventory || !userData.inventory.ve_chai || userData.inventory.ve_chai <= 0) {
-                return message.reply('❌ Bạn không có món đồ cũ nào để bán!');
-            }
-            const amount = userData.inventory.ve_chai;
-            const price = Math.floor(Math.random() * 5001) + 5000; // 5000 to 10000 xu per item
-            const total = amount * price;
-            userData.inventory.ve_chai = 0;
-            userData.balance += total;
-            saveEconomy();
-            return message.reply(`♻️ Bạn đã bán **${amount} món đồ cũ** với giá ${price.toLocaleString()} xu/món.\n💰 Tổng cộng thu được **${total.toLocaleString()} xu**!`);
-        }
-        
-        let invStr = `💍 Nhẫn cưới: ${userData.inventory?.nhan_cuoi ? '1' : '0'}\n`;
-        invStr += `📦 Đồ cũ (Ve chai): ${userData.inventory?.ve_chai || 0} món`;
-        return message.reply(`🎒 **KHO ĐỒ CỦA BẠN**\n${invStr}\n\n*(Gõ \`mikho bán\` để bán tất cả đồ cũ lấy xu)*`);
-    }
 
-    // COMMAND: mibg - Mua background profile
-    if (command === 'mibuybg' || command === 'mibg') {
-        const userData = getUserData(userId);
-        const cost = 50000;
-        const args = message.content.split(/\s+/);
-        const bgUrl = args[1];
-        if (!bgUrl || !bgUrl.startsWith('http')) {
-            return message.reply('🛒 **Cửa hàng Background Profile**\nGiá: **50,000 xu**\nCú pháp: `mibg <link_ảnh>`\n*(Lưu ý: Bạn cần có đủ 50,000 xu. Mua sẽ ghi đè background hiện tại)*');
-        }
-        if (userData.balance < cost) {
-            return message.reply(`❌ Bạn không đủ xu! Cần ${cost.toLocaleString()} xu.`);
-        }
-        userData.balance -= cost;
-        userData.bgUrl = bgUrl;
-        saveEconomy();
-        return message.reply(`✅ Bạn đã mua thành công Background Profile! (Đã trừ ${cost.toLocaleString()} xu).`);
-    }
 
     // ==========================================
     // 🌾 LỆNH NÔNG TRẠI: mifarm | minongtrai
@@ -6484,18 +6431,102 @@ client.on('messageCreate', async (message) => {
     }
 
 
+    // ==========================================
+    // 🎒 LỆNH KHO ĐỒ: mikho
+    // ==========================================
     if (command === 'mikho') {
         const userData = getUserData(userId);
         const inv = userData.inventory || {};
-        let text = '🎒 **KHO ĐỒ CỦA BẠN:**\n\n';
-        if (inv.nhan_cuoi) text += `- 💍 Nhẫn Cưới: ${inv.nhan_cuoi}\n`;
-        if (inv.do_co) text += `- 🏺 Đồ Cổ (Thường): ${inv.do_co}\n`;
-        if (inv.do_co_2) text += `- 🏺 Đồ Cổ (Hiếm): ${inv.do_co_2}\n`;
-        if (inv.do_co_3) text += `- 🏺 Đồ Cổ (Sử Thi): ${inv.do_co_3}\n`;
-        if (inv.do_co_4) text += `- 🏺 Đồ Cổ (Truyền Thuyết): ${inv.do_co_4}\n`;
-        if (inv.bg_profile) text += `- 🖼️ Quyền đổi Ảnh Bìa Profile\n`;
-        if (Object.keys(inv).length === 0) text += '*Túi đồ rỗng tuếch!*';
-        return message.reply(text);
+        const farm = getFarmData(userId);
+        
+        const args = message.content.split(/\s+/);
+        // Nếu gõ: mikho bán / mikho ban / mikho sell
+        if (args[1] === 'sell' || args[1] === 'bán' || args[1] === 'ban') {
+            const totalItems = (inv.do_co || 0) + (inv.do_co_2 || 0) + (inv.do_co_3 || 0) + (inv.do_co_4 || 0) + (inv.ve_chai || 0);
+            if (totalItems <= 0) {
+                return message.reply('❌ Túi đồ của bạn không có Đồ Cổ hoặc Ve Chai nào để bán!');
+            }
+            let total = 0;
+            let soldMsg = [];
+            if (inv.do_co_4) {
+                let t = 0; for(let i = 0; i < inv.do_co_4; i++) t += Math.floor(Math.random() * 300001) + 200000;
+                total += t; soldMsg.push(`🌟 **${inv.do_co_4}x** Đồ Cổ (Truyền Thuyết) → \`+${t.toLocaleString()} xu\``); delete inv.do_co_4;
+            }
+            if (inv.do_co_3) {
+                let t = 0; for(let i = 0; i < inv.do_co_3; i++) t += Math.floor(Math.random() * 50001) + 50000;
+                total += t; soldMsg.push(`💜 **${inv.do_co_3}x** Đồ Cổ (Sử Thi) → \`+${t.toLocaleString()} xu\``); delete inv.do_co_3;
+            }
+            if (inv.do_co_2) {
+                let t = 0; for(let i = 0; i < inv.do_co_2; i++) t += Math.floor(Math.random() * 20001) + 15000;
+                total += t; soldMsg.push(`💙 **${inv.do_co_2}x** Đồ Cổ (Hiếm) → \`+${t.toLocaleString()} xu\``); delete inv.do_co_2;
+            }
+            if (inv.do_co) {
+                let t = 0; for(let i = 0; i < inv.do_co; i++) t += Math.floor(Math.random() * 5001) + 3000;
+                total += t; soldMsg.push(`💚 **${inv.do_co}x** Đồ Cổ (Thường) → \`+${t.toLocaleString()} xu\``); delete inv.do_co;
+            }
+            if (inv.ve_chai) {
+                let t = 0; for(let i = 0; i < inv.ve_chai; i++) t += Math.floor(Math.random() * 2001) + 1000;
+                total += t; soldMsg.push(`📦 **${inv.ve_chai}x** Đồ Cũ (Ve chai) → \`+${t.toLocaleString()} xu\``); delete inv.ve_chai;
+            }
+            userData.balance += total;
+            recordEconomyIncome(userId, message.guild?.id, total, 'sell_items');
+            saveEconomy();
+            return message.reply(
+                `💰 **ĐÃ BÁN VẬT PHẨM LẤY XU THÀNH CÔNG!**\n\n${soldMsg.join('\n')}\n\n🎉 **Thu về tổng cộng:** \`+${total.toLocaleString()} xu\` (Số dư mới: \`${userData.balance.toLocaleString()} xu\`)`
+            );
+        }
+
+        const embed = new EmbedBuilder()
+            .setColor('#F1C40F')
+            .setTitle(`🎒 KHO ĐỒ CỦA ${message.author.username.toUpperCase()}`)
+            .setDescription(`💰 **Số dư ví:** \`${userData.balance.toLocaleString()} xu\``)
+            .setThumbnail(message.author.displayAvatarURL())
+            .setTimestamp();
+
+        let docoCount = 0;
+        let docoStr = '';
+        if (inv.do_co_4) { docoStr += `• 🌟 **Đồ Cổ (Truyền Thuyết):** \`${inv.do_co_4}\` món *(~200k-500k/món)*\n`; docoCount += inv.do_co_4; }
+        if (inv.do_co_3) { docoStr += `• 💜 **Đồ Cổ (Sử Thi):** \`${inv.do_co_3}\` món *(~50k-100k/món)*\n`; docoCount += inv.do_co_3; }
+        if (inv.do_co_2) { docoStr += `• 💙 **Đồ Cổ (Hiếm):** \`${inv.do_co_2}\` món *(~15k-35k/món)*\n`; docoCount += inv.do_co_2; }
+        if (inv.do_co) { docoStr += `• 💚 **Đồ Cổ (Thường):** \`${inv.do_co}\` món *(~3k-8k/món)*\n`; docoCount += inv.do_co; }
+        if (inv.ve_chai) { docoStr += `• 📦 **Ve chai / Đồ cũ:** \`${inv.ve_chai}\` món *(~1k-3k/món)*\n`; docoCount += inv.ve_chai; }
+        
+        embed.addFields({
+            name: `🏺 Đồ Cổ & Vật Phẩm Tìm Thấy (${docoCount} món)`,
+            value: docoStr || '*Chưa có món đồ cổ nào! Dùng `mitimdo` để đi săn đồ cổ.*',
+            inline: false
+        });
+
+        let specialStr = '';
+        if (inv.nhan_cuoi) specialStr += `• 💍 **Nhẫn Cưới:** \`${inv.nhan_cuoi}\` chiếc\n`;
+        if (inv.bg_profile) specialStr += `• 🖼️ **Quyền Đổi Ảnh Bìa Profile** *(Đã kích hoạt)*\n`;
+        if (userData.bgUrl) specialStr += `• 🌄 **Hình nền Profile hiện tại:** [Xem ảnh](${userData.bgUrl})\n`;
+        embed.addFields({
+            name: '✨ Vật Phẩm Đặc Biệt',
+            value: specialStr || '*Không có vật phẩm đặc biệt.*',
+            inline: false
+        });
+
+        // Thêm thông tin nông sản trong kho
+        let seedsStr = [];
+        let harvestStr = [];
+        for (const cropId in farm.inventory?.seeds || {}) {
+            const c = farm.inventory.seeds[cropId];
+            if (c > 0 && FARM_CROPS[cropId]) seedsStr.push(`${FARM_CROPS[cropId].emoji} ${FARM_CROPS[cropId].name}: \`${c}\` hạt`);
+        }
+        for (const cropId in farm.inventory?.harvest || {}) {
+            const c = farm.inventory.harvest[cropId];
+            if (c > 0 && FARM_CROPS[cropId]) harvestStr.push(`${FARM_CROPS[cropId].emoji} ${FARM_CROPS[cropId].name}: \`${c}\` củ/quả`);
+        }
+        embed.addFields({
+            name: '🌾 Nông Sản & Hạt Giống',
+            value: `🌱 **Hạt giống:** ${seedsStr.join(', ') || '*Không có*'}\n🧺 **Nông sản:** ${harvestStr.join(', ') || '*Không có*'}\n*(Dùng \`mifarm\` hoặc \`mibns\` để quản lý)*`,
+            inline: false
+        });
+
+        embed.setFooter({ text: 'Gõ "mikho bán" để bán sạch đồ cổ lấy xu ngay lập tức!' });
+
+        return message.reply({ embeds: [embed] });
     }
 
     if (command === 'mibg' || command === 'setbackground') {
@@ -6512,32 +6543,104 @@ client.on('messageCreate', async (message) => {
         return message.reply('✅ Đã cập nhật Ảnh Bìa Profile thành công! Dùng `miprofile` để xem.');
     }
     
+    // ==========================================
+    // 🔍 LỆNH TÌM ĐỒ CỔ: mitimdo | mitd
+    // ==========================================
     if (command === 'mitimdo' || command === 'mitd') {
         const userData = getUserData(userId);
         const now = Date.now();
-        const cooldown = 5 * 60 * 1000; // 5 mins
+        const cooldown = 60 * 1000; // 60 giây cooldown (nhanh, vui vẻ)
         if (userData.lastTimDo && now - userData.lastTimDo < cooldown) {
-            const left = Math.ceil((cooldown - (now - userData.lastTimDo)) / 60000);
-            return message.reply(`⏳ Bạn đang mệt, hãy nghỉ ngơi **${left} phút** rồi đi tìm đồ tiếp nhé!`);
+            const leftSec = Math.ceil((cooldown - (now - userData.lastTimDo)) / 1000);
+            return message.reply(`⏳ Bạn vừa mới đào bới xong và đang nghỉ mệt! Hãy chờ **${leftSec} giây** nữa rồi tiếp tục tìm đồ nhé.`);
         }
         userData.lastTimDo = now;
         if (!userData.inventory) userData.inventory = {};
-        
-        if (Math.random() < 0.8) {
-            const rand = Math.random();
-            let rarity = 'Thường';
-            let key = 'do_co';
-            if (rand < 0.05) { rarity = 'Truyền Thuyết'; key = 'do_co_4'; }
-            else if (rand < 0.15) { rarity = 'Sử Thi'; key = 'do_co_3'; }
-            else if (rand < 0.4) { rarity = 'Hiếm'; key = 'do_co_2'; }
-            
-            userData.inventory[key] = (userData.inventory[key] || 0) + 1;
-            saveEconomy();
-            return message.reply(`🎉 Bạn lội bùn và nhặt được **1x 🏺 Đồ Cổ (${rarity})**! Hãy dùng \`miprofile\` -> Bán Đồ để lấy xu!`);
+
+        // Danh mục Đồ Cổ phong phú theo phẩm cấp
+        const ARTIFACT_POOLS = {
+            do_co_4: {
+                rarity: 'Truyền Thuyết',
+                color: 0xF1C40F,
+                emoji: '🌟',
+                items: [
+                    'Chén Ngọc Hoàng Kim Cổ Đại',
+                    'Vương Miện Cổ Mạ Vàng',
+                    'Long Bội Triều Nguyễn',
+                    'Thanh Kiếm Cổ Cẩn Ngọc Hoàng Gia'
+                ],
+                priceRange: '200,000 - 500,000 xu'
+            },
+            do_co_3: {
+                rarity: 'Sử Thi',
+                color: 0x9B59B6,
+                emoji: '💜',
+                items: [
+                    'Bình Gốm Chu Đậu Khảm Lam',
+                    'Tượng Phật Đồng Mạ Vàng Cổ',
+                    'Gương Đồng Cổ Thời Trần',
+                    'Ngọc Tỷ Khắc Chữ Nho Hoàng Gia'
+                ],
+                priceRange: '50,000 - 100,000 xu'
+            },
+            do_co_2: {
+                rarity: 'Hiếm',
+                color: 0x3498DB,
+                emoji: '💙',
+                items: [
+                    'Đồng Xu Cổ Thời Lê',
+                    'Bát Sứ Hoa Mai Men Lam',
+                    'Rìu Đồng Cổ Đông Sơn',
+                    'Trâm Cài Tóc Bạc Cổ Khảm Đá'
+                ],
+                priceRange: '15,000 - 35,000 xu'
+            },
+            do_co: {
+                rarity: 'Thường',
+                color: 0x2ECC71,
+                emoji: '💚',
+                items: [
+                    'Mảnh Gốm Cổ Men Rạn',
+                    'Bình Rượu Đất Nung Thời Lý',
+                    'Đĩa Sành Cổ Hoa Chanh',
+                    'Ngọc Bội Thô Khắc Họa Tiết Cổ'
+                ],
+                priceRange: '3,000 - 8,000 xu'
+            }
+        };
+
+        const rand = Math.random();
+        let chosenKey = 'do_co';
+        if (rand < 0.08) {
+            chosenKey = 'do_co_4'; // 8% Truyền Thuyết
+        } else if (rand < 0.28) {
+            chosenKey = 'do_co_3'; // 20% Sử Thi
+        } else if (rand < 0.63) {
+            chosenKey = 'do_co_2'; // 35% Hiếm
         } else {
-            saveEconomy();
-            return message.reply('🗑️ Bạn bới cả bãi rác nhưng chỉ tìm thấy... một chiếc tất rách. Không bán được đồng nào cả!');
+            chosenKey = 'do_co';   // 37% Thường
         }
+
+        const pool = ARTIFACT_POOLS[chosenKey];
+        const itemName = pool.items[Math.floor(Math.random() * pool.items.length)];
+        userData.inventory[chosenKey] = (userData.inventory[chosenKey] || 0) + 1;
+        saveEconomy();
+
+        const embed = new EmbedBuilder()
+            .setColor(pool.color)
+            .setTitle(`${pool.emoji} TÌM THẤY ĐỒ CỔ: ${pool.rarity.toUpperCase()}!`)
+            .setDescription(
+                `🎉 **${message.author.username}** đã lặn lội tìm kiếm và khai quật được:\n\n` +
+                `🏺 **${itemName}**\n` +
+                `• **Phẩm cấp:** ${pool.emoji} **${pool.rarity}**\n` +
+                `• **Giá trị ước tính:** \`${pool.priceRange}\`\n\n` +
+                `📦 Đã lưu vào kho đồ! Dùng \`mikho\` (hoặc \`mikho bán\`) để bán lấy xu làm giàu.`
+            )
+            .setThumbnail(message.author.displayAvatarURL())
+            .setFooter({ text: 'Cooldown tìm đồ: 60s • Bán đồ tại: mikho bán hoặc miprofile' })
+            .setTimestamp();
+
+        return message.reply({ embeds: [embed] });
     }
 
     // 3. Lệnh tung đồng xu: micf | micoinflip | giới hạn 250,000 xu / lần, hỗ trợ 'all'
@@ -10792,32 +10895,40 @@ if (commandName === 'setup') {
         }
         
         if (choice === 'sell_doco') {
-            const totalDoCo = (inv.do_co || 0) + (inv.do_co_2 || 0) + (inv.do_co_3 || 0) + (inv.do_co_4 || 0);
-            if (totalDoCo <= 0) return interaction.reply({ content: '❌ Bạn không có đồ cổ để bán!', flags: MessageFlags.Ephemeral });
+            const totalDoCo = (inv.do_co || 0) + (inv.do_co_2 || 0) + (inv.do_co_3 || 0) + (inv.do_co_4 || 0) + (inv.ve_chai || 0);
+            if (totalDoCo <= 0) return interaction.reply({ content: '❌ Bạn không có đồ cổ hay vật phẩm nào để bán!', flags: MessageFlags.Ephemeral });
             
             let total = 0;
             let soldMsg = [];
             
-            if (inv.do_co) {
-                let t = 0; for(let i=0;i<inv.do_co;i++) t+= (Math.floor(Math.random()*9001)+1000) * 1;
-                total += t; soldMsg.push(`**${inv.do_co}x** Đồ Cổ (Thường)`); delete inv.do_co;
-            }
-            if (inv.do_co_2) {
-                let t = 0; for(let i=0;i<inv.do_co_2;i++) t+= (Math.floor(Math.random()*9001)+1000) * 2;
-                total += t; soldMsg.push(`**${inv.do_co_2}x** Đồ Cổ (Hiếm)`); delete inv.do_co_2;
+            if (inv.do_co_4) {
+                let t = 0; for(let i = 0; i < inv.do_co_4; i++) t += Math.floor(Math.random() * 300001) + 200000;
+                total += t; soldMsg.push(`🌟 **${inv.do_co_4}x** Đồ Cổ (Truyền Thuyết) → \`+${t.toLocaleString()} xu\``); delete inv.do_co_4;
             }
             if (inv.do_co_3) {
-                let t = 0; for(let i=0;i<inv.do_co_3;i++) t+= (Math.floor(Math.random()*9001)+1000) * 5;
-                total += t; soldMsg.push(`**${inv.do_co_3}x** Đồ Cổ (Sử Thi)`); delete inv.do_co_3;
+                let t = 0; for(let i = 0; i < inv.do_co_3; i++) t += Math.floor(Math.random() * 50001) + 50000;
+                total += t; soldMsg.push(`💜 **${inv.do_co_3}x** Đồ Cổ (Sử Thi) → \`+${t.toLocaleString()} xu\``); delete inv.do_co_3;
             }
-            if (inv.do_co_4) {
-                let t = 0; for(let i=0;i<inv.do_co_4;i++) t+= (Math.floor(Math.random()*9001)+1000) * 10;
-                total += t; soldMsg.push(`**${inv.do_co_4}x** Đồ Cổ (Truyền Thuyết)`); delete inv.do_co_4;
+            if (inv.do_co_2) {
+                let t = 0; for(let i = 0; i < inv.do_co_2; i++) t += Math.floor(Math.random() * 20001) + 15000;
+                total += t; soldMsg.push(`💙 **${inv.do_co_2}x** Đồ Cổ (Hiếm) → \`+${t.toLocaleString()} xu\``); delete inv.do_co_2;
+            }
+            if (inv.do_co) {
+                let t = 0; for(let i = 0; i < inv.do_co; i++) t += Math.floor(Math.random() * 5001) + 3000;
+                total += t; soldMsg.push(`💚 **${inv.do_co}x** Đồ Cổ (Thường) → \`+${t.toLocaleString()} xu\``); delete inv.do_co;
+            }
+            if (inv.ve_chai) {
+                let t = 0; for(let i = 0; i < inv.ve_chai; i++) t += Math.floor(Math.random() * 2001) + 1000;
+                total += t; soldMsg.push(`📦 **${inv.ve_chai}x** Đồ Cũ (Ve chai) → \`+${t.toLocaleString()} xu\``); delete inv.ve_chai;
             }
             
             userData.balance += total;
+            recordEconomyIncome(interaction.user.id, interaction.guild?.id, total, 'sell_items');
             saveEconomy();
-            return interaction.reply({ content: `✅ Bạn đã bán:\n${soldMsg.join('\n')}\n\n💰 Thu được tổng cộng: **${total.toLocaleString('en-US')} Xu**!`, flags: MessageFlags.Ephemeral });
+            return interaction.reply({ 
+                content: `💰 **ĐÃ BÁN VẬT PHẨM THÀNH CÔNG!**\n\n${soldMsg.join('\n')}\n\n🎉 **Thu được tổng cộng:** \`+${total.toLocaleString('en-US')} Xu\` (Số dư mới: \`${userData.balance.toLocaleString('en-US')} xu\`)`, 
+                flags: MessageFlags.Ephemeral 
+            });
         }
     }
     
@@ -11390,13 +11501,13 @@ if (commandName === 'setup') {
                         .setDescription('Thu hồi 70% giá trị nhẫn cưới')
                 );
             }
-            const totalDoCo = (inv.do_co || 0) + (inv.do_co_2 || 0) + (inv.do_co_3 || 0) + (inv.do_co_4 || 0);
+            const totalDoCo = (inv.do_co || 0) + (inv.do_co_2 || 0) + (inv.do_co_3 || 0) + (inv.do_co_4 || 0) + (inv.ve_chai || 0);
             if (totalDoCo > 0) {
                 options.push(
                     new StringSelectMenuOptionBuilder()
-                        .setLabel(`🏺 Bán Tất Cả Đồ Cổ (x${totalDoCo})`)
+                        .setLabel(`🏺 Bán Tất Cả Đồ Cổ & Vật Phẩm (x${totalDoCo})`)
                         .setValue('sell_doco')
-                        .setDescription('Bán toàn bộ đồ cổ các loại lấy xu')
+                        .setDescription('Bán toàn bộ đồ cổ các loại & ve chai lấy xu')
                 );
             }
             
