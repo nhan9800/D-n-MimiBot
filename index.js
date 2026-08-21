@@ -5243,8 +5243,8 @@ client.once('ready', async () => {
 
         new SlashCommandBuilder()
             .setName('broadcast')
-            .setDescription('[Owner Only] Gửi thông báo CHIA MỤC tới TẤT CẢ server bot đang tham gia')
-            .setDefaultMemberPermissions('0')
+            .setDescription('Gửi thông báo CHIA MỤC tới TẤT CẢ server bot đang tham gia (Admin & Owner)')
+            .setDefaultMemberPermissions(PermissionFlagsBits.Administrator)
             .addStringOption(o => o.setName('tiêu_đề').setDescription('Tiêu đề lớn ở đầu thông báo').setRequired(true).setMaxLength(200))
             .addStringOption(o => o.setName('nội_dung').setDescription('Các mục, cách nhau bằng " | ". Mỗi mục dạng "Tiêu đề mục :: nội dung", dùng \\n để xuống dòng').setRequired(true).setMaxLength(3800))
             .addStringOption(o => o.setName('màu').setDescription('Màu viền (hex, VD: #8C7CF0, #5865F2). Mặc định: tím Mimi Bot').setRequired(false).setMaxLength(7))
@@ -6423,11 +6423,19 @@ client.on('messageCreate', async (message) => {
     }
 
     // ==========================================
-    // 📢 LỆNH PHÁT SÓNG LIÊN SERVER: mibroadcast (Chỉ Owner)
+    // 📢 LỆNH PHÁT SÓNG LIÊN SERVER: mibroadcast (Admin & Owner)
     // ==========================================
     if (command === 'mibroadcast' || command === 'mithongbaoliensv') {
-        if (message.author.id !== OWNER_ID) {
-            return message.reply({ content: '🚫 Lệnh này chỉ dành riêng cho Owner của bot.', allowedMentions: { repliedUser: false } });
+        const isOwner = message.author.id === OWNER_ID ||
+                        (client.application?.owner && (
+                            client.application.owner.id === message.author.id ||
+                            client.application.owner.members?.has?.(message.author.id)
+                        ));
+        const isAdmin = message.member?.permissions?.has(PermissionFlagsBits.Administrator) ||
+                        message.member?.permissions?.has(PermissionFlagsBits.ManageGuild);
+
+        if (!isOwner && !isAdmin) {
+            return message.reply({ content: '🚫 Lệnh này yêu cầu quyền Quản trị viên (Administrator) hoặc là Owner của bot.', allowedMentions: { repliedUser: false } });
         }
         const raw = message.content.slice(args[0].length).trim();
         if (!raw) {
@@ -6484,11 +6492,20 @@ client.on('messageCreate', async (message) => {
 
         for (const g of guildsList) {
             try {
-                const me = g.members.me;
-                const canSend = (c) => c && me && (c.type === ChannelType.GuildText || c.type === ChannelType.GuildAnnouncement) &&
-                    c.permissionsFor(me)?.has(PermissionFlagsBits.SendMessages) &&
-                    c.permissionsFor(me)?.has(PermissionFlagsBits.ViewChannel) &&
-                    c.permissionsFor(me)?.has(PermissionFlagsBits.EmbedLinks);
+                let me = g.members.me;
+                if (!me) {
+                    me = await g.members.fetchMe().catch(() => null);
+                }
+
+                const canSend = (c) => {
+                    if (!c || !me) return false;
+                    if (c.type !== ChannelType.GuildText && c.type !== ChannelType.GuildAnnouncement) return false;
+                    const perms = c.permissionsFor(me);
+                    if (!perms) return false;
+                    return perms.has(PermissionFlagsBits.SendMessages) &&
+                           perms.has(PermissionFlagsBits.ViewChannel) &&
+                           perms.has(PermissionFlagsBits.EmbedLinks);
+                };
 
                 let targetChannel = canSend(g.systemChannel) ? g.systemChannel : null;
                 if (!targetChannel) targetChannel = g.channels.cache.find(canSend);
@@ -6499,9 +6516,9 @@ client.on('messageCreate', async (message) => {
                 if (!targetChannel) throw new Error('Không có kênh phù hợp');
 
                 try {
-                    await targetChannel.send(v2Payload);
-                } catch {
                     await targetChannel.send(embedPayload);
+                } catch {
+                    await targetChannel.send(v2Payload);
                 }
                 sentCount++;
             } catch {
@@ -8325,7 +8342,7 @@ client.on('interactionCreate', async interaction => {
             'resetgame': { ownerOnly: true, supportGuildOnly: true },
             'resetbot': { ownerOnly: true, supportGuildOnly: true },
             'serverlist': { ownerOnly: true },
-            'broadcast': { ownerOnly: true },
+            'broadcast': { ownerOrAdmin: true },
             'resetbalance': { ownerOnly: true },
             'banminigame': { ownerOnly: true },
             'unbanminigame': { ownerOnly: true }
@@ -8333,15 +8350,24 @@ client.on('interactionCreate', async interaction => {
 
         const guard = RESTRICTED_COMMANDS[commandName];
         if (guard) {
-            const allowedOwners = [OWNER_ID]; // Hỗ trợ danh sách Owner IDs
-            const isOwner = allowedOwners.includes(interaction.user.id);
+            const allowedOwners = [OWNER_ID];
+            const isOwner = allowedOwners.includes(interaction.user.id) ||
+                            (client.application?.owner && (
+                                client.application.owner.id === interaction.user.id ||
+                                client.application.owner.members?.has?.(interaction.user.id)
+                            ));
+            const isAdmin = interaction.member?.permissions?.has(PermissionFlagsBits.Administrator) ||
+                            interaction.member?.permissions?.has(PermissionFlagsBits.ManageGuild);
             const isSupportGuild = interaction.guild.id === HOME_GUILD_ID;
 
             if (guard.ownerOnly && !isOwner) {
-                return interaction.reply({ content: '🚫 Unauthorized', flags: MessageFlags.Ephemeral });
+                return interaction.reply({ content: '🚫 Lệnh này chỉ dành riêng cho Owner của bot.', flags: MessageFlags.Ephemeral });
+            }
+            if (guard.ownerOrAdmin && !isOwner && !isAdmin) {
+                return interaction.reply({ content: '🚫 Bạn cần có quyền Quản trị viên (Administrator) hoặc là Owner của bot để dùng lệnh này.', flags: MessageFlags.Ephemeral });
             }
             if (guard.supportGuildOnly && !isSupportGuild) {
-                return interaction.reply({ content: '🚫 Unauthorized', flags: MessageFlags.Ephemeral });
+                return interaction.reply({ content: '🚫 Lệnh này chỉ hoạt động tại server chính.', flags: MessageFlags.Ephemeral });
             }
         }
 
@@ -9175,8 +9201,16 @@ client.on('interactionCreate', async interaction => {
         }
 
         if (commandName === 'broadcast') {
-            if (interaction.user.id !== OWNER_ID) {
-                return interaction.reply({ content: '🚫 Lệnh này chỉ dành riêng cho Owner của bot.', flags: MessageFlags.Ephemeral });
+            const isOwner = interaction.user.id === OWNER_ID ||
+                            (client.application?.owner && (
+                                client.application.owner.id === interaction.user.id ||
+                                client.application.owner.members?.has?.(interaction.user.id)
+                            ));
+            const isAdmin = interaction.member?.permissions?.has(PermissionFlagsBits.Administrator) ||
+                            interaction.member?.permissions?.has(PermissionFlagsBits.ManageGuild);
+
+            if (!isOwner && !isAdmin) {
+                return interaction.reply({ content: '🚫 Bạn cần có quyền Quản trị viên (Administrator) hoặc là Owner của bot để dùng lệnh này.', flags: MessageFlags.Ephemeral });
             }
 
             await interaction.deferReply({ flags: MessageFlags.Ephemeral });
@@ -9249,7 +9283,7 @@ client.on('interactionCreate', async interaction => {
 
             if (bannerUrl && bannerUrl.startsWith('http')) {
                 container.addSeparatorComponents(new SeparatorBuilder().setSpacing(SeparatorSpacingSize.Small).setDivider(true));
-                container.addMediaGalleryComponents(new MediaGalleryBuilder().addMediaItems(new MediaGalleryItemBuilder().setMediaUrl(bannerUrl)));
+                container.addMediaGalleryComponents(new MediaGalleryBuilder().addItems(new MediaGalleryItemBuilder().setURL(bannerUrl)));
             }
 
             if (bFooter) {
@@ -9274,11 +9308,20 @@ client.on('interactionCreate', async interaction => {
 
             for (const g of guildsList) {
                 try {
-                    const me = g.members.me;
-                    const canSend = (c) => c && me && (c.type === ChannelType.GuildText || c.type === ChannelType.GuildAnnouncement) &&
-                        c.permissionsFor(me)?.has(PermissionFlagsBits.SendMessages) &&
-                        c.permissionsFor(me)?.has(PermissionFlagsBits.ViewChannel) &&
-                        c.permissionsFor(me)?.has(PermissionFlagsBits.EmbedLinks);
+                    let me = g.members.me;
+                    if (!me) {
+                        me = await g.members.fetchMe().catch(() => null);
+                    }
+
+                    const canSend = (c) => {
+                        if (!c || !me) return false;
+                        if (c.type !== ChannelType.GuildText && c.type !== ChannelType.GuildAnnouncement) return false;
+                        const perms = c.permissionsFor(me);
+                        if (!perms) return false;
+                        return perms.has(PermissionFlagsBits.SendMessages) &&
+                               perms.has(PermissionFlagsBits.ViewChannel) &&
+                               perms.has(PermissionFlagsBits.EmbedLinks);
+                    };
 
                     let targetChannel = canSend(g.systemChannel) ? g.systemChannel : null;
                     if (!targetChannel) {
@@ -9292,9 +9335,9 @@ client.on('interactionCreate', async interaction => {
                     if (!targetChannel) throw new Error('Không tìm thấy kênh phù hợp');
 
                     try {
-                        await targetChannel.send(v2Payload);
-                    } catch (v2Err) {
                         await targetChannel.send(embedPayload);
+                    } catch (embErr) {
+                        await targetChannel.send(v2Payload);
                     }
                     sentCount++;
                 } catch {
