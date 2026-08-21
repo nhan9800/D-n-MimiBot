@@ -6504,7 +6504,8 @@ client.on('messageCreate', async (message) => {
                     broadcastEmbed.addFields({ name: secTitle, value: secBody.slice(0, 1024) || '...', inline: false });
                 } else {
                     content = sec;
-                    broadcastEmbed.addFields({ name: `Mục ${idx + 1}`, value: content.slice(0, 1024) || '...', inline: false });
+                    const fieldName = idx === 0 ? '\u200B' : '━━━━━━━━━━━━━━━━━━━━';
+                    broadcastEmbed.addFields({ name: fieldName, value: content.slice(0, 1024) || '...', inline: false });
                 }
                 container.addTextDisplayComponents(new TextDisplayBuilder().setContent(content.slice(0, 3900)));
                 if (idx < sections.length - 1) {
@@ -9402,7 +9403,8 @@ client.on('interactionCreate', async interaction => {
                         if (!hasFields && idx === 0 && sections.length === 1) {
                             broadcastEmbed.setDescription(content.slice(0, 4000));
                         } else {
-                            broadcastEmbed.addFields({ name: `Mục ${idx + 1}`, value: content.slice(0, 1024) || '...', inline: false });
+                            const fieldName = idx === 0 ? '\u200B' : '━━━━━━━━━━━━━━━━━━━━';
+                            broadcastEmbed.addFields({ name: fieldName, value: content.slice(0, 1024) || '...', inline: false });
                         }
                     }
                     container.addTextDisplayComponents(new TextDisplayBuilder().setContent(content.slice(0, 3900)));
