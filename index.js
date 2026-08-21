@@ -83,9 +83,137 @@ const OWNER_ID = '1143387904064888942';  // ID duy nhất có quyền quản lý
 
 // 🎉 Biến lưu Sự Kiện Liên Server đang hoạt động
 let activeSystemEvent = null;
-const MAX_BALANCE = 999_999_999_999;    // Giới hạn xu tối đa (vĩnh viễn cho OWNER)
-const HOME_GUILD_ID = '1517068246493429852'; // Server cố định — chỉ cho phép dùng /resetbot tại đây
+const MAX_BALANCE = 999_999_999_999;    // Giới hạn xu tối đa (dùng khi Owner bật chế độ Test)
+const HOME_GUILD_ID = '1517068246493429852'; // Server hỗ trợ
 const SUPPORT_LINK = process.env.DISCORD_SUPPORT_URL || 'https://discord.gg/KwHvTG2EmW';
+
+// -----------------------------------------------------------------
+// ⏰ HỆ THỐNG ĐẶT LỊCH NHẮC NHỞ (REMINDERS PERSISTENCE)
+// -----------------------------------------------------------------
+const remindersPath = path.join(__dirname, 'reminders.json');
+let reminders = [];
+
+function loadReminders() {
+    try {
+        if (fs.existsSync(remindersPath)) {
+            const data = fs.readFileSync(remindersPath, 'utf8');
+            reminders = JSON.parse(data);
+            if (!Array.isArray(reminders)) reminders = [];
+        } else {
+            reminders = [];
+            fs.writeFileSync(remindersPath, JSON.stringify(reminders, null, 2));
+        }
+    } catch (e) {
+        console.error('❌ Lỗi tải reminders.json:', e);
+        reminders = [];
+    }
+}
+
+function saveReminders() {
+    try {
+        fs.writeFileSync(remindersPath, JSON.stringify(reminders, null, 2));
+    } catch (e) {
+        console.error('❌ Lỗi lưu reminders.json:', e);
+    }
+}
+
+loadReminders();
+
+const activeReminderTimeouts = new Map();
+
+function parseDuration(str) {
+    if (!str) return 0;
+    const s = str.trim();
+    if (/^\d+$/.test(s)) {
+        return parseInt(s, 10) * 60 * 1000;
+    }
+    const regex = /(\d+)\s*(d|ngày|ngay|h|giờ|gio|g|m|phút|phut|p|s|giây|giay)?/gi;
+    let totalMs = 0;
+    let match;
+    let found = false;
+
+    while ((match = regex.exec(s)) !== null) {
+        if (!match[1]) continue;
+        found = true;
+        const val = parseInt(match[1], 10);
+        const unit = (match[2] || 'm').toLowerCase();
+        if (unit.startsWith('d') || unit.startsWith('ng')) {
+            totalMs += val * 24 * 60 * 60 * 1000;
+        } else if (unit.startsWith('h') || unit.startsWith('g') || unit.startsWith('gi')) {
+            totalMs += val * 60 * 60 * 1000;
+        } else if (unit.startsWith('m') || unit.startsWith('p')) {
+            totalMs += val * 60 * 1000;
+        } else if (unit.startsWith('s')) {
+            totalMs += val * 1000;
+        } else {
+            totalMs += val * 60 * 1000;
+        }
+    }
+    return found ? totalMs : 0;
+}
+
+function scheduleReminder(rem) {
+    if (activeReminderTimeouts.has(rem.id)) {
+        clearTimeout(activeReminderTimeouts.get(rem.id));
+        activeReminderTimeouts.delete(rem.id);
+    }
+
+    const now = Date.now();
+    const delay = Math.max(0, rem.remindAt - now);
+
+    const timer = setTimeout(async () => {
+        activeReminderTimeouts.delete(rem.id);
+        reminders = reminders.filter(r => r.id !== rem.id);
+        saveReminders();
+
+        try {
+            const channel = rem.channelId ? await client.channels.fetch(rem.channelId).catch(() => null) : null;
+            const user = await client.users.fetch(rem.userId).catch(() => null);
+
+            const remindEmbed = new EmbedBuilder()
+                .setColor('#F1C40F')
+                .setTitle('⏰ NHẮC NHỞ HẸN GIỜ!')
+                .setDescription(
+                    `👋 Chào ${user ? `<@${rem.userId}>` : 'bạn'}!\n\n` +
+                    `📝 **Nội dung:**\n> ${rem.content}\n\n` +
+                    `⏱️ *Được tạo lúc:* <t:${Math.floor(rem.createdAt / 1000)}:R>`
+                )
+                .setFooter({ text: `ID nhắc nhở: ${rem.id}` })
+                .setTimestamp();
+
+            if (channel) {
+                await channel.send({ content: `<@${rem.userId}> ⏰ **Bạn có một nhắc nhở!**`, embeds: [remindEmbed] }).catch(async () => {
+                    if (user) await user.send({ embeds: [remindEmbed] }).catch(() => null);
+                });
+            } else if (user) {
+                await user.send({ embeds: [remindEmbed] }).catch(() => null);
+            }
+        } catch (err) {
+            console.error(`❌ [Reminder] Lỗi gửi nhắc nhở ${rem.id}:`, err.message);
+        }
+    }, delay);
+
+    activeReminderTimeouts.set(rem.id, timer);
+}
+
+function initReminders() {
+    loadReminders();
+    for (const rem of reminders) {
+        scheduleReminder(rem);
+    }
+    console.log(`⏰ [Reminder] Đã nạp và kích hoạt ${reminders.length} nhắc nhở.`);
+}
+
+// -----------------------------------------------------------------
+// 🚫 HỆ THỐNG BAN MINIGAME CHO OWNER
+// -----------------------------------------------------------------
+function isMinigameBanned(userId) {
+    const data = economyData[userId];
+    if (data && data.minigameBan && data.minigameBan.banned) {
+        return data.minigameBan;
+    }
+    return null;
+}
 
 const configPath = path.join(__dirname, 'config.json');
 let config = {};
@@ -476,13 +604,9 @@ async function sendEconomyOwnerAlert(userId, guildId, totalEarned, threshold, cu
 
 function recordEconomyIncome(userId, guildId, amount, source) {
     if (!economyData[userId]) {
-        economyData[userId] = { balance: userId === OWNER_ID ? MAX_BALANCE : 100, lastDaily: "" };
+        economyData[userId] = { balance: 100, lastDaily: "" };
     }
     const user = economyData[userId];
-    if (userId === OWNER_ID) {
-        user.balance = MAX_BALANCE;
-        return;
-    }
 
     const todayKey = nowVN().toISOString().slice(0, 10);
     if (!user.dailyEarnings || user.dailyEarnings.dateKey !== todayKey) {
@@ -591,11 +715,7 @@ function addXp(userId, amount) {
         user.xp = check.remainingXp;
 
         const levelBonus = check.bonusEarned; // Tổng xu thưởng = Σ (5.000 × mỗi cấp đạt được)
-        if (userId === OWNER_ID) {
-            user.balance = MAX_BALANCE;
-        } else {
-            user.balance += levelBonus;
-        }
+        user.balance += levelBonus;
         saveEconomy();
         return { leveledUp: true, oldLevel, newLevel: user.level, levelsGained, levelBonus };
     }
@@ -797,7 +917,7 @@ async function bjEndGame(game, message, outcomeOverride = null) {
     }
 
     if (payout > 0) {
-        userData.balance = game.userId === OWNER_ID ? MAX_BALANCE : userData.balance + payout;
+        userData.balance += payout;
     }
     saveEconomy();
     resultText += `\nSố dư: **${userData.balance.toLocaleString()} xu**`;
@@ -878,6 +998,80 @@ async function updateGiveawayEmbed(channel, msgId, gData, ended = false) {
     await msg.edit({ embeds: [embed], components: [row] }).catch(() => null);
 }
 
+// -----------------------------------------------------------------
+// 🏺 HÀM BÁN ĐỒ CỔ THEO PHẨM CẤP (Dùng chung cho lệnh và nút bấm)
+// -----------------------------------------------------------------
+function sellArtifactsHelper(targetUser, userId, tier = 'all', guildId = null) {
+    const userData = getUserData(userId);
+    const inv = userData.inventory || {};
+    const normTier = (tier || 'all').toLowerCase().trim();
+
+    let sellTypes = [];
+    let tierLabel = '';
+
+    if (normTier === 'thuong' || normTier === 'thường' || normTier === '1' || normTier === 'vechai') {
+        sellTypes = ['do_co', 've_chai'];
+        tierLabel = 'Thường & Ve chai';
+    } else if (normTier === 'hiem' || normTier === 'hiếm' || normTier === '2') {
+        sellTypes = ['do_co_2'];
+        tierLabel = 'Hiếm';
+    } else if (normTier === 'suthi' || normTier === 'sử thi' || normTier === 'st' || normTier === '3') {
+        sellTypes = ['do_co_3'];
+        tierLabel = 'Sử Thi';
+    } else if (normTier === 'truyenthuyet' || normTier === 'truyền thuyết' || normTier === 'tt' || normTier === '4') {
+        sellTypes = ['do_co_4'];
+        tierLabel = 'Truyền Thuyết';
+    } else {
+        sellTypes = ['do_co_4', 'do_co_3', 'do_co_2', 'do_co', 've_chai'];
+        tierLabel = 'Tất cả phẩm cấp';
+    }
+
+    let totalItems = 0;
+    for (const t of sellTypes) {
+        totalItems += (inv[t] || 0);
+    }
+
+    if (totalItems <= 0) {
+        return { success: false, message: `❌ Bạn không có món đồ nào thuộc phẩm cấp **${tierLabel}** để bán!` };
+    }
+
+    let total = 0;
+    let soldMsg = [];
+
+    if (sellTypes.includes('do_co_4') && inv.do_co_4) {
+        let t = 0; for (let i = 0; i < inv.do_co_4; i++) t += Math.floor(Math.random() * 300001) + 200000;
+        total += t; soldMsg.push(`🌟 **${inv.do_co_4}x** Đồ Cổ (Truyền Thuyết) → \`+${t.toLocaleString()} xu\``); delete inv.do_co_4;
+    }
+    if (sellTypes.includes('do_co_3') && inv.do_co_3) {
+        let t = 0; for (let i = 0; i < inv.do_co_3; i++) t += Math.floor(Math.random() * 50001) + 50000;
+        total += t; soldMsg.push(`💜 **${inv.do_co_3}x** Đồ Cổ (Sử Thi) → \`+${t.toLocaleString()} xu\``); delete inv.do_co_3;
+    }
+    if (sellTypes.includes('do_co_2') && inv.do_co_2) {
+        let t = 0; for (let i = 0; i < inv.do_co_2; i++) t += Math.floor(Math.random() * 20001) + 15000;
+        total += t; soldMsg.push(`💙 **${inv.do_co_2}x** Đồ Cổ (Hiếm) → \`+${t.toLocaleString()} xu\``); delete inv.do_co_2;
+    }
+    if (sellTypes.includes('do_co') && inv.do_co) {
+        let t = 0; for (let i = 0; i < inv.do_co; i++) t += Math.floor(Math.random() * 5001) + 3000;
+        total += t; soldMsg.push(`💚 **${inv.do_co}x** Đồ Cổ (Thường) → \`+${t.toLocaleString()} xu\``); delete inv.do_co;
+    }
+    if (sellTypes.includes('ve_chai') && inv.ve_chai) {
+        let t = 0; for (let i = 0; i < inv.ve_chai; i++) t += Math.floor(Math.random() * 2001) + 1000;
+        total += t; soldMsg.push(`📦 **${inv.ve_chai}x** Đồ Cũ (Ve chai) → \`+${t.toLocaleString()} xu\``); delete inv.ve_chai;
+    }
+
+    userData.balance += total;
+    recordEconomyIncome(userId, guildId, total, 'sell_items');
+    saveEconomy();
+
+    return {
+        success: true,
+        total,
+        soldMsg,
+        balance: userData.balance,
+        message: `💰 **ĐÃ BÁN VẬT PHẨM [${tierLabel.toUpperCase()}] THÀNH CÔNG!**\n\n${soldMsg.join('\n')}\n\n🎉 **Thu về tổng cộng:** \`+${total.toLocaleString()} xu\` (Số dư mới: \`${userData.balance.toLocaleString()} xu\`)`
+    };
+}
+
 // Bỏ phụ thuộc vào guildId để dữ liệu đồng bộ ở mọi server có bot
 function getUserData(userId) {
     if (!economyData[userId]) {
@@ -885,18 +1079,10 @@ function getUserData(userId) {
             userId: userId,
             xp: 0,
             level: 0,
-            balance: userId === OWNER_ID ? MAX_BALANCE : 100,
+            balance: 100,
             lastDaily: ""
         };
         saveEconomy();
-    }
-    // Đảm bảo OWNER luôn giữ MAX_BALANCE vĩnh viễn
-    if (userId === OWNER_ID) {
-        economyData[userId].balance = MAX_BALANCE;
-    }
-    // Đảm bảo OWNER luôn giữ MAX_BALANCE vĩnh viễn
-    if (userId === OWNER_ID) {
-        economyData[userId].balance = MAX_BALANCE;
     }
     return economyData[userId];
 }
@@ -5086,17 +5272,40 @@ client.once('ready', async () => {
 
         new SlashCommandBuilder()
             .setName('resetbalance')
-            .setDescription('Quản lý xu (Chỉ Owner)')
+            .setDescription('Quản lý xu, dữ liệu kinh tế & test (Chỉ Owner)')
             .setDefaultMemberPermissions('0')  // Ẩn hoàn toàn với mọi người trừ OWNER tự dùng
             .addStringOption(o => o.setName('action').setDescription('Chọn hành động').setRequired(true)
                 .addChoices(
-                    { name: '➕ add — Thêm xu cho bản thân', value: 'add' },
-                    { name: '💯 max — Đặt xu bản thân về mức tối đa', value: 'max' },
-                    { name: '👤 resetuser — Reset xu 1 người cụ thể về 0', value: 'resetuser' },
-                    { name: '🌐 resetall — Xóa xu toàn bộ người dùng (trừ Owner)', value: 'resetall' }
+                    { name: '➕ add — Thêm xu (cho bản thân hoặc người được tag)', value: 'add' },
+                    { name: '🧪 test / max — Bật chế độ Test (Max Xu) & lưu số dư cũ', value: 'max' },
+                    { name: '🎮 untest — Tắt chế độ Test & khôi phục số dư cũ', value: 'untest' },
+                    { name: '💰 resetxu — Reset xu 1 người cụ thể về 0 (áp dụng cả Owner)', value: 'resetxu' },
+                    { name: '✨ resetxp — Reset XP và Cấp độ 1 người về 0', value: 'resetxp' },
+                    { name: '🌾 resetdat — Reset Ruộng đất & Nông sản 1 người về mặc định', value: 'resetdat' },
+                    { name: '👤 resetalluser — Reset toàn bộ xu, xp, đất của 1 người', value: 'resetuser' },
+                    { name: '🌐 resetall — Reset toàn bộ dữ liệu mọi người dùng', value: 'resetall' }
                 ))
             .addIntegerOption(o => o.setName('amount').setDescription('Số xu cần thêm (dùng với action=add)').setMinValue(1))
-            .addUserOption(o => o.setName('người_dùng').setDescription('Tag người cần reset xu (dùng với action=resetuser)')),
+            .addUserOption(o => o.setName('người_dùng').setDescription('Tag người cần xử lý (mặc định là chính mình nếu để trống)')),
+
+        new SlashCommandBuilder()
+            .setName('banminigame')
+            .setDescription('[Owner Only] Cấm người chơi tham gia tất cả minigame cá cược')
+            .setDefaultMemberPermissions('0')
+            .addUserOption(o => o.setName('người_dùng').setDescription('Người dùng cần cấm').setRequired(true))
+            .addStringOption(o => o.setName('lý_do').setDescription('Lý do cấm minigame')),
+
+        new SlashCommandBuilder()
+            .setName('unbanminigame')
+            .setDescription('[Owner Only] Gỡ lệnh cấm minigame cho người chơi')
+            .setDefaultMemberPermissions('0')
+            .addUserOption(o => o.setName('người_dùng').setDescription('Người dùng cần gỡ cấm').setRequired(true)),
+
+        new SlashCommandBuilder()
+            .setName('remind')
+            .setDescription('Đặt lịch nhắc nhở cá nhân (VD: 10m, 1h, 1d)')
+            .addStringOption(o => o.setName('thời_gian').setDescription('Khoảng thời gian (VD: 10m, 1h30m, 2d, 30s)').setRequired(true))
+            .addStringOption(o => o.setName('nội_dung').setDescription('Nội dung cần nhắc nhở').setRequired(true)),
 
         new SlashCommandBuilder()
             .setName('avatar')
@@ -5310,6 +5519,7 @@ client.once('ready', async () => {
     startMonthlyModReset();
     startYearlyModReset();
     startAutoCheckOut();
+    initReminders();
 
     // Khôi phục timer đếm ngược cho các giveaway còn đang chạy sau khi bot restart
     for (const guildId in config.guilds) {
@@ -6047,6 +6257,418 @@ client.on('messageCreate', async (message) => {
     }
 
     // ==========================================
+    // ➕ LỆNH THÊM XU: miadd | miaddxu (Chỉ Owner)
+    // ==========================================
+    if (command === 'miadd' || command === 'miaddxu' || command === 'miaddmoney') {
+        if (message.author.id !== OWNER_ID) {
+            return message.reply({ content: '🚫 Lệnh này chỉ dành riêng cho Owner của bot.', allowedMentions: { repliedUser: false } });
+        }
+        let targetUser = message.mentions.users.first();
+        let amountStr = '';
+        if (targetUser) {
+            amountStr = args[2] || '';
+        } else {
+            targetUser = message.author;
+            amountStr = args[1] || '';
+        }
+
+        const parseAmountHelper = (str) => {
+            if (!str) return NaN;
+            const clean = str.toLowerCase().replace(/,/g, '').trim();
+            if (/^\d+$/.test(clean)) return parseInt(clean, 10);
+            if (/^(\d+(\.\d+)?)k$/.test(clean)) return Math.floor(parseFloat(clean) * 1000);
+            if (/^(\d+(\.\d+)?)(m|tr)$/.test(clean)) return Math.floor(parseFloat(clean) * 1000000);
+            if (/^(\d+(\.\d+)?)(b|ty|tỷ)$/.test(clean)) return Math.floor(parseFloat(clean) * 1000000000);
+            return NaN;
+        };
+
+        const amount = parseAmountHelper(amountStr);
+        if (isNaN(amount) || amount <= 0) {
+            return message.reply({ 
+                content: `❌ Cú pháp không hợp lệ!\nVí dụ:\n• Thêm cho bản thân: \`${command} 500000\` hoặc \`${command} 5m\`\n• Thêm cho người khác: \`${command} @User 10m\``,
+                allowedMentions: { repliedUser: false }
+            });
+        }
+
+        const targetData = getUserData(targetUser.id);
+        targetData.balance = Math.min(MAX_BALANCE, (targetData.balance || 0) + amount);
+        saveEconomy();
+
+        return message.reply({
+            content: `✅ Đã thêm **+${amount.toLocaleString()} xu** cho **${targetUser.username}**!\n💰 Số dư hiện tại: **${targetData.balance.toLocaleString()} xu**`,
+            allowedMentions: { repliedUser: false }
+        });
+    }
+
+    // ==========================================
+    // 🧪 LỆNH TEST & UNTEST XU MAX (Chỉ Owner)
+    // ==========================================
+    if (command === 'mitest' || command === 'mitestxu' || command === 'mitestmax') {
+        if (message.author.id !== OWNER_ID) {
+            return message.reply({ content: '🚫 Lệnh này chỉ dành riêng cho Owner của bot.', allowedMentions: { repliedUser: false } });
+        }
+        const ownerData = getUserData(OWNER_ID);
+        if (!ownerData.isTesting) {
+            ownerData._preTestBalance = ownerData.balance || 100;
+            ownerData.isTesting = true;
+        }
+        ownerData.balance = MAX_BALANCE;
+        saveEconomy();
+        return message.reply({
+            content: `🧪 **Chế độ TEST MAX XU đã BẬT!**\n💰 Số dư hiện tại: **${MAX_BALANCE.toLocaleString()} xu**\n📦 Số dư trước đó (**${(ownerData._preTestBalance || 0).toLocaleString()} xu**) đã được lưu lại.\n💡 Gõ \`miuntest\` bất kỳ lúc nào để khôi phục số dư cũ và chơi như bình thường!`,
+            allowedMentions: { repliedUser: false }
+        });
+    }
+
+    if (command === 'miuntest' || command === 'miuntestxu') {
+        if (message.author.id !== OWNER_ID) {
+            return message.reply({ content: '🚫 Lệnh này chỉ dành riêng cho Owner của bot.', allowedMentions: { repliedUser: false } });
+        }
+        const ownerData = getUserData(OWNER_ID);
+        if (ownerData._preTestBalance !== undefined) {
+            ownerData.balance = ownerData._preTestBalance;
+        } else if (ownerData.balance === MAX_BALANCE) {
+            ownerData.balance = 100;
+        }
+        delete ownerData._preTestBalance;
+        delete ownerData.isTesting;
+        saveEconomy();
+        return message.reply({
+            content: `🎮 **Chế độ TEST đã TẮT!**\n💰 Đã khôi phục số dư về: **${ownerData.balance.toLocaleString()} xu** để chơi như bình thường.`,
+            allowedMentions: { repliedUser: false }
+        });
+    }
+
+    // ==========================================
+    // 🔄 LỆNH RESET XU, XP, ĐẤT (Chỉ Owner)
+    // ==========================================
+    if (command === 'mireset' || command === 'miresetxu' || command === 'miresetxp' || command === 'miresetdat') {
+        if (message.author.id !== OWNER_ID) {
+            return message.reply({ content: '🚫 Lệnh này chỉ dành riêng cho Owner của bot.', allowedMentions: { repliedUser: false } });
+        }
+
+        let type = 'all';
+        let targetUser = message.mentions.users.first();
+        let targetStr = args[1] ? args[1].toLowerCase() : '';
+
+        if (command === 'miresetxu') type = 'xu';
+        else if (command === 'miresetxp') type = 'xp';
+        else if (command === 'miresetdat') type = 'dat';
+        else {
+            if (['xu', 'money', 'coin'].includes(targetStr)) {
+                type = 'xu';
+                targetUser = message.mentions.users.first() || (args[2] === 'all' ? 'all' : (args[2] === 'me' ? message.author : null));
+            } else if (['xp', 'level', 'lv'].includes(targetStr)) {
+                type = 'xp';
+                targetUser = message.mentions.users.first() || (args[2] === 'all' ? 'all' : (args[2] === 'me' ? message.author : null));
+            } else if (['dat', 'đất', 'farm', 'ruong'].includes(targetStr)) {
+                type = 'dat';
+                targetUser = message.mentions.users.first() || (args[2] === 'all' ? 'all' : (args[2] === 'me' ? message.author : null));
+            } else if (targetStr === 'all') {
+                type = 'all';
+                targetUser = 'all';
+            } else {
+                targetUser = targetUser || message.author;
+            }
+        }
+
+        if (!targetUser) targetUser = message.author;
+
+        if (targetUser === 'all' || args[1] === 'all' || args[2] === 'all') {
+            let count = 0;
+            for (const uid in economyData) {
+                if (type === 'xu' || type === 'all') economyData[uid].balance = 0;
+                if (type === 'xp' || type === 'all') { economyData[uid].xp = 0; economyData[uid].level = 0; }
+                if (type === 'dat' || type === 'all') {
+                    if (economyData[uid].farm) {
+                        economyData[uid].farm.plotsCount = 1;
+                        economyData[uid].farm.plots = [{ id: 0, crop: null, plantedAt: 0, waterCount: 0, lastWateredAt: 0, withered: false }];
+                        economyData[uid].farm.inventory = { seeds: {}, harvest: {} };
+                    }
+                }
+                count++;
+            }
+            saveEconomy();
+            return message.reply({
+                content: `✅ Đã reset **${type.toUpperCase()}** của toàn bộ **${count} người dùng** (áp dụng cả Owner)!`,
+                allowedMentions: { repliedUser: false }
+            });
+        }
+
+        const tData = getUserData(targetUser.id);
+        let info = [];
+        if (type === 'xu' || type === 'all') {
+            const old = tData.balance || 0;
+            tData.balance = 0;
+            info.push(`💰 Xu: **${old.toLocaleString()}** → **0**`);
+        }
+        if (type === 'xp' || type === 'all') {
+            const oldLv = tData.level || 0;
+            tData.xp = 0;
+            tData.level = 0;
+            info.push(`⭐ Cấp: **Level ${oldLv}** → **Level 0**`);
+        }
+        if (type === 'dat' || type === 'all') {
+            const farm = getFarmData(targetUser.id);
+            farm.plotsCount = 1;
+            farm.plots = [{ id: 0, crop: null, plantedAt: 0, waterCount: 0, lastWateredAt: 0, withered: false }];
+            farm.inventory = { seeds: {}, harvest: {} };
+            info.push(`🌾 Đất: Về 1 ô mặc định, xóa nông sản`);
+        }
+        saveEconomy();
+        return message.reply({
+            content: `✅ Đã reset **${type.toUpperCase()}** của **${targetUser.username}** (\`${targetUser.id}\`):\n${info.join('\n')}`,
+            allowedMentions: { repliedUser: false }
+        });
+    }
+
+    // ==========================================
+    // 📢 LỆNH PHÁT SÓNG LIÊN SERVER: mibroadcast (Chỉ Owner)
+    // ==========================================
+    if (command === 'mibroadcast' || command === 'mithongbaoliensv') {
+        if (message.author.id !== OWNER_ID) {
+            return message.reply({ content: '🚫 Lệnh này chỉ dành riêng cho Owner của bot.', allowedMentions: { repliedUser: false } });
+        }
+        const raw = message.content.slice(args[0].length).trim();
+        if (!raw) {
+            return message.reply({
+                content: `❌ Cú pháp sai!\nVí dụ: \`${command} Tiêu đề thông báo | Mục 1 :: Nội dung 1 | Mục 2 :: Nội dung 2\``,
+                allowedMentions: { repliedUser: false }
+            });
+        }
+        const parts = raw.split('|').map(s => s.trim()).filter(Boolean);
+        const tbTitle = parts[0] || '📢 THÔNG BÁO TỪ MIMI BOT';
+        const sections = parts.slice(1);
+
+        const container = new ContainerBuilder().setAccentColor(0x8C7CF0);
+        container.addTextDisplayComponents(new TextDisplayBuilder().setContent(`# ${tbTitle}`));
+        container.addSeparatorComponents(new SeparatorBuilder().setSpacing(SeparatorSpacingSize.Large).setDivider(true));
+
+        const broadcastEmbed = new EmbedBuilder()
+            .setColor(0x8C7CF0)
+            .setTitle(tbTitle)
+            .setFooter({ text: 'Thông báo hệ thống từ đội ngũ phát triển MIMI BOT' })
+            .setTimestamp();
+
+        if (sections.length === 0) {
+            container.addTextDisplayComponents(new TextDisplayBuilder().setContent(tbTitle));
+            broadcastEmbed.setDescription(tbTitle);
+        } else {
+            sections.forEach((sec, idx) => {
+                const sepIndex = sec.indexOf('::');
+                let content;
+                if (sepIndex >= 0) {
+                    const secTitle = sec.slice(0, sepIndex).trim();
+                    const secBody = sec.slice(sepIndex + 2).trim();
+                    content = `## ${secTitle}\n${secBody}`;
+                    broadcastEmbed.addFields({ name: secTitle, value: secBody.slice(0, 1024) || '...', inline: false });
+                } else {
+                    content = sec;
+                    broadcastEmbed.addFields({ name: `Mục ${idx + 1}`, value: content.slice(0, 1024) || '...', inline: false });
+                }
+                container.addTextDisplayComponents(new TextDisplayBuilder().setContent(content.slice(0, 3900)));
+                if (idx < sections.length - 1) {
+                    container.addSeparatorComponents(new SeparatorBuilder().setSpacing(SeparatorSpacingSize.Small).setDivider(true));
+                }
+            });
+        }
+
+        const v2Payload = { components: [container], flags: MessageFlags.IsComponentsV2 };
+        const embedPayload = { embeds: [broadcastEmbed] };
+
+        const guildsList = [...client.guilds.cache.values()];
+        let sentCount = 0;
+        const failedGuilds = [];
+
+        const statusMsg = await message.reply({ content: `⏳ Đang phát sóng tới ${guildsList.length} server...`, allowedMentions: { repliedUser: false } });
+
+        for (const g of guildsList) {
+            try {
+                const me = g.members.me;
+                const canSend = (c) => c && me && (c.type === ChannelType.GuildText || c.type === ChannelType.GuildAnnouncement) &&
+                    c.permissionsFor(me)?.has(PermissionFlagsBits.SendMessages) &&
+                    c.permissionsFor(me)?.has(PermissionFlagsBits.ViewChannel) &&
+                    c.permissionsFor(me)?.has(PermissionFlagsBits.EmbedLinks);
+
+                let targetChannel = canSend(g.systemChannel) ? g.systemChannel : null;
+                if (!targetChannel) targetChannel = g.channels.cache.find(canSend);
+                if (!targetChannel) {
+                    const fetched = await g.channels.fetch().catch(() => null);
+                    if (fetched) targetChannel = fetched.find(canSend);
+                }
+                if (!targetChannel) throw new Error('Không có kênh phù hợp');
+
+                try {
+                    await targetChannel.send(v2Payload);
+                } catch {
+                    await targetChannel.send(embedPayload);
+                }
+                sentCount++;
+            } catch {
+                failedGuilds.push(g.name);
+            }
+        }
+
+        return statusMsg.edit({
+            content: `📢 **Đã phát sóng thông báo tới ${sentCount}/${guildsList.length} server!**${failedGuilds.length > 0 ? `\n⚠️ Thất bại tại ${failedGuilds.length} server.` : ''}`
+        });
+    }
+
+    // ==========================================
+    // ⏰ LỆNH ĐẶT LỊCH NHẮC NHỞ: minhac | midatlich
+    // ==========================================
+    if (command === 'minhac' || command === 'midatlich' || command === 'miremind' || command === 'minhacnho') {
+        const sub = args[1] ? args[1].toLowerCase() : '';
+        if (sub === 'list' || sub === 'danhsach') {
+            const userRems = reminders.filter(r => r.userId === userId);
+            if (userRems.length === 0) {
+                return message.reply({ content: 'ℹ️ Bạn hiện không có lịch nhắc nhở nào đang chờ.', allowedMentions: { repliedUser: false } });
+            }
+            const listEmbed = new EmbedBuilder()
+                .setColor('#F1C40F')
+                .setTitle(`⏰ DANH SÁCH LỊCH NHẮC CỦA BẠN (${userRems.length})`)
+                .setDescription(
+                    userRems.map((r, i) => 
+                        `**${i + 1}.** \`${r.id}\` — <t:${Math.floor(r.remindAt / 1000)}:R>\n> 📝 ${r.content}`
+                    ).join('\n\n') + '\n\n💡 *Dùng `minhac xoa <ID>` để hủy lịch nhắc.*'
+                );
+            return message.reply({ embeds: [listEmbed], allowedMentions: { repliedUser: false } });
+        }
+
+        if (sub === 'xoa' || sub === 'huy' || sub === 'cancel' || sub === 'delete') {
+            const targetId = args[2];
+            if (!targetId) {
+                return message.reply({ content: `❌ Vui lòng nhập ID nhắc nhở cần xóa!\nVí dụ: \`${command} xoa rem_xyz\``, allowedMentions: { repliedUser: false } });
+            }
+            const idx = reminders.findIndex(r => r.id === targetId && (r.userId === userId || message.author.id === OWNER_ID));
+            if (idx === -1) {
+                return message.reply({ content: `❌ Không tìm thấy lịch nhắc có ID \`${targetId}\` thuộc quyền của bạn.`, allowedMentions: { repliedUser: false } });
+            }
+            const removed = reminders.splice(idx, 1)[0];
+            if (activeReminderTimeouts.has(removed.id)) {
+                clearTimeout(activeReminderTimeouts.get(removed.id));
+                activeReminderTimeouts.delete(removed.id);
+            }
+            saveReminders();
+            return message.reply({ content: `✅ Đã hủy thành công lịch nhắc \`${removed.id}\`!`, allowedMentions: { repliedUser: false } });
+        }
+
+        const timeStr = args[1];
+        const contentStr = args.slice(2).join(' ');
+        if (!timeStr || !contentStr) {
+            return message.reply({
+                content: `❌ Cú pháp không đúng!\nVí dụ:\n• \`${command} 10m Đi nấu cơm\`\n• \`${command} 1h30m Họp nhóm dự án\`\n• \`${command} 1d Sinh nhật bạn\`\n• \`${command} list\` (Xem danh sách)\n• \`${command} xoa <id>\` (Hủy lịch)`,
+                allowedMentions: { repliedUser: false }
+            });
+        }
+
+        const durationMs = parseDuration(timeStr);
+        if (!durationMs || durationMs < 5000) {
+            return message.reply({ content: '❌ Thời gian không hợp lệ! Vui lòng nhập tối thiểu 5 giây (Ví dụ: `10m`, `1h`, `30s`, `2d`).', allowedMentions: { repliedUser: false } });
+        }
+        if (durationMs > 30 * 24 * 60 * 60 * 1000) {
+            return message.reply({ content: '❌ Thời gian hẹn tối đa là 30 ngày!', allowedMentions: { repliedUser: false } });
+        }
+
+        const remId = `rem_${Date.now().toString(36)}_${Math.random().toString(36).slice(2, 6)}`;
+        const rem = {
+            id: remId,
+            userId: userId,
+            channelId: message.channel.id,
+            guildId: message.guild.id,
+            content: contentStr,
+            createdAt: Date.now(),
+            remindAt: Date.now() + durationMs
+        };
+
+        reminders.push(rem);
+        saveReminders();
+        scheduleReminder(rem);
+
+        const remContainer = new ContainerBuilder()
+            .setAccentColor(0xF1C40F)
+            .addTextDisplayComponents(
+                new TextDisplayBuilder().setContent(
+                    `## ⏰ Đã Đặt Lịch Nhắc Thành Công!\n` +
+                    `> 👤 **Người nhận:** ${message.author}\n` +
+                    `> ⏱️ **Thời gian hẹn:** <t:${Math.floor(rem.remindAt / 1000)}:R> (<t:${Math.floor(rem.remindAt / 1000)}:F>)\n` +
+                    `> 📝 **Nội dung:** ${contentStr}\n\n` +
+                    `-# 🆔 ID: \`${remId}\` • Gõ \`minhac list\` hoặc \`minhac xoa ${remId}\` để quản lý`
+                )
+            );
+
+        return message.reply({ components: [remContainer], flags: MessageFlags.IsComponentsV2, allowedMentions: { repliedUser: false } });
+    }
+
+    // ==========================================
+    // 🚫 LỆNH BAN/UNBAN MINIGAME: mibanmg | miunbanmg (Chỉ Owner)
+    // ==========================================
+    if (command === 'mibanminigame' || command === 'mibanmg') {
+        if (message.author.id !== OWNER_ID) {
+            return message.reply({ content: '🚫 Lệnh này chỉ dành riêng cho Owner của bot.', allowedMentions: { repliedUser: false } });
+        }
+
+        if (args[1] === 'list' || args[1] === 'danhsach') {
+            const bannedList = Object.entries(economyData).filter(([_, d]) => d.minigameBan && d.minigameBan.banned);
+            if (bannedList.length === 0) {
+                return message.reply({ content: 'ℹ️ Hiện không có người dùng nào bị cấm chơi minigame.', allowedMentions: { repliedUser: false } });
+            }
+            const banListEmbed = new EmbedBuilder()
+                .setColor('#E74C3C')
+                .setTitle(`🚫 DANH SÁCH BỊ CẤM MINIGAME (${bannedList.length})`)
+                .setDescription(
+                    bannedList.map(([uid, d], i) => 
+                        `**${i + 1}.** <@${uid}> (\`${uid}\`)\n> 📝 Lý do: ${d.minigameBan.reason}\n> ⏱️ Thời gian: <t:${Math.floor(d.minigameBan.bannedAt / 1000)}:f>`
+                    ).join('\n\n')
+                );
+            return message.reply({ embeds: [banListEmbed], allowedMentions: { repliedUser: false } });
+        }
+
+        const targetUser = message.mentions.users.first();
+        if (!targetUser) {
+            return message.reply({ 
+                content: `❌ Vui lòng tag người cần cấm minigame!\nCú pháp: \`${command} @User [lý do]\`\nXem danh sách: \`${command} list\``, 
+                allowedMentions: { repliedUser: false } 
+            });
+        }
+        const reason = args.slice(2).join(' ') || 'Vi phạm quy định giải trí';
+        const uData = getUserData(targetUser.id);
+        uData.minigameBan = {
+            banned: true,
+            reason,
+            bannedAt: Date.now(),
+            bannedBy: message.author.id
+        };
+        saveEconomy();
+        return message.reply({
+            content: `✅ Đã **CẤM** người dùng **${targetUser.username}** (\`${targetUser.id}\`) tham gia tất cả minigame!\n📝 **Lý do:** ${reason}`,
+            allowedMentions: { repliedUser: false }
+        });
+    }
+
+    if (command === 'miunbanminigame' || command === 'miunbanmg') {
+        if (message.author.id !== OWNER_ID) {
+            return message.reply({ content: '🚫 Lệnh này chỉ dành riêng cho Owner của bot.', allowedMentions: { repliedUser: false } });
+        }
+        const targetUser = message.mentions.users.first();
+        if (!targetUser) {
+            return message.reply({ 
+                content: `❌ Vui lòng tag người cần gỡ cấm minigame!\nCú pháp: \`${command} @User\``, 
+                allowedMentions: { repliedUser: false } 
+            });
+        }
+        const uData = getUserData(targetUser.id);
+        if (uData.minigameBan) {
+            delete uData.minigameBan;
+            saveEconomy();
+        }
+        return message.reply({
+            content: `✅ Đã **GỠ CẤM** minigame cho người dùng **${targetUser.username}** (\`${targetUser.id}\`). Người này hiện có thể chơi lại bình thường!`,
+            allowedMentions: { repliedUser: false }
+        });
+    }
+
+    // ==========================================
     // 📖 LỆNH TRỢ GIÚP: mihelp
     // ==========================================
     if (command === 'mihelp') {
@@ -6432,48 +7054,21 @@ client.on('messageCreate', async (message) => {
 
 
     // ==========================================
-    // 🎒 LỆNH KHO ĐỒ: mikho
+    // 🎒 HỆ THỐNG KHO ĐỒ & BÁN ĐỒ TÁCH PHẨM CẤP
     // ==========================================
-    if (command === 'mikho') {
+    if (command === 'mikho' || command === 'mibando' || command === 'miban') {
         const userData = getUserData(userId);
         const inv = userData.inventory || {};
         const farm = getFarmData(userId);
         
-        const args = message.content.split(/\s+/);
-        // Nếu gõ: mikho bán / mikho ban / mikho sell
-        if (args[1] === 'sell' || args[1] === 'bán' || args[1] === 'ban') {
-            const totalItems = (inv.do_co || 0) + (inv.do_co_2 || 0) + (inv.do_co_3 || 0) + (inv.do_co_4 || 0) + (inv.ve_chai || 0);
-            if (totalItems <= 0) {
-                return message.reply('❌ Túi đồ của bạn không có Đồ Cổ hoặc Ve Chai nào để bán!');
-            }
-            let total = 0;
-            let soldMsg = [];
-            if (inv.do_co_4) {
-                let t = 0; for(let i = 0; i < inv.do_co_4; i++) t += Math.floor(Math.random() * 300001) + 200000;
-                total += t; soldMsg.push(`🌟 **${inv.do_co_4}x** Đồ Cổ (Truyền Thuyết) → \`+${t.toLocaleString()} xu\``); delete inv.do_co_4;
-            }
-            if (inv.do_co_3) {
-                let t = 0; for(let i = 0; i < inv.do_co_3; i++) t += Math.floor(Math.random() * 50001) + 50000;
-                total += t; soldMsg.push(`💜 **${inv.do_co_3}x** Đồ Cổ (Sử Thi) → \`+${t.toLocaleString()} xu\``); delete inv.do_co_3;
-            }
-            if (inv.do_co_2) {
-                let t = 0; for(let i = 0; i < inv.do_co_2; i++) t += Math.floor(Math.random() * 20001) + 15000;
-                total += t; soldMsg.push(`💙 **${inv.do_co_2}x** Đồ Cổ (Hiếm) → \`+${t.toLocaleString()} xu\``); delete inv.do_co_2;
-            }
-            if (inv.do_co) {
-                let t = 0; for(let i = 0; i < inv.do_co; i++) t += Math.floor(Math.random() * 5001) + 3000;
-                total += t; soldMsg.push(`💚 **${inv.do_co}x** Đồ Cổ (Thường) → \`+${t.toLocaleString()} xu\``); delete inv.do_co;
-            }
-            if (inv.ve_chai) {
-                let t = 0; for(let i = 0; i < inv.ve_chai; i++) t += Math.floor(Math.random() * 2001) + 1000;
-                total += t; soldMsg.push(`📦 **${inv.ve_chai}x** Đồ Cũ (Ve chai) → \`+${t.toLocaleString()} xu\``); delete inv.ve_chai;
-            }
-            userData.balance += total;
-            recordEconomyIncome(userId, message.guild?.id, total, 'sell_items');
-            saveEconomy();
-            return message.reply(
-                `💰 **ĐÃ BÁN VẬT PHẨM LẤY XU THÀNH CÔNG!**\n\n${soldMsg.join('\n')}\n\n🎉 **Thu về tổng cộng:** \`+${total.toLocaleString()} xu\` (Số dư mới: \`${userData.balance.toLocaleString()} xu\`)`
-            );
+        const argsList = message.content.trim().split(/\s+/);
+        const isDirectSell = (command === 'mibando' || command === 'miban');
+        const isMikhoSell = (command === 'mikho' && (argsList[1] === 'sell' || argsList[1] === 'bán' || argsList[1] === 'ban'));
+
+        if (isDirectSell || isMikhoSell) {
+            const tierArg = isDirectSell ? (argsList[1] || 'all') : (argsList[2] || 'all');
+            const result = sellArtifactsHelper(message.author, userId, tierArg, message.guild?.id);
+            return message.reply({ content: result.message, allowedMentions: { repliedUser: false } });
         }
 
         const embed = new EmbedBuilder()
@@ -6524,9 +7119,17 @@ client.on('messageCreate', async (message) => {
             inline: false
         });
 
-        embed.setFooter({ text: 'Gõ "mikho bán" để bán sạch đồ cổ lấy xu ngay lập tức!' });
+        embed.setFooter({ text: 'Bấm nút bên dưới hoặc gõ "mikho ban [thuong/hiem/suthi/truyenthuyet/all]"' });
 
-        return message.reply({ embeds: [embed] });
+        const row = new ActionRowBuilder().addComponents(
+            new ButtonBuilder().setCustomId('mikho_sell:thuong').setLabel('📦 Bán Thường').setStyle(ButtonStyle.Success).setDisabled((inv.do_co || 0) + (inv.ve_chai || 0) === 0),
+            new ButtonBuilder().setCustomId('mikho_sell:hiem').setLabel('💙 Bán Hiếm').setStyle(ButtonStyle.Primary).setDisabled((inv.do_co_2 || 0) === 0),
+            new ButtonBuilder().setCustomId('mikho_sell:suthi').setLabel('💜 Bán Sử Thi').setStyle(ButtonStyle.Primary).setDisabled((inv.do_co_3 || 0) === 0),
+            new ButtonBuilder().setCustomId('mikho_sell:truyenthuyet').setLabel('🌟 Bán TT').setStyle(ButtonStyle.Secondary).setDisabled((inv.do_co_4 || 0) === 0),
+            new ButtonBuilder().setCustomId('mikho_sell:all').setLabel('💰 Bán Hết').setStyle(ButtonStyle.Danger).setDisabled(docoCount === 0)
+        );
+
+        return message.reply({ embeds: [embed], components: [row] });
     }
 
     if (command === 'mibg' || command === 'setbackground') {
@@ -6544,9 +7147,17 @@ client.on('messageCreate', async (message) => {
     }
     
     // ==========================================
-    // 🔍 LỆNH TÌM ĐỒ CỔ: mitimdo | mitd
+    // 🔍 LỆNH TÌM ĐỒ CỔ: mitimdo | mitd | mitim
     // ==========================================
-    if (command === 'mitimdo' || command === 'mitd') {
+    if (command === 'mitimdo' || command === 'mitd' || command === 'mitim') {
+        const banInfo = isMinigameBanned(userId);
+        if (banInfo) {
+            return message.reply({ 
+                content: `🚫 **BẠN ĐÃ BỊ CẤM CHƠI MINIGAME & TÌM ĐỒ!**\n📝 **Lý do:** ${banInfo.reason || 'Vi phạm quy định'}\n⏱️ **Thời điểm cấm:** <t:${Math.floor(banInfo.bannedAt / 1000)}:f>\n👑 *Vui lòng liên hệ Owner bot nếu có thắc mắc.*`,
+                allowedMentions: { repliedUser: false } 
+            });
+        }
+
         const userData = getUserData(userId);
         const now = Date.now();
         const cooldown = 60 * 1000; // 60 giây cooldown (nhanh, vui vẻ)
@@ -6569,7 +7180,8 @@ client.on('messageCreate', async (message) => {
                     'Long Bội Triều Nguyễn',
                     'Thanh Kiếm Cổ Cẩn Ngọc Hoàng Gia'
                 ],
-                priceRange: '200,000 - 500,000 xu'
+                priceRange: '200,000 - 500,000 xu',
+                estVal: 350000
             },
             do_co_3: {
                 rarity: 'Sử Thi',
@@ -6581,7 +7193,8 @@ client.on('messageCreate', async (message) => {
                     'Gương Đồng Cổ Thời Trần',
                     'Ngọc Tỷ Khắc Chữ Nho Hoàng Gia'
                 ],
-                priceRange: '50,000 - 100,000 xu'
+                priceRange: '50,000 - 100,000 xu',
+                estVal: 75000
             },
             do_co_2: {
                 rarity: 'Hiếm',
@@ -6593,7 +7206,8 @@ client.on('messageCreate', async (message) => {
                     'Rìu Đồng Cổ Đông Sơn',
                     'Trâm Cài Tóc Bạc Cổ Khảm Đá'
                 ],
-                priceRange: '15,000 - 35,000 xu'
+                priceRange: '15,000 - 35,000 xu',
+                estVal: 25000
             },
             do_co: {
                 rarity: 'Thường',
@@ -6605,7 +7219,8 @@ client.on('messageCreate', async (message) => {
                     'Đĩa Sành Cổ Hoa Chanh',
                     'Ngọc Bội Thô Khắc Họa Tiết Cổ'
                 ],
-                priceRange: '3,000 - 8,000 xu'
+                priceRange: '3,000 - 8,000 xu',
+                estVal: 5500
             }
         };
 
@@ -6624,6 +7239,31 @@ client.on('messageCreate', async (message) => {
         const pool = ARTIFACT_POOLS[chosenKey];
         const itemName = pool.items[Math.floor(Math.random() * pool.items.length)];
         userData.inventory[chosenKey] = (userData.inventory[chosenKey] || 0) + 1;
+
+        // Theo dõi thu nhập tìm đồ hàng ngày và cảnh báo Owner nếu > 5M xu / ngày
+        const todayKey = nowVN().toISOString().slice(0, 10);
+        if (!userData.dailyTimDo || userData.dailyTimDo.dateKey !== todayKey) {
+            userData.dailyTimDo = { dateKey: todayKey, count: 0, totalEstimatedValue: 0, alertSent: false };
+        }
+        userData.dailyTimDo.count += 1;
+        userData.dailyTimDo.totalEstimatedValue += (pool.estVal || 5000);
+
+        let warningNote = '';
+        if (userData.dailyTimDo.totalEstimatedValue >= 5_000_000) {
+            if (!userData.dailyTimDo.alertSent) {
+                userData.dailyTimDo.alertSent = true;
+                sendEconomyOwnerAlert(
+                    userId, 
+                    message.guild?.id, 
+                    userData.dailyTimDo.totalEstimatedValue, 
+                    5_000_000, 
+                    userData.balance, 
+                    { 'tim_do_uoc_tinh': userData.dailyTimDo.totalEstimatedValue, 'so_lan_tim': userData.dailyTimDo.count }
+                );
+            }
+            warningNote = `\n\n⚠️ **Nhắc nhở:** Hôm nay bạn đã tìm đồ đạt tổng giá trị trên **5,000,000 xu** (đã đào ${userData.dailyTimDo.count} lần)! Hãy chú ý giữ gìn sức khỏe nhé.`;
+        }
+
         saveEconomy();
 
         const embed = new EmbedBuilder()
@@ -6634,10 +7274,10 @@ client.on('messageCreate', async (message) => {
                 `🏺 **${itemName}**\n` +
                 `• **Phẩm cấp:** ${pool.emoji} **${pool.rarity}**\n` +
                 `• **Giá trị ước tính:** \`${pool.priceRange}\`\n\n` +
-                `📦 Đã lưu vào kho đồ! Dùng \`mikho\` (hoặc \`mikho bán\`) để bán lấy xu làm giàu.`
+                `📦 Đã lưu vào kho đồ! Dùng \`mikho\` (hoặc \`mikho bán\`) để bán lấy xu làm giàu.${warningNote}`
             )
             .setThumbnail(message.author.displayAvatarURL())
-            .setFooter({ text: 'Cooldown tìm đồ: 60s • Bán đồ tại: mikho bán hoặc miprofile' })
+            .setFooter({ text: `Cooldown tìm đồ: 60s • Hôm nay đã tìm: ${userData.dailyTimDo.count} lần • Bán đồ: mikho bán` })
             .setTimestamp();
 
         return message.reply({ embeds: [embed] });
@@ -6645,6 +7285,14 @@ client.on('messageCreate', async (message) => {
 
     // 3. Lệnh tung đồng xu: micf | micoinflip | giới hạn 250,000 xu / lần, hỗ trợ 'all'
     if (command === 'micf' || command === 'micoinflip') {
+        const banInfo = isMinigameBanned(userId);
+        if (banInfo) {
+            return message.reply({ 
+                content: `🚫 **BẠN ĐÃ BỊ CẤM CHƠI MINIGAME!**\n📝 **Lý do:** ${banInfo.reason || 'Vi phạm quy định'}\n⏱️ **Thời điểm cấm:** <t:${Math.floor(banInfo.bannedAt / 1000)}:f>\n👑 *Vui lòng liên hệ Owner bot nếu có thắc mắc.*`,
+                allowedMentions: { repliedUser: false } 
+            });
+        }
+
         const MAX_BET = 250_000;
         const userData = getUserData(userId);
 
@@ -6695,7 +7343,7 @@ client.on('messageCreate', async (message) => {
 
         if (sideInput === result) {
             const winAmount = bet;
-            userData.balance = userId === OWNER_ID ? MAX_BALANCE : userData.balance + winAmount;
+            userData.balance += winAmount;
             saveEconomy();
             return message.reply({ content: `🪙 Kết quả: **${resultText}**\n🎉 Đúng rồi! Bạn thắng **+${winAmount.toLocaleString()} xu**! Số dư: **${userData.balance.toLocaleString()} xu**`, allowedMentions: { repliedUser: false } });
         } else {
@@ -6815,6 +7463,13 @@ client.on('messageCreate', async (message) => {
 
     // 6. Xúc xắc: mid6 | mixucxac — Tung 2 xúc xắc, đặt cao(cao)/thap(thap), tổng lẻ(le)/chẵn(chan)
     if (command === 'mid6' || command === 'mixucxac') {
+        const banInfo = isMinigameBanned(userId);
+        if (banInfo) {
+            return message.reply({ 
+                content: `🚫 **BẠN ĐÃ BỊ CẤM CHƠI MINIGAME!**\n📝 **Lý do:** ${banInfo.reason || 'Vi phạm quy định'}\n⏱️ **Thời điểm cấm:** <t:${Math.floor(banInfo.bannedAt / 1000)}:f>\n👑 *Vui lòng liên hệ Owner bot nếu có thắc mắc.*`,
+                allowedMentions: { repliedUser: false } 
+            });
+        }
         const userData = getUserData(userId);
         const { bet, error } = parseBet(args[1], userData.balance);
         if (error) return message.reply({ content: error + `\nCú pháp: \`${command} [số/all] [cao/thap/le/chan]\`\nVí dụ: \`${command} all cao\``, allowedMentions: { repliedUser: false } });
@@ -6834,7 +7489,7 @@ client.on('messageCreate', async (message) => {
                     (choice === 'le' && total % 2 !== 0) || (choice === 'chan' && total % 2 === 0);
 
         if (win) {
-            userData.balance = userId === OWNER_ID ? MAX_BALANCE : userData.balance + bet;
+            userData.balance += bet;
             saveEconomy();
             return message.reply({ content: `${diceEmojis[d1]}${diceEmojis[d2]} Tổng: **${total}** — Bạn đặt **${choice}** → **ĐÚNG!** +**${bet.toLocaleString()} xu** 🎉\nSố dư: **${userData.balance.toLocaleString()} xu**`, allowedMentions: { repliedUser: false } });
         } else {
@@ -6846,6 +7501,13 @@ client.on('messageCreate', async (message) => {
 
     // 7. Tài Xỉu: mitx | mitaixiu — Tài (4-6) / Xỉu (1-3) với 1 xúc xắc
     if (command === 'mitx' || command === 'mitaixiu') {
+        const banInfo = isMinigameBanned(userId);
+        if (banInfo) {
+            return message.reply({ 
+                content: `🚫 **BẠN ĐÃ BỊ CẤM CHƠI MINIGAME!**\n📝 **Lý do:** ${banInfo.reason || 'Vi phạm quy định'}\n⏱️ **Thời điểm cấm:** <t:${Math.floor(banInfo.bannedAt / 1000)}:f>\n👑 *Vui lòng liên hệ Owner bot nếu có thắc mắc.*`,
+                allowedMentions: { repliedUser: false } 
+            });
+        }
         const userData = getUserData(userId);
         const { bet, error } = parseBet(args[1], userData.balance);
         if (error) return message.reply({ content: error + `\nCú pháp: \`${command} [số/all] [tai/xiu]\``, allowedMentions: { repliedUser: false } });
@@ -6862,7 +7524,7 @@ client.on('messageCreate', async (message) => {
         const resultLabel = result === 'tai' ? 'Tài 🔴' : 'Xỉu 🔵';
 
         if (pick === result) {
-            userData.balance = userId === OWNER_ID ? MAX_BALANCE : userData.balance + bet;
+            userData.balance += bet;
             saveEconomy();
             return message.reply({ content: `${diceEmojis[roll]} Xúc xắc ra **${roll}** — ${resultLabel} → **ĐÚNG!** +**${bet.toLocaleString()} xu** 🎉\nSố dư: **${userData.balance.toLocaleString()} xu**`, allowedMentions: { repliedUser: false } });
         } else {
@@ -6874,6 +7536,13 @@ client.on('messageCreate', async (message) => {
 
     // 8. Đoán số: mig3 | midoanso — Đoán đúng số 1-10, thắng x5 cược
     if (command === 'mig3' || command === 'midoanso') {
+        const banInfo = isMinigameBanned(userId);
+        if (banInfo) {
+            return message.reply({ 
+                content: `🚫 **BẠN ĐÃ BỊ CẤM CHƠI MINIGAME!**\n📝 **Lý do:** ${banInfo.reason || 'Vi phạm quy định'}\n⏱️ **Thời điểm cấm:** <t:${Math.floor(banInfo.bannedAt / 1000)}:f>\n👑 *Vui lòng liên hệ Owner bot nếu có thắc mắc.*`,
+                allowedMentions: { repliedUser: false } 
+            });
+        }
         const userData = getUserData(userId);
         const { bet, error } = parseBet(args[1], userData.balance);
         if (error) return message.reply({ content: error + `\nCú pháp: \`${command} [số/all] [số_đoán 1-10]\`\nThắng nhận **x5** số tiền cược!`, allowedMentions: { repliedUser: false } });
@@ -6886,7 +7555,7 @@ client.on('messageCreate', async (message) => {
         const answer = Math.floor(Math.random() * 10) + 1;
         if (guess === answer) {
             const prize = bet * 5;
-            userData.balance = userId === OWNER_ID ? MAX_BALANCE : userData.balance + prize;
+            userData.balance += prize;
             saveEconomy();
             return message.reply({ content: `🎯 Con số bí ẩn là **${answer}** — Bạn đoán **${guess}** → **CHÍNH XÁC!** +**${prize.toLocaleString()} xu** (x5) 🎉\nSố dư: **${userData.balance.toLocaleString()} xu**`, allowedMentions: { repliedUser: false } });
         } else {
@@ -6903,6 +7572,13 @@ client.on('messageCreate', async (message) => {
     //        • Có 30 giây để react, sau 30s reaction thêm không được tính.
     //        • Không react con nào trong 30s => không mất/nhận xu (hoàn tiền).
     if (command === 'mibc' || command === 'mibaucua') {
+        const banInfo = isMinigameBanned(userId);
+        if (banInfo) {
+            return message.reply({ 
+                content: `🚫 **BẠN ĐÃ BỊ CẤM CHƠI MINIGAME!**\n📝 **Lý do:** ${banInfo.reason || 'Vi phạm quy định'}\n⏱️ **Thời điểm cấm:** <t:${Math.floor(banInfo.bannedAt / 1000)}:f>\n👑 *Vui lòng liên hệ Owner bot nếu có thắc mắc.*`,
+                allowedMentions: { repliedUser: false } 
+            });
+        }
         const userData = getUserData(userId);
         const { bet, error } = parseBet(args[1], userData.balance);
         if (error) return message.reply({ content: error + `\nCú pháp: \`${command} [số/all] [bau/cua/tom/ca/ga/nai]\` hoặc \`${command} [số/all]\` để chọn bằng reaction`, allowedMentions: { repliedUser: false } });
@@ -6929,7 +7605,7 @@ client.on('messageCreate', async (message) => {
 
             if (matches > 0) {
                 const winAmount = bet * matches;
-                userData.balance = userId === OWNER_ID ? MAX_BALANCE : userData.balance + winAmount;
+                userData.balance += winAmount;
                 saveEconomy();
                 return message.reply({ content: `🎲 Kết quả: ${diceText}\n🎉 Bạn đặt **${symbols[choice]}** → trúng **${matches}** viên! +**${winAmount.toLocaleString()} xu** (x${matches})\nSố dư: **${userData.balance.toLocaleString()} xu**`, allowedMentions: { repliedUser: false } });
             } else {
@@ -6986,7 +7662,7 @@ client.on('messageCreate', async (message) => {
             }
 
             const totalBet = bet * chosen.size;
-            if (totalBet > freshUserData.balance && userId !== OWNER_ID) {
+            if (totalBet > freshUserData.balance) {
                 const doneEmbed = new EmbedBuilder()
                     .setColor(0xE74C3C)
                     .setTitle('🎲 BẦU CUA TÔM CÁ — Không đủ số dư')
@@ -7014,7 +7690,7 @@ client.on('messageCreate', async (message) => {
             }
 
             const net = totalWin - totalLose;
-            freshUserData.balance = userId === OWNER_ID ? MAX_BALANCE : freshUserData.balance + net;
+            freshUserData.balance += net;
             saveEconomy();
 
             const resultEmbed = new EmbedBuilder()
@@ -7035,6 +7711,13 @@ client.on('messageCreate', async (message) => {
 
     // 10. Kéo Búa Giấy: mikbg | mikeobuagiay — Đấu tay đôi với Bot, thắng nhân đôi cược
     if (command === 'mikbg' || command === 'mikeobuagiay') {
+        const banInfo = isMinigameBanned(userId);
+        if (banInfo) {
+            return message.reply({ 
+                content: `🚫 **BẠN ĐÃ BỊ CẤM CHƠI MINIGAME!**\n📝 **Lý do:** ${banInfo.reason || 'Vi phạm quy định'}\n⏱️ **Thời điểm cấm:** <t:${Math.floor(banInfo.bannedAt / 1000)}:f>\n👑 *Vui lòng liên hệ Owner bot nếu có thắc mắc.*`,
+                allowedMentions: { repliedUser: false } 
+            });
+        }
         const userData = getUserData(userId);
         const { bet, error } = parseBet(args[1], userData.balance);
         if (error) return message.reply({ content: error + `\nCú pháp: \`${command} [số/all] [keo/bua/giay]\``, allowedMentions: { repliedUser: false } });
@@ -7057,7 +7740,7 @@ client.on('messageCreate', async (message) => {
         const resultLine = `Bạn: ${moves[choice]}  —  Bot: ${moves[botMove]}`;
 
         if (outcome === 'win') {
-            userData.balance = userId === OWNER_ID ? MAX_BALANCE : userData.balance + bet;
+            userData.balance += bet;
             saveEconomy();
             return message.reply({ content: `${resultLine}\n🎉 Bạn thắng! +**${bet.toLocaleString()} xu**\nSố dư: **${userData.balance.toLocaleString()} xu**`, allowedMentions: { repliedUser: false } });
         } else if (outcome === 'draw') {
@@ -7071,6 +7754,13 @@ client.on('messageCreate', async (message) => {
 
     // 11. Máy Kéo Slot: misl | mislot — Quay 3 ô, trúng 2-3 ký hiệu giống nhau ăn tiền theo hệ số
     if (command === 'misl' || command === 'mislot') {
+        const banInfo = isMinigameBanned(userId);
+        if (banInfo) {
+            return message.reply({ 
+                content: `🚫 **BẠN ĐÃ BỊ CẤM CHƠI MINIGAME!**\n📝 **Lý do:** ${banInfo.reason || 'Vi phạm quy định'}\n⏱️ **Thời điểm cấm:** <t:${Math.floor(banInfo.bannedAt / 1000)}:f>\n👑 *Vui lòng liên hệ Owner bot nếu có thắc mắc.*`,
+                allowedMentions: { repliedUser: false } 
+            });
+        }
         const userData = getUserData(userId);
         const { bet, error } = parseBet(args[1], userData.balance);
         if (error) return message.reply({ content: error + `\nCú pháp: \`${command} [số/all]\``, allowedMentions: { repliedUser: false } });
@@ -7090,12 +7780,12 @@ client.on('messageCreate', async (message) => {
 
         if (isTriple) {
             const winAmount = bet * 10;
-            userData.balance = userId === OWNER_ID ? MAX_BALANCE : userData.balance + winAmount - bet;
+            userData.balance += (winAmount - bet);
             saveEconomy();
             return message.reply({ content: `🎰 | ${spinText} |\n🎉 **NỔ HŨ 3 KÝ HIỆU!** +**${winAmount.toLocaleString()} xu** (x10)\nSố dư: **${userData.balance.toLocaleString()} xu**`, allowedMentions: { repliedUser: false } });
         } else if (isDouble) {
             const winAmount = bet * 3;
-            userData.balance = userId === OWNER_ID ? MAX_BALANCE : userData.balance + winAmount - bet;
+            userData.balance += (winAmount - bet);
             saveEconomy();
             return message.reply({ content: `🎰 | ${spinText} |\n🎉 Trúng cặp đôi — +**${winAmount.toLocaleString()} xu** (x3).\nSố dư: **${userData.balance.toLocaleString()} xu**`, allowedMentions: { repliedUser: false } });
         } else {
@@ -7107,6 +7797,13 @@ client.on('messageCreate', async (message) => {
 
     // 11b. Xóc Đĩa: mixd | mixocdia — Lắc 4 đĩa, mỗi đĩa 1 mặt Đỏ/Trắng, đặt Chẵn/Lẻ số mặt Đỏ, thắng nhân đôi cược
     if (command === 'mixd' || command === 'mixocdia') {
+        const banInfo = isMinigameBanned(userId);
+        if (banInfo) {
+            return message.reply({ 
+                content: `🚫 **BẠN ĐÃ BỊ CẤM CHƠI MINIGAME!**\n📝 **Lý do:** ${banInfo.reason || 'Vi phạm quy định'}\n⏱️ **Thời điểm cấm:** <t:${Math.floor(banInfo.bannedAt / 1000)}:f>\n👑 *Vui lòng liên hệ Owner bot nếu có thắc mắc.*`,
+                allowedMentions: { repliedUser: false } 
+            });
+        }
         const userData = getUserData(userId);
         const { bet, error } = parseBet(args[1], userData.balance);
         if (error) return message.reply({ content: error + `\nCú pháp: \`${command} [số/all] [chan/le]\``, allowedMentions: { repliedUser: false } });
@@ -7127,7 +7824,7 @@ client.on('messageCreate', async (message) => {
         const resultLabel = result === 'chan' ? `Chẵn (${redCount} đỏ)` : `Lẻ (${redCount} đỏ)`;
 
         if (choice === result) {
-            userData.balance = userId === OWNER_ID ? MAX_BALANCE : userData.balance + bet;
+            userData.balance += bet;
             saveEconomy();
             return message.reply({ content: `🥣 Đĩa lắc ra: ${discsText}\n${resultLabel} → **ĐÚNG!** +**${bet.toLocaleString()} xu** 🎉\nSố dư: **${userData.balance.toLocaleString()} xu**`, allowedMentions: { repliedUser: false } });
         } else {
@@ -7139,6 +7836,13 @@ client.on('messageCreate', async (message) => {
 
     // 11c. Blackjack: mibj | miblackjack — Xì dách kiểu Mỹ, tương tác bằng nút bấm (Rút/Dừng/Nhân đôi)
     if (command === 'mibj' || command === 'miblackjack') {
+        const banInfo = isMinigameBanned(userId);
+        if (banInfo) {
+            return message.reply({ 
+                content: `🚫 **BẠN ĐÃ BỊ CẤM CHƠI MINIGAME!**\n📝 **Lý do:** ${banInfo.reason || 'Vi phạm quy định'}\n⏱️ **Thời điểm cấm:** <t:${Math.floor(banInfo.bannedAt / 1000)}:f>\n👑 *Vui lòng liên hệ Owner bot nếu có thắc mắc.*`,
+                allowedMentions: { repliedUser: false } 
+            });
+        }
         if (!message.channel.permissionsFor(client.user).has(PermissionFlagsBits.EmbedLinks)) {
             return message.reply({ content: '❌ **LỖI:** Bot đang thiếu quyền `Nhúng Liên Kết (Embed Links)` trong kênh này nên không thể hiển thị bàn chơi Blackjack! Vui lòng nhờ Quản trị viên cấp quyền cho bot.', allowedMentions: { repliedUser: false } }).catch(() => null);
         }
@@ -7178,7 +7882,7 @@ client.on('messageCreate', async (message) => {
         } catch (err) {
             // Không gửi được ván bài → hoàn cọc và xoá ván, tránh kẹt Map vĩnh viễn
             blackjackGames.delete(userId);
-            userData.balance = userId === OWNER_ID ? MAX_BALANCE : userData.balance + bet;
+            userData.balance += bet;
             saveEconomy();
             if (err.code === 50013) {
                 message.channel.send({ content: `❌ **LỖI:** Bot bị thiếu quyền gửi Bảng Nhúng (Embed Links) nên không thể hiển thị ván bài Blackjack! Vui lòng nhờ Quản trị viên cấp quyền.\n(Hệ thống đã tự động hoàn lại **${bet.toLocaleString()} xu** cược cho bạn).` }).catch(() => null);
@@ -7527,11 +8231,7 @@ client.on('messageCreate', async (message) => {
 
         // Cộng xu chat hàng ngày trước
         const user = getUserData(userId);
-        if (userId === OWNER_ID) {
-            user.balance = MAX_BALANCE;
-        } else {
-            user.balance += coinGain;
-        }
+        user.balance += coinGain;
 
         // Gọi addXp xử lý thăng cấp, cộng xu thăng cấp và lưu DB nguyên tử
         const xpResult = addXp(userId, xpGain);
@@ -7626,7 +8326,9 @@ client.on('interactionCreate', async interaction => {
             'resetbot': { ownerOnly: true, supportGuildOnly: true },
             'serverlist': { ownerOnly: true },
             'broadcast': { ownerOnly: true },
-            'resetbalance': { ownerOnly: true }
+            'resetbalance': { ownerOnly: true },
+            'banminigame': { ownerOnly: true },
+            'unbanminigame': { ownerOnly: true }
         };
 
         const guard = RESTRICTED_COMMANDS[commandName];
@@ -8476,9 +9178,6 @@ client.on('interactionCreate', async interaction => {
             if (interaction.user.id !== OWNER_ID) {
                 return interaction.reply({ content: '🚫 Lệnh này chỉ dành riêng cho Owner của bot.', flags: MessageFlags.Ephemeral });
             }
-            if (guild.id !== HOME_GUILD_ID) {
-                return interaction.reply({ content: `🚫 Lệnh này chỉ có thể dùng tại server hỗ trợ cố định.\n🔗 ${SUPPORT_LINK}`, flags: MessageFlags.Ephemeral });
-            }
 
             await interaction.deferReply({ flags: MessageFlags.Ephemeral });
 
@@ -8576,14 +9275,19 @@ client.on('interactionCreate', async interaction => {
             for (const g of guildsList) {
                 try {
                     const me = g.members.me;
-                    const canSend = (c) => c && me && c.type === ChannelType.GuildText &&
+                    const canSend = (c) => c && me && (c.type === ChannelType.GuildText || c.type === ChannelType.GuildAnnouncement) &&
                         c.permissionsFor(me)?.has(PermissionFlagsBits.SendMessages) &&
                         c.permissionsFor(me)?.has(PermissionFlagsBits.ViewChannel) &&
                         c.permissionsFor(me)?.has(PermissionFlagsBits.EmbedLinks);
 
-                    const targetChannel = canSend(g.systemChannel)
-                        ? g.systemChannel
-                        : g.channels.cache.find(canSend);
+                    let targetChannel = canSend(g.systemChannel) ? g.systemChannel : null;
+                    if (!targetChannel) {
+                        targetChannel = g.channels.cache.find(canSend);
+                    }
+                    if (!targetChannel) {
+                        const fetched = await g.channels.fetch().catch(() => null);
+                        if (fetched) targetChannel = fetched.find(canSend);
+                    }
 
                     if (!targetChannel) throw new Error('Không tìm thấy kênh phù hợp');
 
@@ -8626,7 +9330,7 @@ client.on('interactionCreate', async interaction => {
         }
 
         // ==========================================
-        // 💰 LỆNH ADMIN: RESET XU NGƯỜI DÙNG
+        // 💰 LỆNH ADMIN: QUẢN LÝ XU, TEST & RESET (Chỉ Owner)
         // ==========================================
         if (commandName === 'resetbalance') {
             await interaction.deferReply({ flags: MessageFlags.Ephemeral });
@@ -8638,42 +9342,103 @@ client.on('interactionCreate', async interaction => {
 
             const action = options.getString('action');
             const amount = options.getInteger('amount') || 0;
+            const targetUser = options.getUser('người_dùng') || interaction.user;
+            const targetData = getUserData(targetUser.id);
             const ownerData = getUserData(OWNER_ID);
 
             if (action === 'add') {
                 if (amount <= 0) return interaction.editReply({ content: '❌ Nhập số xu cần thêm.' });
-                ownerData.balance = Math.min(MAX_BALANCE, ownerData.balance + amount);
+                targetData.balance = Math.min(MAX_BALANCE, (targetData.balance || 0) + amount);
                 saveEconomy();
-                return interaction.editReply({ content: `✅ Đã thêm **+${amount.toLocaleString()} xu**.\nSố dư hiện tại: **${ownerData.balance.toLocaleString()} xu**` });
+                return interaction.editReply({ 
+                    content: `✅ Đã thêm **+${amount.toLocaleString()} xu** cho **${targetUser.username}**.\nSố dư hiện tại: **${targetData.balance.toLocaleString()} xu**` 
+                });
             }
 
             if (action === 'max') {
+                if (!ownerData.isTesting) {
+                    ownerData._preTestBalance = ownerData.balance || 100;
+                    ownerData.isTesting = true;
+                }
                 ownerData.balance = MAX_BALANCE;
                 saveEconomy();
-                return interaction.editReply({ content: `✅ Đã đặt xu về mức tối đa: **${MAX_BALANCE.toLocaleString()} xu**` });
+                return interaction.editReply({ 
+                    content: `🧪 **Chế độ TEST đã BẬT!**\n💰 Số dư hiện tại của Owner: **${MAX_BALANCE.toLocaleString()} xu**\n📦 Số dư trước đó (**${(ownerData._preTestBalance || 0).toLocaleString()} xu**) đã được lưu lại.\n💡 Dùng \`/resetbalance action:untest\` hoặc \`miuntest\` để khôi phục số dư cũ!` 
+                });
+            }
+
+            if (action === 'untest') {
+                if (ownerData._preTestBalance !== undefined) {
+                    ownerData.balance = ownerData._preTestBalance;
+                } else if (ownerData.balance === MAX_BALANCE) {
+                    ownerData.balance = 100;
+                }
+                delete ownerData._preTestBalance;
+                delete ownerData.isTesting;
+                saveEconomy();
+                return interaction.editReply({ 
+                    content: `🎮 **Chế độ TEST đã TẮT!**\n💰 Số dư của Owner đã được khôi phục về: **${ownerData.balance.toLocaleString()} xu** để chơi như bình thường.` 
+                });
+            }
+
+            if (action === 'resetxu') {
+                const oldBalance = targetData.balance || 0;
+                targetData.balance = 0;
+                saveEconomy();
+                return interaction.editReply({ 
+                    content: `✅ Đã reset xu của **${targetUser.username}** (${targetUser.id})\n💰 **${oldBalance.toLocaleString()} xu** → **0 xu**` 
+                });
+            }
+
+            if (action === 'resetxp') {
+                const oldLevel = targetData.level || 0;
+                const oldXp = targetData.xp || 0;
+                targetData.xp = 0;
+                targetData.level = 0;
+                saveEconomy();
+                return interaction.editReply({ 
+                    content: `✅ Đã reset XP & Cấp độ của **${targetUser.username}** (${targetUser.id})\n⭐ Cấp độ cũ: **Level ${oldLevel}** (${oldXp.toLocaleString()} XP) → **Level 0 (0 XP)**` 
+                });
+            }
+
+            if (action === 'resetdat') {
+                const farm = getFarmData(targetUser.id);
+                farm.plotsCount = 1;
+                farm.plots = [{ id: 0, crop: null, plantedAt: 0, waterCount: 0, lastWateredAt: 0, withered: false }];
+                farm.inventory = { seeds: {}, harvest: {} };
+                saveEconomy();
+                return interaction.editReply({ 
+                    content: `✅ Đã reset Ruộng đất & Nông sản của **${targetUser.username}** (${targetUser.id})\n🌾 Đất đã về **1 ô cơ bản**, xóa toàn bộ cây trồng và kho nông sản.` 
+                });
             }
 
             if (action === 'resetuser') {
-                const targetUser = options.getUser('người_dùng');
-                if (!targetUser) return interaction.editReply({ content: '❌ Vui lòng tag hoặc chọn người dùng cần reset xu.' });
-                if (targetUser.id === OWNER_ID) return interaction.editReply({ content: '⚠️ Không thể reset xu của chính mình qua lệnh này.' });
-
-                if (!economyData[targetUser.id]) {
-                    return interaction.editReply({ content: `❌ **${targetUser.username}** chưa có dữ liệu xu nào trong hệ thống.` });
-                }
-                const oldBalance = economyData[targetUser.id].balance;
-                economyData[targetUser.id].balance = 0;
+                const oldBalance = targetData.balance || 0;
+                const oldLevel = targetData.level || 0;
+                targetData.balance = 0;
+                targetData.xp = 0;
+                targetData.level = 0;
+                const farm = getFarmData(targetUser.id);
+                farm.plotsCount = 1;
+                farm.plots = [{ id: 0, crop: null, plantedAt: 0, waterCount: 0, lastWateredAt: 0, withered: false }];
+                farm.inventory = { seeds: {}, harvest: {} };
                 saveEconomy();
-                return interaction.editReply({ content: `✅ Đã reset xu của **${targetUser.username}** (${targetUser.id})\n💰 **${oldBalance.toLocaleString()} xu** → **0 xu**` });
+                return interaction.editReply({ 
+                    content: `✅ Đã reset toàn bộ dữ liệu (Xu, XP, Đất) của **${targetUser.username}** (${targetUser.id})\n- 💰 Xu: **${oldBalance.toLocaleString()}** → **0**\n- ⭐ Cấp: **Level ${oldLevel}** → **Level 0**\n- 🌾 Đất: Về 1 ô mặc định.` 
+                });
             }
 
             if (action === 'resetall') {
                 let count = 0;
                 for (const uid in economyData) {
-                    if (uid === OWNER_ID) continue;
                     economyData[uid].balance = 0;
                     economyData[uid].xp = 0;
                     economyData[uid].level = 0;
+                    if (economyData[uid].farm) {
+                        economyData[uid].farm.plotsCount = 1;
+                        economyData[uid].farm.plots = [{ id: 0, crop: null, plantedAt: 0, waterCount: 0, lastWateredAt: 0, withered: false }];
+                        economyData[uid].farm.inventory = { seeds: {}, harvest: {} };
+                    }
                     count++;
                 }
                 saveEconomy();
@@ -8681,18 +9446,18 @@ client.on('interactionCreate', async interaction => {
                 const resetContainer = new ContainerBuilder()
                     .setAccentColor(0x2ECC71)
                     .addTextDisplayComponents(
-                        new TextDisplayBuilder().setContent('## ✅ Đã Reset Toàn Bộ')
+                        new TextDisplayBuilder().setContent('## ✅ Đã Reset Toàn Bộ Hệ Thống')
                     )
                     .addSeparatorComponents(
                         new SeparatorBuilder().setSpacing(SeparatorSpacingSize.Small).setDivider(true)
                     )
                     .addTextDisplayComponents(
                         new TextDisplayBuilder().setContent(
-                            `Đã xóa **xu** và **XP/cấp độ** của **${count} người dùng**.\n` +
+                            `Đã xóa **xu**, **XP/cấp độ** và **ruộng đất** của **${count} người dùng** (bao gồm cả Owner).\n` +
                             `- 💰 Xu → **0**\n` +
                             `- ✨ XP → **0**\n` +
-                            `- 🌟 Cấp độ → **Level 0**\n\n` +
-                            `> 👑 Dữ liệu của Owner được bảo toàn.`
+                            `- 🌟 Cấp độ → **Level 0**\n` +
+                            `- 🌾 Đất → **1 ô mặc định**`
                         )
                     );
 
@@ -8700,6 +9465,91 @@ client.on('interactionCreate', async interaction => {
                     components: [resetContainer], flags: MessageFlags.IsComponentsV2
                 });
             }
+        }
+
+        // ==========================================
+        // 🚫 LỆNH /banminigame & /unbanminigame (Chỉ Owner)
+        // ==========================================
+        if (commandName === 'banminigame') {
+            await interaction.deferReply({ flags: MessageFlags.Ephemeral });
+            if (interaction.user.id !== OWNER_ID) {
+                return interaction.editReply({ content: '🚫 Bạn không có quyền dùng lệnh này.' });
+            }
+            const targetUser = options.getUser('người_dùng');
+            const reason = options.getString('lý_do') || 'Vi phạm quy định giải trí';
+            const uData = getUserData(targetUser.id);
+            uData.minigameBan = {
+                banned: true,
+                reason,
+                bannedAt: Date.now(),
+                bannedBy: interaction.user.id
+            };
+            saveEconomy();
+            return interaction.editReply({
+                content: `✅ Đã **CẤM** người dùng **${targetUser.username}** (\`${targetUser.id}\`) tham gia tất cả minigame cá cược!\n📝 **Lý do:** ${reason}`
+            });
+        }
+
+        if (commandName === 'unbanminigame') {
+            await interaction.deferReply({ flags: MessageFlags.Ephemeral });
+            if (interaction.user.id !== OWNER_ID) {
+                return interaction.editReply({ content: '🚫 Bạn không có quyền dùng lệnh này.' });
+            }
+            const targetUser = options.getUser('người_dùng');
+            const uData = getUserData(targetUser.id);
+            if (uData.minigameBan) {
+                delete uData.minigameBan;
+                saveEconomy();
+            }
+            return interaction.editReply({
+                content: `✅ Đã **GỠ CẤM** minigame cho người dùng **${targetUser.username}** (\`${targetUser.id}\`). Người này hiện có thể chơi lại bình thường!`
+            });
+        }
+
+        // ==========================================
+        // ⏰ LỆNH /remind (Đặt lịch nhắc)
+        // ==========================================
+        if (commandName === 'remind') {
+            await interaction.deferReply();
+            const timeStr = options.getString('thời_gian');
+            const content = options.getString('nội_dung');
+            const durationMs = parseDuration(timeStr);
+
+            if (!durationMs || durationMs < 5000) {
+                return interaction.editReply({ content: '❌ Khoảng thời gian không hợp lệ! Vui lòng nhập tối thiểu 5 giây (Ví dụ: `10m`, `1h30m`, `2d`, `30s`).' });
+            }
+            if (durationMs > 30 * 24 * 60 * 60 * 1000) {
+                return interaction.editReply({ content: '❌ Thời gian nhắc nhở tối đa là 30 ngày!' });
+            }
+
+            const remId = `rem_${Date.now().toString(36)}_${Math.random().toString(36).slice(2, 6)}`;
+            const rem = {
+                id: remId,
+                userId: interaction.user.id,
+                channelId: interaction.channelId,
+                guildId: interaction.guildId,
+                content: content,
+                createdAt: Date.now(),
+                remindAt: Date.now() + durationMs
+            };
+
+            reminders.push(rem);
+            saveReminders();
+            scheduleReminder(rem);
+
+            const remContainer = new ContainerBuilder()
+                .setAccentColor(0xF1C40F)
+                .addTextDisplayComponents(
+                    new TextDisplayBuilder().setContent(
+                        `## ⏰ Đã Đặt Lịch Nhắc Thành Công!\n` +
+                        `> 👤 **Người nhận:** ${interaction.user}\n` +
+                        `> ⏱️ **Thời gian hẹn:** <t:${Math.floor(rem.remindAt / 1000)}:R> (<t:${Math.floor(rem.remindAt / 1000)}:F>)\n` +
+                        `> 📝 **Nội dung:** ${content}\n\n` +
+                        `-# 🆔 ID: \`${remId}\` • Gõ \`minhac list\` hoặc \`minhac xoa ${remId}\` để quản lý`
+                    )
+                );
+
+            return interaction.editReply({ components: [remContainer], flags: MessageFlags.IsComponentsV2 });
         }
 
         // ==========================================
@@ -11435,6 +12285,12 @@ if (commandName === 'setup') {
                 });
             }
             return interaction.reply({ content: '🧺 Kho nông sản của bạn đang trống!', flags: MessageFlags.Ephemeral });
+        }
+
+        if (customId.startsWith('mikho_sell:')) {
+            const tier = customId.split(':')[1];
+            const result = sellArtifactsHelper(interaction.user, interaction.user.id, tier, interaction.guild?.id);
+            return interaction.reply({ content: result.message, flags: MessageFlags.Ephemeral });
         }
 
         if (customId === 'shop_buy_plot') {
