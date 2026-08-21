@@ -208,6 +208,7 @@ function initReminders() {
 // 🚫 HỆ THỐNG BAN MINIGAME CHO OWNER
 // -----------------------------------------------------------------
 function isMinigameBanned(userId) {
+    if (!userId || typeof economyData === 'undefined' || !economyData) return null;
     const data = economyData[userId];
     if (data && data.minigameBan && data.minigameBan.banned) {
         return data.minigameBan;
@@ -5290,15 +5291,15 @@ client.once('ready', async () => {
 
         new SlashCommandBuilder()
             .setName('banminigame')
-            .setDescription('[Owner Only] Cấm người chơi tham gia tất cả minigame cá cược')
-            .setDefaultMemberPermissions('0')
+            .setDescription('Cấm người chơi tham gia tất cả minigame cá cược (Admin & Owner)')
+            .setDefaultMemberPermissions(PermissionFlagsBits.Administrator)
             .addUserOption(o => o.setName('người_dùng').setDescription('Người dùng cần cấm').setRequired(true))
             .addStringOption(o => o.setName('lý_do').setDescription('Lý do cấm minigame')),
 
         new SlashCommandBuilder()
             .setName('unbanminigame')
-            .setDescription('[Owner Only] Gỡ lệnh cấm minigame cho người chơi')
-            .setDefaultMemberPermissions('0')
+            .setDescription('Gỡ lệnh cấm minigame cho người chơi (Admin & Owner)')
+            .setDefaultMemberPermissions(PermissionFlagsBits.Administrator)
             .addUserOption(o => o.setName('người_dùng').setDescription('Người dùng cần gỡ cấm').setRequired(true)),
 
         new SlashCommandBuilder()
@@ -6618,15 +6619,23 @@ client.on('messageCreate', async (message) => {
     }
 
     // ==========================================
-    // 🚫 LỆNH BAN/UNBAN MINIGAME: mibanmg | miunbanmg (Chỉ Owner)
+    // 🚫 LỆNH BAN/UNBAN MINIGAME: mibanmg | miunbanmg (Admin & Owner)
     // ==========================================
     if (command === 'mibanminigame' || command === 'mibanmg') {
-        if (message.author.id !== OWNER_ID) {
-            return message.reply({ content: '🚫 Lệnh này chỉ dành riêng cho Owner của bot.', allowedMentions: { repliedUser: false } });
+        const isOwner = message.author.id === OWNER_ID ||
+                        (client.application?.owner && (
+                            client.application.owner.id === message.author.id ||
+                            client.application.owner.members?.has?.(message.author.id)
+                        ));
+        const isAdmin = message.member?.permissions?.has(PermissionFlagsBits.Administrator) ||
+                        message.member?.permissions?.has(PermissionFlagsBits.ManageGuild);
+
+        if (!isOwner && !isAdmin) {
+            return message.reply({ content: '🚫 Lệnh này yêu cầu quyền Quản trị viên (Administrator) hoặc là Owner của bot.', allowedMentions: { repliedUser: false } });
         }
 
         if (args[1] === 'list' || args[1] === 'danhsach') {
-            const bannedList = Object.entries(economyData).filter(([_, d]) => d.minigameBan && d.minigameBan.banned);
+            const bannedList = Object.entries(economyData).filter(([_, d]) => d && d.minigameBan && d.minigameBan.banned);
             if (bannedList.length === 0) {
                 return message.reply({ content: 'ℹ️ Hiện không có người dùng nào bị cấm chơi minigame.', allowedMentions: { repliedUser: false } });
             }
@@ -6635,52 +6644,97 @@ client.on('messageCreate', async (message) => {
                 .setTitle(`🚫 DANH SÁCH BỊ CẤM MINIGAME (${bannedList.length})`)
                 .setDescription(
                     bannedList.map(([uid, d], i) => 
-                        `**${i + 1}.** <@${uid}> (\`${uid}\`)\n> 📝 Lý do: ${d.minigameBan.reason}\n> ⏱️ Thời gian: <t:${Math.floor(d.minigameBan.bannedAt / 1000)}:f>`
+                        `**${i + 1}.** <@${uid}> (\`${uid}\`)\n> 📝 Lý do: ${d.minigameBan.reason || 'Vi phạm quy định'}\n> ⏱️ Thời gian: <t:${Math.floor((d.minigameBan.bannedAt || Date.now()) / 1000)}:f>`
                     ).join('\n\n')
                 );
             return message.reply({ embeds: [banListEmbed], allowedMentions: { repliedUser: false } });
         }
 
-        const targetUser = message.mentions.users.first();
-        if (!targetUser) {
+        let targetId = null;
+        let targetUsername = null;
+        let reason = 'Vi phạm quy định giải trí';
+
+        const mentioned = message.mentions.users.first();
+        if (mentioned) {
+            targetId = mentioned.id;
+            targetUsername = mentioned.username;
+            reason = args.slice(2).join(' ') || reason;
+        } else if (args[1] && /^\d{17,20}$/.test(args[1])) {
+            targetId = args[1];
+            try {
+                const fetched = await client.users.fetch(targetId);
+                targetUsername = fetched ? fetched.username : targetId;
+            } catch {
+                targetUsername = targetId;
+            }
+            reason = args.slice(2).join(' ') || reason;
+        }
+
+        if (!targetId) {
             return message.reply({ 
-                content: `❌ Vui lòng tag người cần cấm minigame!\nCú pháp: \`${command} @User [lý do]\`\nXem danh sách: \`${command} list\``, 
+                content: `❌ Vui lòng tag người cần cấm minigame hoặc nhập User ID!\nCú pháp: \`${command} @User [lý do]\` hoặc \`${command} [UserID] [lý do]\`\nXem danh sách: \`${command} list\``, 
                 allowedMentions: { repliedUser: false } 
             });
         }
-        const reason = args.slice(2).join(' ') || 'Vi phạm quy định giải trí';
-        const uData = getUserData(targetUser.id);
+
+        const uData = getUserData(targetId);
         uData.minigameBan = {
             banned: true,
             reason,
             bannedAt: Date.now(),
             bannedBy: message.author.id
         };
-        saveEconomy();
+        flushEconomy();
         return message.reply({
-            content: `✅ Đã **CẤM** người dùng **${targetUser.username}** (\`${targetUser.id}\`) tham gia tất cả minigame!\n📝 **Lý do:** ${reason}`,
+            content: `✅ Đã **CẤM** người dùng **${targetUsername}** (\`${targetId}\`) tham gia tất cả minigame!\n📝 **Lý do:** ${reason}`,
             allowedMentions: { repliedUser: false }
         });
     }
 
     if (command === 'miunbanminigame' || command === 'miunbanmg') {
-        if (message.author.id !== OWNER_ID) {
-            return message.reply({ content: '🚫 Lệnh này chỉ dành riêng cho Owner của bot.', allowedMentions: { repliedUser: false } });
+        const isOwner = message.author.id === OWNER_ID ||
+                        (client.application?.owner && (
+                            client.application.owner.id === message.author.id ||
+                            client.application.owner.members?.has?.(message.author.id)
+                        ));
+        const isAdmin = message.member?.permissions?.has(PermissionFlagsBits.Administrator) ||
+                        message.member?.permissions?.has(PermissionFlagsBits.ManageGuild);
+
+        if (!isOwner && !isAdmin) {
+            return message.reply({ content: '🚫 Lệnh này yêu cầu quyền Quản trị viên (Administrator) hoặc là Owner của bot.', allowedMentions: { repliedUser: false } });
         }
-        const targetUser = message.mentions.users.first();
-        if (!targetUser) {
+
+        let targetId = null;
+        let targetUsername = null;
+
+        const mentioned = message.mentions.users.first();
+        if (mentioned) {
+            targetId = mentioned.id;
+            targetUsername = mentioned.username;
+        } else if (args[1] && /^\d{17,20}$/.test(args[1])) {
+            targetId = args[1];
+            try {
+                const fetched = await client.users.fetch(targetId);
+                targetUsername = fetched ? fetched.username : targetId;
+            } catch {
+                targetUsername = targetId;
+            }
+        }
+
+        if (!targetId) {
             return message.reply({ 
-                content: `❌ Vui lòng tag người cần gỡ cấm minigame!\nCú pháp: \`${command} @User\``, 
+                content: `❌ Vui lòng tag người cần gỡ cấm minigame hoặc nhập User ID!\nCú pháp: \`${command} @User\` hoặc \`${command} [UserID]\``, 
                 allowedMentions: { repliedUser: false } 
             });
         }
-        const uData = getUserData(targetUser.id);
+
+        const uData = getUserData(targetId);
         if (uData.minigameBan) {
             delete uData.minigameBan;
-            saveEconomy();
+            flushEconomy();
         }
         return message.reply({
-            content: `✅ Đã **GỠ CẤM** minigame cho người dùng **${targetUser.username}** (\`${targetUser.id}\`). Người này hiện có thể chơi lại bình thường!`,
+            content: `✅ Đã **GỠ CẤM** minigame cho người dùng **${targetUsername}** (\`${targetId}\`). Người này hiện có thể chơi lại bình thường!`,
             allowedMentions: { repliedUser: false }
         });
     }
@@ -8344,8 +8398,8 @@ client.on('interactionCreate', async interaction => {
             'serverlist': { ownerOnly: true },
             'broadcast': { ownerOrAdmin: true },
             'resetbalance': { ownerOnly: true },
-            'banminigame': { ownerOnly: true },
-            'unbanminigame': { ownerOnly: true }
+            'banminigame': { ownerOrAdmin: true },
+            'unbanminigame': { ownerOrAdmin: true }
         };
 
         const guard = RESTRICTED_COMMANDS[commandName];
@@ -9511,13 +9565,22 @@ client.on('interactionCreate', async interaction => {
         }
 
         // ==========================================
-        // 🚫 LỆNH /banminigame & /unbanminigame (Chỉ Owner)
+        // 🚫 LỆNH /banminigame & /unbanminigame (Admin & Owner)
         // ==========================================
         if (commandName === 'banminigame') {
             await interaction.deferReply({ flags: MessageFlags.Ephemeral });
-            if (interaction.user.id !== OWNER_ID) {
-                return interaction.editReply({ content: '🚫 Bạn không có quyền dùng lệnh này.' });
+            const isOwner = interaction.user.id === OWNER_ID ||
+                            (client.application?.owner && (
+                                client.application.owner.id === interaction.user.id ||
+                                client.application.owner.members?.has?.(interaction.user.id)
+                            ));
+            const isAdmin = interaction.member?.permissions?.has(PermissionFlagsBits.Administrator) ||
+                            interaction.member?.permissions?.has(PermissionFlagsBits.ManageGuild);
+
+            if (!isOwner && !isAdmin) {
+                return interaction.editReply({ content: '🚫 Bạn cần có quyền Quản trị viên (Administrator) hoặc là Owner của bot để dùng lệnh này.' });
             }
+
             const targetUser = options.getUser('người_dùng');
             const reason = options.getString('lý_do') || 'Vi phạm quy định giải trí';
             const uData = getUserData(targetUser.id);
@@ -9527,7 +9590,7 @@ client.on('interactionCreate', async interaction => {
                 bannedAt: Date.now(),
                 bannedBy: interaction.user.id
             };
-            saveEconomy();
+            flushEconomy();
             return interaction.editReply({
                 content: `✅ Đã **CẤM** người dùng **${targetUser.username}** (\`${targetUser.id}\`) tham gia tất cả minigame cá cược!\n📝 **Lý do:** ${reason}`
             });
@@ -9535,14 +9598,23 @@ client.on('interactionCreate', async interaction => {
 
         if (commandName === 'unbanminigame') {
             await interaction.deferReply({ flags: MessageFlags.Ephemeral });
-            if (interaction.user.id !== OWNER_ID) {
-                return interaction.editReply({ content: '🚫 Bạn không có quyền dùng lệnh này.' });
+            const isOwner = interaction.user.id === OWNER_ID ||
+                            (client.application?.owner && (
+                                client.application.owner.id === interaction.user.id ||
+                                client.application.owner.members?.has?.(interaction.user.id)
+                            ));
+            const isAdmin = interaction.member?.permissions?.has(PermissionFlagsBits.Administrator) ||
+                            interaction.member?.permissions?.has(PermissionFlagsBits.ManageGuild);
+
+            if (!isOwner && !isAdmin) {
+                return interaction.editReply({ content: '🚫 Bạn cần có quyền Quản trị viên (Administrator) hoặc là Owner của bot để dùng lệnh này.' });
             }
+
             const targetUser = options.getUser('người_dùng');
             const uData = getUserData(targetUser.id);
             if (uData.minigameBan) {
                 delete uData.minigameBan;
-                saveEconomy();
+                flushEconomy();
             }
             return interaction.editReply({
                 content: `✅ Đã **GỠ CẤM** minigame cho người dùng **${targetUser.username}** (\`${targetUser.id}\`). Người này hiện có thể chơi lại bình thường!`
@@ -12727,6 +12799,15 @@ if (commandName === 'setup') {
 
             if (user.id !== ownerId) {
                 return interaction.reply({ content: '❌ Đây không phải ván Blackjack của bạn!', flags: MessageFlags.Ephemeral });
+            }
+
+            const banInfo = isMinigameBanned(user.id);
+            if (banInfo) {
+                blackjackGames.delete(ownerId);
+                return interaction.reply({ 
+                    content: `🚫 **BẠN ĐÃ BỊ CẤM CHƠI MINIGAME!**\n📝 **Lý do:** ${banInfo.reason || 'Vi phạm quy định'}`, 
+                    flags: MessageFlags.Ephemeral 
+                });
             }
 
             const game = blackjackGames.get(ownerId);
