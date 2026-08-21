@@ -6323,7 +6323,7 @@ client.on('messageCreate', async (message) => {
         }
 
         const targetData = getUserData(targetUser.id);
-        targetData.balance = Math.min(MAX_BALANCE, (targetData.balance || 0) + amount);
+        targetData.balance = (targetData.balance || 0) + amount;
         saveEconomy();
 
         return message.reply({
@@ -9524,7 +9524,7 @@ client.on('interactionCreate', async interaction => {
 
             if (action === 'add') {
                 if (amount <= 0) return interaction.editReply({ content: '❌ Nhập số xu cần thêm.' });
-                targetData.balance = Math.min(MAX_BALANCE, (targetData.balance || 0) + amount);
+                targetData.balance = (targetData.balance || 0) + amount;
                 saveEconomy();
                 return interaction.editReply({ 
                     content: `✅ Đã thêm **+${amount.toLocaleString()} xu** cho **${targetUser.username}**.\nSố dư hiện tại: **${targetData.balance.toLocaleString()} xu**` 
@@ -11069,7 +11069,7 @@ client.on('interactionCreate', async interaction => {
                     // Cộng xu cho người thắng
                     for (const odId of winners) {
                         const ud = getUserData(odId);
-                        ud.balance = Math.min((ud.balance || 0) + evt.xuReward, 999999999);
+                        ud.balance = (ud.balance || 0) + evt.xuReward;
                     }
                     if (winners.length > 0) saveEconomy();
                     
