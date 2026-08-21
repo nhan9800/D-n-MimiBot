@@ -6778,6 +6778,45 @@ client.on('messageCreate', async (message) => {
         return message.reply({ embeds: [introEmbed], components: [row] }).catch(() => null);
     }
 
+    // ==========================================
+    // 🛡️ CHẶN NGƯỜI DÙNG BỊ CẤM MINIGAME & KINH TẾ
+    // ==========================================
+    const MINIGAME_COMMANDS = new Set([
+        'midaily', 'mid',
+        'micash', 'mic', `${serverPrefix}cash`, `${serverPrefix}c`,
+        'miprofile', 'mip', `${serverPrefix}profile`, `${serverPrefix}p`,
+        'mitop', 'mit', `${serverPrefix}top`, `${serverPrefix}t`,
+        'migive', 'mig', `${serverPrefix}give`,
+        'mifarm', 'minongtrai', `${serverPrefix}farm`,
+        'mituoicay', 'mituoi', `${serverPrefix}tuoi`,
+        'mithuhoach', 'mith', `${serverPrefix}th`,
+        'mibannongsan', 'mibns',
+        'mishop', 'mis', `${serverPrefix}shop`,
+        'mikho', 'mibando', 'miban',
+        'mibg', 'setbackground',
+        'mikethon', 'milyhon', 'lyhon',
+        'mitimdo', 'mitd', 'mitim',
+        'micf', 'micoinflip', `${serverPrefix}cf`, `${serverPrefix}coinflip`,
+        'mid6', 'mixucxac', `${serverPrefix}dice`,
+        'mitx', 'mitaixiu', `${serverPrefix}tx`, `${serverPrefix}taixiu`,
+        'mig3', 'midoanso', `${serverPrefix}guess`,
+        'mibc', 'mibaucua',
+        'mikbg', 'mikeobuagiay',
+        'misl', 'mislot', `${serverPrefix}sl`,
+        'mixd', 'mixocdia', `${serverPrefix}xd`, `${serverPrefix}xocdia`,
+        'mibj', 'miblackjack'
+    ]);
+
+    if (MINIGAME_COMMANDS.has(command) || MINIGAME_COMMANDS.has(rawCommand)) {
+        const banInfo = isMinigameBanned(userId);
+        if (banInfo) {
+            return message.reply({
+                content: `🚫 **BẠN ĐÃ BỊ CẤM THAM GIA MINIGAME & TÍNH NĂNG KINH TẾ!**\n📝 **Lý do:** ${banInfo.reason || 'Vi phạm quy định giải trí'}\n⏱️ **Thời điểm cấm:** <t:${Math.floor((banInfo.bannedAt || Date.now()) / 1000)}:f>\n👑 *Vui lòng liên hệ Quản trị viên / Owner bot nếu có khiếu nại.*`,
+                allowedMentions: { repliedUser: false }
+            });
+        }
+    }
+
     if (command === 'midaily' || command === 'mid') {
         const userData = getUserData(userId);
         const nowMs = Date.now();
@@ -8297,6 +8336,7 @@ client.on('messageCreate', async (message) => {
         `${serverPrefix}farm`,`${serverPrefix}shop`,`${serverPrefix}tuoi`,`${serverPrefix}th`,
     ];
     if (!allowedPrefixes.includes(rawCommand)) {
+        if (isMinigameBanned(userId)) return;
         const xpGain = Math.floor(Math.random() * 11) + 15;
         const coinGain = 5;
 
@@ -10065,12 +10105,26 @@ client.on('interactionCreate', async interaction => {
         }
 
         if (commandName === 'farm') {
+            const banInfo = isMinigameBanned(user.id);
+            if (banInfo) {
+                return interaction.reply({
+                    content: `🚫 **BẠN ĐÃ BỊ CẤM THAM GIA MINIGAME & TÍNH NĂNG KINH TẾ!**\n📝 **Lý do:** ${banInfo.reason || 'Vi phạm quy định giải trí'}`,
+                    flags: MessageFlags.Ephemeral
+                });
+            }
             const userData = getUserData(user.id);
             const payload = buildFarmPayload(user, userData);
             return interaction.reply(payload);
         }
 
         if (commandName === 'shop') {
+            const banInfo = isMinigameBanned(user.id);
+            if (banInfo) {
+                return interaction.reply({
+                    content: `🚫 **BẠN ĐÃ BỊ CẤM THAM GIA MINIGAME & TÍNH NĂNG KINH TẾ!**\n📝 **Lý do:** ${banInfo.reason || 'Vi phạm quy định giải trí'}`,
+                    flags: MessageFlags.Ephemeral
+                });
+            }
             const userData = getUserData(user.id);
             const farm = getFarmData(user.id);
             const nextPlot = farm.plots.length + 1;
@@ -12125,6 +12179,17 @@ if (commandName === 'setup') {
             .setTimestamp();
 
         return interaction.update({ embeds: [pageEmbed], components: interaction.message.components });
+    }
+
+    const ECONOMY_INTERACTION_PREFIXES = ['shop_seed_select', 'farm_plant_seed_select', 'farm_', 'shop_', 'mikho_sell:', 'marry_', 'buy_ring', 'buy_bg', 'bj_'];
+    if (ECONOMY_INTERACTION_PREFIXES.some(p => interaction.customId && interaction.customId.startsWith(p))) {
+        const banInfo = isMinigameBanned(interaction.user.id);
+        if (banInfo) {
+            return interaction.reply({
+                content: `🚫 **BẠN ĐÃ BỊ CẤM THAM GIA MINIGAME & TÍNH NĂNG KINH TẾ!**\n📝 **Lý do:** ${banInfo.reason || 'Vi phạm quy định giải trí'}`,
+                flags: MessageFlags.Ephemeral
+            });
+        }
     }
 
     if (interaction.isStringSelectMenu() && interaction.customId === 'shop_seed_select') {
