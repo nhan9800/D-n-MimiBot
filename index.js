@@ -216,6 +216,37 @@ function isMinigameBanned(userId) {
     return null;
 }
 
+async function sendMinigameBanNotice(targetId, isBan, reason, authorUser, guildName) {
+    try {
+        const userObj = await client.users.fetch(targetId).catch(() => null);
+        if (!userObj) return;
+
+        const embed = new EmbedBuilder()
+            .setColor(isBan ? '#E74C3C' : '#2ECC71')
+            .setTitle(isBan ? '🚫 THÔNG BÁO KHÓA TÍNH NĂNG MINIGAME & KINH TẾ' : '🎉 THÔNG BÁO GỠ LỆNH CẤM MINIGAME & KINH TẾ')
+            .setDescription(
+                isBan 
+                    ? `Chào **${userObj.username}**,\n\nTài khoản của bạn đã bị **khóa quyền tham gia** các hoạt động kinh tế, minigame và giải trí trên hệ thống **MIMI BOT**.\n\n` +
+                      `🏰 **Máy chủ:** ${guildName || 'Hệ thống Mimi'}\n` +
+                      `📝 **Lý do cấm:** \`${reason || 'Vi phạm quy định giải trí'}\`\n` +
+                      `👮 **Người thực hiện:** ${authorUser ? `${authorUser.username} (\`${authorUser.id}\`)` : 'Ban Quản Trị'}\n` +
+                      `⏱️ **Thời điểm:** <t:${Math.floor(Date.now() / 1000)}:F>\n\n` +
+                      `⚠️ *Trong thời gian bị cấm, bạn sẽ không thể sử dụng các lệnh ví tiền (\`mic\`), daily (\`mid\`), nông trại (\`mifarm\`), minigame cá cược hay chuyển xu. Hãy liên hệ Quản trị viên máy chủ nếu bạn có thắc mắc.*`
+                    : `Chào **${userObj.username}**,\n\nTài khoản của bạn đã được **gỡ bỏ lệnh cấm** tính năng minigame & kinh tế trên hệ thống **MIMI BOT**.\n\n` +
+                      `🏰 **Máy chủ:** ${guildName || 'Hệ thống Mimi'}\n` +
+                      `👮 **Người thực hiện:** ${authorUser ? `${authorUser.username} (\`${authorUser.id}\`)` : 'Ban Quản Trị'}\n` +
+                      `⏱️ **Thời điểm:** <t:${Math.floor(Date.now() / 1000)}:F>\n\n` +
+                      `✨ *Bạn hiện đã có thể tiếp tục tham gia cày cuốc, chơi minigame, nông trại và các hoạt động giải trí bình thường!*`
+            )
+            .setFooter({ text: 'MIMI BOT Security & Moderation System' })
+            .setTimestamp();
+
+        await userObj.send({ embeds: [embed] }).catch(() => null);
+    } catch (e) {
+        console.error('Không thể gửi DM thông báo ban minigame:', e.message);
+    }
+}
+
 const configPath = path.join(__dirname, 'config.json');
 let config = {};
 
@@ -6685,8 +6716,11 @@ client.on('messageCreate', async (message) => {
             bannedBy: message.author.id
         };
         flushEconomy();
+
+        await sendMinigameBanNotice(targetId, true, reason, message.author, message.guild?.name);
+
         return message.reply({
-            content: `✅ Đã **CẤM** người dùng **${targetUsername}** (\`${targetId}\`) tham gia tất cả minigame!\n📝 **Lý do:** ${reason}`,
+            content: `✅ Đã **CẤM** người dùng **${targetUsername}** (\`${targetId}\`) tham gia tất cả minigame!\n📝 **Lý do:** ${reason}\n📬 *Đã gửi tin nhắn riêng (DM) thông báo tới người dùng.*`,
             allowedMentions: { repliedUser: false }
         });
     }
@@ -6733,8 +6767,11 @@ client.on('messageCreate', async (message) => {
             delete uData.minigameBan;
             flushEconomy();
         }
+
+        await sendMinigameBanNotice(targetId, false, '', message.author, message.guild?.name);
+
         return message.reply({
-            content: `✅ Đã **GỠ CẤM** minigame cho người dùng **${targetUsername}** (\`${targetId}\`). Người này hiện có thể chơi lại bình thường!`,
+            content: `✅ Đã **GỠ CẤM** minigame cho người dùng **${targetUsername}** (\`${targetId}\`). Người này hiện có thể chơi lại bình thường!\n📬 *Đã gửi tin nhắn riêng (DM) thông báo tới người dùng.*`,
             allowedMentions: { repliedUser: false }
         });
     }
@@ -9631,8 +9668,11 @@ client.on('interactionCreate', async interaction => {
                 bannedBy: interaction.user.id
             };
             flushEconomy();
+
+            await sendMinigameBanNotice(targetUser.id, true, reason, interaction.user, interaction.guild?.name);
+
             return interaction.editReply({
-                content: `✅ Đã **CẤM** người dùng **${targetUser.username}** (\`${targetUser.id}\`) tham gia tất cả minigame cá cược!\n📝 **Lý do:** ${reason}`
+                content: `✅ Đã **CẤM** người dùng **${targetUser.username}** (\`${targetUser.id}\`) tham gia tất cả minigame cá cược & kinh tế!\n📝 **Lý do:** ${reason}\n📬 *Đã gửi tin nhắn riêng (DM) thông báo tới người dùng.*`
             });
         }
 
@@ -9656,8 +9696,11 @@ client.on('interactionCreate', async interaction => {
                 delete uData.minigameBan;
                 flushEconomy();
             }
+
+            await sendMinigameBanNotice(targetUser.id, false, '', interaction.user, interaction.guild?.name);
+
             return interaction.editReply({
-                content: `✅ Đã **GỠ CẤM** minigame cho người dùng **${targetUser.username}** (\`${targetUser.id}\`). Người này hiện có thể chơi lại bình thường!`
+                content: `✅ Đã **GỠ CẤM** minigame cho người dùng **${targetUser.username}** (\`${targetUser.id}\`). Người này hiện có thể chơi lại bình thường!\n📬 *Đã gửi tin nhắn riêng (DM) thông báo tới người dùng.*`
             });
         }
 
