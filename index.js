@@ -1059,19 +1059,19 @@ function sellArtifactsHelper(targetUser, userId, tier = 'all', guildId = null) {
     let tierLabel = '';
 
     if (normTier === 'thuong' || normTier === 'thường' || normTier === '1' || normTier === 'vechai') {
-        sellTypes = ['do_co', 've_chai'];
+        sellTypes = ['do_co', 've_chai', 'ca_thuong'];
         tierLabel = 'Thường & Ve chai';
     } else if (normTier === 'hiem' || normTier === 'hiếm' || normTier === '2') {
-        sellTypes = ['do_co_2'];
-        tierLabel = 'Hiếm';
+        sellTypes = ['do_co_2', 'ca_kha', 'ca_hiem'];
+        tierLabel = 'Khá & Hiếm';
     } else if (normTier === 'suthi' || normTier === 'sử thi' || normTier === 'st' || normTier === '3') {
-        sellTypes = ['do_co_3'];
-        tierLabel = 'Sử Thi';
+        sellTypes = ['do_co_3', 'ca_cuchiem'];
+        tierLabel = 'Sử Thi & Cực Hiếm';
     } else if (normTier === 'truyenthuyet' || normTier === 'truyền thuyết' || normTier === 'tt' || normTier === '4') {
-        sellTypes = ['do_co_4'];
-        tierLabel = 'Truyền Thuyết';
+        sellTypes = ['do_co_4', 'ca_thanthoai', 'ca_truyenthuyet'];
+        tierLabel = 'Truyền Thuyết & Thần Thoại';
     } else {
-        sellTypes = ['do_co_4', 'do_co_3', 'do_co_2', 'do_co', 've_chai'];
+        sellTypes = ['do_co_4', 'do_co_3', 'do_co_2', 'do_co', 've_chai', 'ca_thuong', 'ca_kha', 'ca_hiem', 'ca_cuchiem', 'ca_thanthoai', 'ca_truyenthuyet'];
         tierLabel = 'Tất cả phẩm cấp';
     }
 
@@ -1106,6 +1106,30 @@ function sellArtifactsHelper(targetUser, userId, tier = 'all', guildId = null) {
     if (sellTypes.includes('ve_chai') && inv.ve_chai) {
         let t = 0; for (let i = 0; i < inv.ve_chai; i++) t += Math.floor(Math.random() * 2001) + 1000;
         total += t; soldMsg.push(`📦 **${inv.ve_chai}x** Đồ Cũ (Ve chai) → \`+${t.toLocaleString()} xu\``); delete inv.ve_chai;
+    }
+    if (sellTypes.includes('ca_truyenthuyet') && inv.ca_truyenthuyet) {
+        let t = inv.ca_truyenthuyet * 200000;
+        total += t; soldMsg.push(`🧜‍♀️ **${inv.ca_truyenthuyet}x** Tiên Cá (Truyền Thuyết) → \`+${t.toLocaleString()} xu\``); delete inv.ca_truyenthuyet;
+    }
+    if (sellTypes.includes('ca_thanthoai') && inv.ca_thanthoai) {
+        let t = inv.ca_thanthoai * 50000;
+        total += t; soldMsg.push(`🐬 **${inv.ca_thanthoai}x** Cá Heo Hồng (Thần Thoại) → \`+${t.toLocaleString()} xu\``); delete inv.ca_thanthoai;
+    }
+    if (sellTypes.includes('ca_cuchiem') && inv.ca_cuchiem) {
+        let t = inv.ca_cuchiem * 15000;
+        total += t; soldMsg.push(`🦈 **${inv.ca_cuchiem}x** Cá Mập Con (Cực Hiếm) → \`+${t.toLocaleString()} xu\``); delete inv.ca_cuchiem;
+    }
+    if (sellTypes.includes('ca_hiem') && inv.ca_hiem) {
+        let t = inv.ca_hiem * 8000;
+        total += t; soldMsg.push(`🐡 **${inv.ca_hiem}x** Cá Ngừ Đại Dương (Hiếm) → \`+${t.toLocaleString()} xu\``); delete inv.ca_hiem;
+    }
+    if (sellTypes.includes('ca_kha') && inv.ca_kha) {
+        let t = inv.ca_kha * 3000;
+        total += t; soldMsg.push(`🐠 **${inv.ca_kha}x** Cá Hồi (Khá) → \`+${t.toLocaleString()} xu\``); delete inv.ca_kha;
+    }
+    if (sellTypes.includes('ca_thuong') && inv.ca_thuong) {
+        let t = 0; for(let i=0; i<inv.ca_thuong; i++) t += Math.floor(Math.random() * 501) + 1000;
+        total += t; soldMsg.push(`🐟 **${inv.ca_thuong}x** Cá Thường (Bảy màu/Rô phi) → \`+${t.toLocaleString()} xu\``); delete inv.ca_thuong;
     }
 
     userData.balance += total;
@@ -7255,9 +7279,24 @@ client.on('messageCreate', async (message) => {
         if (inv.do_co) { docoStr += `• 💚 **Đồ Cổ (Thường):** \`${inv.do_co}\` món *(~3k-8k/món)*\n`; docoCount += inv.do_co; }
         if (inv.ve_chai) { docoStr += `• 📦 **Ve chai / Đồ cũ:** \`${inv.ve_chai}\` món *(~1k-3k/món)*\n`; docoCount += inv.ve_chai; }
         
+        let fishCount = 0;
+        let fishStr = '';
+        if (inv.ca_truyenthuyet) { fishStr += `• 🧜‍♀️ **Tiên Cá (Truyền Thuyết):** \`${inv.ca_truyenthuyet}\` con\n`; fishCount += inv.ca_truyenthuyet; }
+        if (inv.ca_thanthoai) { fishStr += `• 🐬 **Cá Heo Hồng (Thần Thoại):** \`${inv.ca_thanthoai}\` con\n`; fishCount += inv.ca_thanthoai; }
+        if (inv.ca_cuchiem) { fishStr += `• 🦈 **Cá Mập Con (Cực Hiếm):** \`${inv.ca_cuchiem}\` con\n`; fishCount += inv.ca_cuchiem; }
+        if (inv.ca_hiem) { fishStr += `• 🐡 **Cá Ngừ (Hiếm):** \`${inv.ca_hiem}\` con\n`; fishCount += inv.ca_hiem; }
+        if (inv.ca_kha) { fishStr += `• 🐠 **Cá Hồi (Khá):** \`${inv.ca_kha}\` con\n`; fishCount += inv.ca_kha; }
+        if (inv.ca_thuong) { fishStr += `• 🐟 **Cá Thường/Rô Phi:** \`${inv.ca_thuong}\` con\n`; fishCount += inv.ca_thuong; }
+
         embed.addFields({
-            name: `🏺 Đồ Cổ & Vật Phẩm Tìm Thấy (${docoCount} món)`,
-            value: docoStr || '*Chưa có món đồ cổ nào! Dùng `mitimdo` để đi săn đồ cổ.*',
+            name: `🏺 Đồ Cổ & Ve Chai (${docoCount} món)`,
+            value: docoStr || '*Chưa có món nào! Dùng `mitimdo` để đi săn đồ cổ.*',
+            inline: false
+        });
+
+        embed.addFields({
+            name: `🎣 Cá Câu Được (${fishCount} con)`,
+            value: fishStr || '*Chưa có con cá nào! Dùng `micaoca` để câu cá.*',
             inline: false
         });
 
@@ -7291,11 +7330,11 @@ client.on('messageCreate', async (message) => {
         embed.setFooter({ text: 'Bấm nút bên dưới hoặc gõ "mikho ban [thuong/hiem/suthi/truyenthuyet/all]"' });
 
         const row = new ActionRowBuilder().addComponents(
-            new ButtonBuilder().setCustomId('mikho_sell:thuong').setLabel('📦 Bán Thường').setStyle(ButtonStyle.Success).setDisabled((inv.do_co || 0) + (inv.ve_chai || 0) === 0),
-            new ButtonBuilder().setCustomId('mikho_sell:hiem').setLabel('💙 Bán Hiếm').setStyle(ButtonStyle.Primary).setDisabled((inv.do_co_2 || 0) === 0),
-            new ButtonBuilder().setCustomId('mikho_sell:suthi').setLabel('💜 Bán Sử Thi').setStyle(ButtonStyle.Primary).setDisabled((inv.do_co_3 || 0) === 0),
-            new ButtonBuilder().setCustomId('mikho_sell:truyenthuyet').setLabel('🌟 Bán TT').setStyle(ButtonStyle.Secondary).setDisabled((inv.do_co_4 || 0) === 0),
-            new ButtonBuilder().setCustomId('mikho_sell:all').setLabel('💰 Bán Hết').setStyle(ButtonStyle.Danger).setDisabled(docoCount === 0)
+            new ButtonBuilder().setCustomId('mikho_sell:thuong').setLabel('📦 Bán Thường').setStyle(ButtonStyle.Success).setDisabled((inv.do_co || 0) + (inv.ve_chai || 0) + (inv.ca_thuong || 0) === 0),
+            new ButtonBuilder().setCustomId('mikho_sell:hiem').setLabel('💙 Bán Khá/Hiếm').setStyle(ButtonStyle.Primary).setDisabled((inv.do_co_2 || 0) + (inv.ca_kha || 0) + (inv.ca_hiem || 0) === 0),
+            new ButtonBuilder().setCustomId('mikho_sell:suthi').setLabel('💜 Bán Sử Thi/CH').setStyle(ButtonStyle.Primary).setDisabled((inv.do_co_3 || 0) + (inv.ca_cuchiem || 0) === 0),
+            new ButtonBuilder().setCustomId('mikho_sell:truyenthuyet').setLabel('🌟 Bán TT/Thần Thoại').setStyle(ButtonStyle.Secondary).setDisabled((inv.do_co_4 || 0) + (inv.ca_thanthoai || 0) + (inv.ca_truyenthuyet || 0) === 0),
+            new ButtonBuilder().setCustomId('mikho_sell:all').setLabel('💰 Bán Tất Cả').setStyle(ButtonStyle.Danger).setDisabled(docoCount + fishCount === 0)
         );
 
         return message.reply({ embeds: [embed], components: [row] });
@@ -7478,15 +7517,15 @@ client.on('messageCreate', async (message) => {
         userData.cooldowns.caoca = now + 60000; // 60 giây cooldown
 
         const fishPool = [
-            { name: 'Khúc Gỗ Mục', price: 0, emoji: '🪵', weight: 40, rarity: 'Rác' },
-            { name: 'Chiếc Giày Cũ', price: 0, emoji: '👞', weight: 30, rarity: 'Rác' },
-            { name: 'Cá Bảy Màu', price: 1000, emoji: '🐟', weight: 100, rarity: 'Thường' },
-            { name: 'Cá Rô Phi', price: 1500, emoji: '🐟', weight: 90, rarity: 'Thường' },
-            { name: 'Cá Hồi', price: 3000, emoji: '🐠', weight: 70, rarity: 'Khá' },
-            { name: 'Cá Ngừ Đại Dương', price: 8000, emoji: '🐡', weight: 40, rarity: 'Hiếm' },
-            { name: 'Cá Mập Con', price: 15000, emoji: '🦈', weight: 15, rarity: 'Cực Hiếm' },
-            { name: 'Cá Heo Hồng', price: 50000, emoji: '🐬', weight: 5, rarity: 'Thần Thoại' },
-            { name: 'Tiên Cá', price: 200000, emoji: '🧜‍♀️', weight: 1, rarity: 'Truyền Thuyết' },
+            { id: null, name: 'Khúc Gỗ Mục', price: 0, emoji: '🪵', weight: 40, rarity: 'Rác' },
+            { id: null, name: 'Chiếc Giày Cũ', price: 0, emoji: '👞', weight: 30, rarity: 'Rác' },
+            { id: 'ca_thuong', name: 'Cá Bảy Màu', price: 1000, emoji: '🐟', weight: 100, rarity: 'Thường' },
+            { id: 'ca_thuong', name: 'Cá Rô Phi', price: 1500, emoji: '🐟', weight: 90, rarity: 'Thường' },
+            { id: 'ca_kha', name: 'Cá Hồi', price: 3000, emoji: '🐠', weight: 70, rarity: 'Khá' },
+            { id: 'ca_hiem', name: 'Cá Ngừ Đại Dương', price: 8000, emoji: '🐡', weight: 40, rarity: 'Hiếm' },
+            { id: 'ca_cuchiem', name: 'Cá Mập Con', price: 15000, emoji: '🦈', weight: 15, rarity: 'Cực Hiếm' },
+            { id: 'ca_thanthoai', name: 'Cá Heo Hồng', price: 50000, emoji: '🐬', weight: 5, rarity: 'Thần Thoại' },
+            { id: 'ca_truyenthuyet', name: 'Tiên Cá', price: 200000, emoji: '🧜‍♀️', weight: 1, rarity: 'Truyền Thuyết' },
         ];
 
         let totalWeight = fishPool.reduce((sum, item) => sum + item.weight, 0);
@@ -7505,10 +7544,10 @@ client.on('messageCreate', async (message) => {
         desc += `**${caughtFish.emoji} ${caughtFish.name}**\n`;
         desc += `• **Độ hiếm:** ${caughtFish.rarity}\n`;
         
-        if (caughtFish.price > 0) {
-            desc += `• **Bán ngay được:** \`${caughtFish.price.toLocaleString()} xu\` 💰\n\n`;
-            userData.balance = (userData.balance || 0) + caughtFish.price;
-            recordEconomyIncome(userId, message.guild?.id, caughtFish.price, 'cau_ca');
+        if (caughtFish.id) {
+            desc += `• **Đã cất vào kho đồ!** (Dùng \`mikho\` để bán lấy xu)\n\n`;
+            if (!userData.inventory) userData.inventory = {};
+            userData.inventory[caughtFish.id] = (userData.inventory[caughtFish.id] || 0) + 1;
         } else {
             desc += `• **Giá trị:** Trắng tay! 🗑️\n\n`;
         }
