@@ -629,6 +629,23 @@ async function sendEconomyOwnerAlert(userId, guildId, totalEarned, threshold, cu
                 }
             });
         }
+
+        // Gửi DM cảnh báo trực tiếp cho người chơi
+        if (targetUser && targetUser.id !== OWNER_ID) {
+            const userWarningEmbed = new EmbedBuilder()
+                .setColor('#F1C40F')
+                .setTitle('⚠️ CẢNH BÁO TỪ HỆ THỐNG MIMI BOT')
+                .setDescription(
+                    `Chào bạn,\n\nHệ thống ghi nhận hôm nay bạn đã kiếm được hơn **${threshold.toLocaleString()} xu** (Tổng: **${totalEarned.toLocaleString()} xu**).\n\n` +
+                    `Hãy chú ý giữ gìn sức khỏe, tránh lạm dụng và cày cuốc quá sức nhé! Việc sử dụng tool auto có thể dẫn đến việc bị khóa tài khoản vĩnh viễn.\n\n` +
+                    `Chúc bạn chơi game vui vẻ!`
+                )
+                .setFooter({ text: 'Mimi Economy Security' });
+            
+            await targetUser.send(embedToV2Payload(userWarningEmbed)).catch(() => {
+                console.warn(`⚠️ Không thể gửi DM cảnh báo cho User (${userId})`);
+            });
+        }
     } catch (err) {
         console.error('❌ Lỗi khi gửi cảnh báo economy:', err);
     }
@@ -6833,6 +6850,8 @@ client.on('messageCreate', async (message) => {
         'mikho', 'mibando', 'miban',
         'mibg', 'setbackground',
         'mikethon', 'milyhon', 'lyhon',
+        'micaoca', 'mifish',
+        'mipet', 'minuoithu',
         'mitimdo', 'mitd', 'mitim',
         'micf', 'micoinflip', `${serverPrefix}cf`, `${serverPrefix}coinflip`,
         'mid6', 'mixucxac', `${serverPrefix}dice`,
@@ -7033,6 +7052,7 @@ client.on('messageCreate', async (message) => {
                 `• Mua thêm Ô thứ **${nextPlot <= MAX_FARM_PLOTS ? nextPlot : 'MAX'}**: ` +
                 (nextPlot <= MAX_FARM_PLOTS ? `\`${nextPlotPrice.toLocaleString()} xu\`` : `*(Đã đạt tối đa)*`) + `\n\n` +
                 `💍 **3. VẬT PHẨM ĐẶC BIỆT:**\n` +
+                `• 🎣 **Cần Câu (10 lần)** — \`10,000 xu\` *(Dùng câu cá \`micaoca\`)*\n` +
                 `• 💍 **Nhẫn Cưới** — \`1,000,000 xu\` *(Dùng cầu hôn \`mikethon @user\`)*\n` +
                 `• 🖼️ **Ảnh Bìa Profile** — \`50,000 xu\` *(Đổi hình nền \`miprofile\`)*`
             )
@@ -7056,8 +7076,9 @@ client.on('messageCreate', async (message) => {
         const rowButtons = new ActionRowBuilder().addComponents(
             new ButtonBuilder().setCustomId('shop_buy_plot').setLabel(`🚜 Mua Thêm Đất (${nextPlot <= MAX_FARM_PLOTS ? nextPlotPrice.toLocaleString() + ' xu' : 'Đã Đạt Max'})`).setStyle(ButtonStyle.Success).setDisabled(nextPlot > MAX_FARM_PLOTS),
             new ButtonBuilder().setCustomId('buy_ring').setLabel('💍 Mua Nhẫn Cưới').setStyle(ButtonStyle.Secondary),
-            new ButtonBuilder().setCustomId('buy_bg').setLabel('🖼️ Mua Nền Profile (50k)').setStyle(ButtonStyle.Secondary),
-            new ButtonBuilder().setCustomId('farm_open_btn').setLabel('🌾 Vào Nông Trại').setStyle(ButtonStyle.Primary)
+            new ButtonBuilder().setCustomId('buy_bg').setLabel('🖼️ Nền Profile').setStyle(ButtonStyle.Secondary),
+            new ButtonBuilder().setCustomId('buy_fishing_rod').setLabel('🎣 Mua Cần Câu (10k)').setStyle(ButtonStyle.Primary),
+            new ButtonBuilder().setCustomId('farm_open_btn').setLabel('🌾 Vào Nông Trại').setStyle(ButtonStyle.Success)
         );
 
         return message.reply({ embeds: [shopEmbed], components: [rowMenu, rowButtons] });
@@ -7429,6 +7450,129 @@ client.on('messageCreate', async (message) => {
             .setTimestamp();
 
         return message.reply({ embeds: [embed] });
+    }
+
+    // 🎣 LỆNH CÂU CÁ: micaoca | mifish
+    if (command === 'micaoca' || command === 'mifish') {
+        const banInfo = isMinigameBanned(userId);
+        if (banInfo) {
+            return message.reply({ 
+                content: `🚫 **BẠN ĐÃ BỊ CẤM CHƠI MINIGAME!**\n📝 **Lý do:** ${banInfo.reason || 'Vi phạm quy định'}`,
+                allowedMentions: { repliedUser: false } 
+            });
+        }
+
+        const userData = getUserData(userId);
+        if (!userData.cancau_uses || userData.cancau_uses <= 0) {
+            return message.reply('❌ Bạn không có **🎣 Cần Câu** hoặc cần câu đã hỏng! Hãy vào cửa hàng (`mishop`) để mua Cần Câu (10k xu/10 lần câu).');
+        }
+
+        const now = Date.now();
+        if (userData.cooldowns && userData.cooldowns.caoca && now < userData.cooldowns.caoca) {
+            const timeLeft = Math.ceil((userData.cooldowns.caoca - now) / 1000);
+            return message.reply(`⏳ Đang móc mồi... Vui lòng chờ **${timeLeft}s** nữa mới có thể câu tiếp!`);
+        }
+
+        userData.cancau_uses -= 1;
+        if (!userData.cooldowns) userData.cooldowns = {};
+        userData.cooldowns.caoca = now + 60000; // 60 giây cooldown
+
+        const fishPool = [
+            { name: 'Khúc Gỗ Mục', price: 0, emoji: '🪵', weight: 40, rarity: 'Rác' },
+            { name: 'Chiếc Giày Cũ', price: 0, emoji: '👞', weight: 30, rarity: 'Rác' },
+            { name: 'Cá Bảy Màu', price: 1000, emoji: '🐟', weight: 100, rarity: 'Thường' },
+            { name: 'Cá Rô Phi', price: 1500, emoji: '🐟', weight: 90, rarity: 'Thường' },
+            { name: 'Cá Hồi', price: 3000, emoji: '🐠', weight: 70, rarity: 'Khá' },
+            { name: 'Cá Ngừ Đại Dương', price: 8000, emoji: '🐡', weight: 40, rarity: 'Hiếm' },
+            { name: 'Cá Mập Con', price: 15000, emoji: '🦈', weight: 15, rarity: 'Cực Hiếm' },
+            { name: 'Cá Heo Hồng', price: 50000, emoji: '🐬', weight: 5, rarity: 'Thần Thoại' },
+            { name: 'Tiên Cá', price: 200000, emoji: '🧜‍♀️', weight: 1, rarity: 'Truyền Thuyết' },
+        ];
+
+        let totalWeight = fishPool.reduce((sum, item) => sum + item.weight, 0);
+        let randomNum = Math.floor(Math.random() * totalWeight);
+        let caughtFish = null;
+
+        for (const fish of fishPool) {
+            if (randomNum < fish.weight) {
+                caughtFish = fish;
+                break;
+            }
+            randomNum -= fish.weight;
+        }
+
+        let desc = `🎣 **${message.author.username}** thả cần câu xuống nước... và giật được:\n\n`;
+        desc += `**${caughtFish.emoji} ${caughtFish.name}**\n`;
+        desc += `• **Độ hiếm:** ${caughtFish.rarity}\n`;
+        
+        if (caughtFish.price > 0) {
+            desc += `• **Bán ngay được:** \`${caughtFish.price.toLocaleString()} xu\` 💰\n\n`;
+            userData.balance = (userData.balance || 0) + caughtFish.price;
+            recordEconomyIncome(userId, message.guild?.id, caughtFish.price, 'cau_ca');
+        } else {
+            desc += `• **Giá trị:** Trắng tay! 🗑️\n\n`;
+        }
+
+        desc += `🪝 Cần câu còn: **${userData.cancau_uses} lần** sử dụng.`;
+        if (userData.cancau_uses === 0) {
+            desc += `\n⚠️ *Cần câu của bạn đã hỏng! Hãy mua cái mới trong \`mishop\`.*`;
+        }
+        saveEconomy();
+
+        const embed = new EmbedBuilder()
+            .setColor(caughtFish.price > 10000 ? '#FFD700' : (caughtFish.price > 0 ? '#3498DB' : '#95A5A6'))
+            .setTitle('🎣 KẾT QUẢ ĐI CÂU')
+            .setDescription(desc)
+            .setThumbnail(message.author.displayAvatarURL());
+        return message.reply({ embeds: [embed] });
+    }
+
+    // 🐾 LỆNH NUÔI THÚ: mipet | minuoithu
+    if (command === 'mipet' || command === 'minuoithu') {
+        const banInfo = isMinigameBanned(userId);
+        if (banInfo) {
+            return message.reply({ 
+                content: `🚫 **BẠN ĐÃ BỊ CẤM CHƠI MINIGAME!**`,
+                allowedMentions: { repliedUser: false } 
+            });
+        }
+
+        const userData = getUserData(userId);
+        if (!userData.pet) {
+            const adoptEmbed = new EmbedBuilder()
+                .setColor('#E67E22')
+                .setTitle('🐾 TRUNG TÂM NHẬN NUÔI THÚ CƯNG')
+                .setDescription('Bạn chưa có thú cưng nào! Hãy chọn nhận nuôi một bé thú cưng với giá **50,000 xu** nhé.')
+                .setThumbnail(message.author.displayAvatarURL());
+            
+            const row = new ActionRowBuilder().addComponents(
+                new ButtonBuilder().setCustomId('pet_adopt_dog').setLabel('🐶 Nhận Nuôi Chó').setStyle(ButtonStyle.Primary),
+                new ButtonBuilder().setCustomId('pet_adopt_cat').setLabel('🐱 Nhận Nuôi Mèo').setStyle(ButtonStyle.Primary)
+            );
+            return message.reply({ embeds: [adoptEmbed], components: [row] });
+        }
+
+        const pet = userData.pet;
+        const hungerStatus = pet.hunger >= 80 ? '🟢 Căng bụng' : (pet.hunger >= 40 ? '🟡 Hơi đói' : '🔴 Rất đói');
+        const happyStatus = pet.happiness >= 80 ? '🟢 Vui vẻ' : (pet.happiness >= 40 ? '🟡 Bình thường' : '🔴 Buồn chán');
+
+        const petEmbed = new EmbedBuilder()
+            .setColor('#2ECC71')
+            .setTitle(`🐾 THÚ CƯNG CỦA ${message.author.username.toUpperCase()}`)
+            .setDescription(`**${pet.emoji} Tên:** ${pet.name}\n**⭐ Cấp độ:** ${pet.level}\n**📈 XP:** ${pet.xp}/${pet.level * 100}`)
+            .addFields(
+                { name: '🍖 Độ No', value: `**${pet.hunger}/100** (${hungerStatus})`, inline: true },
+                { name: '🎾 Vui Vẻ', value: `**${pet.happiness}/100** (${happyStatus})`, inline: true }
+            )
+            .setFooter({ text: 'Hãy chăm sóc thú cưng thường xuyên để bé mau lớn nhé!' })
+            .setThumbnail(message.author.displayAvatarURL());
+        
+        const row = new ActionRowBuilder().addComponents(
+            new ButtonBuilder().setCustomId('pet_feed').setLabel('🍖 Cho Ăn (5k xu)').setStyle(ButtonStyle.Success).setDisabled(pet.hunger >= 100),
+            new ButtonBuilder().setCustomId('pet_play').setLabel('🎾 Chơi Cùng').setStyle(ButtonStyle.Primary).setDisabled(pet.happiness >= 100)
+        );
+
+        return message.reply({ embeds: [petEmbed], components: [row] });
     }
 
     // 3. Lệnh tung đồng xu: micf | micoinflip | giới hạn 250,000 xu / lần, hỗ trợ 'all'
@@ -10193,6 +10337,7 @@ client.on('interactionCreate', async interaction => {
                     `• Mua thêm Ô thứ **${nextPlot <= MAX_FARM_PLOTS ? nextPlot : 'MAX'}**: ` +
                     (nextPlot <= MAX_FARM_PLOTS ? `\`${nextPlotPrice.toLocaleString()} xu\`` : `*(Đã đạt tối đa)*`) + `\n\n` +
                     `💍 **3. VẬT PHẨM ĐẶC BIỆT:**\n` +
+                    `• 🎣 **Cần Câu (10 lần)** — \`10,000 xu\` *(Dùng câu cá \`micaoca\`)*\n` +
                     `• 💍 **Nhẫn Cưới** — \`1,000,000 xu\` *(Dùng cầu hôn \`mikethon @user\`)*\n` +
                     `• 🖼️ **Ảnh Bìa Profile** — \`50,000 xu\` *(Đổi hình nền \`miprofile\`)*`
                 )
@@ -10216,8 +10361,9 @@ client.on('interactionCreate', async interaction => {
             const rowButtons = new ActionRowBuilder().addComponents(
                 new ButtonBuilder().setCustomId('shop_buy_plot').setLabel(`🚜 Mua Thêm Đất (${nextPlot <= MAX_FARM_PLOTS ? nextPlotPrice.toLocaleString() + ' xu' : 'Đã Đạt Max'})`).setStyle(ButtonStyle.Success).setDisabled(nextPlot > MAX_FARM_PLOTS),
                 new ButtonBuilder().setCustomId('buy_ring').setLabel('💍 Mua Nhẫn Cưới').setStyle(ButtonStyle.Secondary),
-                new ButtonBuilder().setCustomId('buy_bg').setLabel('🖼️ Mua Nền Profile (50k)').setStyle(ButtonStyle.Secondary),
-                new ButtonBuilder().setCustomId('farm_open_btn').setLabel('🌾 Vào Nông Trại').setStyle(ButtonStyle.Primary)
+                new ButtonBuilder().setCustomId('buy_bg').setLabel('🖼️ Nền Profile').setStyle(ButtonStyle.Secondary),
+                new ButtonBuilder().setCustomId('buy_fishing_rod').setLabel('🎣 Mua Cần Câu (10k)').setStyle(ButtonStyle.Primary),
+                new ButtonBuilder().setCustomId('farm_open_btn').setLabel('🌾 Vào Nông Trại').setStyle(ButtonStyle.Success)
             );
 
             return interaction.reply({ embeds: [shopEmbed], components: [rowMenu, rowButtons] });
@@ -12226,7 +12372,7 @@ if (commandName === 'setup') {
         return interaction.update({ embeds: [pageEmbed], components: interaction.message.components });
     }
 
-    const ECONOMY_INTERACTION_PREFIXES = ['shop_seed_select', 'farm_plant_seed_select', 'farm_', 'shop_', 'mikho_sell:', 'marry_', 'buy_ring', 'buy_bg', 'bj_'];
+    const ECONOMY_INTERACTION_PREFIXES = ['shop_seed_select', 'farm_plant_seed_select', 'farm_', 'shop_', 'mikho_sell:', 'marry_', 'buy_ring', 'buy_bg', 'buy_fishing_rod', 'pet_', 'bj_'];
     if (ECONOMY_INTERACTION_PREFIXES.some(p => interaction.customId && interaction.customId.startsWith(p))) {
         const banInfo = isMinigameBanned(interaction.user.id);
         if (banInfo) {
@@ -12630,6 +12776,75 @@ if (commandName === 'setup') {
             userData.inventory.bg_profile = 1;
             saveEconomy();
             return interaction.reply({ content: '✅ Bạn đã mua **Ảnh Bìa Profile**! Hãy dùng lệnh `mibg <link_ảnh>` để cài đặt nền cho thẻ hồ sơ của bạn.', flags: MessageFlags.Ephemeral });
+        }
+        
+        if (customId === 'buy_fishing_rod') {
+            const userData = getUserData(interaction.user.id);
+            if (userData.balance < 10000) {
+                return interaction.reply({ content: '❌ Bạn không đủ 10,000 xu để mua Cần Câu!', flags: MessageFlags.Ephemeral });
+            }
+            userData.balance -= 10000;
+            userData.cancau_uses = (userData.cancau_uses || 0) + 10;
+            saveEconomy();
+            return interaction.reply({ content: `✅ Bạn đã mua **🎣 Cần Câu** thành công! Cần câu hiện tại có **${userData.cancau_uses} lần** sử dụng.\nHãy dùng lệnh \`micaoca\` hoặc \`/caoca\` để bắt cá nhé!`, flags: MessageFlags.Ephemeral });
+        }
+
+        if (customId === 'pet_adopt_dog' || customId === 'pet_adopt_cat') {
+            const userData = getUserData(interaction.user.id);
+            if (userData.pet) return interaction.reply({ content: '❌ Bạn đã có thú cưng rồi!', flags: MessageFlags.Ephemeral });
+            if (userData.balance < 50000) return interaction.reply({ content: '❌ Bạn không đủ 50,000 xu để nhận nuôi thú cưng!', flags: MessageFlags.Ephemeral });
+            
+            userData.balance -= 50000;
+            const isDog = customId === 'pet_adopt_dog';
+            userData.pet = {
+                type: isDog ? 'dog' : 'cat',
+                name: isDog ? 'Cún' : 'Miu',
+                emoji: isDog ? '🐶' : '🐱',
+                level: 1,
+                xp: 0,
+                hunger: 50,
+                happiness: 50
+            };
+            saveEconomy();
+            return interaction.reply({ content: `✅ Chúc mừng! Bạn đã nhận nuôi một bé **${userData.pet.emoji} ${userData.pet.name}**! Dùng lệnh \`mipet\` để xem và chăm sóc nhé.`, flags: MessageFlags.Ephemeral });
+        }
+
+        if (customId === 'pet_feed' || customId === 'pet_play') {
+            const userData = getUserData(interaction.user.id);
+            if (!userData.pet) return interaction.reply({ content: '❌ Bạn chưa có thú cưng!', flags: MessageFlags.Ephemeral });
+            
+            const pet = userData.pet;
+            
+            if (customId === 'pet_feed') {
+                if (pet.hunger >= 100) return interaction.reply({ content: '❌ Thú cưng của bạn đã no rồi!', flags: MessageFlags.Ephemeral });
+                if (userData.balance < 5000) return interaction.reply({ content: '❌ Bạn không đủ 5,000 xu để mua thức ăn!', flags: MessageFlags.Ephemeral });
+                userData.balance -= 5000;
+                pet.hunger = Math.min(100, pet.hunger + 30);
+                pet.xp += 10;
+            } else {
+                if (pet.happiness >= 100) return interaction.reply({ content: '❌ Thú cưng của bạn đã rất vui vẻ rồi!', flags: MessageFlags.Ephemeral });
+                
+                const now = Date.now();
+                if (userData.cooldowns && userData.cooldowns.pet_play && now < userData.cooldowns.pet_play) {
+                    const timeLeft = Math.ceil((userData.cooldowns.pet_play - now) / 1000);
+                    return interaction.reply({ content: `⏳ Thú cưng đang mệt, vui lòng chờ **${timeLeft}s** nữa để chơi tiếp!`, flags: MessageFlags.Ephemeral });
+                }
+                if (!userData.cooldowns) userData.cooldowns = {};
+                userData.cooldowns.pet_play = now + 60000; // 60s cooldown
+
+                pet.happiness = Math.min(100, pet.happiness + 25);
+                pet.xp += 15;
+            }
+
+            let levelUpMsg = '';
+            if (pet.xp >= pet.level * 100) {
+                pet.xp -= pet.level * 100;
+                pet.level += 1;
+                levelUpMsg = `\n🎉 **Thú cưng đã LÊN CẤP ${pet.level}!**`;
+            }
+
+            saveEconomy();
+            return interaction.reply({ content: `✅ Bạn đã ${customId === 'pet_feed' ? 'cho thú cưng ăn ngon lành' : 'chơi đùa vui vẻ cùng thú cưng'}! (+XP)${levelUpMsg}`, flags: MessageFlags.Ephemeral });
         }
         
         if (customId === 'buy_ring') {
