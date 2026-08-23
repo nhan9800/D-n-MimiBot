@@ -13812,7 +13812,15 @@ if (commandName === 'setup') {
                 const draft = broadcastDrafts.get(interaction.user.id);
                 if (!draft || draft.embeds.length === 0) return interaction.reply({ content: "❌ Chưa có bảng nào để phát sóng!", flags: MessageFlags.Ephemeral });
                 const guildsList = [...client.guilds.cache.values()];
-                await interaction.update({ content: `🚀 Đang phát sóng tới ${guildsList.length} máy chủ...`, embeds: [], components: [] });
+                
+                const loadingContainer = new ContainerBuilder().setAccentColor(0xF1C40F)
+                    .addTextDisplayComponents(new TextDisplayBuilder().setContent(`## 🚀 ĐANG PHÁT SÓNG...\n> Đang gửi thông báo tới **${guildsList.length}** máy chủ, vui lòng đợi trong giây lát!`));
+                
+                await interaction.update({
+                    components: [loadingContainer],
+                    flags: MessageFlags.IsComponentsV2
+                });
+                
                 let sentCount = 0;
                 
                 const broadcastContainers = draft.embeds.map((e, idx) => {
@@ -13860,7 +13868,17 @@ if (commandName === 'setup') {
                     } catch (e) {}
                 }
                 broadcastDrafts.delete(interaction.user.id);
-                return interaction.editReply({ content: `✅ **ĐÃ GỬI THÔNG BÁO THÀNH CÔNG!**\nThành công: **${sentCount} / ${guildsList.length}** máy chủ.` });
+                
+                const successContainer = new ContainerBuilder().setAccentColor(0x2ECC71)
+                    .addTextDisplayComponents(new TextDisplayBuilder().setContent(
+                        `## ✅ PHÁT SÓNG THÀNH CÔNG!\n` +
+                        `> Đã gửi thông báo tới **${sentCount} / ${guildsList.length}** máy chủ.`
+                    ));
+                
+                return interaction.editReply({
+                    components: [successContainer],
+                    flags: MessageFlags.IsComponentsV2
+                });
             }
         }
         if (interaction.isModalSubmit()) {
