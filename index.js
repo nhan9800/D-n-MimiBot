@@ -2747,6 +2747,7 @@ setInterval(() => ensureYtDlpBinary().catch(() => null), 6 * 60 * 60 * 1000).unr
 
 // guildId -> { connection, player, voiceChannelId, textChannel, queue, current, currentResource, currentProcess, volume, loop, nowPlayingMessage, idleTimeout }
 const musicQueues = new Map();
+const broadcastDrafts = new Map();
 
 // guildId -> { connection, player, voiceChannelId, queue, speaking, idleTimeout }
 const ttsQueues = new Map();
@@ -6496,115 +6497,33 @@ client.on('messageCreate', async (message) => {
     }
 
     // ==========================================
-    // 📢 LỆNH PHÁT SÓNG LIÊN SERVER: mibroadcast (Admin & Owner)
+    // ?? L?NH PH�T S�NG LI�N SERVER: mibroadcast (Admin & Owner)
     // ==========================================
-    if (command === 'mibroadcast' || command === 'mithongbaoliensv') {
-        const isOwner = message.author.id === OWNER_ID ||
-                        (client.application?.owner && (
-                            client.application.owner.id === message.author.id ||
-                            client.application.owner.members?.has?.(message.author.id)
-                        ));
-        const isAdmin = message.member?.permissions?.has(PermissionFlagsBits.Administrator) ||
-                        message.member?.permissions?.has(PermissionFlagsBits.ManageGuild);
+    if (command === "mibroadcast" || command === "mithongbaoliensv") {
+        const isOwner = message.author.id === OWNER_ID || (client.application?.owner && (client.application.owner.id === message.author.id || client.application.owner.members?.has?.(message.author.id)));
+        const isAdmin = message.member?.permissions?.has(PermissionFlagsBits.Administrator) || message.member?.permissions?.has(PermissionFlagsBits.ManageGuild);
+        if (!isOwner && !isAdmin) return message.reply({ content: "?? L?nh n�y y�u c?u quy?n Qu?n tr? vi�n (Administrator) ho?c l� Owner c?a bot.", allowedMentions: { repliedUser: false } });
+        
+        broadcastDrafts.set(message.author.id, { embeds: [], pingEveryone: false });
 
-        if (!isOwner && !isAdmin) {
-            return message.reply({ content: '🚫 Lệnh này yêu cầu quyền Quản trị viên (Administrator) hoặc là Owner của bot.', allowedMentions: { repliedUser: false } });
-        }
-        const raw = message.content.slice(args[0].length).trim();
-        if (!raw) {
-            return message.reply({
-                content: `❌ Cú pháp sai!\nVí dụ: \`${command} Tiêu đề thông báo | Mục 1 :: Nội dung 1 | Mục 2 :: Nội dung 2\``,
-                allowedMentions: { repliedUser: false }
-            });
-        }
-        const parts = raw.split('|').map(s => s.trim()).filter(Boolean);
-        const tbTitle = parts[0] || '📢 THÔNG BÁO TỪ MIMI BOT';
-        const sections = parts.slice(1);
+        // Initial render logic will be handled by renderBroadcastBuilder
 
-        const container = new ContainerBuilder().setAccentColor(0x8C7CF0);
-        container.addTextDisplayComponents(new TextDisplayBuilder().setContent(`# ${tbTitle}`));
-        container.addSeparatorComponents(new SeparatorBuilder().setSpacing(SeparatorSpacingSize.Large).setDivider(true));
 
-        const broadcastEmbed = new EmbedBuilder()
-            .setColor(0x8C7CF0)
-            .setTitle(tbTitle)
-            .setFooter({ text: 'Thông báo hệ thống từ đội ngũ phát triển MIMI BOT' })
-            .setTimestamp();
 
-        if (sections.length === 0) {
-            container.addTextDisplayComponents(new TextDisplayBuilder().setContent(tbTitle));
-            broadcastEmbed.setDescription(tbTitle);
-        } else {
-            sections.forEach((sec, idx) => {
-                const sepIndex = sec.indexOf('::');
-                let content;
-                if (sepIndex >= 0) {
-                    const secTitle = sec.slice(0, sepIndex).trim();
-                    const secBody = sec.slice(sepIndex + 2).trim();
-                    content = `## ${secTitle}\n${secBody}`;
-                    broadcastEmbed.addFields({ name: secTitle, value: secBody.slice(0, 1024) || '...', inline: false });
-                } else {
-                    content = sec;
-                    const fieldName = idx === 0 ? '\u200B' : '━━━━━━━━━━━━━━━━━━━━';
-                    broadcastEmbed.addFields({ name: fieldName, value: content.slice(0, 1024) || '...', inline: false });
-                }
-                container.addTextDisplayComponents(new TextDisplayBuilder().setContent(content.slice(0, 3900)));
-                if (idx < sections.length - 1) {
-                    container.addSeparatorComponents(new SeparatorBuilder().setSpacing(SeparatorSpacingSize.Small).setDivider(true));
-                }
-            });
-        }
 
-        const v2Payload = { components: [container], flags: MessageFlags.IsComponentsV2 };
-        const embedPayload = { embeds: [broadcastEmbed] };
 
-        const guildsList = [...client.guilds.cache.values()];
-        let sentCount = 0;
-        const failedGuilds = [];
 
-        const statusMsg = await message.reply({ content: `⏳ Đang phát sóng tới ${guildsList.length} server...`, allowedMentions: { repliedUser: false } });
 
-        for (const g of guildsList) {
-            try {
-                let me = g.members.me;
-                if (!me) {
-                    me = await g.members.fetchMe().catch(() => null);
-                }
 
-                const canSend = (c) => {
-                    if (!c || !me) return false;
-                    if (c.type !== ChannelType.GuildText && c.type !== ChannelType.GuildAnnouncement) return false;
-                    const perms = c.permissionsFor(me);
-                    if (!perms) return false;
-                    return perms.has(PermissionFlagsBits.SendMessages) &&
-                           perms.has(PermissionFlagsBits.ViewChannel) &&
-                           perms.has(PermissionFlagsBits.EmbedLinks);
-                };
 
-                let targetChannel = canSend(g.systemChannel) ? g.systemChannel : null;
-                if (!targetChannel) targetChannel = g.channels.cache.find(canSend);
-                if (!targetChannel) {
-                    const fetched = await g.channels.fetch().catch(() => null);
-                    if (fetched) targetChannel = fetched.find(canSend);
-                }
-                if (!targetChannel) throw new Error('Không có kênh phù hợp');
 
-                try {
-                    await targetChannel.send(embedPayload);
-                } catch {
-                    await targetChannel.send(v2Payload);
-                }
-                sentCount++;
-            } catch {
-                failedGuilds.push(g.name);
-            }
-        }
 
-        return statusMsg.edit({
-            content: `📢 **Đã phát sóng thông báo tới ${sentCount}/${guildsList.length} server!**${failedGuilds.length > 0 ? `\n⚠️ Thất bại tại ${failedGuilds.length} server.` : ''}`
-        });
+
+
+        return renderBroadcastBuilder(message, broadcastDrafts.get(message.author.id));
+
+        return message.reply({ embeds: [helpEmbed], components: [row, rowSend], allowedMentions: { repliedUser: false } });
     }
-
     // ==========================================
     // ⏰ LỆNH ĐẶT LỊCH NHẮC NHỞ: minhac | midatlich
     // ==========================================
@@ -9515,160 +9434,30 @@ client.on('interactionCreate', async interaction => {
             return interaction.editReply({ content: `✅ Đã đăng thông báo **${sections.length} mục** vào ${targetChannel}.` });
         }
 
-        if (commandName === 'broadcast') {
-            const isOwner = interaction.user.id === OWNER_ID ||
-                            (client.application?.owner && (
-                                client.application.owner.id === interaction.user.id ||
-                                client.application.owner.members?.has?.(interaction.user.id)
-                            ));
-            const isAdmin = interaction.member?.permissions?.has(PermissionFlagsBits.Administrator) ||
-                            interaction.member?.permissions?.has(PermissionFlagsBits.ManageGuild);
+        if (commandName === "broadcast") {
+            const isOwner = interaction.user.id === OWNER_ID || (client.application?.owner && (client.application.owner.id === interaction.user.id || client.application.owner.members?.has?.(interaction.user.id)));
+            const isAdmin = interaction.member?.permissions?.has(PermissionFlagsBits.Administrator) || interaction.member?.permissions?.has(PermissionFlagsBits.ManageGuild);
+            if (!isOwner && !isAdmin) return interaction.reply({ content: "?? B?n c?n c� quy?n Qu?n tr? vi�n (Administrator) ho?c l� Owner c?a bot d? d�ng l?nh n�y.", flags: MessageFlags.Ephemeral });
+            
+            broadcastDrafts.set(interaction.user.id, { embeds: [], pingEveryone: false });
 
-            if (!isOwner && !isAdmin) {
-                return interaction.reply({ content: '🚫 Bạn cần có quyền Quản trị viên (Administrator) hoặc là Owner của bot để dùng lệnh này.', flags: MessageFlags.Ephemeral });
-            }
+        // Initial render logic will be handled by renderBroadcastBuilder
 
-            await interaction.deferReply({ flags: MessageFlags.Ephemeral });
 
-            const tbTitle = options.getString('tiêu_đề') || options.getString('tieu_de') || '📢 THÔNG BÁO TỪ MIMI BOT';
-            const rawContent = options.getString('nội_dung') || options.getString('noi_dung') || '';
-            const bColorHex = options.getString('màu') || options.getString('mau') || '#8C7CF0';
-            const bFooter = options.getString('chân_trang') || options.getString('chan_trang') || 'Thông báo hệ thống từ đội ngũ phát triển MIMI BOT';
-            const pingEveryone = options.getBoolean('gắn_mọi_người') || options.getBoolean('gan_moi_nguoi') || false;
-            const bannerUrl = options.getString('ảnh_banner') || options.getString('anh_banner');
 
-            // Xử lý xuống dòng \n (mọi biến thể) và tách các mục bằng dấu "|"
-            const parsedContent = rawContent
-                .replace(/\\r\\n/g, '\n')
-                .replace(/\\n/g, '\n')
-                .replace(/\\r/g, '\n');
-            const sections = parsedContent.split('|').map(s => s.trim()).filter(Boolean);
 
-            let accentColor = 0x8C7CF0;
-            if (/^#[0-9A-Fa-f]{6}$/.test(bColorHex)) {
-                accentColor = parseInt(bColorHex.slice(1), 16);
-            }
 
-            // 1. Xây dựng giao diện Components V2 (Chuẩn đẹp chia mục như /thongbao)
-            const container = new ContainerBuilder().setAccentColor(accentColor);
-            if (pingEveryone) {
-                container.addTextDisplayComponents(new TextDisplayBuilder().setContent('@everyone'));
-            }
-            container.addTextDisplayComponents(new TextDisplayBuilder().setContent(`# ${tbTitle}`));
-            container.addSeparatorComponents(new SeparatorBuilder().setSpacing(SeparatorSpacingSize.Large).setDivider(true));
 
-            // 2. Xây dựng Embed Fallback (cho các server hoặc kênh không hỗ trợ V2)
-            const broadcastEmbed = new EmbedBuilder()
-                .setColor(accentColor)
-                .setTitle(tbTitle)
-                .setFooter({ text: bFooter })
-                .setTimestamp();
-            if (bannerUrl && bannerUrl.startsWith('http')) {
-                broadcastEmbed.setImage(bannerUrl);
-            }
 
-            if (sections.length === 0) {
-                container.addTextDisplayComponents(new TextDisplayBuilder().setContent('*(Không có nội dung)*'));
-                broadcastEmbed.setDescription('*(Không có nội dung)*');
-            } else {
-                let hasFields = false;
-                sections.forEach((sec, idx) => {
-                    const sepIndex = sec.indexOf('::');
-                    let content;
-                    if (sepIndex >= 0) {
-                        const secTitle = sec.slice(0, sepIndex).trim();
-                        const secBody = sec.slice(sepIndex + 2).trim();
-                        content = `## ${secTitle}\n${secBody}`;
-                        broadcastEmbed.addFields({ name: secTitle, value: secBody.slice(0, 1024) || '...', inline: false });
-                        hasFields = true;
-                    } else {
-                        content = sec;
-                        if (!hasFields && idx === 0 && sections.length === 1) {
-                            broadcastEmbed.setDescription(content.slice(0, 4000));
-                        } else {
-                            const fieldName = idx === 0 ? '\u200B' : '━━━━━━━━━━━━━━━━━━━━';
-                            broadcastEmbed.addFields({ name: fieldName, value: content.slice(0, 1024) || '...', inline: false });
-                        }
-                    }
-                    container.addTextDisplayComponents(new TextDisplayBuilder().setContent(content.slice(0, 3900)));
-                    if (idx < sections.length - 1) {
-                        container.addSeparatorComponents(new SeparatorBuilder().setSpacing(SeparatorSpacingSize.Small).setDivider(true));
-                    }
-                });
-            }
 
-            if (bannerUrl && bannerUrl.startsWith('http')) {
-                container.addSeparatorComponents(new SeparatorBuilder().setSpacing(SeparatorSpacingSize.Small).setDivider(true));
-                container.addMediaGalleryComponents(new MediaGalleryBuilder().addItems(new MediaGalleryItemBuilder().setURL(bannerUrl)));
-            }
 
-            if (bFooter) {
-                container.addSeparatorComponents(new SeparatorBuilder().setSpacing(SeparatorSpacingSize.Large).setDivider(true));
-                container.addTextDisplayComponents(new TextDisplayBuilder().setContent(`-# ${bFooter}`));
-            }
 
-            const v2Payload = {
-                components: [container],
-                flags: MessageFlags.IsComponentsV2,
-                allowedMentions: { parse: pingEveryone ? ['everyone'] : [] }
-            };
-            const embedPayload = {
-                content: pingEveryone ? '@everyone' : undefined,
-                embeds: [broadcastEmbed],
-                allowedMentions: { parse: pingEveryone ? ['everyone'] : [] }
-            };
 
-            const guildsList = [...client.guilds.cache.values()];
-            let sentCount = 0;
-            const failedGuilds = [];
 
-            for (const g of guildsList) {
-                try {
-                    let me = g.members.me;
-                    if (!me) {
-                        me = await g.members.fetchMe().catch(() => null);
-                    }
 
-                    const canSend = (c) => {
-                        if (!c || !me) return false;
-                        if (c.type !== ChannelType.GuildText && c.type !== ChannelType.GuildAnnouncement) return false;
-                        const perms = c.permissionsFor(me);
-                        if (!perms) return false;
-                        return perms.has(PermissionFlagsBits.SendMessages) &&
-                               perms.has(PermissionFlagsBits.ViewChannel) &&
-                               perms.has(PermissionFlagsBits.EmbedLinks);
-                    };
+        return renderBroadcastBuilder(interaction, broadcastDrafts.get(interaction.user.id));
 
-                    let targetChannel = canSend(g.systemChannel) ? g.systemChannel : null;
-                    if (!targetChannel) {
-                        targetChannel = g.channels.cache.find(canSend);
-                    }
-                    if (!targetChannel) {
-                        const fetched = await g.channels.fetch().catch(() => null);
-                        if (fetched) targetChannel = fetched.find(canSend);
-                    }
-
-                    if (!targetChannel) throw new Error('Không tìm thấy kênh phù hợp');
-
-                    try {
-                        await targetChannel.send(embedPayload);
-                    } catch (embErr) {
-                        await targetChannel.send(v2Payload);
-                    }
-                    sentCount++;
-                } catch {
-                    failedGuilds.push(g.name);
-                }
-            }
-
-            let summary = `📢 **Đã phát sóng thông báo (${sections.length} mục) tới ${sentCount}/${guildsList.length} server.**`;
-            if (failedGuilds.length > 0) {
-                summary += `\n⚠️ Thất bại tại **${failedGuilds.length}** server (thiếu quyền hoặc không có kênh phù hợp):\n` +
-                    failedGuilds.slice(0, 15).map(n => `• ${n}`).join('\n') +
-                    (failedGuilds.length > 15 ? `\n...và ${failedGuilds.length - 15} server khác` : '');
-            }
-
-            return interaction.editReply({ content: summary.slice(0, 2000) });
+            return interaction.reply({ embeds: [helpEmbed], components: [row, rowSend], flags: MessageFlags.Ephemeral });
         }
 
         if (commandName === 'setprefix') {
@@ -14002,6 +13791,92 @@ if (commandName === 'setup') {
         }
     }
   }
+        if (interaction.isButton()) {
+            if (interaction.customId === "bc_add_embed") {
+                const draft = broadcastDrafts.get(interaction.user.id);
+                if (!draft) return interaction.reply({ content: "Kh�ng t�m th?y b?n nh�p.", flags: MessageFlags.Ephemeral });
+                if (draft.embeds.length >= 10) return interaction.reply({ content: "�?t gi?i h?n 10 b?ng!", flags: MessageFlags.Ephemeral });
+                const modal = new ModalBuilder().setCustomId("bc_modal_add").setTitle("Th�m M?c Th�ng B�o");
+                const titleInput = new TextInputBuilder().setCustomId("title").setLabel("Ti�u d? (tu? ch?n)").setStyle(TextInputStyle.Short).setRequired(false).setMaxLength(256);
+                const descInput = new TextInputBuilder().setCustomId("desc").setLabel("N?i dung").setStyle(TextInputStyle.Paragraph).setRequired(true).setMaxLength(4000);
+                modal.addComponents(new ActionRowBuilder().addComponents(titleInput), new ActionRowBuilder().addComponents(descInput));
+                return interaction.showModal(modal);
+            }
+            if (interaction.customId === "bc_color_menu") {
+                const draft = broadcastDrafts.get(interaction.user.id);
+                if (!draft || draft.embeds.length === 0) return interaction.reply({ content: "Chua c� b?ng n�o!", flags: MessageFlags.Ephemeral });
+                const modal = new ModalBuilder().setCustomId("bc_modal_color").setTitle("�?i M�u B?ng Cu?i");
+                const colorInput = new TextInputBuilder().setCustomId("color").setLabel("Nh?p m� m�u (VD: #FF0000)").setStyle(TextInputStyle.Short).setRequired(true).setMaxLength(7);
+                modal.addComponents(new ActionRowBuilder().addComponents(colorInput));
+                return interaction.showModal(modal);
+            }
+            if (interaction.customId === "bc_remove") {
+                const draft = broadcastDrafts.get(interaction.user.id);
+                if (draft && draft.embeds.length > 0) {
+                    draft.embeds.pop();
+                    await renderBroadcastBuilder(interaction, draft);
+                }
+                return;
+            }
+            if (interaction.customId === "bc_toggle_ping") {
+                const draft = broadcastDrafts.get(interaction.user.id);
+                if (draft) {
+                    draft.pingEveryone = !draft.pingEveryone;
+                    await renderBroadcastBuilder(interaction, draft);
+                }
+                return;
+            }
+            if (interaction.customId === "bc_send") {
+                const draft = broadcastDrafts.get(interaction.user.id);
+                if (!draft || draft.embeds.length === 0) return interaction.reply({ content: "Chua c� b?ng n�o!", flags: MessageFlags.Ephemeral });
+                const guildsList = [...client.guilds.cache.values()];
+                await interaction.update({ content: `? �ang ph�t s�ng t?i ${guildsList.length} server...`, embeds: [], components: [] });
+                let sentCount = 0;
+                const embedPayload = {
+                    content: draft.pingEveryone ? "@everyone" : undefined,
+                    embeds: draft.embeds.map(e => {
+                        const em = new EmbedBuilder().setColor(e.color).setDescription(e.description || "...");
+                        if (e.title) em.setTitle(e.title);
+                        return em;
+                    }),
+                    allowedMentions: { parse: draft.pingEveryone ? ["everyone"] : [] }
+                };
+                for (const g of guildsList) {
+                    try {
+                        let me = g.members.me;
+                        if (!me) me = await g.members.fetchMe().catch(() => null);
+                        if (!me) continue;
+                        const canSend = (c) => c && me && (c.type === ChannelType.GuildText || c.type === ChannelType.GuildAnnouncement) && c.permissionsFor(me)?.has(PermissionFlagsBits.SendMessages) && c.permissionsFor(me)?.has(PermissionFlagsBits.EmbedLinks);
+                        let targetChannel = canSend(g.systemChannel) ? g.systemChannel : g.channels.cache.find(canSend);
+                        if (!targetChannel) { const fetched = await g.channels.fetch().catch(() => null); if (fetched) targetChannel = fetched.find(canSend); }
+                        if (targetChannel) { await targetChannel.send(embedPayload); sentCount++; }
+                    } catch (e) {}
+                }
+                broadcastDrafts.delete(interaction.user.id);
+                return interaction.editReply({ content: `? **�� G?I TH�NG B�O TH�NH C�NG!**\nTh�nh c�ng: **${sentCount} / ${guildsList.length}** server.` });
+            }
+        }
+        if (interaction.isModalSubmit()) {
+            if (interaction.customId === "bc_modal_add") {
+                const draft = broadcastDrafts.get(interaction.user.id);
+                if (draft) {
+                    draft.embeds.push({ title: interaction.fields.getTextInputValue("title") || null, description: interaction.fields.getTextInputValue("desc"), color: "#8C7CF0" });
+                    await renderBroadcastBuilder(interaction, draft);
+                }
+                return;
+            }
+            if (interaction.customId === "bc_modal_color") {
+                const draft = broadcastDrafts.get(interaction.user.id);
+                if (draft && draft.embeds.length > 0) {
+                    let color = interaction.fields.getTextInputValue("color").trim();
+                    if (!color.startsWith("#")) color = "#" + color;
+                    if (/^#[0-9A-Fa-f]{6}$/.test(color)) { draft.embeds[draft.embeds.length - 1].color = color; await renderBroadcastBuilder(interaction, draft); } else { return interaction.reply({ content: "M� m�u kh�ng h?p l?! Vui l�ng nh?p d�ng d?nh d?ng HEX (VD: #FF0000)", flags: MessageFlags.Ephemeral }); }
+
+                }
+                return;
+            }
+        }
+
 });
 
 // -----------------------------------------------------------------
@@ -14074,3 +13949,39 @@ client.on('messageCreate', async (msg) => {
         }
     } catch(e) {}
 });
+
+
+
+async function renderBroadcastBuilder(interaction, draft) {
+    const previewEmbeds = draft.embeds.map((e, idx) => {
+        const em = new EmbedBuilder().setColor(e.color).setDescription(e.description || "...");
+        if (e.title) em.setTitle(e.title);
+        if (idx === draft.embeds.length - 1) em.setFooter({ text: "B?ng cu?i (s? b? d?i m�u/xo� n?u thao t�c)" });
+        return em;
+    });
+
+    const row = new ActionRowBuilder().addComponents(
+        new ButtonBuilder().setCustomId("bc_add_embed").setLabel("? Th�m B?ng").setStyle(ButtonStyle.Success).setDisabled(draft.embeds.length >= 10),
+        new ButtonBuilder().setCustomId("bc_color_menu").setLabel("?? �?i M�u").setStyle(ButtonStyle.Primary).setDisabled(draft.embeds.length === 0),
+        new ButtonBuilder().setCustomId("bc_remove").setLabel("??? Xo� B?ng Cu?i").setStyle(ButtonStyle.Danger).setDisabled(draft.embeds.length === 0),
+        new ButtonBuilder().setCustomId("bc_toggle_ping").setLabel(draft.pingEveryone ? "?? T?t Ping" : "?? B?t Ping").setStyle(ButtonStyle.Secondary)
+    );
+    const rowSend = new ActionRowBuilder().addComponents(
+        new ButtonBuilder().setCustomId("bc_send").setLabel("?? PH�T S�NG NGAY").setStyle(ButtonStyle.Success).setDisabled(draft.embeds.length === 0)
+    );
+
+    let contentStr = `??? **BROADCAST BUILDER - B?N XEM TRU?C**\n�ang c� **${draft.embeds.length}/10** b?ng (Embeds).\nPing @everyone: **${draft.pingEveryone ? "B?T ??" : "T?T ??"}**`;
+    
+    if (draft.embeds.length === 0) {
+        const helpEmbed = new EmbedBuilder().setColor("#2ECC71").setTitle("??? HU?NG D?N").setDescription("Chua c� b?ng n�o! H�y b?m **? Th�m B?ng** b�n du?i d? b?t d?u.");
+        previewEmbeds.push(helpEmbed);
+    }
+
+    if (interaction.isMessageComponent?.() || interaction.isModalSubmit?.()) {
+        await interaction.update({ content: contentStr, embeds: previewEmbeds, components: [row, rowSend] }).catch(() => {});
+    } else if (interaction.editReply) {
+        await interaction.reply({ content: contentStr, embeds: previewEmbeds, components: [row, rowSend], flags: MessageFlags.Ephemeral });
+    } else {
+        await interaction.reply({ content: contentStr, embeds: previewEmbeds, components: [row, rowSend] });
+    }
+}
