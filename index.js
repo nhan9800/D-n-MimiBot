@@ -5323,15 +5323,8 @@ client.once('ready', async () => {
 
         new SlashCommandBuilder()
             .setName('broadcast')
-            .setDescription('Gửi thông báo CHIA MỤC tới TẤT CẢ server bot đang tham gia (Admin & Owner)')
-            .setDefaultMemberPermissions(PermissionFlagsBits.Administrator)
-            .addStringOption(o => o.setName('tiêu_đề').setDescription('Tiêu đề lớn ở đầu thông báo').setRequired(true).setMaxLength(200))
-            .addStringOption(o => o.setName('nội_dung').setDescription('Các mục, cách nhau bằng " | ". Mỗi mục dạng "Tiêu đề mục :: nội dung", dùng \\n để xuống dòng').setRequired(true).setMaxLength(3800))
-            .addStringOption(o => o.setName('màu').setDescription('Màu viền (hex, VD: #8C7CF0, #5865F2). Mặc định: tím Mimi Bot').setRequired(false).setMaxLength(7))
-            .addStringOption(o => o.setName('chân_trang').setDescription('Dòng ghi chú nhỏ ở cuối (tùy chọn)').setRequired(false).setMaxLength(300))
-            .addBooleanOption(o => o.setName('gắn_mọi_người').setDescription('Có gắn @everyone kèm thông báo không? (mặc định: Không)').setRequired(false))
-            .addStringOption(o => o.setName('ảnh_banner').setDescription('URL ảnh banner phía dưới (tùy chọn)').setRequired(false)),
-
+            .setDescription('Mở bảng tương tác thiết kế thông báo liên server (Components V2)')
+            .setDefaultMemberPermissions(PermissionFlagsBits.Administrator),
         new SlashCommandBuilder()
             .setName('thongbao')
             .setDescription('Gửi thông báo CHIA MỤC (đẹp, nhiều phần) vào một kênh trong server')
