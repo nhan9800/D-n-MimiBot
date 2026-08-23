@@ -1070,6 +1070,12 @@ function sellArtifactsHelper(targetUser, userId, tier = 'all', guildId = null) {
     } else if (normTier === 'truyenthuyet' || normTier === 'truyền thuyết' || normTier === 'tt' || normTier === '4') {
         sellTypes = ['do_co_4', 'ca_thanthoai', 'ca_truyenthuyet'];
         tierLabel = 'Truyền Thuyết & Thần Thoại';
+    } else if (normTier === "ca" || normTier === "c�" || normTier === "fish") {
+        sellTypes = ["ca_thuong", "ca_kha", "ca_hiem", "ca_cuchiem", "ca_thanthoai", "ca_truyenthuyet"];
+        tierLabel = "T?t C? C�";
+    } else if (normTier === "doco" || normTier === "d? c?") {
+        sellTypes = ["do_co_4", "do_co_3", "do_co_2", "do_co", "ve_chai"];
+        tierLabel = "T?t C? �? C?";
     } else {
         sellTypes = ['do_co_4', 'do_co_3', 'do_co_2', 'do_co', 've_chai', 'ca_thuong', 'ca_kha', 'ca_hiem', 'ca_cuchiem', 'ca_thanthoai', 'ca_truyenthuyet'];
         tierLabel = 'Tất cả phẩm cấp';
@@ -6790,7 +6796,7 @@ client.on('messageCreate', async (message) => {
         'mithuhoach', 'mith', `${serverPrefix}th`,
         'mibannongsan', 'mibns',
         'mishop', 'mis', `${serverPrefix}shop`,
-        'mikho', 'mibando', 'miban',
+        'mikho', 'mibando', 'miban', 'mibanca',
         'mibg', 'setbackground',
         'mikethon', 'milyhon', 'lyhon',
         'micaoca', 'mifish',
@@ -7168,17 +7174,17 @@ client.on('messageCreate', async (message) => {
     // ==========================================
     // 🎒 HỆ THỐNG KHO ĐỒ & BÁN ĐỒ TÁCH PHẨM CẤP
     // ==========================================
-    if (command === 'mikho' || command === 'mibando' || command === 'miban') {
+    if (command === 'mikho' || command === 'mibando' || command === 'miban' || command === 'mibanca') {
         const userData = getUserData(userId);
         const inv = userData.inventory || {};
         const farm = getFarmData(userId);
         
         const argsList = message.content.trim().split(/\s+/);
-        const isDirectSell = (command === 'mibando' || command === 'miban');
+        const isDirectSell = (command === 'mibando' || command === 'miban' || command === 'mibanca');
         const isMikhoSell = (command === 'mikho' && (argsList[1] === 'sell' || argsList[1] === 'bán' || argsList[1] === 'ban'));
 
         if (isDirectSell || isMikhoSell) {
-            const tierArg = isDirectSell ? (argsList[1] || 'all') : (argsList[2] || 'all');
+            const tierArg = (command === 'mibanca') ? 'ca' : (isDirectSell ? (argsList[1] || 'all') : (argsList[2] || 'all'));
             const result = sellArtifactsHelper(message.author, userId, tierArg, message.guild?.id);
             return message.reply({ content: result.message, allowedMentions: { repliedUser: false } });
         }
@@ -7248,15 +7254,19 @@ client.on('messageCreate', async (message) => {
 
         embed.setFooter({ text: 'Bấm nút bên dưới hoặc gõ "mikho ban [thuong/hiem/suthi/truyenthuyet/all]"' });
 
-        const row = new ActionRowBuilder().addComponents(
-            new ButtonBuilder().setCustomId('mikho_sell:thuong').setLabel('📦 Bán Thường').setStyle(ButtonStyle.Success).setDisabled((inv.do_co || 0) + (inv.ve_chai || 0) + (inv.ca_thuong || 0) === 0),
-            new ButtonBuilder().setCustomId('mikho_sell:hiem').setLabel('💙 Bán Khá/Hiếm').setStyle(ButtonStyle.Primary).setDisabled((inv.do_co_2 || 0) + (inv.ca_kha || 0) + (inv.ca_hiem || 0) === 0),
-            new ButtonBuilder().setCustomId('mikho_sell:suthi').setLabel('💜 Bán Sử Thi/CH').setStyle(ButtonStyle.Primary).setDisabled((inv.do_co_3 || 0) + (inv.ca_cuchiem || 0) === 0),
-            new ButtonBuilder().setCustomId('mikho_sell:truyenthuyet').setLabel('🌟 Bán TT/Thần Thoại').setStyle(ButtonStyle.Secondary).setDisabled((inv.do_co_4 || 0) + (inv.ca_thanthoai || 0) + (inv.ca_truyenthuyet || 0) === 0),
-            new ButtonBuilder().setCustomId('mikho_sell:all').setLabel('💰 Bán Tất Cả').setStyle(ButtonStyle.Danger).setDisabled(docoCount + fishCount === 0)
+        const row1 = new ActionRowBuilder().addComponents(
+            new ButtonBuilder().setCustomId("mikho_sell:thuong").setLabel("?? B�n Thu?ng").setStyle(ButtonStyle.Success).setDisabled((inv.do_co || 0) + (inv.ve_chai || 0) + (inv.ca_thuong || 0) === 0),
+            new ButtonBuilder().setCustomId("mikho_sell:hiem").setLabel("?? B�n Kh�/Hi?m").setStyle(ButtonStyle.Primary).setDisabled((inv.do_co_2 || 0) + (inv.ca_kha || 0) + (inv.ca_hiem || 0) === 0),
+            new ButtonBuilder().setCustomId("mikho_sell:suthi").setLabel("?? B�n S? Thi/CH").setStyle(ButtonStyle.Primary).setDisabled((inv.do_co_3 || 0) + (inv.ca_cuchiem || 0) === 0),
+            new ButtonBuilder().setCustomId("mikho_sell:truyenthuyet").setLabel("?? B�n TT/Th?n Tho?i").setStyle(ButtonStyle.Secondary).setDisabled((inv.do_co_4 || 0) + (inv.ca_thanthoai || 0) + (inv.ca_truyenthuyet || 0) === 0)
+        );
+        const row2 = new ActionRowBuilder().addComponents(
+            new ButtonBuilder().setCustomId("mikho_sell:ca").setLabel("?? B�n T?t C? C�").setStyle(ButtonStyle.Primary).setDisabled(fishCount === 0),
+            new ButtonBuilder().setCustomId("mikho_sell:doco").setLabel("?? B�n T?t C? �? C?").setStyle(ButtonStyle.Primary).setDisabled(docoCount === 0),
+            new ButtonBuilder().setCustomId("mikho_sell:all").setLabel("?? B�n T?t C?").setStyle(ButtonStyle.Danger).setDisabled(docoCount + fishCount === 0)
         );
 
-        return message.reply({ embeds: [embed], components: [row] });
+        return message.reply({ embeds: [embed], components: [row1, row2] });
     }
 
     if (command === 'mibg' || command === 'setbackground') {
@@ -8464,6 +8474,7 @@ client.on('messageCreate', async (message) => {
         'mituoicay','mituoi','mithuhoach','mith',
         'mibannongsan','mibns','mishop','mis',
         'mitimdo','mikho','mibuybg','mibg',
+        'micaoca','mipet','mibanca',
         // Prefix động của server
         `${serverPrefix}daily`,`${serverPrefix}d`,`${serverPrefix}profile`,`${serverPrefix}p`,
         `${serverPrefix}coinflip`,`${serverPrefix}cf`,`${serverPrefix}sl`,
