@@ -3685,19 +3685,19 @@ function buildQueueRemoveRow(mq) {
 function buildFavoritesPayload(favorites) {
     if (!favorites || favorites.length === 0) {
         return {
-            components: [buildMusicNoticeContainer(
-                'Album Yêu thích trống',
-                'Bạn chưa lưu bài nào. Bấm nút **❤ Yêu thích** ở panel nhạc để thêm bài đang phát vào album của bạn.',
+            embeds: [buildMusicNoticeContainer(
+                "Album Yêu thích trống",
+                "Bạn chưa lưu bài nào. Bấm nút **❤ Yêu thích** ở panel nhạc để thêm bài đang phát vào album của bạn.",
                 0x99AAB5
             )], flags: MessageFlags.Ephemeral
         };
     }
-    const lines = favorites.slice(0, 15).map((t, i) => `${i + 1}. **${t.title}** \`${formatDuration(t.duration)}\``);
-    let body = lines.join('\n');
+    const linesArr = favorites.slice(0, 15).map((t, i) => `${i + 1}. **${t.title}** \`${formatDuration(t.duration)}\``);
+    let body = linesArr.join("\n");
     if (favorites.length > 15) body += `\n-# ...và ${favorites.length - 15} bài khác`;
     const container = buildMusicNoticeContainer(
         `Album Yêu thích (${favorites.length} bài)`,
-        body + '\n\n-# Chọn 1 bài bên dưới để phát ngay (bạn phải đang ở trong kênh thoại).',
+        body + "\n\n-# Chọn 1 bài bên dưới để phát ngay (bạn phải đang ở trong kênh thoại).",
         0xED4245
     );
     const options = favorites.slice(0, 25).map((t, i) =>
@@ -3708,11 +3708,11 @@ function buildFavoritesPayload(favorites) {
     );
     const row = new ActionRowBuilder().addComponents(
         new StringSelectMenuBuilder()
-            .setCustomId('music_fav_play_select')
-            .setPlaceholder('▶ Chọn 1 bài yêu thích để phát...')
+            .setCustomId("music_fav_play_select")
+            .setPlaceholder("▶ Chọn 1 bài yêu thích để phát...")
             .addOptions(options)
     );
-    return { components: [container, row], flags: MessageFlags.Ephemeral };
+    return { embeds: [container], components: [row], flags: MessageFlags.Ephemeral };
 }
 
 // 🎚️ Payload chọn HIỆU ỨNG âm thanh (8 hiệu ứng + Tắt). currentKey = hiệu ứng đang áp để đánh dấu.
@@ -3735,7 +3735,7 @@ function buildEffectsPayload(currentKey = 'none') {
             .setPlaceholder('🎚️ Chọn hiệu ứng âm thanh...')
             .addOptions(options)
     );
-    return { components: [container, row], flags: MessageFlags.Ephemeral };
+    return { embeds: [container], components: [row], flags: MessageFlags.Ephemeral };
 }
 
 // 📁 Payload danh sách TẤT CẢ album của 1 user (tên + số bài). ephemeral=true -> kèm cờ Ephemeral.
@@ -3790,7 +3790,7 @@ function buildAlbumDetailPayload(name, tracks) {
             .setPlaceholder('▶ Chọn 1 bài trong album để phát...')
             .addOptions(options)
     );
-    return { components: [container, row], flags: MessageFlags.Ephemeral };
+    return { embeds: [container], components: [row], flags: MessageFlags.Ephemeral };
 }
 
 // 🔴 THANH TIẾN TRÌNH LIVE: cập nhật tin "Đang phát" định kỳ để phút:giây và thanh tiến trình
@@ -7255,15 +7255,15 @@ client.on('messageCreate', async (message) => {
         embed.setFooter({ text: 'Bấm nút bên dưới hoặc gõ "mikho ban [thuong/hiem/suthi/truyenthuyet/all]"' });
 
         const row1 = new ActionRowBuilder().addComponents(
-            new ButtonBuilder().setCustomId("mikho_sell:thuong").setLabel("?? B�n Thu?ng").setStyle(ButtonStyle.Success).setDisabled((inv.do_co || 0) + (inv.ve_chai || 0) + (inv.ca_thuong || 0) === 0),
-            new ButtonBuilder().setCustomId("mikho_sell:hiem").setLabel("?? B�n Kh�/Hi?m").setStyle(ButtonStyle.Primary).setDisabled((inv.do_co_2 || 0) + (inv.ca_kha || 0) + (inv.ca_hiem || 0) === 0),
-            new ButtonBuilder().setCustomId("mikho_sell:suthi").setLabel("?? B�n S? Thi/CH").setStyle(ButtonStyle.Primary).setDisabled((inv.do_co_3 || 0) + (inv.ca_cuchiem || 0) === 0),
-            new ButtonBuilder().setCustomId("mikho_sell:truyenthuyet").setLabel("?? B�n TT/Th?n Tho?i").setStyle(ButtonStyle.Secondary).setDisabled((inv.do_co_4 || 0) + (inv.ca_thanthoai || 0) + (inv.ca_truyenthuyet || 0) === 0)
+            new ButtonBuilder().setCustomId("mikho_sell:thuong").setLabel("📦 Bán Thường").setStyle(ButtonStyle.Success).setDisabled((inv.do_co || 0) + (inv.ve_chai || 0) + (inv.ca_thuong || 0) === 0),
+            new ButtonBuilder().setCustomId("mikho_sell:hiem").setLabel("💙 Bán Khá/Hiếm").setStyle(ButtonStyle.Primary).setDisabled((inv.do_co_2 || 0) + (inv.ca_kha || 0) + (inv.ca_hiem || 0) === 0),
+            new ButtonBuilder().setCustomId("mikho_sell:suthi").setLabel("💜 Bán Sử Thi/CH").setStyle(ButtonStyle.Primary).setDisabled((inv.do_co_3 || 0) + (inv.ca_cuchiem || 0) === 0),
+            new ButtonBuilder().setCustomId("mikho_sell:truyenthuyet").setLabel("🌟 Bán TT/Thần Thoại").setStyle(ButtonStyle.Secondary).setDisabled((inv.do_co_4 || 0) + (inv.ca_thanthoai || 0) + (inv.ca_truyenthuyet || 0) === 0)
         );
         const row2 = new ActionRowBuilder().addComponents(
-            new ButtonBuilder().setCustomId("mikho_sell:ca").setLabel("?? B�n T?t C? C�").setStyle(ButtonStyle.Primary).setDisabled(fishCount === 0),
-            new ButtonBuilder().setCustomId("mikho_sell:doco").setLabel("?? B�n T?t C? �? C?").setStyle(ButtonStyle.Primary).setDisabled(docoCount === 0),
-            new ButtonBuilder().setCustomId("mikho_sell:all").setLabel("?? B�n T?t C?").setStyle(ButtonStyle.Danger).setDisabled(docoCount + fishCount === 0)
+            new ButtonBuilder().setCustomId("mikho_sell:ca").setLabel("🎣 Bán Tất Cả Cá").setStyle(ButtonStyle.Primary).setDisabled(fishCount === 0),
+            new ButtonBuilder().setCustomId("mikho_sell:doco").setLabel("🏺 Bán Tất Cả Đồ Cổ").setStyle(ButtonStyle.Primary).setDisabled(docoCount === 0),
+            new ButtonBuilder().setCustomId("mikho_sell:all").setLabel("💰 Bán Tất Cả").setStyle(ButtonStyle.Danger).setDisabled(docoCount + fishCount === 0)
         );
 
         return message.reply({ embeds: [embed], components: [row1, row2] });
@@ -8324,7 +8324,7 @@ client.on('messageCreate', async (message) => {
                 return reply({ components: p.components });
             }
             const names = musicStore.getAlbumNames(uid);
-            return reply({ components: [buildAlbumListContainer(names, (n) => (musicStore.getAlbum(uid, n) || []).length)], flags: MessageFlags.IsComponentsV2 });
+            return reply({ embeds: [buildAlbumListContainer(names, (n) => (musicStore.getAlbum(uid, n) || []).length)] });
         }
         if (sub === 'tao') {
             const res = musicStore.createAlbum(uid, albumName);
@@ -9451,24 +9451,7 @@ client.on('interactionCreate', async interaction => {
             if (!isOwner && !isAdmin) return interaction.reply({ content: "?? B?n c?n c� quy?n Qu?n tr? vi�n (Administrator) ho?c l� Owner c?a bot d? d�ng l?nh n�y.", flags: MessageFlags.Ephemeral });
             
             broadcastDrafts.set(interaction.user.id, { embeds: [], pingEveryone: false });
-
-        // Initial render logic will be handled by renderBroadcastBuilder
-
-
-
-
-
-
-
-
-
-
-
-
-
-        return renderBroadcastBuilder(interaction, broadcastDrafts.get(interaction.user.id));
-
-            return interaction.reply({ embeds: [helpEmbed], components: [row, rowSend], flags: MessageFlags.Ephemeral });
+            return renderBroadcastBuilder(interaction, broadcastDrafts.get(interaction.user.id));
         }
 
         if (commandName === 'setprefix') {
@@ -11555,7 +11538,7 @@ if (commandName === 'setup') {
                 }
                 const names = musicStore.getAlbumNames(user.id);
                 return interaction.reply({
-                    components: [buildAlbumListContainer(names, (n) => (musicStore.getAlbum(user.id, n) || []).length)], flags: MessageFlags.IsComponentsV2 | MessageFlags.Ephemeral
+                    embeds: [buildAlbumListContainer(names, (n) => (musicStore.getAlbum(user.id, n) || []).length)], flags: MessageFlags.Ephemeral
                 });
             }
 
@@ -13805,19 +13788,19 @@ if (commandName === 'setup') {
         if (interaction.isButton()) {
             if (interaction.customId === "bc_add_embed") {
                 const draft = broadcastDrafts.get(interaction.user.id);
-                if (!draft) return interaction.reply({ content: "Kh�ng t�m th?y b?n nh�p.", flags: MessageFlags.Ephemeral });
-                if (draft.embeds.length >= 10) return interaction.reply({ content: "�?t gi?i h?n 10 b?ng!", flags: MessageFlags.Ephemeral });
-                const modal = new ModalBuilder().setCustomId("bc_modal_add").setTitle("Th�m M?c Th�ng B�o");
-                const titleInput = new TextInputBuilder().setCustomId("title").setLabel("Ti�u d? (tu? ch?n)").setStyle(TextInputStyle.Short).setRequired(false).setMaxLength(256);
-                const descInput = new TextInputBuilder().setCustomId("desc").setLabel("N?i dung").setStyle(TextInputStyle.Paragraph).setRequired(true).setMaxLength(4000);
+                if (!draft) return interaction.reply({ content: "❌ Không tìm thấy bản nháp.", ephemeral: true });
+                if (draft.embeds.length >= 10) return interaction.reply({ content: "❌ Đạt giới hạn 10 bảng!", ephemeral: true });
+                const modal = new ModalBuilder().setCustomId("bc_modal_add").setTitle("Thêm Mục Thông Báo");
+                const titleInput = new TextInputBuilder().setCustomId("title").setLabel("Tiêu đề (tuỳ chọn)").setStyle(TextInputStyle.Short).setRequired(false).setMaxLength(256);
+                const descInput = new TextInputBuilder().setCustomId("desc").setLabel("Nội dung").setStyle(TextInputStyle.Paragraph).setRequired(true).setMaxLength(4000);
                 modal.addComponents(new ActionRowBuilder().addComponents(titleInput), new ActionRowBuilder().addComponents(descInput));
                 return interaction.showModal(modal);
             }
             if (interaction.customId === "bc_color_menu") {
                 const draft = broadcastDrafts.get(interaction.user.id);
-                if (!draft || draft.embeds.length === 0) return interaction.reply({ content: "Chua c� b?ng n�o!", flags: MessageFlags.Ephemeral });
-                const modal = new ModalBuilder().setCustomId("bc_modal_color").setTitle("�?i M�u B?ng Cu?i");
-                const colorInput = new TextInputBuilder().setCustomId("color").setLabel("Nh?p m� m�u (VD: #FF0000)").setStyle(TextInputStyle.Short).setRequired(true).setMaxLength(7);
+                if (!draft || draft.embeds.length === 0) return interaction.reply({ content: "❌ Chưa có bảng nào!", ephemeral: true });
+                const modal = new ModalBuilder().setCustomId("bc_modal_color").setTitle("Đổi Màu Bảng Cuối");
+                const colorInput = new TextInputBuilder().setCustomId("color").setLabel("Nhập mã màu (VD: #FF0000)").setStyle(TextInputStyle.Short).setRequired(true).setMaxLength(7);
                 modal.addComponents(new ActionRowBuilder().addComponents(colorInput));
                 return interaction.showModal(modal);
             }
@@ -13839,9 +13822,9 @@ if (commandName === 'setup') {
             }
             if (interaction.customId === "bc_send") {
                 const draft = broadcastDrafts.get(interaction.user.id);
-                if (!draft || draft.embeds.length === 0) return interaction.reply({ content: "Chua c� b?ng n�o!", flags: MessageFlags.Ephemeral });
+                if (!draft || draft.embeds.length === 0) return interaction.reply({ content: "❌ Chưa có bảng nào!", ephemeral: true });
                 const guildsList = [...client.guilds.cache.values()];
-                await interaction.update({ content: `? �ang ph�t s�ng t?i ${guildsList.length} server...`, embeds: [], components: [] });
+                await interaction.update({ content: `🚀 Đang phát sóng tới ${guildsList.length} server...`, embeds: [], components: [] });
                 let sentCount = 0;
                 const v2Payload = {
                     content: draft.pingEveryone ? "@everyone" : undefined,
@@ -13867,7 +13850,7 @@ if (commandName === 'setup') {
                     } catch (e) {}
                 }
                 broadcastDrafts.delete(interaction.user.id);
-                return interaction.editReply({ content: `? **�� G?I TH�NG B�O TH�NH C�NG!**\nTh�nh c�ng: **${sentCount} / ${guildsList.length}** server.` });
+                return interaction.editReply({ content: `✅ **ĐÃ GỬI THÔNG BÁO THÀNH CÔNG!**\nThành công: **${sentCount} / ${guildsList.length}** server.` });
             }
         }
         if (interaction.isModalSubmit()) {
@@ -13884,117 +13867,36 @@ if (commandName === 'setup') {
                 if (draft && draft.embeds.length > 0) {
                     let color = interaction.fields.getTextInputValue("color").trim();
                     if (!color.startsWith("#")) color = "#" + color;
-                    if (/^#[0-9A-Fa-f]{6}$/.test(color)) { draft.embeds[draft.embeds.length - 1].color = color; await renderBroadcastBuilder(interaction, draft); } else { return interaction.reply({ content: "M� m�u kh�ng h?p l?! Vui l�ng nh?p d�ng d?nh d?ng HEX (VD: #FF0000)", flags: MessageFlags.Ephemeral }); }
-
+                    if (/^#[0-9A-Fa-f]{6}$/.test(color)) { draft.embeds[draft.embeds.length - 1].color = color; await renderBroadcastBuilder(interaction, draft); } else { return interaction.reply({ content: "❌ Mã màu không hợp lệ! Vui lòng nhập đúng định dạng HEX (VD: #FF0000)", ephemeral: true }); }
                 }
-                return;
             }
         }
-
 });
-
-// -----------------------------------------------------------------
-// 🔑 ĐĂNG NHẬP BOT
-// -----------------------------------------------------------------
-if (!config.token || config.token.trim() === "") {
-    console.error("❌ LỖI: Chưa nhập token trong config.json!"); 
-    process.exit(1);
-} else {
-
-client.on('guildMemberAdd', async (member) => {
-    updateStatsChannels(member.guild);
-});
-client.on('guildMemberRemove', async (member) => {
-    updateStatsChannels(member.guild);
-});
-
-async function updateStatsChannels(guild) {
-    try {
-        const statsCategory = guild.channels.cache.find(c => c.type === ChannelType.GuildCategory && c.name === '📊 THỐNG KÊ MÁY CHỦ');
-        if (!statsCategory) return;
-        
-        await guild.members.fetch();
-        const memberCount = guild.members.cache.filter(m => !m.user.bot).size;
-        const botCount = guild.members.cache.filter(m => m.user.bot).size;
-        const totalCount = guild.memberCount;
-        
-        const children = guild.channels.cache.filter(c => c.parentId === statsCategory.id);
-        for (const [, child] of children) {
-            if (child.name.startsWith('Thành Viên:')) {
-                if (child.name !== `Thành Viên: ${memberCount}`) await child.setName(`Thành Viên: ${memberCount}`).catch(() => null);
-            } else if (child.name.startsWith('Bot:')) {
-                if (child.name !== `Bot: ${botCount}`) await child.setName(`Bot: ${botCount}`).catch(() => null);
-            } else if (child.name.startsWith('Tổng:')) {
-                if (child.name !== `Tổng: ${totalCount}`) await child.setName(`Tổng: ${totalCount}`).catch(() => null);
-            }
-        }
-    } catch (e) {
-        console.error("Lỗi cập nhật kênh thống kê:", e);
-    }
-}
-
-    client.login(config.token.trim()).catch((err) => {
-        console.error("❌ LỖI ĐĂNG NHẬP BOT — chi tiết:", err);
-        console.error("👉 Nếu thấy 'disallowed intents': vào Discord Developer Portal → Bot → bật 'Server Members Intent' và 'Message Content Intent'.");
-    });
-}
-
-
-// DM Notification handler added manually
-client.on('messageCreate', async (msg) => {
-    try {
-        if (!msg.content && msg.attachments.size === 0) return;
-        if (msg.author.bot) return;
-        if (!msg.guild) {
-            try {
-                const owner = await client.users.fetch(OWNER_ID);
-                if (owner) {
-                    const dmEmbed = new EmbedBuilder()
-                        .setColor('#3498DB')
-                        .setTitle('📩 Tin nhắn trực tiếp mới')
-                        .addFields(
-                            { name: 'Người gửi', value: `${msg.author.tag} (${msg.author.id})` },
-                            { name: 'Nội dung', value: msg.content || '*Chỉ có tệp đính kèm*' }
-                        )
-                        .setTimestamp();
-                    await owner.send({ embeds: [dmEmbed] }).catch(() => null);
-                }
-            } catch (err) {}
-        }
-    } catch(e) {}
-});
-
-
 
 async function renderBroadcastBuilder(interaction, draft) {
     const previewContainers = draft.embeds.map((e, idx) => {
         const c = new ContainerBuilder().setAccentColor(parseInt(e.color.replace("#", ""), 16));
         let text = "";
-        if (e.title) text += `## ${e.title}\n`;
+        if (e.title) text += "## " + e.title + "\n";
         text += e.description || "...";
-        c.addTextDisplayComponents(new TextDisplayBuilder().setContent(text));
-        if (idx === draft.embeds.length - 1) {
-            c.addSeparatorComponents(new SeparatorBuilder().setSpacing(SeparatorSpacingSize.Small).setDivider(true));
-            c.addTextDisplayComponents(new TextDisplayBuilder().setContent(`-# B?ng cu?i (s? b? d?i m�u/xo� n?u thao t�c)`));
-        }
-        return c;
+        return c.addTextDisplayComponents(new TextDisplayBuilder().setContent(text));
     });
 
     const row = new ActionRowBuilder().addComponents(
-        new ButtonBuilder().setCustomId("bc_add_embed").setLabel("? Th�m B?ng").setStyle(ButtonStyle.Success).setDisabled(draft.embeds.length >= 10),
-        new ButtonBuilder().setCustomId("bc_color_menu").setLabel("?? �?i M�u").setStyle(ButtonStyle.Primary).setDisabled(draft.embeds.length === 0),
-        new ButtonBuilder().setCustomId("bc_remove").setLabel("??? Xo� B?ng Cu?i").setStyle(ButtonStyle.Danger).setDisabled(draft.embeds.length === 0),
-        new ButtonBuilder().setCustomId("bc_toggle_ping").setLabel(draft.pingEveryone ? "?? T?t Ping" : "?? B?t Ping").setStyle(ButtonStyle.Secondary)
+        new ButtonBuilder().setCustomId("bc_add_embed").setLabel("➕ Thêm Bảng").setStyle(ButtonStyle.Primary).setDisabled(draft.embeds.length >= 10),
+        new ButtonBuilder().setCustomId("bc_color_menu").setLabel("🎨 Đổi Màu Bảng Cuối").setStyle(ButtonStyle.Secondary).setDisabled(draft.embeds.length === 0),
+        new ButtonBuilder().setCustomId("bc_remove").setLabel("🗑 Xóa Bảng Cuối").setStyle(ButtonStyle.Danger).setDisabled(draft.embeds.length === 0),
+        new ButtonBuilder().setCustomId("bc_toggle_ping").setLabel(draft.pingEveryone ? "🔔 Tắt Ping @everyone" : "🔕 Bật Ping @everyone").setStyle(ButtonStyle.Secondary)
     );
     const rowSend = new ActionRowBuilder().addComponents(
-        new ButtonBuilder().setCustomId("bc_send").setLabel("?? PH�T S�NG NGAY").setStyle(ButtonStyle.Success).setDisabled(draft.embeds.length === 0)
+        new ButtonBuilder().setCustomId("bc_send").setLabel("🚀 PHÁT SÓNG NGAY").setStyle(ButtonStyle.Success).setDisabled(draft.embeds.length === 0)
     );
 
-    let contentStr = `??? **BROADCAST BUILDER - B?N XEM TRU?C**\n�ang c� **${draft.embeds.length}/10** b?ng (Component V2).\nPing @everyone: **${draft.pingEveryone ? "B?T ??" : "T?T ??"}**`;
+    let contentStr = `🛠️ **BROADCAST BUILDER - BẢN XEM TRƯỚC**\nĐang có **${draft.embeds.length}/10** bảng (Component V2).\nPing @everyone: **${draft.pingEveryone ? "BẬT 🟢" : "TẮT 🔴"}**`;
     
     if (draft.embeds.length === 0) {
         const helpContainer = new ContainerBuilder().setAccentColor(0x2ECC71)
-            .addTextDisplayComponents(new TextDisplayBuilder().setContent("## ??? HU?NG D?N\nChua c� b?ng n�o! H�y b?m **? Th�m B?ng** b�n du?i d? b?t d?u."));
+            .addTextDisplayComponents(new TextDisplayBuilder().setContent("## 🛠️ HƯỚNG DẪN\nChưa có bảng nào! Hãy bấm **➕ Thêm Bảng** bên dưới để bắt đầu."));
         previewContainers.push(helpContainer);
     }
 
@@ -14005,10 +13907,8 @@ async function renderBroadcastBuilder(interaction, draft) {
     };
 
     if (interaction.isMessageComponent?.() || interaction.isModalSubmit?.()) {
-        await interaction.update(payload).catch(() => {});
-    } else if (interaction.editReply) {
-        await interaction.reply({ ...payload, flags: MessageFlags.Ephemeral | MessageFlags.IsComponentsV2 });
+        await interaction.update(payload).catch(console.error);
     } else {
-        await interaction.reply(payload);
+        await interaction.reply({ ...payload, ephemeral: true }).catch(console.error);
     }
 }
