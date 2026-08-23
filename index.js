@@ -13773,33 +13773,22 @@ if (commandName === 'setup') {
             return interaction.update({ content: `👑 Đã chuyển quyền chủ phòng cho <@${targetId}>.`, components: [] });
         }
     }
-  } catch (err) {
-    console.error(`❌ [interactionCreate] Lỗi khi xử lý "${interaction.commandName || interaction.customId || 'unknown'}":`, err);
-    const errMsg = { content: '❌ Đã xảy ra lỗi khi xử lý yêu cầu này. Vui lòng thử lại, nếu vẫn lỗi hãy báo Admin kiểm tra console.', flags: MessageFlags.Ephemeral };
-    if (interaction.isRepliable()) {
-        if (interaction.deferred || interaction.replied) {
-            interaction.editReply(errMsg).catch(() => null);
-        } else {
-            interaction.reply(errMsg).catch(() => null);
-        }
-    }
-  }
         if (interaction.isButton()) {
             if (interaction.customId === "bc_add_embed") {
                 const draft = broadcastDrafts.get(interaction.user.id);
-                if (!draft) return interaction.reply({ content: "❌ Không tìm thấy bản nháp.", ephemeral: true });
-                if (draft.embeds.length >= 10) return interaction.reply({ content: "�?t gi?i h?n 10 b?ng!", flags: MessageFlags.Ephemeral });
-                const modal = new ModalBuilder().setCustomId("bc_modal_add").setTitle("Th�m M?c Th�ng B�o");
-                const titleInput = new TextInputBuilder().setCustomId("title").setLabel("Ti�u d? (tu? ch?n)").setStyle(TextInputStyle.Short).setRequired(false).setMaxLength(256);
-                const descInput = new TextInputBuilder().setCustomId("desc").setLabel("N?i dung").setStyle(TextInputStyle.Paragraph).setRequired(true).setMaxLength(4000);
+                if (!draft) return interaction.reply({ content: "❌ Không tìm thấy bản nháp.", flags: MessageFlags.Ephemeral });
+                if (draft.embeds.length >= 4) return interaction.reply({ content: "❌ Đã đạt giới hạn tối đa 4 bảng thông báo!", flags: MessageFlags.Ephemeral });
+                const modal = new ModalBuilder().setCustomId("bc_modal_add").setTitle("Thêm Mục Thông Báo");
+                const titleInput = new TextInputBuilder().setCustomId("title").setLabel("Tiêu đề (tuỳ chọn)").setStyle(TextInputStyle.Short).setRequired(false).setMaxLength(256);
+                const descInput = new TextInputBuilder().setCustomId("desc").setLabel("Nội dung thông báo").setStyle(TextInputStyle.Paragraph).setRequired(true).setMaxLength(4000);
                 modal.addComponents(new ActionRowBuilder().addComponents(titleInput), new ActionRowBuilder().addComponents(descInput));
                 return interaction.showModal(modal);
             }
             if (interaction.customId === "bc_color_menu") {
                 const draft = broadcastDrafts.get(interaction.user.id);
-                if (!draft || draft.embeds.length === 0) return interaction.reply({ content: "❌ Chưa có bảng nào!", ephemeral: true });
-                const modal = new ModalBuilder().setCustomId("bc_modal_color").setTitle("�?i M�u B?ng Cu?i");
-                const colorInput = new TextInputBuilder().setCustomId("color").setLabel("Nh?p m� m�u (VD: #FF0000)").setStyle(TextInputStyle.Short).setRequired(true).setMaxLength(7);
+                if (!draft || draft.embeds.length === 0) return interaction.reply({ content: "❌ Chưa có bảng nào để đổi màu!", flags: MessageFlags.Ephemeral });
+                const modal = new ModalBuilder().setCustomId("bc_modal_color").setTitle("Đổi Màu Bảng Cuối");
+                const colorInput = new TextInputBuilder().setCustomId("color").setLabel("Mã màu HEX (VD: #FF0000 hoặc #5865F2)").setStyle(TextInputStyle.Short).setRequired(true).setMaxLength(7);
                 modal.addComponents(new ActionRowBuilder().addComponents(colorInput));
                 return interaction.showModal(modal);
             }
@@ -13821,22 +13810,28 @@ if (commandName === 'setup') {
             }
             if (interaction.customId === "bc_send") {
                 const draft = broadcastDrafts.get(interaction.user.id);
-                if (!draft || draft.embeds.length === 0) return interaction.reply({ content: "❌ Chưa có bảng nào!", ephemeral: true });
+                if (!draft || draft.embeds.length === 0) return interaction.reply({ content: "❌ Chưa có bảng nào để phát sóng!", flags: MessageFlags.Ephemeral });
                 const guildsList = [...client.guilds.cache.values()];
-                await interaction.update({ content: `? �ang ph�t s�ng t?i ${guildsList.length} server...`, embeds: [], components: [] });
+                await interaction.update({ content: `🚀 Đang phát sóng tới ${guildsList.length} máy chủ...`, embeds: [], components: [] });
                 let sentCount = 0;
+                
+                const broadcastContainers = draft.embeds.map((e, idx) => {
+                    const c = new ContainerBuilder().setAccentColor(parseInt(e.color.replace("#", ""), 16));
+                    let text = "";
+                    if (idx === 0 && draft.pingEveryone) {
+                        text += "@everyone\n";
+                    }
+                    if (e.title) text += "## " + e.title + "\n";
+                    text += e.description || "...";
+                    return c.addTextDisplayComponents(new TextDisplayBuilder().setContent(text));
+                });
+
                 const v2Payload = {
-                    content: draft.pingEveryone ? "@everyone" : undefined,
-                    components: draft.embeds.map(e => {
-                        const c = new ContainerBuilder().setAccentColor(parseInt(e.color.replace("#", ""), 16));
-                        let text = "";
-                        if (e.title) text += "## " + e.title + "\n";
-                        text += e.description || "...";
-                        return c.addTextDisplayComponents(new TextDisplayBuilder().setContent(text));
-                    }),
+                    components: broadcastContainers,
                     flags: MessageFlags.IsComponentsV2,
                     allowedMentions: { parse: draft.pingEveryone ? ["everyone"] : [] }
                 };
+
                 for (const g of guildsList) {
                     try {
                         let me = g.members.me;
@@ -13849,7 +13844,7 @@ if (commandName === 'setup') {
                     } catch (e) {}
                 }
                 broadcastDrafts.delete(interaction.user.id);
-                return interaction.editReply({ content: `? **�� G?I TH�NG B�O TH�NH C�NG!**\nTh�nh c�ng: **${sentCount} / ${guildsList.length}** server.` });
+                return interaction.editReply({ content: `✅ **ĐÃ GỬI THÔNG BÁO THÀNH CÔNG!**\nThành công: **${sentCount} / ${guildsList.length}** máy chủ.` });
             }
         }
         if (interaction.isModalSubmit()) {
@@ -13866,16 +13861,23 @@ if (commandName === 'setup') {
                 if (draft && draft.embeds.length > 0) {
                     let color = interaction.fields.getTextInputValue("color").trim();
                     if (!color.startsWith("#")) color = "#" + color;
-                    if (/^#[0-9A-Fa-f]{6}$/.test(color)) { draft.embeds[draft.embeds.length - 1].color = color; await renderBroadcastBuilder(interaction, draft); } else { return interaction.reply({ content: "❌ Mã màu không hợp lệ! Vui lòng nhập đúng định dạng HEX (VD: #FF0000)", ephemeral: true }); }
-
+                    if (/^#[0-9A-Fa-f]{6}$/.test(color)) { draft.embeds[draft.embeds.length - 1].color = color; await renderBroadcastBuilder(interaction, draft); } else { return interaction.reply({ content: "❌ Mã màu không hợp lệ! Vui lòng nhập đúng định dạng HEX (VD: #FF0000 hoặc #5865F2)", flags: MessageFlags.Ephemeral }); }
                 }
                 return;
             }
         }
-
+  } catch (err) {
+    console.error(`❌ [interactionCreate] Lỗi khi xử lý "${interaction.commandName || interaction.customId || 'unknown'}":`, err);
+    const errMsg = { content: '❌ Đã xảy ra lỗi khi xử lý yêu cầu này. Vui lòng thử lại, nếu vẫn lỗi hãy báo Admin kiểm tra console.', flags: MessageFlags.Ephemeral };
+    if (interaction.isRepliable()) {
+        if (interaction.deferred || interaction.replied) {
+            interaction.editReply(errMsg).catch(() => null);
+        } else {
+            interaction.reply(errMsg).catch(() => null);
+        }
+    }
+  }
 });
-
-// -----------------------------------------------------------------
 // 🔑 ĐĂNG NHẬP BOT
 // -----------------------------------------------------------------
 if (!config.token || config.token.trim() === "") {
@@ -13954,35 +13956,44 @@ async function renderBroadcastBuilder(interaction, draft) {
         let text = "";
         if (e.title) text += "## " + e.title + "\n";
         text += e.description || "...";
-        return c.addTextDisplayComponents(new TextDisplayBuilder().setContent(text));
+        c.addTextDisplayComponents(new TextDisplayBuilder().setContent(text));
+        c.addSeparatorComponents(new SeparatorBuilder().setSpacing(SeparatorSpacingSize.Small).setDivider(true));
+        c.addTextDisplayComponents(new TextDisplayBuilder().setContent(`-# Bảng ${idx + 1}/${draft.embeds.length} • Màu: ${e.color}`));
+        return c;
     });
 
     const row = new ActionRowBuilder().addComponents(
-        new ButtonBuilder().setCustomId("bc_add_embed").setLabel("\u{2795} Th\u{00EA}m B\u{1EA3}ng").setStyle(ButtonStyle.Primary).setDisabled(draft.embeds.length >= 10),
-        new ButtonBuilder().setCustomId("bc_color_menu").setLabel("\u{1F3A8} \u{0110}\u{1ED5}i M\u{00E0}u B\u{1EA3}ng Cu\u{1ED1}i").setStyle(ButtonStyle.Secondary).setDisabled(draft.embeds.length === 0),
-        new ButtonBuilder().setCustomId("bc_remove").setLabel("\u{1F5D1} X\u{00F3}a B\u{1EA3}ng Cu\u{1ED1}i").setStyle(ButtonStyle.Danger).setDisabled(draft.embeds.length === 0),
-        new ButtonBuilder().setCustomId("bc_toggle_ping").setLabel(draft.pingEveryone ? "\u{1F514} T\u{1EAF}t Ping @everyone" : "\u{1F515} B\u{1EAD}t Ping @everyone").setStyle(ButtonStyle.Secondary)
+        new ButtonBuilder().setCustomId("bc_add_embed").setLabel("➕ Thêm Bảng").setStyle(ButtonStyle.Primary).setDisabled(draft.embeds.length >= 4),
+        new ButtonBuilder().setCustomId("bc_color_menu").setLabel("🎨 Đổi Màu Bảng Cuối").setStyle(ButtonStyle.Secondary).setDisabled(draft.embeds.length === 0),
+        new ButtonBuilder().setCustomId("bc_remove").setLabel("🗑 Xóa Bảng Cuối").setStyle(ButtonStyle.Danger).setDisabled(draft.embeds.length === 0),
+        new ButtonBuilder().setCustomId("bc_toggle_ping").setLabel(draft.pingEveryone ? "🔔 Tắt Ping @everyone" : "🔕 Bật Ping @everyone").setStyle(ButtonStyle.Secondary)
     );
     const rowSend = new ActionRowBuilder().addComponents(
-        new ButtonBuilder().setCustomId("bc_send").setLabel("\u{1F680} PH\u{00C1}T S\u{00D3}NG NGAY").setStyle(ButtonStyle.Success).setDisabled(draft.embeds.length === 0)
+        new ButtonBuilder().setCustomId("bc_send").setLabel("🚀 PHÁT SÓNG NGAY").setStyle(ButtonStyle.Success).setDisabled(draft.embeds.length === 0)
     );
 
-    let contentStr = `\u{1F6E0}\u{FE0F} **BROADCAST BUILDER - B\u{1EA2}N XEM TR\u{01AF}\u{1EDA}C**\n\u{0110}ang c\u{00F3} **${draft.embeds.length}/10** b\u{1EA3}ng (Component V2).\nPing @everyone: **${draft.pingEveryone ? "B\u{1EAC}T \u{1F7E2}" : "T\u{1EAE}T \u{1F534}"}**`;
+    const controlContainer = new ContainerBuilder().setAccentColor(0x5865F2);
+    let controlText = `## 🛠️ BROADCAST BUILDER (Components V2)\n` +
+        `> Đang có **${draft.embeds.length}/4** bảng thông báo.\n` +
+        `> Ping @everyone: **${draft.pingEveryone ? "BẬT 🟢" : "TẮT 🔴"}**\n`;
     
     if (draft.embeds.length === 0) {
-        const helpContainer = new ContainerBuilder().setAccentColor(0x2ECC71)
-            .addTextDisplayComponents(new TextDisplayBuilder().setContent("## \u{1F6E0}\u{FE0F} H\u{01AF}\u{1EDA}NG D\u{1EAA}N\nCh\u{01B0}a c\u{00F3} b\u{1EA3}ng n\u{00E0}o! H\u{00E3}y b\u{1EA5}m **\u{2795} Th\u{00EA}m B\u{1EA3}ng** b\u{00EA}n d\u{01B0}\u{1EDB}i \u{0111}\u{1EC3} b\u{1EAF}t \u{0111}\u{1EA7}u."));
-        previewContainers.push(helpContainer);
+        controlText += `\n*Chưa có bảng nào! Hãy bấm **➕ Thêm Bảng** bên dưới để tạo mục thông báo đầu tiên.*`;
     }
+    controlContainer.addTextDisplayComponents(new TextDisplayBuilder().setContent(controlText));
+    controlContainer.addActionRowComponents(row);
+    controlContainer.addActionRowComponents(rowSend);
 
     const payload = {
-        content: contentStr,
-        components: [...previewContainers, row, rowSend],
+        components: [controlContainer, ...previewContainers],
         flags: MessageFlags.IsComponentsV2 | MessageFlags.Ephemeral
     };
 
     if (interaction.isMessageComponent?.() || interaction.isModalSubmit?.()) {
-        await interaction.update({ ...payload, flags: MessageFlags.IsComponentsV2 }).catch(console.error);
+        await interaction.update({
+            components: [controlContainer, ...previewContainers],
+            flags: MessageFlags.IsComponentsV2
+        }).catch(console.error);
     } else {
         await interaction.reply(payload).catch(console.error);
     }
