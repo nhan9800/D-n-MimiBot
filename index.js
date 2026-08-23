@@ -13773,8 +13773,15 @@ if (commandName === 'setup') {
                 if (draft.embeds.length >= 4) return interaction.reply({ content: "❌ Đã đạt giới hạn tối đa 4 bảng thông báo!", flags: MessageFlags.Ephemeral });
                 const modal = new ModalBuilder().setCustomId("bc_modal_add").setTitle("Thêm Mục Thông Báo");
                 const titleInput = new TextInputBuilder().setCustomId("title").setLabel("Tiêu đề (tuỳ chọn)").setStyle(TextInputStyle.Short).setRequired(false).setMaxLength(256);
-                const descInput = new TextInputBuilder().setCustomId("desc").setLabel("Nội dung thông báo").setStyle(TextInputStyle.Paragraph).setRequired(true).setMaxLength(4000);
-                modal.addComponents(new ActionRowBuilder().addComponents(titleInput), new ActionRowBuilder().addComponents(descInput));
+                const descInput = new TextInputBuilder().setCustomId("desc").setLabel("Nội dung thông báo").setStyle(TextInputStyle.Paragraph).setRequired(true).setMaxLength(3500);
+                const imageInput = new TextInputBuilder().setCustomId("image").setLabel("Link ảnh / Banner URL (tuỳ chọn)").setStyle(TextInputStyle.Short).setRequired(false).setMaxLength(500);
+                const footerInput = new TextInputBuilder().setCustomId("footer").setLabel("Chân trang / Footer (tuỳ chọn)").setStyle(TextInputStyle.Short).setRequired(false).setMaxLength(256);
+                modal.addComponents(
+                    new ActionRowBuilder().addComponents(titleInput),
+                    new ActionRowBuilder().addComponents(descInput),
+                    new ActionRowBuilder().addComponents(imageInput),
+                    new ActionRowBuilder().addComponents(footerInput)
+                );
                 return interaction.showModal(modal);
             }
             if (interaction.customId === "bc_color_menu") {
@@ -13816,7 +13823,23 @@ if (commandName === 'setup') {
                     }
                     if (e.title) text += "## " + e.title + "\n";
                     text += e.description || "...";
-                    return c.addTextDisplayComponents(new TextDisplayBuilder().setContent(text));
+                    c.addTextDisplayComponents(new TextDisplayBuilder().setContent(text));
+
+                    if (e.image && typeof MediaGalleryBuilder !== 'undefined' && typeof MediaGalleryItemBuilder !== 'undefined') {
+                        try {
+                            if (e.image.startsWith('http://') || e.image.startsWith('https://')) {
+                                c.addMediaGalleryComponents(
+                                    new MediaGalleryBuilder().addItems(new MediaGalleryItemBuilder().setURL(e.image))
+                                );
+                            }
+                        } catch {}
+                    }
+
+                    if (e.footer) {
+                        c.addSeparatorComponents(new SeparatorBuilder().setSpacing(SeparatorSpacingSize.Small).setDivider(true));
+                        c.addTextDisplayComponents(new TextDisplayBuilder().setContent(`-# ${e.footer}`));
+                    }
+                    return c;
                 });
 
                 const v2Payload = {
@@ -13844,7 +13867,11 @@ if (commandName === 'setup') {
             if (interaction.customId === "bc_modal_add") {
                 const draft = broadcastDrafts.get(interaction.user.id);
                 if (draft) {
-                    draft.embeds.push({ title: interaction.fields.getTextInputValue("title") || null, description: interaction.fields.getTextInputValue("desc"), color: "#8C7CF0" });
+                    const title = interaction.fields.getTextInputValue("title")?.trim() || null;
+                    const desc = interaction.fields.getTextInputValue("desc");
+                    const image = interaction.fields.getTextInputValue("image")?.trim() || null;
+                    const footer = interaction.fields.getTextInputValue("footer")?.trim() || null;
+                    draft.embeds.push({ title, description: desc, image, footer, color: "#8C7CF0" });
                     await renderBroadcastBuilder(interaction, draft);
                 }
                 return;
@@ -13950,8 +13977,28 @@ async function renderBroadcastBuilder(interaction, draft) {
         if (e.title) text += "## " + e.title + "\n";
         text += e.description || "...";
         c.addTextDisplayComponents(new TextDisplayBuilder().setContent(text));
+
+        if (e.image && typeof MediaGalleryBuilder !== 'undefined' && typeof MediaGalleryItemBuilder !== 'undefined') {
+            try {
+                if (e.image.startsWith('http://') || e.image.startsWith('https://')) {
+                    c.addMediaGalleryComponents(
+                        new MediaGalleryBuilder().addItems(new MediaGalleryItemBuilder().setURL(e.image))
+                    );
+                }
+            } catch {}
+        }
+
+        if (e.footer) {
+            c.addSeparatorComponents(new SeparatorBuilder().setSpacing(SeparatorSpacingSize.Small).setDivider(true));
+            c.addTextDisplayComponents(new TextDisplayBuilder().setContent(`-# ${e.footer}`));
+        }
+
         c.addSeparatorComponents(new SeparatorBuilder().setSpacing(SeparatorSpacingSize.Small).setDivider(true));
-        c.addTextDisplayComponents(new TextDisplayBuilder().setContent(`-# Bảng ${idx + 1}/${draft.embeds.length} • Màu: ${e.color}`));
+        const tags = [];
+        tags.push(`Màu: ${e.color}`);
+        if (e.image) tags.push('🖼️ Có ảnh');
+        if (e.footer) tags.push('📝 Có footer');
+        c.addTextDisplayComponents(new TextDisplayBuilder().setContent(`-# Bảng ${idx + 1}/${draft.embeds.length} • ${tags.join(' • ')}`));
         return c;
     });
 
