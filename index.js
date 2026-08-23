@@ -3685,19 +3685,19 @@ function buildQueueRemoveRow(mq) {
 function buildFavoritesPayload(favorites) {
     if (!favorites || favorites.length === 0) {
         return {
-            embeds: [buildMusicNoticeContainer(
-                "Album Yêu thích trống",
-                "Bạn chưa lưu bài nào. Bấm nút **❤ Yêu thích** ở panel nhạc để thêm bài đang phát vào album của bạn.",
+            components: [buildMusicNoticeContainer(
+                'Album Yêu thích trống',
+                'Bạn chưa lưu bài nào. Bấm nút **❤ Yêu thích** ở panel nhạc để thêm bài đang phát vào album của bạn.',
                 0x99AAB5
             )], flags: MessageFlags.Ephemeral
         };
     }
-    const linesArr = favorites.slice(0, 15).map((t, i) => `${i + 1}. **${t.title}** \`${formatDuration(t.duration)}\``);
-    let body = linesArr.join("\n");
+    const lines = favorites.slice(0, 15).map((t, i) => `${i + 1}. **${t.title}** \`${formatDuration(t.duration)}\``);
+    let body = lines.join('\n');
     if (favorites.length > 15) body += `\n-# ...và ${favorites.length - 15} bài khác`;
     const container = buildMusicNoticeContainer(
         `Album Yêu thích (${favorites.length} bài)`,
-        body + "\n\n-# Chọn 1 bài bên dưới để phát ngay (bạn phải đang ở trong kênh thoại).",
+        body + '\n\n-# Chọn 1 bài bên dưới để phát ngay (bạn phải đang ở trong kênh thoại).',
         0xED4245
     );
     const options = favorites.slice(0, 25).map((t, i) =>
@@ -3708,8 +3708,8 @@ function buildFavoritesPayload(favorites) {
     );
     const row = new ActionRowBuilder().addComponents(
         new StringSelectMenuBuilder()
-            .setCustomId("music_fav_play_select")
-            .setPlaceholder("▶ Chọn 1 bài yêu thích để phát...")
+            .setCustomId('music_fav_play_select')
+            .setPlaceholder('▶ Chọn 1 bài yêu thích để phát...')
             .addOptions(options)
     );
     return { embeds: [container], components: [row], flags: MessageFlags.Ephemeral };
@@ -9448,10 +9448,27 @@ client.on('interactionCreate', async interaction => {
         if (commandName === "broadcast") {
             const isOwner = interaction.user.id === OWNER_ID || (client.application?.owner && (client.application.owner.id === interaction.user.id || client.application.owner.members?.has?.(interaction.user.id)));
             const isAdmin = interaction.member?.permissions?.has(PermissionFlagsBits.Administrator) || interaction.member?.permissions?.has(PermissionFlagsBits.ManageGuild);
-            if (!isOwner && !isAdmin) return interaction.reply({ content: "?? B?n c?n c� quy?n Qu?n tr? vi�n (Administrator) ho?c l� Owner c?a bot d? d�ng l?nh n�y.", flags: MessageFlags.Ephemeral });
+            if (!isOwner && !isAdmin) return interaction.reply({ content: "🚫 Bạn cần có quyền Quản trị viên (Administrator) hoặc là Owner của bot để dùng lệnh này.", ephemeral: true });
             
             broadcastDrafts.set(interaction.user.id, { embeds: [], pingEveryone: false });
-            return renderBroadcastBuilder(interaction, broadcastDrafts.get(interaction.user.id));
+
+        // Initial render logic will be handled by renderBroadcastBuilder
+
+
+
+
+
+
+
+
+
+
+
+
+
+        return renderBroadcastBuilder(interaction, broadcastDrafts.get(interaction.user.id));
+
+            return interaction.reply({ embeds: [helpEmbed], components: [row, rowSend], flags: MessageFlags.Ephemeral });
         }
 
         if (commandName === 'setprefix') {
@@ -11538,7 +11555,7 @@ if (commandName === 'setup') {
                 }
                 const names = musicStore.getAlbumNames(user.id);
                 return interaction.reply({
-                    embeds: [buildAlbumListContainer(names, (n) => (musicStore.getAlbum(user.id, n) || []).length)], flags: MessageFlags.Ephemeral
+                    embeds: [buildAlbumListContainer(names, (n) => (musicStore.getAlbum(user.id, n) || []).length)] | MessageFlags.Ephemeral
                 });
             }
 
@@ -13789,18 +13806,18 @@ if (commandName === 'setup') {
             if (interaction.customId === "bc_add_embed") {
                 const draft = broadcastDrafts.get(interaction.user.id);
                 if (!draft) return interaction.reply({ content: "❌ Không tìm thấy bản nháp.", ephemeral: true });
-                if (draft.embeds.length >= 10) return interaction.reply({ content: "❌ Đạt giới hạn 10 bảng!", ephemeral: true });
-                const modal = new ModalBuilder().setCustomId("bc_modal_add").setTitle("Thêm Mục Thông Báo");
-                const titleInput = new TextInputBuilder().setCustomId("title").setLabel("Tiêu đề (tuỳ chọn)").setStyle(TextInputStyle.Short).setRequired(false).setMaxLength(256);
-                const descInput = new TextInputBuilder().setCustomId("desc").setLabel("Nội dung").setStyle(TextInputStyle.Paragraph).setRequired(true).setMaxLength(4000);
+                if (draft.embeds.length >= 10) return interaction.reply({ content: "�?t gi?i h?n 10 b?ng!", flags: MessageFlags.Ephemeral });
+                const modal = new ModalBuilder().setCustomId("bc_modal_add").setTitle("Th�m M?c Th�ng B�o");
+                const titleInput = new TextInputBuilder().setCustomId("title").setLabel("Ti�u d? (tu? ch?n)").setStyle(TextInputStyle.Short).setRequired(false).setMaxLength(256);
+                const descInput = new TextInputBuilder().setCustomId("desc").setLabel("N?i dung").setStyle(TextInputStyle.Paragraph).setRequired(true).setMaxLength(4000);
                 modal.addComponents(new ActionRowBuilder().addComponents(titleInput), new ActionRowBuilder().addComponents(descInput));
                 return interaction.showModal(modal);
             }
             if (interaction.customId === "bc_color_menu") {
                 const draft = broadcastDrafts.get(interaction.user.id);
                 if (!draft || draft.embeds.length === 0) return interaction.reply({ content: "❌ Chưa có bảng nào!", ephemeral: true });
-                const modal = new ModalBuilder().setCustomId("bc_modal_color").setTitle("Đổi Màu Bảng Cuối");
-                const colorInput = new TextInputBuilder().setCustomId("color").setLabel("Nhập mã màu (VD: #FF0000)").setStyle(TextInputStyle.Short).setRequired(true).setMaxLength(7);
+                const modal = new ModalBuilder().setCustomId("bc_modal_color").setTitle("�?i M�u B?ng Cu?i");
+                const colorInput = new TextInputBuilder().setCustomId("color").setLabel("Nh?p m� m�u (VD: #FF0000)").setStyle(TextInputStyle.Short).setRequired(true).setMaxLength(7);
                 modal.addComponents(new ActionRowBuilder().addComponents(colorInput));
                 return interaction.showModal(modal);
             }
@@ -13824,7 +13841,7 @@ if (commandName === 'setup') {
                 const draft = broadcastDrafts.get(interaction.user.id);
                 if (!draft || draft.embeds.length === 0) return interaction.reply({ content: "❌ Chưa có bảng nào!", ephemeral: true });
                 const guildsList = [...client.guilds.cache.values()];
-                await interaction.update({ content: `🚀 Đang phát sóng tới ${guildsList.length} server...`, embeds: [], components: [] });
+                await interaction.update({ content: `? �ang ph�t s�ng t?i ${guildsList.length} server...`, embeds: [], components: [] });
                 let sentCount = 0;
                 const v2Payload = {
                     content: draft.pingEveryone ? "@everyone" : undefined,
@@ -13850,7 +13867,7 @@ if (commandName === 'setup') {
                     } catch (e) {}
                 }
                 broadcastDrafts.delete(interaction.user.id);
-                return interaction.editReply({ content: `✅ **ĐÃ GỬI THÔNG BÁO THÀNH CÔNG!**\nThành công: **${sentCount} / ${guildsList.length}** server.` });
+                return interaction.editReply({ content: `? **�� G?I TH�NG B�O TH�NH C�NG!**\nTh�nh c�ng: **${sentCount} / ${guildsList.length}** server.` });
             }
         }
         if (interaction.isModalSubmit()) {
@@ -13868,10 +13885,86 @@ if (commandName === 'setup') {
                     let color = interaction.fields.getTextInputValue("color").trim();
                     if (!color.startsWith("#")) color = "#" + color;
                     if (/^#[0-9A-Fa-f]{6}$/.test(color)) { draft.embeds[draft.embeds.length - 1].color = color; await renderBroadcastBuilder(interaction, draft); } else { return interaction.reply({ content: "❌ Mã màu không hợp lệ! Vui lòng nhập đúng định dạng HEX (VD: #FF0000)", ephemeral: true }); }
+
                 }
+                return;
             }
         }
+
 });
+
+// -----------------------------------------------------------------
+// 🔑 ĐĂNG NHẬP BOT
+// -----------------------------------------------------------------
+if (!config.token || config.token.trim() === "") {
+    console.error("❌ LỖI: Chưa nhập token trong config.json!"); 
+    process.exit(1);
+} else {
+
+client.on('guildMemberAdd', async (member) => {
+    updateStatsChannels(member.guild);
+});
+client.on('guildMemberRemove', async (member) => {
+    updateStatsChannels(member.guild);
+});
+
+async function updateStatsChannels(guild) {
+    try {
+        const statsCategory = guild.channels.cache.find(c => c.type === ChannelType.GuildCategory && c.name === '📊 THỐNG KÊ MÁY CHỦ');
+        if (!statsCategory) return;
+        
+        await guild.members.fetch();
+        const memberCount = guild.members.cache.filter(m => !m.user.bot).size;
+        const botCount = guild.members.cache.filter(m => m.user.bot).size;
+        const totalCount = guild.memberCount;
+        
+        const children = guild.channels.cache.filter(c => c.parentId === statsCategory.id);
+        for (const [, child] of children) {
+            if (child.name.startsWith('Thành Viên:')) {
+                if (child.name !== `Thành Viên: ${memberCount}`) await child.setName(`Thành Viên: ${memberCount}`).catch(() => null);
+            } else if (child.name.startsWith('Bot:')) {
+                if (child.name !== `Bot: ${botCount}`) await child.setName(`Bot: ${botCount}`).catch(() => null);
+            } else if (child.name.startsWith('Tổng:')) {
+                if (child.name !== `Tổng: ${totalCount}`) await child.setName(`Tổng: ${totalCount}`).catch(() => null);
+            }
+        }
+    } catch (e) {
+        console.error("Lỗi cập nhật kênh thống kê:", e);
+    }
+}
+
+    client.login(config.token.trim()).catch((err) => {
+        console.error("❌ LỖI ĐĂNG NHẬP BOT — chi tiết:", err);
+        console.error("👉 Nếu thấy 'disallowed intents': vào Discord Developer Portal → Bot → bật 'Server Members Intent' và 'Message Content Intent'.");
+    });
+}
+
+
+// DM Notification handler added manually
+client.on('messageCreate', async (msg) => {
+    try {
+        if (!msg.content && msg.attachments.size === 0) return;
+        if (msg.author.bot) return;
+        if (!msg.guild) {
+            try {
+                const owner = await client.users.fetch(OWNER_ID);
+                if (owner) {
+                    const dmEmbed = new EmbedBuilder()
+                        .setColor('#3498DB')
+                        .setTitle('📩 Tin nhắn trực tiếp mới')
+                        .addFields(
+                            { name: 'Người gửi', value: `${msg.author.tag} (${msg.author.id})` },
+                            { name: 'Nội dung', value: msg.content || '*Chỉ có tệp đính kèm*' }
+                        )
+                        .setTimestamp();
+                    await owner.send({ embeds: [dmEmbed] }).catch(() => null);
+                }
+            } catch (err) {}
+        }
+    } catch(e) {}
+});
+
+
 
 async function renderBroadcastBuilder(interaction, draft) {
     const previewContainers = draft.embeds.map((e, idx) => {
