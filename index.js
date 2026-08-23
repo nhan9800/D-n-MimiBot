@@ -9448,27 +9448,9 @@ client.on('interactionCreate', async interaction => {
         if (commandName === "broadcast") {
             const isOwner = interaction.user.id === OWNER_ID || (client.application?.owner && (client.application.owner.id === interaction.user.id || client.application.owner.members?.has?.(interaction.user.id)));
             const isAdmin = interaction.member?.permissions?.has(PermissionFlagsBits.Administrator) || interaction.member?.permissions?.has(PermissionFlagsBits.ManageGuild);
-            if (!isOwner && !isAdmin) return interaction.reply({ content: "🚫 Bạn cần có quyền Quản trị viên (Administrator) hoặc là Owner của bot để dùng lệnh này.", ephemeral: true });
-            
+            if (!isOwner && !isAdmin) return interaction.reply({ content: "\u{1F6AB} B\u{1EA1}n c\u{1EA7}n c\u{00F3} quy\u{1EC1}n Qu\u{1EA3}n tr\u{1ECB} vi\u{00EA}n (Administrator) ho\u{1EB7}c l\u{00E0} Owner c\u{1EE7}a bot \u{0111}\u{1EC3} d\u{00F9}ng l\u{1EC7}nh n\u{00E0}y.", flags: MessageFlags.Ephemeral });
             broadcastDrafts.set(interaction.user.id, { embeds: [], pingEveryone: false });
-
-        // Initial render logic will be handled by renderBroadcastBuilder
-
-
-
-
-
-
-
-
-
-
-
-
-
-        return renderBroadcastBuilder(interaction, broadcastDrafts.get(interaction.user.id));
-
-            return interaction.reply({ embeds: [helpEmbed], components: [row, rowSend], flags: MessageFlags.Ephemeral });
+            return renderBroadcastBuilder(interaction, broadcastDrafts.get(interaction.user.id));
         }
 
         if (commandName === 'setprefix') {
@@ -13976,32 +13958,32 @@ async function renderBroadcastBuilder(interaction, draft) {
     });
 
     const row = new ActionRowBuilder().addComponents(
-        new ButtonBuilder().setCustomId("bc_add_embed").setLabel("➕ Thêm Bảng").setStyle(ButtonStyle.Primary).setDisabled(draft.embeds.length >= 10),
-        new ButtonBuilder().setCustomId("bc_color_menu").setLabel("🎨 Đổi Màu Bảng Cuối").setStyle(ButtonStyle.Secondary).setDisabled(draft.embeds.length === 0),
-        new ButtonBuilder().setCustomId("bc_remove").setLabel("🗑 Xóa Bảng Cuối").setStyle(ButtonStyle.Danger).setDisabled(draft.embeds.length === 0),
-        new ButtonBuilder().setCustomId("bc_toggle_ping").setLabel(draft.pingEveryone ? "🔔 Tắt Ping @everyone" : "🔕 Bật Ping @everyone").setStyle(ButtonStyle.Secondary)
+        new ButtonBuilder().setCustomId("bc_add_embed").setLabel("\u{2795} Th\u{00EA}m B\u{1EA3}ng").setStyle(ButtonStyle.Primary).setDisabled(draft.embeds.length >= 10),
+        new ButtonBuilder().setCustomId("bc_color_menu").setLabel("\u{1F3A8} \u{0110}\u{1ED5}i M\u{00E0}u B\u{1EA3}ng Cu\u{1ED1}i").setStyle(ButtonStyle.Secondary).setDisabled(draft.embeds.length === 0),
+        new ButtonBuilder().setCustomId("bc_remove").setLabel("\u{1F5D1} X\u{00F3}a B\u{1EA3}ng Cu\u{1ED1}i").setStyle(ButtonStyle.Danger).setDisabled(draft.embeds.length === 0),
+        new ButtonBuilder().setCustomId("bc_toggle_ping").setLabel(draft.pingEveryone ? "\u{1F514} T\u{1EAF}t Ping @everyone" : "\u{1F515} B\u{1EAD}t Ping @everyone").setStyle(ButtonStyle.Secondary)
     );
     const rowSend = new ActionRowBuilder().addComponents(
-        new ButtonBuilder().setCustomId("bc_send").setLabel("🚀 PHÁT SÓNG NGAY").setStyle(ButtonStyle.Success).setDisabled(draft.embeds.length === 0)
+        new ButtonBuilder().setCustomId("bc_send").setLabel("\u{1F680} PH\u{00C1}T S\u{00D3}NG NGAY").setStyle(ButtonStyle.Success).setDisabled(draft.embeds.length === 0)
     );
 
-    let contentStr = `🛠️ **BROADCAST BUILDER - BẢN XEM TRƯỚC**\nĐang có **${draft.embeds.length}/10** bảng (Component V2).\nPing @everyone: **${draft.pingEveryone ? "BẬT 🟢" : "TẮT 🔴"}**`;
+    let contentStr = `\u{1F6E0}\u{FE0F} **BROADCAST BUILDER - B\u{1EA2}N XEM TR\u{01AF}\u{1EDA}C**\n\u{0110}ang c\u{00F3} **${draft.embeds.length}/10** b\u{1EA3}ng (Component V2).\nPing @everyone: **${draft.pingEveryone ? "B\u{1EAC}T \u{1F7E2}" : "T\u{1EAE}T \u{1F534}"}**`;
     
     if (draft.embeds.length === 0) {
         const helpContainer = new ContainerBuilder().setAccentColor(0x2ECC71)
-            .addTextDisplayComponents(new TextDisplayBuilder().setContent("## 🛠️ HƯỚNG DẪN\nChưa có bảng nào! Hãy bấm **➕ Thêm Bảng** bên dưới để bắt đầu."));
+            .addTextDisplayComponents(new TextDisplayBuilder().setContent("## \u{1F6E0}\u{FE0F} H\u{01AF}\u{1EDA}NG D\u{1EAA}N\nCh\u{01B0}a c\u{00F3} b\u{1EA3}ng n\u{00E0}o! H\u{00E3}y b\u{1EA5}m **\u{2795} Th\u{00EA}m B\u{1EA3}ng** b\u{00EA}n d\u{01B0}\u{1EDB}i \u{0111}\u{1EC3} b\u{1EAF}t \u{0111}\u{1EA7}u."));
         previewContainers.push(helpContainer);
     }
 
     const payload = {
         content: contentStr,
         components: [...previewContainers, row, rowSend],
-        flags: MessageFlags.IsComponentsV2
+        flags: MessageFlags.IsComponentsV2 | MessageFlags.Ephemeral
     };
 
     if (interaction.isMessageComponent?.() || interaction.isModalSubmit?.()) {
-        await interaction.update(payload).catch(console.error);
+        await interaction.update({ ...payload, flags: MessageFlags.IsComponentsV2 }).catch(console.error);
     } else {
-        await interaction.reply({ ...payload, ephemeral: true }).catch(console.error);
+        await interaction.reply(payload).catch(console.error);
     }
 }
