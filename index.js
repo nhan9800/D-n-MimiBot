@@ -13832,13 +13832,16 @@ if (commandName === 'setup') {
                 const guildsList = [...client.guilds.cache.values()];
                 await interaction.update({ content: `? �ang ph�t s�ng t?i ${guildsList.length} server...`, embeds: [], components: [] });
                 let sentCount = 0;
-                const embedPayload = {
+                const v2Payload = {
                     content: draft.pingEveryone ? "@everyone" : undefined,
-                    embeds: draft.embeds.map(e => {
-                        const em = new EmbedBuilder().setColor(e.color).setDescription(e.description || "...");
-                        if (e.title) em.setTitle(e.title);
-                        return em;
+                    components: draft.embeds.map(e => {
+                        const c = new ContainerBuilder().setAccentColor(parseInt(e.color.replace("#", ""), 16));
+                        let text = "";
+                        if (e.title) text += "## " + e.title + "\n";
+                        text += e.description || "...";
+                        return c.addTextDisplayComponents(new TextDisplayBuilder().setContent(text));
                     }),
+                    flags: MessageFlags.IsComponentsV2,
                     allowedMentions: { parse: draft.pingEveryone ? ["everyone"] : [] }
                 };
                 for (const g of guildsList) {
@@ -13849,7 +13852,7 @@ if (commandName === 'setup') {
                         const canSend = (c) => c && me && (c.type === ChannelType.GuildText || c.type === ChannelType.GuildAnnouncement) && c.permissionsFor(me)?.has(PermissionFlagsBits.SendMessages) && c.permissionsFor(me)?.has(PermissionFlagsBits.EmbedLinks);
                         let targetChannel = canSend(g.systemChannel) ? g.systemChannel : g.channels.cache.find(canSend);
                         if (!targetChannel) { const fetched = await g.channels.fetch().catch(() => null); if (fetched) targetChannel = fetched.find(canSend); }
-                        if (targetChannel) { await targetChannel.send(embedPayload); sentCount++; }
+                        if (targetChannel) { await targetChannel.send(v2Payload); sentCount++; }
                     } catch (e) {}
                 }
                 broadcastDrafts.delete(interaction.user.id);
@@ -13953,11 +13956,17 @@ client.on('messageCreate', async (msg) => {
 
 
 async function renderBroadcastBuilder(interaction, draft) {
-    const previewEmbeds = draft.embeds.map((e, idx) => {
-        const em = new EmbedBuilder().setColor(e.color).setDescription(e.description || "...");
-        if (e.title) em.setTitle(e.title);
-        if (idx === draft.embeds.length - 1) em.setFooter({ text: "B?ng cu?i (s? b? d?i m�u/xo� n?u thao t�c)" });
-        return em;
+    const previewContainers = draft.embeds.map((e, idx) => {
+        const c = new ContainerBuilder().setAccentColor(parseInt(e.color.replace("#", ""), 16));
+        let text = "";
+        if (e.title) text += `## ${e.title}\n`;
+        text += e.description || "...";
+        c.addTextDisplayComponents(new TextDisplayBuilder().setContent(text));
+        if (idx === draft.embeds.length - 1) {
+            c.addSeparatorComponents(new SeparatorBuilder().setSpacing(SeparatorSpacingSize.Small).setDivider(true));
+            c.addTextDisplayComponents(new TextDisplayBuilder().setContent(`-# B?ng cu?i (s? b? d?i m�u/xo� n?u thao t�c)`));
+        }
+        return c;
     });
 
     const row = new ActionRowBuilder().addComponents(
@@ -13970,18 +13979,25 @@ async function renderBroadcastBuilder(interaction, draft) {
         new ButtonBuilder().setCustomId("bc_send").setLabel("?? PH�T S�NG NGAY").setStyle(ButtonStyle.Success).setDisabled(draft.embeds.length === 0)
     );
 
-    let contentStr = `??? **BROADCAST BUILDER - B?N XEM TRU?C**\n�ang c� **${draft.embeds.length}/10** b?ng (Embeds).\nPing @everyone: **${draft.pingEveryone ? "B?T ??" : "T?T ??"}**`;
+    let contentStr = `??? **BROADCAST BUILDER - B?N XEM TRU?C**\n�ang c� **${draft.embeds.length}/10** b?ng (Component V2).\nPing @everyone: **${draft.pingEveryone ? "B?T ??" : "T?T ??"}**`;
     
     if (draft.embeds.length === 0) {
-        const helpEmbed = new EmbedBuilder().setColor("#2ECC71").setTitle("??? HU?NG D?N").setDescription("Chua c� b?ng n�o! H�y b?m **? Th�m B?ng** b�n du?i d? b?t d?u.");
-        previewEmbeds.push(helpEmbed);
+        const helpContainer = new ContainerBuilder().setAccentColor(0x2ECC71)
+            .addTextDisplayComponents(new TextDisplayBuilder().setContent("## ??? HU?NG D?N\nChua c� b?ng n�o! H�y b?m **? Th�m B?ng** b�n du?i d? b?t d?u."));
+        previewContainers.push(helpContainer);
     }
 
+    const payload = {
+        content: contentStr,
+        components: [...previewContainers, row, rowSend],
+        flags: MessageFlags.IsComponentsV2
+    };
+
     if (interaction.isMessageComponent?.() || interaction.isModalSubmit?.()) {
-        await interaction.update({ content: contentStr, embeds: previewEmbeds, components: [row, rowSend] }).catch(() => {});
+        await interaction.update(payload).catch(() => {});
     } else if (interaction.editReply) {
-        await interaction.reply({ content: contentStr, embeds: previewEmbeds, components: [row, rowSend], flags: MessageFlags.Ephemeral });
+        await interaction.reply({ ...payload, flags: MessageFlags.Ephemeral | MessageFlags.IsComponentsV2 });
     } else {
-        await interaction.reply({ content: contentStr, embeds: previewEmbeds, components: [row, rowSend] });
+        await interaction.reply(payload);
     }
 }
