@@ -285,7 +285,10 @@ const client = new Client({
 // Nếu Client (là 1 EventEmitter) tự phát ra sự kiện 'error' mà KHÔNG có ai lắng nghe,
 // Node.js sẽ throw ngay lập tức (hành vi đặc biệt riêng của sự kiện 'error' trong EventEmitter).
 // Gắn 2 listener này để chặn đứng khả năng đó — chỉ log ra console, không crash bot.
-client.on('error', (err) => console.error('❌ [Discord Client Error]', err));
+client.on('error', (err) => {
+    if (err?.code === 10062 || err?.code === 40060 || err?.code === 'GuildMembersTimeout' || err?.rawError?.code === 10062) return;
+    console.error('❌ [Discord Client Error]', err);
+});
 client.on('shardError', (err) => console.error('❌ [Discord Shard Error]', err));
 
 // -----------------------------------------------------------------
@@ -2797,41 +2800,42 @@ function normalizeYoutubeUrl(rawUrl) {
     return input;
 }
 
-// 🛡️ CHỐNG LỖI 403 FORBIDDEN: YouTube hay chặn URL stream lấy từ client "web" mặc định
-// (đòi po_token / header khớp). Ép yt-dlp ưu tiên client "android" & "ios" — chúng thường
-// cho URL tải thẳng được, không cần po_token — rồi mới thử "web" như phương án cuối.
-// CHÚ Ý: KHÔNG ép User-Agent giả app điện thoại ở đây. Đã kiểm chứng thực tế:
-//   - UA mobile làm lệnh TÌM KIẾM (ytsearchN:) trả về 0 kết quả -> gõ tên bài không ra gì.
-//   - UA mobile KHÔNG cần thiết để tải: chỉ cần player_client=android là đã lấy được URL
-//     stream tải thẳng, né được 403. Nên bỏ hẳn UA mobile: search chạy lại, 403 vẫn không quay lại.
-const YT_EXTRACTOR_ARGS = 'youtube:player_client=android,ios,web';
-// 🎵 CLIENT RIÊNG CHO LÚC TẢI NHẠC: đặt android_vr LÊN ĐẦU. Đã kiểm chứng thực tế bằng yt-dlp:
-//   - Client android/ios (dùng để né 403) với NHIỀU video KHÔNG có định dạng audio-only,
-//     chỉ có video mp4 muxed ~14MB -> bot phải tải cả video + ffmpeg tách audio -> nặng CPU
-//     & băng thông -> ÂM THANH BỊ NHỎ/HỤT RỒI LẠI BÌNH THƯỜNG (buffer underrun).
-//   - Client "web" mặc định CÓ audio-only opus ~4MB nhưng tải bị 403.
-//   - Client android_vr CÓ audio-only opus ~4MB VÀ tải được, KHÔNG 403 -> nhẹ nhất, hết hụt tiếng.
-// KHÔNG dùng android_vr cho tìm kiếm vì nó làm lệnh search chậm hẳn (tải VR player API mỗi video).
-const YT_DOWNLOAD_EXTRACTOR_ARGS = 'youtube:player_client=android_vr,android,ios,web';
-// 🔁 CHUỖI CLIENT DỰ PHÒNG KHI TẢI BỊ 403: YouTube liên tục chặn/xoay client nên KHÔNG client nào
-// "luôn đúng". Khi tải data bị 403 (dù đã lấy được URL), ta THỬ LẠI cùng bài với bộ client KHÁC theo
-// thứ tự dưới đây trước khi coi bài là lỗi. Mỗi phần tử là một cách ép player_client khác nhau:
-//   [0] android_vr trước (audio-only opus nhẹ) — mặc định, chạy tốt phần lớn thời gian.
-//   [1] tv/mweb/web_safari — nhóm client hay dùng được khi android bị siết (không cần po_token).
-//   [2] web/android/ios — phương án cuối, đôi khi web lại tải được khi các client kia hỏng.
+function getCookieFilePath() {
+    const possibleNames = ['cookies.txt', 'youtube_cookies.txt', 'youtube.cookies.txt', 'cookies.json'];
+    for (const name of possibleNames) {
+        const fullPath = path.join(__dirname, name);
+        if (fs.existsSync(fullPath)) return fullPath;
+    }
+    return null;
+}
+
+// 🛡️ CHỐNG LỖI 403 & BOT DETECTION (Sign in to confirm you're not a bot):
+// YouTube trên IP Datacenter/Hosting chặn client "web" mặc định và đòi đăng nhập.
+// Ép yt-dlp ưu tiên client "android", "ios", "mweb" — chúng không bị dính bot detection và không đòi po_token.
+const YT_EXTRACTOR_ARGS = 'youtube:player_client=android,ios,mweb';
+const YT_DOWNLOAD_EXTRACTOR_ARGS = 'youtube:player_client=android,ios,mweb';
+
+// 🔁 CHUỖI CLIENT DỰ PHÒNG KHI TẢI DATA
 const YT_DOWNLOAD_CLIENT_FALLBACKS = [
-    '', // Để trống lần đầu tiên để yt-dlp tự động dùng thuật toán nội bộ thông minh nhất của bản Nightly
-    'youtube:player_client=android,web',
-    'youtube:player_client=ios',
-    'youtube:player_client=tv,mweb',
+    'youtube:player_client=android,ios',
+    'youtube:player_client=ios,mweb',
+    'youtube:player_client=mweb,android',
+    'youtube:player_client=tv,android',
+    'youtube:player_client=android_vr,android'
 ];
-// Option dùng chung cho các lệnh yt-dlp lấy metadata (tìm kiếm / đọc info)
-const YT_COMMON_OPTS = {
-    noWarnings: true,
-    noCheckCertificates: true,
-    preferFreeFormats: true,
-    extractorArgs: YT_EXTRACTOR_ARGS
-};
+
+function getYtCommonOpts() {
+    const opts = {
+        noWarnings: true,
+        noCheckCertificates: true,
+        preferFreeFormats: true,
+        extractorArgs: YT_EXTRACTOR_ARGS
+    };
+    const c = getCookieFilePath();
+    if (c) opts.cookies = c;
+    return opts;
+}
+const YT_COMMON_OPTS = getYtCommonOpts();
 
 // Số kết quả sẽ lấy khi tìm bằng từ khóa — lấy nhiều hơn 1 để có cái mà "lược bỏ"
 // nếu vài kết quả đầu bị riêng tư / giới hạn độ tuổi / không khả dụng.
@@ -4198,7 +4202,6 @@ async function playNextTrack(guildId, opts = {}) {
         // discord.js/voice sẽ tự demux Opus từ webm mà KHÔNG cần cài thêm ffmpeg riêng.
         const ytdlOpts = {
             output: '-',
-            // Ưu tiên format ID trực tiếp 251 (Opus) / 140 (AAC) để yt-dlp bỏ qua khâu phân tích chuỗi phức tạp -> tải ngay lập tức
             format: 'bestaudio/best',
             noPlaylist: true,
             noWarnings: true,
@@ -4206,12 +4209,14 @@ async function playNextTrack(guildId, opts = {}) {
             quiet: true,
             noPart: true,
             concurrentFragments: 4,
-            socketTimeout: 5,
+            socketTimeout: 8,
             bufferSize: '1024K',
             forceIpv4: true
         };
-        const extArgs = YT_DOWNLOAD_CLIENT_FALLBACKS[clientAttempt];
-        if (extArgs) ytdlOpts.extractorArgs = extArgs;
+        const cookiePath = getCookieFilePath();
+        if (cookiePath) ytdlOpts.cookies = cookiePath;
+        const extArgs = YT_DOWNLOAD_CLIENT_FALLBACKS[clientAttempt] || 'youtube:player_client=android,ios';
+        ytdlOpts.extractorArgs = extArgs;
         if (seekSec > 0) {
             // Tải thẳng từ mốc thời gian khi tua hoặc khi đổi hiệu ứng -> không bắt ffmpeg đọc/bỏ qua hàng MB dữ liệu qua pipe
             ytdlOpts.downloadSections = `*${seekSec}-inf`;
@@ -4235,7 +4240,7 @@ async function playNextTrack(guildId, opts = {}) {
             // player_client kế tiếp trước khi coi là lỗi. YouTube xoay client liên tục nên client nào cũng
             // có lúc bị chặn — đổi client thường phát lại được ngay mà không cần bỏ bài / báo lỗi cho user.
             // YouTube thường xuyên đổi cơ chế, có lúc trả 403, có lúc trả "Requested format is not available"
-            const isRetryable = /403|forbidden|Requested format is not available/i.test(rawErr);
+            const isRetryable = /403|forbidden|Requested format is not available|Sign in to confirm you|bot|confirm you’re not a bot|needs_auth|login/i.test(rawErr);
             const nextAttempt = clientAttempt + 1;
             if (isRetryable && nextAttempt < YT_DOWNLOAD_CLIENT_FALLBACKS.length) {
                 console.warn(`🔁 [Music] 403 với client #${clientAttempt} — thử lại "${next.title}" bằng bộ client #${nextAttempt}.`);
@@ -13932,26 +13937,31 @@ client.on('guildMemberRemove', async (member) => {
 
 async function updateStatsChannels(guild) {
     try {
+        if (!guild) return;
         const statsCategory = guild.channels.cache.find(c => c.type === ChannelType.GuildCategory && c.name === '📊 THỐNG KÊ MÁY CHỦ');
         if (!statsCategory) return;
         
-        await guild.members.fetch();
-        const memberCount = guild.members.cache.filter(m => !m.user.bot).size;
-        const botCount = guild.members.cache.filter(m => m.user.bot).size;
-        const totalCount = guild.memberCount;
+        // Tránh fetch blocking gây GuildMembersTimeout nếu không có GuildMembers Intent hoặc lag mạng
+        await guild.members.fetch({ time: 3000 }).catch(() => null);
+        const totalCount = guild.memberCount || guild.members.cache.size || 0;
+        const botCount = guild.members.cache.filter(m => m.user?.bot).size;
+        const memberCount = Math.max(0, totalCount - botCount);
         
         const children = guild.channels.cache.filter(c => c.parentId === statsCategory.id);
         for (const [, child] of children) {
             if (child.name.startsWith('Thành Viên:')) {
-                if (child.name !== `Thành Viên: ${memberCount}`) await child.setName(`Thành Viên: ${memberCount}`).catch(() => null);
+                const newName = `Thành Viên: ${memberCount}`;
+                if (child.name !== newName) await child.setName(newName).catch(() => null);
             } else if (child.name.startsWith('Bot:')) {
-                if (child.name !== `Bot: ${botCount}`) await child.setName(`Bot: ${botCount}`).catch(() => null);
+                const newName = `Bot: ${botCount}`;
+                if (child.name !== newName) await child.setName(newName).catch(() => null);
             } else if (child.name.startsWith('Tổng:')) {
-                if (child.name !== `Tổng: ${totalCount}`) await child.setName(`Tổng: ${totalCount}`).catch(() => null);
+                const newName = `Tổng: ${totalCount}`;
+                if (child.name !== newName) await child.setName(newName).catch(() => null);
             }
         }
     } catch (e) {
-        console.error("Lỗi cập nhật kênh thống kê:", e);
+        // Lặng lẽ bỏ qua lỗi thống kê để không spam log console
     }
 }
 
