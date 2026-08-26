@@ -8388,6 +8388,39 @@ client.on('messageCreate', async (message) => {
         return message.reply({ content: `⏩ Đã tua tới **${formatDuration(targetSec)}**.`, allowedMentions: { repliedUser: false } });
     }
 
+    if (command === 'mijoin' || command === 'mij') {
+        if (!isMusicReady()) {
+            return message.reply({ content: '❌ Bot chưa được cài đủ thư viện nghe nhạc.', allowedMentions: { repliedUser: false } });
+        }
+        const voiceChannel = message.member.voice?.channel;
+        if (!voiceChannel) {
+            return message.reply({ content: '❌ Bạn cần vào một kênh thoại trước khi dùng lệnh này.', allowedMentions: { repliedUser: false } });
+        }
+        const botPerms = voiceChannel.permissionsFor(message.guild.members.me);
+        if (!botPerms?.has(PermissionFlagsBits.Connect) || !botPerms?.has(PermissionFlagsBits.Speak)) {
+            return message.reply({ content: '❌ Bot không có quyền **Kết nối** hoặc **Nói** trong kênh thoại này.', allowedMentions: { repliedUser: false } });
+        }
+        const { mq, error } = await getOrCreateMusicQueue(message.guild, voiceChannel, message.channel);
+        if (error) return message.reply({ content: error, allowedMentions: { repliedUser: false } });
+        return message.reply({ content: `🔊 Bot đã tham gia kênh thoại **${voiceChannel.name}**! Sẵn sàng phát nhạc.`, allowedMentions: { repliedUser: false } });
+    }
+
+    if (command === 'mileave' || command === 'midc' || command === 'midisconnect' || command === 'miout' || command === 'mistop') {
+        const mq = musicQueues.get(message.guild.id);
+        const conn = voiceLib.getVoiceConnection(message.guild.id);
+        if (!mq && !conn) {
+            return message.reply({ content: '❌ Bot hiện không ở trong kênh thoại nào trên server.', allowedMentions: { repliedUser: false } });
+        }
+        const voiceChannel = message.member.voice?.channel;
+        const botVoiceChannelId = mq?.voiceChannelId || message.guild.members.me?.voice?.channelId;
+        const hasAdmin = message.member.permissions?.has(PermissionFlagsBits.ManageGuild) || message.member.permissions?.has(PermissionFlagsBits.Administrator);
+        if (botVoiceChannelId && voiceChannel?.id !== botVoiceChannelId && !hasAdmin) {
+            return message.reply({ content: '❌ Bạn cần ở cùng kênh thoại với bot hoặc có quyền Quản lý máy chủ để ngắt kết nối bot.', allowedMentions: { repliedUser: false } });
+        }
+        stopAndLeaveVoice(message.guild.id);
+        return message.reply({ content: '👋 Đã ngắt kết nối và rời khỏi kênh thoại!', allowedMentions: { repliedUser: false } });
+    }
+
     if (command === 'miplay' || command === 'mipl') {
         if (!isMusicReady()) {
             return message.reply({
@@ -11437,6 +11470,46 @@ if (commandName === 'setup') {
         // ==========================================
         // 🎵 LỆNH: NGHE NHẠC TỪ YOUTUBE
         // ==========================================
+        if (commandName === 'join') {
+            await interaction.deferReply();
+            if (!isMusicReady()) {
+                return interaction.editReply({ content: '❌ Bot chưa được cài đủ thư viện nghe nhạc.' });
+            }
+
+            const voiceChannel = member.voice?.channel;
+            if (!voiceChannel) return interaction.editReply({ content: '❌ Bạn cần vào một kênh thoại trước khi dùng lệnh này.' });
+
+            const botPerms = voiceChannel.permissionsFor(guild.members.me);
+            if (!botPerms?.has(PermissionFlagsBits.Connect) || !botPerms?.has(PermissionFlagsBits.Speak)) {
+                return interaction.editReply({ content: '❌ Bot không có quyền **Kết nối** hoặc **Nói** trong kênh thoại này.' });
+            }
+
+            const { mq, error } = await getOrCreateMusicQueue(guild, voiceChannel, interaction.channel);
+            if (error) return interaction.editReply({ content: error });
+
+            return interaction.editReply({ content: `🔊 Bot đã tham gia kênh thoại **${voiceChannel.name}**! Sẵn sàng phát nhạc.` });
+        }
+
+        if (commandName === 'leave') {
+            await interaction.deferReply();
+            const mq = musicQueues.get(guild.id);
+            const conn = voiceLib.getVoiceConnection(guild.id);
+            if (!mq && !conn) {
+                return interaction.editReply({ content: '❌ Bot hiện không ở trong kênh thoại nào trên server.' });
+            }
+
+            const voiceChannel = member.voice?.channel;
+            const botVoiceChannelId = mq?.voiceChannelId || guild.members.me?.voice?.channelId;
+            const hasAdmin = member.permissions?.has(PermissionFlagsBits.ManageGuild) || member.permissions?.has(PermissionFlagsBits.Administrator);
+            
+            if (botVoiceChannelId && voiceChannel?.id !== botVoiceChannelId && !hasAdmin) {
+                return interaction.editReply({ content: '❌ Bạn cần ở cùng kênh thoại với bot hoặc có quyền Quản lý máy chủ để ngắt kết nối bot.' });
+            }
+
+            stopAndLeaveVoice(guild.id);
+            return interaction.editReply({ content: '👋 Đã ngắt kết nối và rời khỏi kênh thoại!' });
+        }
+
         if (commandName === 'play') {
             await interaction.deferReply();
 
@@ -11453,9 +11526,10 @@ if (commandName === 'setup') {
             }
 
             const query = options.getString('từ_khóa');
+            const source = options.getString('nguồn') || 'auto';
             let track;
             try {
-                track = await resolveTrack(query); // YouTube, Spotify, SoundCloud, Bandcamp, Twitch, Vimeo, link...
+                track = await resolveTrack(query, source); // YouTube, Spotify, SoundCloud, Bandcamp, Twitch, Vimeo, link...
             } catch (err) {
                 console.error('❌ [Music] Lỗi tìm kiếm:', err.message);
                 const msg = err.code === 'RESTRICTED_VIDEO'
@@ -12142,7 +12216,8 @@ if (commandName === 'setup') {
                 color: '#1DB954',
                 desc: 'Tìm và phát nhạc trực tiếp từ **YouTube, SoundCloud, Spotify, Bandcamp, Twitch, Vimeo**... trong kênh thoại. Panel **Đang phát** hiển thị thanh tiến trình trực tiếp và toàn bộ điều khiển bằng **nút bấm**.',
                 fields: [
-                    { name: '▶️ Phát nhạc — `/play [từ_khóa]` · `miplay` / `mipl`', value: 'Vào **kênh thoại** trước, rồi nhập tên bài (bot tự tìm) hoặc dán **link** trực tiếp.\nĐang có bài phát → bài mới vào **hàng đợi**. Bot đang ở kênh khác mà kênh đó hết người nghe → tự chuyển sang kênh của bạn.' },
+                    { name: '🔊 Vào & Rời Kênh — `/join` · `/leave` · `mijoin` · `mileave`', value: '`/join` — Mời bot vào kênh thoại của bạn trước.\n`/leave` — Ngắt kết nối và cho bot rời khỏi kênh thoại.' },
+                    { name: '▶️ Phát nhạc — `/play [từ_khóa]` · `miplay` / `mipl`', value: 'Vào **kênh thoại** trước, rồi nhập tên bài (bot tự tìm) hoặc dán **link** trực tiếp (YouTube, Spotify, SoundCloud).\nCó thể chỉ định nguồn tìm kiếm: `sc: tên bài` (SoundCloud) hoặc `sp: tên bài` (Spotify).' },
                     { name: '🎛️ Hàng nút điều khiển (4 hàng dưới panel Đang phát)', value: '**Hàng 1:** ▶️/⏸️ Tạm dừng·Tiếp tục • ⏭️ Bỏ qua • ⏹️ Dừng & Thoát • 🔁 Lặp (Tắt→Bài→Hàng đợi)\n**Hàng 2:** 🔉/🔊 Giảm·Tăng âm • 📋 Hàng đợi • 💖 Yêu thích bài đang nghe\n**Hàng 3:** 📻 Autoplay • ♾️ 24/7 • 🎛️ Hiệu ứng • 🎤 Lời bài hát\n**Hàng 4:** ⏪ −10s • ⏩ +10s • 🔄 Phát lại từ đầu • 🔀 Xáo trộn • 🗑️ Xoá hàng đợi' },
                     { name: '🎚️ Hiệu ứng âm thanh — nút 🎛️ · `mifx` / `mihieuung`', value: 'Áp **live** ngay tại vị trí đang nghe (không cắt nhạc): Bassboost, Nightcore, Chill Lofi, Vaporwave, 8D, Soft/Warm, Tremolo, Sped 1.5x, hoặc **Tắt** để về gốc.' },
                     { name: '📻 Autoplay & ♾️ 24/7', value: '**Autoplay** (nút 📻 · `miradio`): hết hàng đợi bot tự phát bài liên quan.\n**24/7** (nút ♾️ · `mistay`): bot ở lại kênh kể cả khi hết bài / không còn ai nghe.' },
