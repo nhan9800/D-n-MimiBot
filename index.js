@@ -3972,6 +3972,13 @@ async function restoreMusicSessions() {
             const voiceChannel = guild.channels.cache.get(s.voiceChannelId);
             if (!voiceChannel || !voiceChannel.isVoiceBased?.()) { musicStore.clearSession(guildId); continue; }
 
+            // Nếu không bật chế độ 24/7 và trong kênh hiện tại không có người nghe -> xóa phiên cũ, không tự phát vào kênh trống
+            const humanListeners = voiceChannel.members.filter(m => !m.user.bot).size;
+            if (!s.stay247 && humanListeners === 0) {
+                musicStore.clearSession(guildId);
+                continue;
+            }
+
             const textChannel = s.textChannelId ? guild.channels.cache.get(s.textChannelId) : null;
             const result = await getOrCreateMusicQueue(guild, voiceChannel, textChannel || voiceChannel);
             if (!result || result.error || !result.mq) { musicStore.clearSession(guildId); continue; }
@@ -5489,6 +5496,10 @@ client.once('ready', async () => {
         new SlashCommandBuilder()
             .setName('leave')
             .setDescription('Ngắt kết nối và cho bot rời khỏi kênh thoại'),
+
+        new SlashCommandBuilder()
+            .setName('nowplaying')
+            .setDescription('Hiển thị bảng điều khiển bài hát đang phát'),
 
         new SlashCommandBuilder()
             .setName('play')
@@ -8415,7 +8426,29 @@ client.on('messageCreate', async (message) => {
         }
         const { mq, error } = await getOrCreateMusicQueue(message.guild, voiceChannel, message.channel);
         if (error) return message.reply({ content: error, allowedMentions: { repliedUser: false } });
+
+        if (mq.emptyChannelTimeout) {
+            clearTimeout(mq.emptyChannelTimeout);
+            mq.emptyChannelTimeout = null;
+        }
+
+        if (mq.current) {
+            const panelMsg = await message.channel.send(buildMusicPayload(mq)).catch(() => null);
+            if (panelMsg) mq.nowPlayingMessage = panelMsg;
+            return;
+        }
+
         return message.reply({ content: `🔊 Bot đã tham gia kênh thoại **${voiceChannel.name}**! Sẵn sàng phát nhạc.`, allowedMentions: { repliedUser: false } });
+    }
+
+    if (command === 'minp' || command === 'minowplaying' || command === 'minhac' || command === 'micurrent') {
+        const mq = musicQueues.get(message.guild.id);
+        if (!mq || !mq.current) {
+            return message.reply({ content: '❌ Hiện không có bài hát nào đang phát.', allowedMentions: { repliedUser: false } });
+        }
+        const panelMsg = await message.channel.send(buildMusicPayload(mq)).catch(() => null);
+        if (panelMsg) mq.nowPlayingMessage = panelMsg;
+        return;
     }
 
     if (command === 'mileave' || command === 'midc' || command === 'midisconnect' || command === 'miout' || command === 'mistop') {
@@ -11500,7 +11533,32 @@ if (commandName === 'setup') {
             const { mq, error } = await getOrCreateMusicQueue(guild, voiceChannel, interaction.channel);
             if (error) return interaction.editReply({ content: error });
 
+            if (mq.emptyChannelTimeout) {
+                clearTimeout(mq.emptyChannelTimeout);
+                mq.emptyChannelTimeout = null;
+            }
+
+            // Nếu bot đang có bài phát, gửi lại bảng điều khiển tương tác
+            if (mq.current) {
+                await interaction.deleteReply().catch(() => null);
+                const panelMsg = await interaction.channel.send(buildMusicPayload(mq)).catch(() => null);
+                if (panelMsg) mq.nowPlayingMessage = panelMsg;
+                return;
+            }
+
             return interaction.editReply({ content: `🔊 Bot đã tham gia kênh thoại **${voiceChannel.name}**! Sẵn sàng phát nhạc.` });
+        }
+
+        if (commandName === 'nowplaying') {
+            await interaction.deferReply();
+            const mq = musicQueues.get(guild.id);
+            if (!mq || !mq.current) {
+                return interaction.editReply({ content: '❌ Hiện không có bài hát nào đang phát.' });
+            }
+            await interaction.deleteReply().catch(() => null);
+            const panelMsg = await interaction.channel.send(buildMusicPayload(mq)).catch(() => null);
+            if (panelMsg) mq.nowPlayingMessage = panelMsg;
+            return;
         }
 
         if (commandName === 'leave') {
