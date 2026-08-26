@@ -8488,14 +8488,8 @@ client.on('messageCreate', async (message) => {
         if (!mq && !conn) {
             return message.reply({ content: '❌ Bot hiện không ở trong kênh thoại nào trên server.', allowedMentions: { repliedUser: false } });
         }
-        const voiceChannel = message.member.voice?.channel;
-        const botVoiceChannelId = mq?.voiceChannelId || message.guild.members.me?.voice?.channelId;
-        const hasAdmin = message.member.permissions?.has(PermissionFlagsBits.ManageGuild) || message.member.permissions?.has(PermissionFlagsBits.Administrator);
-        if (botVoiceChannelId && voiceChannel?.id !== botVoiceChannelId && !hasAdmin) {
-            return message.reply({ content: '❌ Bạn cần ở cùng kênh thoại với bot hoặc có quyền Quản lý máy chủ để ngắt kết nối bot.', allowedMentions: { repliedUser: false } });
-        }
         stopAndLeaveVoice(message.guild.id);
-        return message.reply({ content: '👋 Đã ngắt kết nối và rời khỏi kênh thoại!', allowedMentions: { repliedUser: false } });
+        return message.reply({ content: '👋 Đã ngắt kết nối và rời khỏi kênh thoại theo yêu cầu!', allowedMentions: { repliedUser: false } });
     }
 
     if (command === 'miplay' || command === 'mipl') {
@@ -11600,18 +11594,9 @@ if (commandName === 'setup') {
                 return interaction.editReply({ content: '❌ Bot hiện không ở trong kênh thoại nào trên server.' });
             }
 
-            const voiceChannel = member.voice?.channel;
-            const botVoiceChannelId = mq?.voiceChannelId || guild.members.me?.voice?.channelId;
-            const hasAdmin = member.permissions?.has(PermissionFlagsBits.ManageGuild) || member.permissions?.has(PermissionFlagsBits.Administrator);
-            
-            if (botVoiceChannelId && voiceChannel?.id !== botVoiceChannelId && !hasAdmin) {
-                return interaction.editReply({ content: '❌ Bạn cần ở cùng kênh thoại với bot hoặc có quyền Quản lý máy chủ để ngắt kết nối bot.' });
-            }
-
             stopAndLeaveVoice(guild.id);
-            return interaction.editReply({ content: '👋 Đã ngắt kết nối và rời khỏi kênh thoại!' });
+            return interaction.editReply({ content: '👋 Đã ngắt kết nối và rời khỏi kênh thoại theo yêu cầu!' });
         }
-
         if (commandName === 'play') {
             await interaction.deferReply();
 
