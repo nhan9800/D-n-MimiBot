@@ -4479,6 +4479,8 @@ async function getOrCreateMusicQueue(guild, voiceChannel, textChannel) {
         return { mq };
     }
 
+
+
     const connection = voiceLib.joinVoiceChannel({
         channelId: voiceChannel.id,
         guildId: guild.id,
@@ -4570,6 +4572,35 @@ async function getOrCreateMusicQueue(guild, voiceChannel, textChannel) {
     }
 
     return { mq };
+}
+
+
+// 🛑 Dừng phát nhạc và ngắt kết nối kênh thoại an toàn
+function stopAndLeaveVoice(guildId) {
+    const m = musicQueues.get(guildId);
+    if (m) {
+        m.playGeneration = (m.playGeneration || 0) + 1;
+        if (m.idleTimeout) { try { clearTimeout(m.idleTimeout); } catch {} }
+        if (m.emptyChannelTimeout) { try { clearTimeout(m.emptyChannelTimeout); } catch {} }
+        try { stopProgressUpdater(m); } catch {}
+        try { killCurrentProcess(m); } catch {}
+        try { m.player?.stop(); } catch {}
+        try {
+            if (m.connection && m.connection.state.status !== voiceLib.VoiceConnectionStatus.Destroyed) {
+                m.connection.destroy();
+            }
+        } catch {}
+        musicQueues.delete(guildId);
+    }
+    musicStore.clearSession(guildId);
+    
+    try {
+        const conn = voiceLib.getVoiceConnection(guildId);
+        if (conn && conn.state.status !== voiceLib.VoiceConnectionStatus.Destroyed) {
+            conn.destroy();
+        }
+    } catch {}
+    return true;
 }
 
 // -----------------------------------------------------------------
