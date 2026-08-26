@@ -5483,10 +5483,23 @@ client.once('ready', async () => {
                 .addChoices({ name: '✅ Bật', value: 'on' }, { name: '🔌 Tắt', value: 'off' })),
 
         new SlashCommandBuilder()
-            .setName('play')
-            .setDescription('Phát nhạc từ YouTube — tìm theo tên bài hát hoặc dán link')
-            .addStringOption(o => o.setName('từ_khóa').setDescription('Tên bài hát hoặc link YouTube').setRequired(true)),
+            .setName('join')
+            .setDescription('Mời bot tham gia vào kênh thoại của bạn'),
 
+        new SlashCommandBuilder()
+            .setName('leave')
+            .setDescription('Ngắt kết nối và cho bot rời khỏi kênh thoại'),
+
+        new SlashCommandBuilder()
+            .setName('play')
+            .setDescription('Phát nhạc từ YouTube, Spotify, SoundCloud — tìm theo tên hoặc dán link')
+            .addStringOption(o => o.setName('từ_khóa').setDescription('Tên bài hát hoặc link (YouTube, Spotify, SoundCloud, v.v.)').setRequired(true))
+            .addStringOption(o => o.setName('nguồn').setDescription('Nguồn tìm kiếm ưu tiên (mặc định: Tự động)').setRequired(false)
+                .addChoices(
+                    { name: '✨ Tự động (YouTube & SoundCloud)', value: 'auto' },
+                    { name: '🔴 YouTube', value: 'youtube' },
+                    { name: '🟠 SoundCloud', value: 'soundcloud' }
+                )),
         new SlashCommandBuilder()
             .setName('queue')
             .setDescription('Xem danh sách hàng đợi nhạc hiện tại của server'),
