@@ -73,7 +73,7 @@ jobs:
           local_path: './'
           remote_path: './'
           sftp_only: true
-          sftpArgs: '-o ConnectTimeout=15'
+          sftpArgs: '-o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null -o ConnectTimeout=30'
 
       - name: Restart bot qua Pterodactyl API
         env:
