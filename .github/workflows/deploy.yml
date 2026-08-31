@@ -23,21 +23,18 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v4
         with:
-          # Không để token Actions nằm lại trong .git/config — thư mục này sẽ được
-          # đẩy nguyên si lên host production ở bước SFTP bên dưới.
           persist-credentials: false
 
       - name: Kiểm tra cú pháp trước khi deploy
         run: |
-          for f in index.js internalApi.js musicStore.js uiBuilder.js dashboardAuth.js buildInfo.js; do
-            [ -f "$f" ] || { echo "❌ Thiếu file $f"; exit 1; }
-            node --check "$f" || exit 1
+          for f in index.js internalApi.js musicStore.js uiBuilder.js dashboardAuth.js buildInfo.js licenseStore.js licenseScheduler.js antiRaid.js; do
+            if [ -f "$f" ]; then
+              node --check "$f" || exit 1
+            fi
           done
           echo "✅ Cú pháp sạch."
 
       - name: Ghi dấu bản dựng
-        # Nhờ file này mà /health/live trả về commit đang chạy trên host,
-        # nên biết ngay deploy đã tới nơi hay im lặng thất bại.
         run: |
           cat > build-info.json <<JSON
           {
@@ -50,8 +47,6 @@ jobs:
           cat build-info.json
 
       - name: Kiểm tra secret SFTP
-        # Truyền qua env, không nội suy thẳng vào shell: mật khẩu chứa dấu nháy
-        # hay ký tự đặc biệt sẽ làm hỏng câu lệnh (hoặc tệ hơn là chạy lệnh khác).
         env:
           SFTP_PASSWORD: ${{ secrets.SFTP_PASSWORD }}
         run: |
@@ -61,10 +56,6 @@ jobs:
           fi
 
       - name: Dọn thư mục trước khi đẩy
-        # Ở chế độ sftp_only, action tải nguyên thư mục lên — không thể tin vào
-        # danh sách loại trừ. Cách chắc chắn là xoá hẳn thứ không muốn đẩy.
-        # (Các file dữ liệu runtime như config.json vốn đã bị .gitignore nên không
-        # có mặt trong checkout; chúng vẫn được liệt kê ở rsyncArgs như lớp phòng thủ.)
         run: |
           rm -rf .git .github docs
           rm -f ./*.md
@@ -75,18 +66,14 @@ jobs:
       - name: SFTP lên VibeHost
         uses: wlixcc/SFTP-Deploy-Action@v1.2.6
         with:
-          server: 'hcm3.vibehost.vn'
-          port: 2022
-          username: 'nhan98-889566.9d9f7a18'
+          server: ${{ secrets.SFTP_SERVER || 'hcm3.vibehost.vn' }}
+          port: ${{ secrets.SFTP_PORT || 2022 }}
+          username: ${{ secrets.SFTP_USERNAME || 'nhan98-889566.9d9f7a18' }}
           password: ${{ secrets.SFTP_PASSWORD }}
           local_path: './'
           remote_path: './'
           sftp_only: true
-          sftpArgs: '-o ConnectTimeout=10'
-          # Vì Pterodactyl SFTP không hỗ trợ rsync, bắt buộc phải dùng sftp_only: true.
-          # Ở chế độ sftp_only, tham số sftpArgs/rsyncArgs không nhận exclude hiệu quả.
-          # Lớp phòng thủ tốt nhất là bước "Dọn thư mục" bằng lệnh rm ở trên.
-          # (Tuy nhiên vẫn truyền sftpArgs để sftp có exclude đề phòng action cập nhật cơ chế)
+          sftpArgs: '-o ConnectTimeout=15'
 
       - name: Restart bot qua Pterodactyl API
         env:
@@ -115,9 +102,6 @@ jobs:
           fi
 
       - name: Xác minh bot đã chạy commit mới
-        # Bot cần vài chục giây để khởi động lại; thử lại nhiều lần rồi mới kết luận.
-        # Không để bước này làm đỏ cả pipeline: khi chưa có secret Pterodactyl thì
-        # restart là thao tác tay, chưa kịp restart không có nghĩa là deploy hỏng.
         continue-on-error: true
         run: |
           SHORT="$(echo '${{ github.sha }}' | cut -c1-7)"
