@@ -6389,6 +6389,23 @@ client.on('messageCreate', async (message) => {
         }
     }
 
+    // 🔒 KIỂM TRA BẢN QUYỀN TRƯỚC KHI XỬ LÝ LỆNH PREFIX
+    if (command) {
+        const allowedPrefixCommands = ['mibanqyuen', 'mibanq', 'milicense', 'mihwid', 'mikichhoat', 'miredeem', 'migenkey'];
+        if (!allowedPrefixCommands.includes(command)) {
+            const lic = licenseStore.getLicense(message.guild.id);
+            if (!lic || !lic.active) {
+                return message.reply({
+                    content: '🔒 **MÁY CHỦ CHƯA KÍCH HOẠT BẢN QUYỀN!**\n\n' +
+                             'Bot đang ở trạng thái khóa và **sẽ không làm gì** cho đến khi máy chủ được kích hoạt mã Key hợp lệ.\n' +
+                             '👉 Gõ: `mikichhoat [MÃ_KEY]` để kích hoạt bản quyền ngay.\n' +
+                             '*(Gõ `mibanqyuen` để xem hướng dẫn mua gói bản quyền)*.',
+                    allowedMentions: { repliedUser: false }
+                }).catch(() => null);
+            }
+        }
+    }
+
     // --- A. LẮNG NGHE LỆNH GIẢI TRÍ VIẾT LIỀN (CÓ HỖ TRỢ VIẾT TẮT) ---
 
     if (command === 'miannounce' && message.author.id === OWNER_ID) {
@@ -8721,6 +8738,23 @@ client.on('interactionCreate', async interaction => {
         return;
     }
     const gConfig = getGuildConfig(guild.id);
+
+    // 🔒 KIỂM TRA BẢN QUYỀN MÁY CHỦ (BẮT BUỘC KÍCH HOẠT KEY MỚI HOẠT ĐỘNG)
+    if (interaction.isChatInputCommand()) {
+        const allowedCommands = ['kichhoat', 'license', 'banquyen', 'genkey'];
+        if (!allowedCommands.includes(interaction.commandName)) {
+            const lic = licenseStore.getLicense(guild.id);
+            if (!lic || !lic.active) {
+                return interaction.reply({
+                    content: '🔒 **MÁY CHỦ CHƯA ĐƯỢC KÍCH HOẠT BẢN QUYỀN!**\n\n' +
+                             'Bot đang ở trạng thái khóa chức năng và **sẽ không làm gì** cho đến khi máy chủ được kích hoạt bản quyền hợp lệ.\n\n' +
+                             '👉 **Cách kích hoạt:** Gõ lệnh `/kichhoat mã_key: [MÃ_KEY_CỦA_BẠN]`\n' +
+                             '*(Hoặc gõ `/license` để xem hướng dẫn mua gói bản quyền từ 50k)*.',
+                    flags: MessageFlags.Ephemeral
+                }).catch(() => null);
+            }
+        }
+    }
 
     // Debounce / Cooldown cho Button, Select Menu, Modal Submit để tránh spam click và crash
     if (interaction.isButton() || interaction.isStringSelectMenu() || interaction.isModalSubmit()) {
