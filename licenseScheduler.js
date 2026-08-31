@@ -110,12 +110,17 @@ function buildExpiringNoticeEmbed(guild, license, daysRemaining) {
         .setTimestamp();
 }
 
+const HOME_GUILD_IDS = ['1517068246493429852'];
+
 // Quét toàn bộ máy chủ và xử lý hết hạn / cảnh báo / chưa kích hoạt
 async function checkAllGuildLicenses(client) {
     if (!client || !client.isReady?.()) return;
 
     for (const [, guild] of client.guilds.cache) {
         try {
+            // Máy chủ gốc của Bot -> Bỏ qua hoàn toàn
+            if (HOME_GUILD_IDS.includes(guild.id)) continue;
+
             const lic = licenseStore.getLicense(guild.id);
 
             // 1. Trường hợp VĨNH VIỄN -> Bỏ qua
@@ -175,7 +180,7 @@ async function checkAllGuildLicenses(client) {
 
 // Xử lý khi Bot được mời vào một Server MỚI (BẮT BUỘC CÓ KEY ĐỂ KÍCH HOẠT)
 async function handleGuildCreate(guild) {
-    if (!guild) return;
+    if (!guild || HOME_GUILD_IDS.includes(guild.id)) return;
     const lic = licenseStore.getLicense(guild.id);
 
     // Nếu server chưa có bản quyền active -> gửi thông báo yêu cầu nhập mã Key kích hoạt

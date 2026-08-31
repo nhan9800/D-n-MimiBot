@@ -82,9 +82,33 @@ function writeJsonFile(filePath, data) {
     }
 }
 
+const HOME_GUILD_IDS = ['1517068246493429852'];
+
 // Lấy thông tin bản quyền của 1 Guild ID
 function getLicense(guildId) {
     if (!guildId) return null;
+
+    // Máy chủ gốc của Bot (Support MIMI BOT) luôn là Vĩnh Viễn & Miễn phí trọn đời
+    if (HOME_GUILD_IDS.includes(guildId)) {
+        return {
+            guildId,
+            active: true,
+            expired: false,
+            plan: 'permanent',
+            planName: '💎 Server Gốc (Support MIMI BOT - Vĩnh Viễn)',
+            activatedAt: 'ORIGIN_SERVER',
+            expiresAt: 'Vĩnh viễn',
+            expiresTimestamp: null,
+            remainingDays: 99999,
+            remainingHours: 999999,
+            isPermanent: true,
+            isOriginServer: true,
+            isTrial: false,
+            warned3Days: false,
+            warned1Day: false
+        };
+    }
+
     const licenses = readJsonFile(LICENSES_FILE, {});
     const entry = licenses[guildId];
 
