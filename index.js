@@ -3350,7 +3350,7 @@ function buildMusicProgressBar(currentSec, totalSec, size = 14) {
 // =====================================================================
 
 // =====================================================================
-// 🎨 BỘ EMOJI CUSTOM TỰ ĐỘNG NẠP VÀO SERVER & TRANG TRÍ THÔNG BÁO V2.3
+// 🎨 BỘ EMOJI CUSTOM TỰ ĐỘNG NẠP VÀO SERVER MAIN & TRANG TRÍ COMPONENT V2 + SPECTOR
 // =====================================================================
 const DECORATION_EMOJIS = {
     shield: { name: 'mimi_shield', filename: 'mimi_shield.png', fallback: '🛡️' },
@@ -3370,7 +3370,10 @@ async function ensureDecorationEmojis(guild, client) {
     const results = {};
     const emojisDir = path.join(__dirname, 'assets', 'emojis');
 
-    // Nạp Application Emojis trước để dùng chung cho toàn bộ server
+    // Ưu tiên nạp & tạo emoji trên Server Gốc (Main Guild 1517068246493429852)
+    const mainGuild = client?.guilds?.cache?.get('1517068246493429852') || guild;
+
+    // Nạp Application Emojis
     let appEmojisMap = new Map();
     if (client?.application) {
         try {
@@ -3387,10 +3390,11 @@ async function ensureDecorationEmojis(guild, client) {
             continue;
         }
 
-        // 1. Tìm trong guild emojis của server
-        let existing = guild?.emojis?.cache?.find(e => e.name === item.name);
+        // 1. Tìm trong server hiện tại hoặc server main
+        let existing = guild?.emojis?.cache?.find(e => e.name === item.name) ||
+                       mainGuild?.emojis?.cache?.find(e => e.name === item.name);
 
-        // 2. Tìm trong Application emojis
+        // 2. Tìm trong Application Emojis
         if (!existing && appEmojisMap.has(item.name)) {
             existing = appEmojisMap.get(item.name);
         }
@@ -3402,28 +3406,28 @@ async function ensureDecorationEmojis(guild, client) {
             continue;
         }
 
-        // 3. Nếu chưa có -> Đọc file ảnh local từ assets/emojis và upload thẳng lên server
+        // 3. Tự động đọc file local và tạo emoji vào Server Main / Guild
         const localFilePath = path.join(emojisDir, item.filename);
         if (fs.existsSync(localFilePath)) {
             const attachment = fs.readFileSync(localFilePath);
 
-            // Thử tạo trực tiếp vào Server Guild
-            if (guild?.members?.me?.permissions?.has(PermissionFlagsBits.ManageEmojisAndStickers)) {
+            // Thử tạo vào Main Server trước (nơi bot có quyền hạn cao nhất)
+            if (mainGuild?.members?.me?.permissions?.has(PermissionFlagsBits.ManageEmojisAndStickers)) {
                 try {
-                    const created = await guild.emojis.create({ attachment, name: item.name }).catch(() => null);
+                    const created = await mainGuild.emojis.create({ attachment, name: item.name }).catch(() => null);
                     if (created) {
                         const formatted = `<${created.animated ? 'a' : ''}:${created.name}:${created.id}>`;
                         customEmojiCache[item.name] = formatted;
                         results[key] = formatted;
-                        console.log(`🎨 [Auto-Emoji] Đã tự động tạo emoji custom "${created.name}" vào server ${guild.name}!`);
+                        console.log(`🎨 [Auto-Emoji] Đã nạp emoji custom "${created.name}" vào Main Server ${mainGuild.name}!`);
                         continue;
                     }
                 } catch (e) {
-                    console.warn(`⚠️ [Auto-Emoji] Lỗi tạo emoji guild "${item.name}":`, e?.message || e);
+                    console.warn(`⚠️ [Auto-Emoji] Không thể tạo emoji "${item.name}" trên main server:`, e?.message || e);
                 }
             }
 
-            // Thử tạo vào Application Emojis của Bot
+            // Thử tạo vào Application Emojis
             if (client?.application) {
                 try {
                     const appCreated = await client.application.emojis.create({ attachment, name: item.name }).catch(() => null);
@@ -3452,81 +3456,106 @@ async function buildChangelogAnnouncement(guild, client) {
     const inviteShieldUrl = 'https://discord.com/oauth2/authorize?client_id=1539527939723497473&permissions=8&integration_type=0&scope=bot%20applications.commands';
     const pricingUrl = 'https://mimibot.id.vn/pricing';
     const websiteUrl = 'https://mimibot.id.vn';
+    const supportServerUrl = 'https://discord.gg/vibestore';
 
-    const row = new ActionRowBuilder().addComponents(
+    // Component V2 Row 1: Các nút mời bot & Web Dashboard
+    const row1 = new ActionRowBuilder().addComponents(
         new ButtonBuilder().setStyle(ButtonStyle.Link).setLabel('Mời MIMI Nhạc (Free)').setURL(inviteMusicUrl).setEmoji('🎧'),
         new ButtonBuilder().setStyle(ButtonStyle.Link).setLabel('Mời MIMI Shield (Vệ Sĩ)').setURL(inviteShieldUrl).setEmoji('🛡️'),
-        new ButtonBuilder().setStyle(ButtonStyle.Link).setLabel('Bảng Giá MIMI Shield').setURL(pricingUrl).setEmoji('💎'),
         new ButtonBuilder().setStyle(ButtonStyle.Link).setLabel('Trang Chủ Website').setURL(websiteUrl).setEmoji('🌐')
     );
 
+    // Component V2 Row 2: Bảng giá, Key & Hỗ trợ
+    const row2 = new ActionRowBuilder().addComponents(
+        new ButtonBuilder().setStyle(ButtonStyle.Link).setLabel('Bảng Giá MIMI Shield').setURL(pricingUrl).setEmoji('💎'),
+        new ButtonBuilder().setStyle(ButtonStyle.Link).setLabel('Server Hỗ Trợ (VibeStore)').setURL(supportServerUrl).setEmoji('👑')
+    );
+
+    const spectorLine = '━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━';
+    const thinSeparator = '─────────────────────────────────────────────────';
+
     const embed = new EmbedBuilder()
-        .setColor('#2ECC71')
-        .setAuthor({ name: 'MIMI ECOSYSTEM 2026 • ÂM NHẠC MIỄN PHÍ & VỆ SĨ AN NINH', iconURL: 'https://mimibot.id.vn/logo.webp', url: websiteUrl })
-        .setTitle(`${em.sparkles} BẢN CẬP NHẬT ĐẠI TU: HỆ SINH THÁI MIMI BOT & MIMI SHIELD 2026 ${em.sparkles}`)
+        .setColor('#00FFA3')
+        .setAuthor({ 
+            name: 'MIMI ECOSYSTEM 2026 • COMPONENT V2 & SPECTOR ARCHITECTURE', 
+            iconURL: 'https://mimibot.id.vn/logo.webp', 
+            url: websiteUrl 
+        })
+        .setTitle(em.sparkles + ' ĐẠI TU HỆ SINH THÁI: MIMI MUSIC & MIMI SHIELD V2.3 ' + em.sparkles)
         .setDescription(
-            '━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n' +
-            `${em.sparkles} **Chào mừng toàn thể cộng đồng!** Hệ sinh thái **MIMI 2026** chính thức phân định 2 dòng bot chuyên biệt phục vụ cộng đồng Discord Việt Nam:\n` +
-            `• ${em.music} **MIMI BOT**: Bot Âm Nhạc & Cộng Đồng — **100% MIỄN PHÍ TRỌN ĐỜI** cho mọi máy chủ.\n` +
-            `• ${em.shield} **MIMI SHIELD BOT**: Bot Vệ Sĩ An Ninh & Anti-Raid Chuyên Nghiệp — **Bản Quyền HWID Cao Cấp**.\n` +
-            '━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━'
+            spectorLine + '\n' +
+            '> ' + em.sparkles + ' **CHÀO MỪNG TOÀN THỂ CỘNG ĐỒNG DISCORD VIỆT NAM!**\n' +
+            '> Hệ thống vừa chính thức ra mắt cấu trúc **Component V2 & Spector Dividers**, phân tách độc lập 2 dòng sản phẩm chủ lực:\n\n' +
+            em.dot + ' ' + em.music + ' **MIMI MUSIC BOT**: Hệ Thống Âm Nhạc & Giải Trí — **100% MIỄN PHÍ TRỌN ĐỜI**.\n' +
+            em.dot + ' ' + em.shield + ' **MIMI SHIELD BOT**: Lá Chắn An Ninh Anti-Raid Chuyên Nghiệp — **Bản Quyền HWID**.\n' +
+            spectorLine
         )
         .addFields(
             {
-                name: `${em.music} 1. MIMI MUSIC BOT (MIỄN PHÍ 100% • BYPASS 403 & SOUNDCLOUD)`,
+                name: em.music + ' 1. MIMI MUSIC BOT (100% MIỄN PHÍ • BYPASS 403 & SOUNDCLOUD)',
                 value: (
+                    '> ' + em.verify + ' **Trải nghiệm âm nhạc không giới hạn cho mọi máy chủ**\n' +
                     '```diff\n' +
-                    '+ 100% Miễn phí không giới hạn bài hát và thời gian nghe.\n' +
-                    '+ Khắc phục triệt để lỗi "HTTP 403 Forbidden" từ YouTube.\n' +
-                    '+ Tự động fallback sang SoundCloud khi YouTube bị chặn IP datacenter — âm nhạc KHÔNG BAO GIỜ bị dừng!\n' +
-                    '+ Chế độ 24/7, Autoplay tự động tiếp nhạc, hàng chờ thông minh và Level Chat.\n' +
+                    '+ [BẢO HIỂM 403] Tự động giải mã YouTube & Fallback sang SoundCloud.\n' +
+                    '+ [BẤT TỬ 24/7] Ở lại Voice Channel liên tục không sợ rớt mạng.\n' +
+                    '+ [AUTOPLAY] Tự động tìm và phát nối tiếp các bài hát thịnh hành.\n' +
+                    '+ [LEVEL CHAT] Bảng xếp hạng thành viên hoạt động sôi nổi theo Server.\n' +
                     '```'
                 ),
                 inline: false
             },
             {
-                name: `${em.shield} 2. MIMI SHIELD BOT (VỆ SĨ AN NINH • BẢN QUYỀN HWID CHUYÊN NGHIỆP)`,
+                name: em.shield + ' 2. MIMI SHIELD BOT (LÁ CHẮN VỆ SĨ • BẢN QUYỀN HWID CHUYÊN NGHIỆP)',
                 value: (
+                    '> ' + em.diamond + ' **Phòng thủ toàn diện trước mọi cuộc tấn công phá hoại**\n' +
                     '```fix\n' +
-                    '* Lá chắn bảo vệ phản ứng siêu tốc 0.1s: Chống Nuke, Chống Mass-Ban, Chống Xóa Channel/Role.\n' +
-                    '* Tự động Snapshot cấu trúc máy chủ & Khôi phục nguyên vẹn khi bị phá hoại.\n' +
-                    '* 3 Gói Bản Quyền: 1 Tháng (50k), 3 Tháng (140k), 12 Tháng (390k - Chỉ ~32k/tháng).\n' +
-                    '* Lệnh kích hoạt nhanh: /kichhoat [mã_key] hoặc nhập trực tiếp trên Web.\n' +
+                    '* Phản xạ 0.1s: Anti-Nuke, Anti-Bot Lạ, Anti-MassJoin & Spam Webhook.\n' +
+                    '* Tự động Snapshot cấu trúc máy chủ & Khôi phục nguyên trạng sau sự cố.\n' +
+                    '* Khóa bản quyền theo Server ID (HWID), tự rời server nếu chưa có Key.\n' +
+                    '* 3 Gói Linh Hoạt: 1 Tháng (50k), 3 Tháng (140k), 12 Tháng (390k).\n' +
                     '```'
                 ),
                 inline: false
             },
             {
-                name: `${em.diamond} 3. ĐẠI TU WEBSITE MIMIBOT.ID.VN (3D CYBER VISUALS & ADMIN PANEL)`,
+                name: em.diamond + ' 3. ĐẠI TU WEBSITE MIMIBOT.ID.VN (3D CYBER VISUALS & ADMIN)',
                 value: (
+                    '> ' + em.fire + ' **Giao diện Web 3D chuẩn Cyberpunk vũ trụ**\n' +
                     '```yaml\n' +
-                    'Nâng Cấp Giao Diện & Tiện Ích:\n' +
-                    '  - Đĩa Vinyl 3D WebGL + Vòng Equalizer Neon quay 60 FPS mượt mà.\n' +
-                    '  - Thẻ Bảng Giá 3D TiltCard & Quầng Sáng Spotlight Glow theo con trỏ chuột.\n' +
-                    '  - Bảng Xếp Hạng LIVE Top 10 Apple Music Việt Nam đồng bộ thời gian thực.\n' +
-                    '  - Bảng Điều Khiển Admin Duyệt Tiền & Cấp License Key cho MIMI Shield.\n' +
+                    'Trải Nghiệm Trực Tuyến:\n' +
+                    '  - Đĩa Vinyl 3D WebGL + Vòng Equalizer Neon quay 60 FPS.\n' +
+                    '  - Thẻ 3D TiltCard & Quầng Sáng Spotlight Glow theo con trỏ chuột.\n' +
+                    '  - Bảng Xếp Hạng LIVE Top 10 Apple Music Việt Nam thời gian thực.\n' +
+                    '  - Bảng Admin Duyệt Tiền & Cấp License Key MIMI Shield tức thì.\n' +
                     '```'
                 ),
                 inline: false
             },
             {
-                name: `${em.crown} 4. BỘ LỆNH ĐIỀU KHIỂN HỆ SINH THÁI`,
+                name: em.crown + ' 4. BẢNG TRA CỨU BỘ LỆNH ĐIỀU KHIỂN',
                 value: (
-                    `${em.dot} \`/kichhoat [mã_key]\` & \`/license\` — Kích hoạt & kiểm tra bản quyền MIMI Shield.\n` +
-                    `${em.dot} \`/xacnhan\` & \`/genkey\` — Admin duyệt thanh toán & cấp mã License Key.\n` +
-                    `${em.dot} \`/addemoji [link] [tên]\` — Nạp nhanh emoji từ emoji.gg & discadia vào server.\n` +
-                    `${em.dot} \`/autoplay\` & \`/247\` — Bật nghe nhạc liên tục và bám trụ kênh 24/7.\n` +
-                    '━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━'
+                    thinSeparator + '\n' +
+                    em.dot + ' `/kichhoat [mã_key]` — Kích hoạt bản quyền MIMI Shield cho server.\n' +
+                    em.dot + ' `/license` — Tra cứu Server ID (HWID) và thời hạn bảo vệ.\n' +
+                    em.dot + ' `/xacnhan [server_id] [gói]` — Admin duyệt thanh toán trực tiếp.\n' +
+                    em.dot + ' `/genkey [gói]` — Admin tạo mã Key cấp cho thành viên.\n' +
+                    em.dot + ' `/guard [setup/lockdown/status]` — Cấu hình lá chắn an ninh.\n' +
+                    em.dot + ' `/autoplay` & `/247` — Tự động nghe nhạc 24/24 trên MIMI Bot.\n' +
+                    spectorLine
                 ),
                 inline: false
             }
         )
         .setImage('https://mimibot.id.vn/og-image.jpg')
-        .setFooter({ text: 'MIMI ECOSYSTEM 2026 • Đồng hành cùng hàng ngàn cộng đồng Discord Việt Nam', iconURL: 'https://mimibot.id.vn/logo.webp' })
+        .setFooter({ 
+            text: 'MIMI ECOSYSTEM 2026 • Đồng hành cùng hàng ngàn cộng đồng Discord Việt Nam', 
+            iconURL: 'https://mimibot.id.vn/logo.webp' 
+        })
         .setTimestamp();
 
-    return { embeds: [embed], components: [row] };
+    return { embeds: [embed], components: [row1, row2] };
 }
+
 
 // ⭐ HỆ THỐNG LEVEL CHAT THEO SERVER
 // =====================================================================
