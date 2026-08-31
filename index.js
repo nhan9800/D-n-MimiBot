@@ -3350,7 +3350,7 @@ function buildMusicProgressBar(currentSec, totalSec, size = 14) {
 // =====================================================================
 
 // =====================================================================
-// 🎨 DISCORD COMPONENTS V2 CHÍNH HÃNG: SEPARATOR (TYPE 14) + TEXTDISPLAY (TYPE 10) + ACTIONROW (TYPE 1)
+// 🎨 DISCORD COMPONENTS V2 NATIVE CONTAINER (TYPE 17) + SEPARATORS (TYPE 14) + TEXTDISPLAY (TYPE 10)
 // =====================================================================
 function buildComponentsV2Announcement() {
     const inviteMusicUrl = 'https://discord.com/oauth2/authorize?client_id=1138315103821889566&permissions=8&scope=bot%20applications.commands';
@@ -3359,11 +3359,11 @@ function buildComponentsV2Announcement() {
     const websiteUrl = 'https://mimibot.id.vn';
     const supportServerUrl = 'https://discord.gg/vibestore';
 
-    const components = [
+    const innerComponents = [
         // 1. Header Banner Title
         {
             type: 10, // TextDisplay
-            content: '# <:mimi_sparkles:1543950865830912102> ĐẠI TU HỆ SINH THÁI: MIMI MUSIC & MIMI SHIELD 2026\n-# MIMI ECOSYSTEM • CẤU TRÚC DISCORD COMPONENTS V2 NATIVE & SEPARATORS\n\n> ### 🌟 Kính chào toàn thể cộng đồng Discord Việt Nam!\n> Hệ thống chính thức ra mắt kiến trúc **Components V2**, phân định độc lập 2 dòng sản phẩm chủ lực:\n> \n> ✦ <:mimi_music:1543950857593159792> **MIMI MUSIC BOT**: Âm Nhạc Giải Trí — **100% MIỄN PHÍ TRỌN ĐỜI**.\n> ✦ <:mimi_shield:1543950853499781273> **MIMI SHIELD BOT**: Lá Chắn An Ninh Anti-Raid — **Bản Quyền HWID**.'
+            content: '# <:mimi_sparkles:1543950865830912102> ĐẠI TU HỆ SINH THÁI: MIMI MUSIC & MIMI SHIELD 2026\n-# MIMI ECOSYSTEM • CẤU TRÚC DISCORD COMPONENTS V2 CONTAINER & SEPARATORS\n\n> ### 🌟 Kính chào toàn thể cộng đồng Discord Việt Nam!\n> Hệ thống chính thức ra mắt kiến trúc **Components V2 Container**, phân định độc lập 2 dòng sản phẩm chủ lực:\n> \n> ✦ <:mimi_music:1543950857593159792> **MIMI MUSIC BOT**: Âm Nhạc Giải Trí — **100% MIỄN PHÍ TRỌN ĐỜI**.\n> ✦ <:mimi_shield:1543950853499781273> **MIMI SHIELD BOT**: Lá Chắn An Ninh Anti-Raid — **Bản Quyền HWID**.'
         },
         // 2. Native Separator Line (Type 14)
         {
@@ -3466,7 +3466,13 @@ function buildComponentsV2Announcement() {
 
     return {
         flags: 32768, // IS_COMPONENTS_V2 (1 << 15)
-        components
+        components: [
+            {
+                type: 17, // Container component
+                accent_color: 0x00FFA3, // Neon Mint
+                components: innerComponents
+            }
+        ]
     };
 }
 
