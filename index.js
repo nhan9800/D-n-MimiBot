@@ -3448,80 +3448,81 @@ async function ensureDecorationEmojis(guild, client) {
 async function buildChangelogAnnouncement(guild, client) {
     const em = await ensureDecorationEmojis(guild, client);
 
-    const inviteUrl = 'https://discord.com/oauth2/authorize?client_id=1539527939723497473&permissions=8&integration_type=0&scope=bot';
+    const inviteMusicUrl = 'https://discord.com/oauth2/authorize?client_id=1138315103821889566&permissions=8&scope=bot%20applications.commands';
+    const inviteShieldUrl = 'https://discord.com/oauth2/authorize?client_id=1539527939723497473&permissions=8&integration_type=0&scope=bot%20applications.commands';
     const pricingUrl = 'https://mimibot.id.vn/pricing';
     const websiteUrl = 'https://mimibot.id.vn';
-    const dashboardUrl = 'https://mimibot.id.vn/dashboard';
 
     const row = new ActionRowBuilder().addComponents(
-        new ButtonBuilder().setStyle(ButtonStyle.Link).setLabel('Mời Bot Ngay').setURL(inviteUrl).setEmoji('🛡️'),
-        new ButtonBuilder().setStyle(ButtonStyle.Link).setLabel('Bảng Giá & Key').setURL(pricingUrl).setEmoji('💎'),
-        new ButtonBuilder().setStyle(ButtonStyle.Link).setLabel('Trang Chủ Website').setURL(websiteUrl).setEmoji('🌐'),
-        new ButtonBuilder().setStyle(ButtonStyle.Link).setLabel('Mở Dashboard').setURL(dashboardUrl).setEmoji('🎧')
+        new ButtonBuilder().setStyle(ButtonStyle.Link).setLabel('Mời MIMI Nhạc (Free)').setURL(inviteMusicUrl).setEmoji('🎧'),
+        new ButtonBuilder().setStyle(ButtonStyle.Link).setLabel('Mời MIMI Shield (Vệ Sĩ)').setURL(inviteShieldUrl).setEmoji('🛡️'),
+        new ButtonBuilder().setStyle(ButtonStyle.Link).setLabel('Bảng Giá MIMI Shield').setURL(pricingUrl).setEmoji('💎'),
+        new ButtonBuilder().setStyle(ButtonStyle.Link).setLabel('Trang Chủ Website').setURL(websiteUrl).setEmoji('🌐')
     );
 
     const embed = new EmbedBuilder()
         .setColor('#2ECC71')
-        .setAuthor({ name: 'MIMI BOT • HỆ THỐNG AN NINH & ÂM NHẠC 2026', iconURL: 'https://mimibot.id.vn/logo.webp', url: websiteUrl })
-        .setTitle(`${em.sparkles} BẢN CẬP NHẬT ĐẠI TU: MIMI BOT V2.3 SHIELD & MUSIC REVOLUTION ${em.sparkles}`)
+        .setAuthor({ name: 'MIMI ECOSYSTEM 2026 • ÂM NHẠC MIỄN PHÍ & VỆ SĨ AN NINH', iconURL: 'https://mimibot.id.vn/logo.webp', url: websiteUrl })
+        .setTitle(`${em.sparkles} BẢN CẬP NHẬT ĐẠI TU: HỆ SINH THÁI MIMI BOT & MIMI SHIELD 2026 ${em.sparkles}`)
         .setDescription(
             '━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n' +
-            `${em.sparkles} **Chào mừng toàn thể cộng đồng!** Hệ thống **MIMI BOT** vừa chính thức hoàn tất đợt đại tu toàn diện về **Lá Chắn Bảo Vệ Anti-Raid**, **Engine Âm Nhạc Bất Tử 403**, và **Giao Diện Website 3D Vũ Trụ**!\n` +
+            `${em.sparkles} **Chào mừng toàn thể cộng đồng!** Hệ sinh thái **MIMI 2026** chính thức phân định 2 dòng bot chuyên biệt phục vụ cộng đồng Discord Việt Nam:\n` +
+            `• ${em.music} **MIMI BOT**: Bot Âm Nhạc & Cộng Đồng — **100% MIỄN PHÍ TRỌN ĐỜI** cho mọi máy chủ.\n` +
+            `• ${em.shield} **MIMI SHIELD BOT**: Bot Vệ Sĩ An Ninh & Anti-Raid Chuyên Nghiệp — **Bản Quyền HWID Cao Cấp**.\n` +
             '━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━'
         )
         .addFields(
             {
-                name: `${em.music} 1. ENGINE ÂM NHẠC BYPASS 403 & TỰ ĐỘNG CHUYỂN NGUỒN`,
+                name: `${em.music} 1. MIMI MUSIC BOT (MIỄN PHÍ 100% • BYPASS 403 & SOUNDCLOUD)`,
                 value: (
                     '```diff\n' +
-                    '+ Khắc phục 100% mã lỗi "HTTP Error 403: Forbidden" của YouTube.\n' +
-                    '+ Tích hợp chuỗi Client Bypass độc quyền (android_embedded, tv_embedded).\n' +
-                    '+ [BẢO HIỂM ÂM NHẠC] Tự động fallback sang SoundCloud khi YouTube bị chặn IP datacenter — âm nhạc KHÔNG BAO GIỜ bị dừng!\n' +
-                    '+ Hàng chờ thông minh, hỗ trợ tua nhạc mượt mà và tìm kiếm đa nền tảng.\n' +
+                    '+ 100% Miễn phí không giới hạn bài hát và thời gian nghe.\n' +
+                    '+ Khắc phục triệt để lỗi "HTTP 403 Forbidden" từ YouTube.\n' +
+                    '+ Tự động fallback sang SoundCloud khi YouTube bị chặn IP datacenter — âm nhạc KHÔNG BAO GIỜ bị dừng!\n' +
+                    '+ Chế độ 24/7, Autoplay tự động tiếp nhạc, hàng chờ thông minh và Level Chat.\n' +
                     '```'
                 ),
                 inline: false
             },
             {
-                name: `${em.shield} 2. HỆ THỐNG ANTI-RAID & QUẢN LÝ BẢN QUYỀN (HWID SERVER)`,
+                name: `${em.shield} 2. MIMI SHIELD BOT (VỆ SĨ AN NINH • BẢN QUYỀN HWID CHUYÊN NGHIỆP)`,
                 value: (
                     '```fix\n' +
-                    '* Lá chắn bảo vệ phản ứng siêu tốc 0.1s (Anti-Nuke, Anti-Bot, Anti-MassJoin, Anti-Spam Webhook).\n' +
-                    '* Định danh bản quyền theo Server ID (HWID), hỗ trợ 3 gói linh hoạt: 1 Tháng (50k), 3 Tháng (140k), 12 Tháng (390k).\n' +
-                    '* Tích hợp VietQR tự động (Vietcombank 9369144188 - DAO NGOC QUANG) và Tra cứu hạn dùng trực tuyến.\n' +
+                    '* Lá chắn bảo vệ phản ứng siêu tốc 0.1s: Chống Nuke, Chống Mass-Ban, Chống Xóa Channel/Role.\n' +
+                    '* Tự động Snapshot cấu trúc máy chủ & Khôi phục nguyên vẹn khi bị phá hoại.\n' +
+                    '* 3 Gói Bản Quyền: 1 Tháng (50k), 3 Tháng (140k), 12 Tháng (390k - Chỉ ~32k/tháng).\n' +
                     '* Lệnh kích hoạt nhanh: /kichhoat [mã_key] hoặc nhập trực tiếp trên Web.\n' +
                     '```'
                 ),
                 inline: false
             },
             {
-                name: `${em.diamond} 3. ĐẠI TU WEBSITE MIMIBOT.ID.VN (3D CYBER VISUALS)`,
+                name: `${em.diamond} 3. ĐẠI TU WEBSITE MIMIBOT.ID.VN (3D CYBER VISUALS & ADMIN PANEL)`,
                 value: (
                     '```yaml\n' +
-                    'Trải Nghiệm Web 3D Cao Cấp:\n' +
+                    'Nâng Cấp Giao Diện & Tiện Ích:\n' +
                     '  - Đĩa Vinyl 3D WebGL + Vòng Equalizer Neon quay 60 FPS mượt mà.\n' +
-                    '  - Hiệu ứng 3D TiltCard & Quầng Sáng Spotlight Glow chạy theo con trỏ chuột.\n' +
+                    '  - Thẻ Bảng Giá 3D TiltCard & Quầng Sáng Spotlight Glow theo con trỏ chuột.\n' +
                     '  - Bảng Xếp Hạng LIVE Top 10 Apple Music Việt Nam đồng bộ thời gian thực.\n' +
-                    '  - Bảng điều khiển Admin duyệt tiền & kích hoạt Server / cấp Key tức thì.\n' +
+                    '  - Bảng Điều Khiển Admin Duyệt Tiền & Cấp License Key cho MIMI Shield.\n' +
                     '```'
                 ),
                 inline: false
             },
             {
-                name: `${em.crown} 4. BỘ LỆNH MỚI NÂNG CAO CHO MỌI NGƯỜI`,
+                name: `${em.crown} 4. BỘ LỆNH ĐIỀU KHIỂN HỆ SINH THÁI`,
                 value: (
-                    `${em.dot} \`/xacnhan [server_id] [gói]\` — Admin duyệt thanh toán & cấp hạn Server tức thì.\n` +
-                    `${em.dot} \`/genkey [gói]\` — Tạo mã License Key cấp cho thành viên.\n` +
-                    `${em.dot} \`/addemoji [link_ảnh_hoặc_emoji] [tên]\` — Tải nhanh emoji từ emoji.gg & discadia vào server.\n` +
-                    `${em.dot} \`/antiraid [lockdown/status]\` — Kiểm tra trạng thái lá chắn và kích hoạt phong tỏa khẩn cấp.\n` +
-                    `${em.dot} \`/autoplay\` & \`/247\` — Tự động tiếp nối âm nhạc và bám trụ kênh thoại 24/24.\n` +
+                    `${em.dot} \`/kichhoat [mã_key]\` & \`/license\` — Kích hoạt & kiểm tra bản quyền MIMI Shield.\n` +
+                    `${em.dot} \`/xacnhan\` & \`/genkey\` — Admin duyệt thanh toán & cấp mã License Key.\n` +
+                    `${em.dot} \`/addemoji [link] [tên]\` — Nạp nhanh emoji từ emoji.gg & discadia vào server.\n` +
+                    `${em.dot} \`/autoplay\` & \`/247\` — Bật nghe nhạc liên tục và bám trụ kênh 24/7.\n` +
                     '━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━'
                 ),
                 inline: false
             }
         )
         .setImage('https://mimibot.id.vn/og-image.jpg')
-        .setFooter({ text: 'MIMI BOT 2026 • Đồng hành cùng hàng ngàn cộng đồng Discord Việt Nam', iconURL: 'https://mimibot.id.vn/logo.webp' })
+        .setFooter({ text: 'MIMI ECOSYSTEM 2026 • Đồng hành cùng hàng ngàn cộng đồng Discord Việt Nam', iconURL: 'https://mimibot.id.vn/logo.webp' })
         .setTimestamp();
 
     return { embeds: [embed], components: [row] };
