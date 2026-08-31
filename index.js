@@ -3370,10 +3370,18 @@ async function ensureDecorationEmojis(guild, client) {
     const results = {};
     const emojisDir = path.join(__dirname, 'assets', 'emojis');
 
-    // Ưu tiên nạp & tạo emoji trên Server Gốc (Main Guild 1517068246493429852)
-    const mainGuild = client?.guilds?.cache?.get('1517068246493429852') || guild;
+    // 1. Tìm hoặc fetch Server Main (1517068246493429852)
+    let mainGuild = client?.guilds?.cache?.get('1517068246493429852');
+    if (!mainGuild && client?.guilds) {
+        mainGuild = await client.guilds.fetch('1517068246493429852').catch(() => null);
+    }
+    if (!mainGuild) mainGuild = guild;
 
-    // Nạp Application Emojis
+    // Fetch toàn bộ emojis từ guild và mainGuild
+    if (mainGuild) await mainGuild.emojis.fetch().catch(() => null);
+    if (guild && guild.id !== mainGuild?.id) await guild.emojis.fetch().catch(() => null);
+
+    // Fetch Application Emojis nếu có
     let appEmojisMap = new Map();
     if (client?.application) {
         try {
@@ -3390,9 +3398,10 @@ async function ensureDecorationEmojis(guild, client) {
             continue;
         }
 
-        // 1. Tìm trong server hiện tại hoặc server main
-        let existing = guild?.emojis?.cache?.find(e => e.name === item.name) ||
-                       mainGuild?.emojis?.cache?.find(e => e.name === item.name);
+        // 1. Tìm trong toàn bộ cache của Bot (tất cả các guild bot đang tham gia)
+        let existing = client?.emojis?.cache?.find(e => e.name === item.name) ||
+                       mainGuild?.emojis?.cache?.find(e => e.name === item.name) ||
+                       guild?.emojis?.cache?.find(e => e.name === item.name);
 
         // 2. Tìm trong Application Emojis
         if (!existing && appEmojisMap.has(item.name)) {
@@ -3406,31 +3415,48 @@ async function ensureDecorationEmojis(guild, client) {
             continue;
         }
 
-        // 3. Tự động đọc file local và tạo emoji vào Server Main / Guild
+        // 3. Nếu chưa có -> Đọc file ảnh từ assets/emojis và upload thẳng lên Main Server / Guild
         const localFilePath = path.join(emojisDir, item.filename);
         if (fs.existsSync(localFilePath)) {
-            const attachment = fs.readFileSync(localFilePath);
+            const imgBuffer = fs.readFileSync(localFilePath);
+            const dataUri = `data:image/png;base64,${imgBuffer.toString('base64')}`;
 
-            // Thử tạo vào Main Server trước (nơi bot có quyền hạn cao nhất)
-            if (mainGuild?.members?.me?.permissions?.has(PermissionFlagsBits.ManageEmojisAndStickers)) {
+            // Upload thẳng vào Main Server
+            if (mainGuild) {
                 try {
-                    const created = await mainGuild.emojis.create({ attachment, name: item.name }).catch(() => null);
+                    const created = await mainGuild.emojis.create({ attachment: dataUri, name: item.name });
                     if (created) {
                         const formatted = `<${created.animated ? 'a' : ''}:${created.name}:${created.id}>`;
                         customEmojiCache[item.name] = formatted;
                         results[key] = formatted;
-                        console.log(`🎨 [Auto-Emoji] Đã nạp emoji custom "${created.name}" vào Main Server ${mainGuild.name}!`);
+                        console.log(`🎨 [Auto-Emoji] Đã nạp thành công emoji custom "${created.name}" (${created.id}) vào ${mainGuild.name}!`);
                         continue;
                     }
                 } catch (e) {
-                    console.warn(`⚠️ [Auto-Emoji] Không thể tạo emoji "${item.name}" trên main server:`, e?.message || e);
+                    console.warn(`⚠️ [Auto-Emoji] Không thể tạo emoji "${item.name}" trên main server ${mainGuild.name}:`, e?.message || e);
                 }
             }
 
-            // Thử tạo vào Application Emojis
+            // Upload vào Guild hiện tại
+            if (guild && guild.id !== mainGuild?.id) {
+                try {
+                    const created = await guild.emojis.create({ attachment: dataUri, name: item.name });
+                    if (created) {
+                        const formatted = `<${created.animated ? 'a' : ''}:${created.name}:${created.id}>`;
+                        customEmojiCache[item.name] = formatted;
+                        results[key] = formatted;
+                        console.log(`🎨 [Auto-Emoji] Đã tạo emoji "${created.name}" vào server ${guild.name}!`);
+                        continue;
+                    }
+                } catch (e) {
+                    console.warn(`⚠️ [Auto-Emoji] Lỗi tạo emoji trên guild ${guild.name}:`, e?.message || e);
+                }
+            }
+
+            // Upload vào Application Emojis
             if (client?.application) {
                 try {
-                    const appCreated = await client.application.emojis.create({ attachment, name: item.name }).catch(() => null);
+                    const appCreated = await client.application.emojis.create({ attachment: dataUri, name: item.name }).catch(() => null);
                     if (appCreated) {
                         const formatted = `<${appCreated.animated ? 'a' : ''}:${appCreated.name}:${appCreated.id}>`;
                         customEmojiCache[item.name] = formatted;
