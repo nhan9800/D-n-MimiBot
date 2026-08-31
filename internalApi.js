@@ -341,6 +341,36 @@ function startInternalApi(deps) {
                 return send(res, 200, { ok: true, ...result }, reqId);
             }
 
+            if (req.method === 'POST' && url.pathname === '/api/license/admin/confirm') {
+                const body = await readJson(req);
+                const { guildId, plan = '1m', secret, action = 'activate', note = '' } = body || {};
+                const auth = (req.headers['authorization'] || '').replace(/^Bearer\s+/i, '');
+                const validSecret = safeEqual(auth, TOKEN) || safeEqual(secret, process.env.ADMIN_SECRET || 'mimi2026') || safeEqual(secret, TOKEN);
+                if (!validSecret) {
+                    return fail(res, 401, 'UNAUTHORIZED', 'Mã xác thực Admin không chính xác.', reqId);
+                }
+
+                if (action === 'generate_key') {
+                    const keyObj = licenseStore.generateKey(plan, note || 'Tạo từ Admin Web', 'Admin Web');
+                    return send(res, 200, {
+                        ok: true,
+                        key: keyObj.key,
+                        plan: keyObj.plan,
+                        planName: keyObj.planName,
+                        durationDays: keyObj.durationDays,
+                        message: `Đã tạo Key ${keyObj.planName} thành công!`
+                    }, reqId);
+                }
+
+                if (!guildId) return fail(res, 400, 'MISSING_GUILD_ID', 'Vui lòng cung cấp Server ID cần kích hoạt.', reqId);
+                const updatedLic = licenseStore.grantLicense(guildId, plan, null, 'Admin Web Direct');
+                return send(res, 200, {
+                    ok: true,
+                    license: updatedLic,
+                    message: `Đã xác nhận thanh toán & kích hoạt thành công ${updatedLic.planName} cho Server ${guildId}!`
+                }, reqId);
+            }
+
             if (parts[0] !== 'internal') return fail(res, 404, 'NOT_FOUND', 'Không tìm thấy tài nguyên.', reqId);
 
             // Chặn theo IP nguồn thật trước khi so token (giảm bề mặt brute-force token)

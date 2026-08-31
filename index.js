@@ -5598,6 +5598,20 @@ client.once('ready', async () => {
                     .addChoices({ name: '🔒 Bật Khóa Khẩn Cấp (Lockdown)', value: 'on' }, { name: '🔓 Mở Khóa Server', value: 'off' }))),
 
         new SlashCommandBuilder()
+            .setName('xacnhan')
+            .setDescription('[Admin/Owner] Xác nhận đã nhận tiền và kích hoạt ngay bản quyền cho Server ID')
+            .setDefaultMemberPermissions(PermissionFlagsBits.Administrator)
+            .addStringOption(o => o.setName('server_id').setDescription('Server ID (Guild ID) của máy chủ khách hàng').setRequired(true))
+            .addStringOption(o => o.setName('gói').setDescription('Gói bản quyền kích hoạt').setRequired(true)
+                .addChoices(
+                    { name: '🌟 Gói 1 Tháng (50.000đ - 30 ngày)', value: '1m' },
+                    { name: '💎 Gói 3 Tháng (140.000đ - 90 ngày)', value: '3m' },
+                    { name: '👑 Gói 12 Tháng (390.000đ - 365 ngày)', value: '12m' },
+                    { name: '♾️ Gói Vĩnh Viễn (Lifetime VIP)', value: 'permanent' }
+                ))
+            .addStringOption(o => o.setName('ghi_chú').setDescription('Ghi chú bill/người mua').setRequired(false)),
+
+        new SlashCommandBuilder()
             .setName('genkey')
             .setDescription('[Admin/Owner] Tạo mã License Key bản quyền để cấp cho khách hàng')
             .setDefaultMemberPermissions(PermissionFlagsBits.Administrator)
@@ -6436,7 +6450,7 @@ client.on('messageCreate', async (message) => {
 
     // 🔒 KIỂM TRA BẢN QUYỀN TRƯỚC KHI XỬ LÝ LỆNH PREFIX
     if (command) {
-        const allowedPrefixCommands = ['mibanqyuen', 'mibanq', 'milicense', 'mihwid', 'mikichhoat', 'miredeem', 'migenkey'];
+        const allowedPrefixCommands = ['mibanqyuen', 'mibanq', 'milicense', 'mihwid', 'mikichhoat', 'miredeem', 'migenkey', 'mixacnhan', 'miduyet'];
         if (!allowedPrefixCommands.includes(command)) {
             const lic = licenseStore.getLicense(message.guild.id);
             if (!lic || !lic.active) {
@@ -8786,7 +8800,7 @@ client.on('interactionCreate', async interaction => {
 
     // 🔒 KIỂM TRA BẢN QUYỀN MÁY CHỦ (BẮT BUỘC KÍCH HOẠT KEY MỚI HOẠT ĐỘNG)
     if (interaction.isChatInputCommand()) {
-        const allowedCommands = ['kichhoat', 'license', 'banquyen', 'genkey'];
+        const allowedCommands = ['kichhoat', 'license', 'banquyen', 'genkey', 'xacnhan'];
         if (!allowedCommands.includes(interaction.commandName)) {
             const lic = licenseStore.getLicense(guild.id);
             if (!lic || !lic.active) {
@@ -11880,6 +11894,40 @@ if (commandName === 'setup') {
                     .setTimestamp();
                 return interaction.editReply({ embeds: [embed] });
             }
+        }
+
+        if (commandName === 'xacnhan') {
+            await interaction.deferReply({ flags: MessageFlags.Ephemeral });
+            const isOwner = user.id === '1138315103821889566' || user.id === guild.ownerId;
+            if (!isOwner && !member.permissions.has(PermissionFlagsBits.Administrator)) {
+                return interaction.editReply({ content: '❌ Chỉ Quản trị viên / Owner mới có quyền xác nhận kích hoạt bản quyền.' });
+            }
+
+            const targetGuildId = options.getString('server_id')?.trim();
+            const plan = options.getString('gói');
+            const note = options.getString('ghi_chú') || `Confirmed by ${user.tag}`;
+
+            if (!targetGuildId || !/^\d{16,22}$/.test(targetGuildId)) {
+                return interaction.editReply({ content: '❌ Server ID không hợp lệ. Vui lòng nhập đúng dãy số ID máy chủ Discord (17-20 chữ số).' });
+            }
+
+            const updatedLic = licenseStore.grantLicense(targetGuildId, plan, null, `Discord Admin: ${user.tag} (${note})`);
+
+            const embed = new EmbedBuilder()
+                .setColor('#2ECC71')
+                .setTitle('✅ ĐÃ XÁC NHẬN THANH TOÁN & KÍCH HOẠT THÀNH CÔNG!')
+                .setDescription(`Hệ thống đã cập nhật bản quyền và mở khóa toàn bộ tính năng cho máy chủ **${targetGuildId}**.`)
+                .addFields(
+                    { name: '🛡️ Server ID (HWID)', value: `\`${targetGuildId}\``, inline: true },
+                    { name: '📦 Gói Kích Hoạt', value: `**${updatedLic.planName}**`, inline: true },
+                    { name: '⏳ Hạn Bản Quyền', value: `\`${updatedLic.isPermanent ? 'Vĩnh Viễn (Lifetime)' : new Date(updatedLic.expiresTimestamp).toLocaleString('vi-VN')}\` (+ ${updatedLic.remainingDays} ngày)`, inline: false },
+                    { name: '👤 Người Duyệt', value: `${user.tag}`, inline: true },
+                    { name: '📝 Ghi Chú', value: note, inline: true }
+                )
+                .setFooter({ text: 'Dữ liệu đã được đồng bộ tự động với Website mimibot.id.vn' })
+                .setTimestamp();
+
+            return interaction.editReply({ embeds: [embed] });
         }
 
         if (commandName === 'genkey') {
