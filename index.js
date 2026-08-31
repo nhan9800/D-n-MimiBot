@@ -5483,10 +5483,10 @@ client.once('ready', async () => {
 
         new SlashCommandBuilder()
             .setName('addemoji')
-            .setDescription('Thêm emoji từ server khác vào server này')
+            .setDescription('Thêm emoji tùy chỉnh vào server (Hỗ trợ: emoji Discord, link từ emoji.gg/discadia)')
             .setDefaultMemberPermissions(PermissionFlagsBits.ManageEmojisAndStickers)
-            .addStringOption(o => o.setName('emoji').setDescription('Paste emoji tùy chỉnh (<:tên:id> hoặc <a:tên:id>)').setRequired(true))
-            .addStringOption(o => o.setName('tên').setDescription('Tên emoji trong server này (mặc định: tên gốc)')),
+            .addStringOption(o => o.setName('nguồn').setDescription('Paste emoji Discord (<:tên:id>) HOẶC dán link ảnh từ emoji.gg/discadia').setRequired(true))
+            .addStringOption(o => o.setName('tên').setDescription('Tên đặt cho emoji (VD: mimi_crown, neon_shield)').setRequired(false)),
 
         new SlashCommandBuilder()
             .setName('sendembed')
@@ -6467,35 +6467,12 @@ client.on('messageCreate', async (message) => {
 
     // --- A. LẮNG NGHE LỆNH GIẢI TRÍ VIẾT LIỀN (CÓ HỖ TRỢ VIẾT TẮT) ---
 
-    if (command === 'miannounce' && message.author.id === OWNER_ID) {
-        const channel = message.client.channels.cache.get('1527814721053655092');
-        if (!channel) return message.reply('❌ Không tìm thấy kênh 1527814721053655092 (hoặc bot chưa được thấy kênh đó)');
-        const embed = new EmbedBuilder()
-            .setColor('#1ED760')
-            .setTitle('🚀 BẢN CẬP NHẬT LỚN: MIMIMI BOT V2.2 ĐÃ CHÍNH THỨC RA MẮT!')
-            .setDescription('Xin chào cộng đồng! **MIMI BOT** vừa trải qua đợt đại tu hệ thống lớn nhất từ trước đến nay, mang lại trải nghiệm mượt mà, xịn xò và ổn định tuyệt đối.\n\nDưới đây là những thay đổi chính trong bản cập nhật này:')
-            .addFields(
-                {
-                    name: '🎵 Cập Nhật Hệ Thống Nghe Nhạc',
-                    value: '```diff\n+ Khắc phục hoàn toàn lỗi 403 Forbidden & DRM bảo vệ bản quyền của YouTube.\n+ Nâng cấp Engine yt-dlp lên bản Nightly mới nhất.\n+ Hàng chờ nhạc thông minh, không còn bị kẹt bài.\n```',
-                    inline: false
-                },
-                {
-                    name: '🌐 Đại Tu Giao Diện Website (Web Player)',
-                    value: '```css\n[ Giao Diện Premium 3D ]\n- Nâng cấp phong cách Glassmorphism & Cyber Grid cực ảo.\n- [MỚI] Thanh kéo chỉnh âm lượng (Volume Slider) trực tiếp trên Web.\n- [MỚI] Trình phát nhạc thông minh: Tự động hiện/ẩn mượt mà khi đổi bài.\n```',
-                    inline: false
-                },
-                {
-                    name: '⚙️ Hạ Tầng & Độ Ổn Định (CI/CD)',
-                    value: '```fix\n* Hệ thống giờ đây có khả năng tự động khôi phục (Auto-Revive) khi rớt mạng.\n* Triển khai công nghệ GitHub Actions: Bot & Web tự động cập nhật code siêu tốc.\n* Giảm thiểu tối đa tình trạng giật lag, ngốn RAM.\n```',
-                    inline: false
-                }
-            )
-            .setImage('https://mimibot.id.vn/og-image.jpg')
-            .setFooter({ text: 'Cảm ơn các bạn đã luôn ủng hộ MIMI BOT 💖', iconURL: message.client.user.displayAvatarURL() })
-            .setTimestamp();
-        await channel.send({ embeds: [embed] });
-        return message.reply('✅ Đã gửi thông báo V2.2 thành công vào kênh!');
+    if ((command === 'miannounce' || command === 'mithongbao') && message.author.id === OWNER_ID) {
+        const channel = message.client.channels.cache.get('1527814721053655092') || await message.client.channels.fetch('1527814721053655092').catch(() => null);
+        if (!channel) return message.reply('❌ Không tìm thấy kênh 1527814721053655092 (hoặc bot chưa có quyền xem kênh đó)');
+        const payload = buildChangelogAnnouncement();
+        await channel.send(payload);
+        return message.reply('✅ Đã phát sóng thông báo V2.3 Component & Separator thành công vào kênh 1527814721053655092!');
     }
 
     // ==========================================
@@ -12221,63 +12198,101 @@ if (commandName === 'setup') {
             )], flags: MessageFlags.Ephemeral });
         }
 
+        function buildChangelogAnnouncement() {
+    const inviteUrl = 'https://discord.com/oauth2/authorize?client_id=1539527939723497473&permissions=8&integration_type=0&scope=bot';
+    const pricingUrl = 'https://mimibot.id.vn/pricing';
+    const websiteUrl = 'https://mimibot.id.vn';
+    const dashboardUrl = 'https://mimibot.id.vn/dashboard';
+
+    const row = new ActionRowBuilder().addComponents(
+        new ButtonBuilder().setStyle(ButtonStyle.Link).setLabel('Mời Bot Ngay').setURL(inviteUrl).setEmoji('🛡️'),
+        new ButtonBuilder().setStyle(ButtonStyle.Link).setLabel('Bảng Giá & Key').setURL(pricingUrl).setEmoji('💎'),
+        new ButtonBuilder().setStyle(ButtonStyle.Link).setLabel('Trang Chủ Website').setURL(websiteUrl).setEmoji('🌐'),
+        new ButtonBuilder().setStyle(ButtonStyle.Link).setLabel('Mở Dashboard').setURL(dashboardUrl).setEmoji('🎧')
+    );
+
+    const embed = new EmbedBuilder()
+        .setColor('#2ECC71')
+        .setAuthor({ name: 'MIMI BOT • HỆ THỐNG AN NINH & ÂM NHẠC 2026', iconURL: 'https://mimibot.id.vn/logo.webp', url: websiteUrl })
+        .setTitle('🚀 BẢN CẬP NHẬT ĐẠI TU: MIMI BOT V2.3 SHIELD & MUSIC REVOLUTION')
+        .setDescription(
+            '━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n' +
+            '✨ **Chào mừng toàn thể cộng đồng!** Hệ thống **MIMI BOT** vừa chính thức hoàn tất đợt đại tu toàn diện về **Lá Chắn Bảo Vệ Anti-Raid**, **Engine Âm Nhạc Bất Tử 403**, và **Giao Diện Website 3D Vũ Trụ**!\n' +
+            '━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━'
+        )
+        .addFields(
+            {
+                name: '🎵 1. ENGINE ÂM NHẠC BYPASS 403 & TỰ ĐỘNG CHUYỂN NGUỒN',
+                value: (
+                    '```diff\n' +
+                    '+ Khắc phục 100% mã lỗi "HTTP Error 403: Forbidden" của YouTube.\n' +
+                    '+ Tích hợp chuỗi Client Bypass độc quyền (android_embedded, tv_embedded).\n' +
+                    '+ [BẢO HIỂM ÂM NHẠC] Tự động fallback sang SoundCloud khi YouTube bị chặn IP datacenter — âm nhạc KHÔNG BAO GIỜ bị dừng!\n' +
+                    '+ Hàng chờ thông minh, hỗ trợ tua nhạc mượt mà và tìm kiếm đa nền tảng.\n' +
+                    '```'
+                ),
+                inline: false
+            },
+            {
+                name: '🛡️ 2. HỆ THỐNG ANTI-RAID & QUẢN LÝ BẢN QUYỀN (HWID SERVER)',
+                value: (
+                    '```fix\n' +
+                    '* Lá chắn bảo vệ phản ứng siêu tốc 0.1s (Anti-Nuke, Anti-Bot, Anti-MassJoin, Anti-Spam Webhook).\n' +
+                    '* Định danh bản quyền theo Server ID (HWID), hỗ trợ 3 gói linh hoạt: 1 Tháng (50k), 3 Tháng (140k), 12 Tháng (390k).\n' +
+                    '* Tích hợp VietQR tự động (Vietcombank 9369144188 - DAO NGOC QUANG) và Tra cứu hạn dùng trực tuyến.\n' +
+                    '* Lệnh kích hoạt nhanh: /kichhoat [mã_key] hoặc nhập trực tiếp trên Web.\n' +
+                    '```'
+                ),
+                inline: false
+            },
+            {
+                name: '🌐 3. ĐẠI TU WEBSITE MIMIBOT.ID.VN (3D CYBER VISUALS)',
+                value: (
+                    '```yaml\n' +
+                    'Trải Nghiệm Web 3D Cao Cấp:\n' +
+                    '  - Đĩa Vinyl 3D WebGL + Vòng Equalizer Neon quay 60 FPS mượt mà.\n' +
+                    '  - Hiệu ứng 3D TiltCard & Quầng Sáng Spotlight Glow chạy theo con trỏ chuột.\n' +
+                    '  - Bảng Xếp Hạng LIVE Top 10 Apple Music Việt Nam đồng bộ thời gian thực.\n' +
+                    '  - Bảng điều khiển Admin duyệt tiền & kích hoạt Server / cấp Key tức thì.\n' +
+                    '```'
+                ),
+                inline: false
+            },
+            {
+                name: '👑 4. BỘ LỆNH MỚI NÂNG CAO CHO MỌI NGƯỜI',
+                value: (
+                    '✦ `/xacnhan [server_id] [gói]` — Admin duyệt thanh toán & cấp hạn Server tức thì.\n' +
+                    '✦ `/genkey [gói]` — Tạo mã License Key cấp cho thành viên.\n' +
+                    '✦ `/addemoji [link_ảnh_hoặc_emoji] [tên]` — Tải nhanh emoji từ emoji.gg & discadia vào server.\n' +
+                    '✦ `/antiraid [lockdown/status]` — Kiểm tra trạng thái lá chắn và kích hoạt phong tỏa khẩn cấp.\n' +
+                    '✦ `/autoplay` & `/247` — Tự động tiếp nối âm nhạc và bám trụ kênh thoại 24/24.\n' +
+                    '━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━'
+                ),
+                inline: false
+            }
+        )
+        .setImage('https://mimibot.id.vn/og-image.jpg')
+        .setFooter({ text: 'MIMI BOT 2026 • Đồng hành cùng hàng ngàn cộng đồng Discord Việt Nam', iconURL: 'https://mimibot.id.vn/logo.webp' })
+        .setTimestamp();
+
+    return { embeds: [embed], components: [row] };
+}
+
         if (commandName === 'changelog') {
-            if (interaction.user.id !== OWNER_ID) return interaction.reply({ content: '❌ Lệnh này chỉ dành cho Developer!', flags: MessageFlags.Ephemeral });
-            // Lệnh tạm thời để gửi thông báo V2
+            if (interaction.user.id !== OWNER_ID && !member.permissions.has(PermissionFlagsBits.Administrator)) {
+                return interaction.reply({ content: '❌ Lệnh này chỉ dành cho Developer / Admin!', flags: MessageFlags.Ephemeral });
+            }
             await interaction.deferReply({ flags: MessageFlags.Ephemeral });
             const targetChannel = await client.channels.fetch('1527814721053655092').catch(() => null);
             if (!targetChannel) return interaction.editReply('Không tìm thấy kênh 1527814721053655092.');
 
             try {
-                const container = new ContainerBuilder()
-                    .setAccentColor(0x5865F2)
-                    .addTextDisplayComponents(
-                        new TextDisplayBuilder().setContent('## 🚀 BẢN CẬP NHẬT HỆ THỐNG MIMIBOT 🚀')
-                    )
-                    .addSeparatorComponents(new SeparatorBuilder().setSpacing(SeparatorSpacingSize.Large).setDivider(true))
-                    .addTextDisplayComponents(
-                        new TextDisplayBuilder().setContent(
-                            '### 🔧 CÁC LỖI ĐÃ ĐƯỢC FIX\n' +
-                            '> **1. Mất bảng điều khiển nhạc:** Khôi phục 100% bằng Embed tiêu chuẩn.\n' +
-                            '> **2. Lỗi `Premature close`:** Đã xử lý triệt để tình trạng văng log rác.\n' +
-                            '> **3. Lỗi Internal API (`urlObj`):** Đã vá lỗi kết nối API nội bộ.\n' +
-                            '> **4. Dọn dẹp Log:** Xóa sổ toàn bộ cảnh báo vàng (Warning ephemeral) từ Discord.js.'
-                        )
-                    )
-                    .addSeparatorComponents(new SeparatorBuilder().setSpacing(SeparatorSpacingSize.Medium).setDivider(true))
-                    .addTextDisplayComponents(
-                        new TextDisplayBuilder().setContent(
-                            '### ✨ TÍNH NĂNG MỚI ĐƯỢC THÊM VÀO\n' +
-                            '> **1. Lệnh `/autoplay`:** Tự động phát nhạc Youtube đề xuất hoặc cùng thể loại khi hết hàng đợi. Âm nhạc không bao giờ tắt!\n' +
-                            '> **2. Lệnh `/247`:** Giữ bot online bám rễ trong kênh thoại 24/24 kể cả khi không có ai, sẵn sàng phục vụ bất cứ lúc nào.'
-                        )
-                    )
-                    .addSeparatorComponents(new SeparatorBuilder().setSpacing(SeparatorSpacingSize.Large).setDivider(true))
-                    .addTextDisplayComponents(
-                        new TextDisplayBuilder().setContent('*(Bản cập nhật được tự động triển khai qua CI/CD)*')
-                    );
-                
-                await targetChannel.send({ components: [container], flags: MessageFlags.IsComponentsV2 });
-                return interaction.editReply('Đã gửi thông báo V2 thành công!');
+                const payload = buildChangelogAnnouncement();
+                await targetChannel.send(payload);
+                return interaction.editReply('✅ Đã gửi thông báo V2.3 Component & Separator thành công vào kênh 1527814721053655092!');
             } catch (err) {
-                // Fallback nếu Discord chặn V2 Components
-                const embed = new EmbedBuilder()
-                    .setColor(0x5865F2)
-                    .setTitle('🚀 BẢN CẬP NHẬT HỆ THỐNG MIMIBOT 🚀')
-                    .setDescription(
-                        '### 🔧 CÁC LỖI ĐÃ ĐƯỢC FIX\n' +
-                        '> **1. Mất bảng điều khiển nhạc:** Khôi phục 100% bằng Embed tiêu chuẩn.\n' +
-                        '> **2. Lỗi `Premature close`:** Đã xử lý triệt để tình trạng văng log rác.\n' +
-                        '> **3. Lỗi Internal API (`urlObj`):** Đã vá lỗi kết nối API nội bộ.\n' +
-                        '> **4. Dọn dẹp Log:** Xóa sổ toàn bộ cảnh báo vàng từ Discord.js.\n\n' +
-                        '### ✨ TÍNH NĂNG MỚI ĐƯỢC THÊM VÀO\n' +
-                        '> **1. Lệnh `/autoplay`:** Tự động phát nhạc liên quan khi hết hàng đợi.\n' +
-                        '> **2. Lệnh `/247`:** Giữ bot online bám rễ trong kênh thoại 24/24.'
-                    );
-                const tbMsg = thongbaoRole ? `${thongbaoRole}` : '';
-            if (tbMsg) await targetChannel.send({ content: tbMsg, embeds: [embed] });
-            else await targetChannel.send({ embeds: [embed] });
-                return interaction.editReply('Discord chặn V2 Component, đã gửi bằng Embed tiêu chuẩn thay thế!');
+                console.error('❌ [changelog]', err.message);
+                return interaction.editReply(`❌ Lỗi gửi thông báo: ${err.message}`);
             }
         }
     }
