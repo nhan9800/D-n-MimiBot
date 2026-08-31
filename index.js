@@ -3350,44 +3350,44 @@ function buildMusicProgressBar(currentSec, totalSec, size = 14) {
 // =====================================================================
 
 // =====================================================================
-// 🎨 BỘ EMOJI CUSTOM NEON DISCORD CHÍNH THỨC (ĐÃ TẠO TRÊN SERVER GỐC)
+// 🎨 BỘ THÔNG BÁO COMPONENT V2 & SPECTOR DIVIDERS CHUẨN CAO CẤP 2026
 // =====================================================================
-const CUSTOM_EMOJIS = {
-    shield: '<:mimi_shield:1543950853499781273>',
-    crown: '<:mimi_crown:1543950855764582460>',
-    music: '<:mimi_music:1543950857593159792>',
-    verify: '<:mimi_verify:1543950859002716243>',
-    fire: '<:mimi_fire:1543950860910989396>',
-    diamond: '<:mimi_diamond:1543950863046025249>',
-    sparkles: '<:mimi_sparkles:1543950865830912102>',
-    arrow: '<:mimi_arrow:1543950867990971504>',
-    dot: '<:mimi_dot:1543950870191718388>'
-};
-
 async function buildChangelogAnnouncement(guild, client) {
-    const em = CUSTOM_EMOJIS;
-
     const inviteMusicUrl = 'https://discord.com/oauth2/authorize?client_id=1138315103821889566&permissions=8&scope=bot%20applications.commands';
     const inviteShieldUrl = 'https://discord.com/oauth2/authorize?client_id=1539527939723497473&permissions=8&integration_type=0&scope=bot%20applications.commands';
     const pricingUrl = 'https://mimibot.id.vn/pricing';
     const websiteUrl = 'https://mimibot.id.vn';
     const supportServerUrl = 'https://discord.gg/vibestore';
 
-    // Component V2 Row 1: Các nút mời bot & Web Dashboard (gắn emoji custom xịn xò)
+    // Tìm emoji custom trong guild nếu có, nếu chưa có dùng emoji biểu tượng chuẩn
+    const getEm = (name, fallback) => {
+        const found = guild?.emojis?.cache?.find(e => e.name === name) || client?.emojis?.cache?.find(e => e.name === name);
+        return found ? `<${found.animated ? 'a' : ''}:${found.name}:${found.id}>` : fallback;
+    };
+
+    const emShield = getEm('mimi_shield', '🛡️');
+    const emCrown = getEm('mimi_crown', '👑');
+    const emMusic = getEm('mimi_music', '🎧');
+    const emDiamond = getEm('mimi_diamond', '💎');
+    const emSparkles = getEm('mimi_sparkles', '✨');
+    const emFire = getEm('mimi_fire', '🔥');
+    const emVerify = getEm('mimi_verify', '✅');
+
+    // Component V2 Row 1: Các nút mời bot & Web Dashboard
     const row1 = new ActionRowBuilder().addComponents(
-        new ButtonBuilder().setStyle(ButtonStyle.Link).setLabel('Mời MIMI Nhạc (Free)').setURL(inviteMusicUrl).setEmoji('1543950857593159792'),
-        new ButtonBuilder().setStyle(ButtonStyle.Link).setLabel('Mời MIMI Shield (Vệ Sĩ)').setURL(inviteShieldUrl).setEmoji('1543950853499781273'),
+        new ButtonBuilder().setStyle(ButtonStyle.Link).setLabel('Mời MIMI Nhạc (Free)').setURL(inviteMusicUrl).setEmoji('🎧'),
+        new ButtonBuilder().setStyle(ButtonStyle.Link).setLabel('Mời MIMI Shield (Vệ Sĩ)').setURL(inviteShieldUrl).setEmoji('🛡️'),
         new ButtonBuilder().setStyle(ButtonStyle.Link).setLabel('Trang Chủ Website').setURL(websiteUrl).setEmoji('🌐')
     );
 
     // Component V2 Row 2: Bảng giá, Key & Hỗ trợ
     const row2 = new ActionRowBuilder().addComponents(
-        new ButtonBuilder().setStyle(ButtonStyle.Link).setLabel('Bảng Giá MIMI Shield').setURL(pricingUrl).setEmoji('1543950863046025249'),
-        new ButtonBuilder().setStyle(ButtonStyle.Link).setLabel('Server Hỗ Trợ (VibeStore)').setURL(supportServerUrl).setEmoji('1543950855764582460')
+        new ButtonBuilder().setStyle(ButtonStyle.Link).setLabel('Bảng Giá MIMI Shield').setURL(pricingUrl).setEmoji('💎'),
+        new ButtonBuilder().setStyle(ButtonStyle.Link).setLabel('Server Hỗ Trợ (VibeStore)').setURL(supportServerUrl).setEmoji('👑')
     );
 
     const spectorLine = '━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━';
-    const thinSeparator = '─────────────────────────────────────────────────';
+    const subLine = '─────────────────────────────────────────────────';
 
     const embed = new EmbedBuilder()
         .setColor('#00FFA3')
@@ -3396,24 +3396,24 @@ async function buildChangelogAnnouncement(guild, client) {
             iconURL: 'https://mimibot.id.vn/logo.webp', 
             url: websiteUrl 
         })
-        .setTitle(em.sparkles + ' ĐẠI TU HỆ SINH THÁI: MIMI MUSIC & MIMI SHIELD V2.3 ' + em.sparkles)
+        .setTitle(`${emSparkles} BẢN CẬP NHẬT ĐẠI TU: HỆ SINH THÁI MIMI MUSIC & MIMI SHIELD ${emSparkles}`)
         .setDescription(
-            spectorLine + '\n' +
-            '> ' + em.sparkles + ' **CHÀO MỪNG TOÀN THỂ CỘNG ĐỒNG DISCORD VIỆT NAM!**\n' +
-            '> Hệ thống vừa chính thức ra mắt cấu trúc **Component V2 & Spector Dividers**, phân tách độc lập 2 dòng sản phẩm chủ lực:\n' +
-            '> \n' +
-            '> ' + em.dot + ' ' + em.music + ' **MIMI MUSIC BOT**: Hệ Thống Âm Nhạc & Giải Trí — **100% MIỄN PHÍ TRỌN ĐỜI**.\n' +
-            '> ' + em.dot + ' ' + em.shield + ' **MIMI SHIELD BOT**: Lá Chắn An Ninh Anti-Raid Chuyên Nghiệp — **Bản Quyền HWID**.\n' +
-            spectorLine
+            `${spectorLine}\n` +
+            `> ${emSparkles} **KÍNH CHÀO TOÀN THỂ CỘNG ĐỒNG DISCORD VIỆT NAM!**\n` +
+            `> Hệ thống chính thức vận hành cấu trúc đa nhiệm với 2 dòng sản phẩm chủ lực chuyên biệt:\n` +
+            `> \n` +
+            `> ✦ ${emMusic} **MIMI MUSIC BOT**: Âm Nhạc & Giải Trí — **100% MIỄN PHÍ TRỌN ĐỜI**.\n` +
+            `> ✦ ${emShield} **MIMI SHIELD BOT**: Lá Chắn An Ninh Anti-Raid Chuyên Nghiệp — **Bản Quyền HWID**.\n` +
+            `${spectorLine}`
         )
         .addFields(
             {
-                name: em.music + ' 1. MIMI MUSIC BOT (100% MIỄN PHÍ • BYPASS 403 & SOUNDCLOUD)',
+                name: `${emMusic} 1. MIMI MUSIC BOT (MIỄN PHÍ 100% • BYPASS 403 & SOUNDCLOUD)`,
                 value: (
-                    '> ' + em.verify + ' **Trải nghiệm âm nhạc không giới hạn cho mọi máy chủ**\n' +
+                    `> ${emVerify} **Trải nghiệm âm nhạc không giới hạn cho mọi máy chủ**\n` +
                     '```diff\n' +
                     '+ [BẢO HIỂM 403] Tự động giải mã YouTube & Fallback sang SoundCloud.\n' +
-                    '+ [BẤT TỬ 24/7] Ở lại Voice Channel liên tục không sợ rớt mạng.\n' +
+                    '+ [BẤT TỬ 24/7] Luôn túc trực trong Voice Channel không bao giờ rớt mạng.\n' +
                     '+ [AUTOPLAY] Tự động tìm và phát nối tiếp các bài hát thịnh hành.\n' +
                     '+ [LEVEL CHAT] Bảng xếp hạng thành viên hoạt động sôi nổi theo Server.\n' +
                     '```'
@@ -3421,9 +3421,9 @@ async function buildChangelogAnnouncement(guild, client) {
                 inline: false
             },
             {
-                name: em.shield + ' 2. MIMI SHIELD BOT (LÁ CHẮN VỆ SĨ • BẢN QUYỀN HWID CHUYÊN NGHIỆP)',
+                name: `${emShield} 2. MIMI SHIELD BOT (LÁ CHẮN VỆ SĨ • BẢN QUYỀN HWID CHUYÊN NGHIỆP)`,
                 value: (
-                    '> ' + em.diamond + ' **Phòng thủ toàn diện trước mọi cuộc tấn công phá hoại**\n' +
+                    `> ${emDiamond} **Phòng thủ toàn diện trước mọi cuộc tấn công phá hoại**\n` +
                     '```fix\n' +
                     '* Phản xạ 0.1s: Anti-Nuke, Anti-Bot Lạ, Anti-MassJoin & Spam Webhook.\n' +
                     '* Tự động Snapshot cấu trúc máy chủ & Khôi phục nguyên trạng sau sự cố.\n' +
@@ -3434,9 +3434,9 @@ async function buildChangelogAnnouncement(guild, client) {
                 inline: false
             },
             {
-                name: em.diamond + ' 3. ĐẠI TU WEBSITE MIMIBOT.ID.VN (3D CYBER VISUALS & ADMIN)',
+                name: `${emDiamond} 3. ĐẠI TU WEBSITE MIMIBOT.ID.VN (3D CYBER VISUALS & ADMIN)`,
                 value: (
-                    '> ' + em.fire + ' **Giao diện Web 3D chuẩn Cyberpunk vũ trụ**\n' +
+                    `> ${emFire} **Giao diện Web 3D chuẩn Cyberpunk vũ trụ**\n` +
                     '```yaml\n' +
                     'Trải Nghiệm Trực Tuyến:\n' +
                     '  - Đĩa Vinyl 3D WebGL + Vòng Equalizer Neon quay 60 FPS.\n' +
@@ -3448,16 +3448,16 @@ async function buildChangelogAnnouncement(guild, client) {
                 inline: false
             },
             {
-                name: em.crown + ' 4. BẢNG TRA CỨU BỘ LỆNH ĐIỀU KHIỂN',
+                name: `${emCrown} 4. BẢNG TRA CỨU BỘ LỆNH ĐIỀU KHIỂN`,
                 value: (
-                    thinSeparator + '\n' +
-                    em.dot + ' `/kichhoat [mã_key]` — Kích hoạt bản quyền MIMI Shield cho server.\n' +
-                    em.dot + ' `/license` — Tra cứu Server ID (HWID) và thời hạn bảo vệ.\n' +
-                    em.dot + ' `/xacnhan [server_id] [gói]` — Admin duyệt thanh toán trực tiếp.\n' +
-                    em.dot + ' `/genkey [gói]` — Admin tạo mã Key cấp cho thành viên.\n' +
-                    em.dot + ' `/guard [setup/lockdown/status]` — Cấu hình lá chắn an ninh.\n' +
-                    em.dot + ' `/autoplay` & `/247` — Tự động nghe nhạc 24/24 trên MIMI Bot.\n' +
-                    spectorLine
+                    `${subLine}\n` +
+                    '▸ `/kichhoat [mã_key]` — Kích hoạt bản quyền MIMI Shield cho server.\n' +
+                    '▸ `/license` — Tra cứu Server ID (HWID) và thời hạn bảo vệ.\n' +
+                    '▸ `/xacnhan [server_id] [gói]` — Admin duyệt thanh toán trực tiếp.\n' +
+                    '▸ `/genkey [gói]` — Admin tạo mã Key cấp cho thành viên.\n' +
+                    '▸ `/guard [setup/lockdown/status]` — Cấu hình lá chắn an ninh.\n' +
+                    '▸ `/autoplay` & `/247` — Tự động nghe nhạc 24/24 trên MIMI Bot.\n' +
+                    `${spectorLine}`
                 ),
                 inline: false
             }
