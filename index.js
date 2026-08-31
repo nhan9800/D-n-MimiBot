@@ -2820,12 +2820,37 @@ const YT_DOWNLOAD_EXTRACTOR_ARGS = 'youtube:player_client=android,ios,mweb';
 
 // 🔁 CHUỖI CLIENT DỰ PHÒNG KHI TẢI DATA
 const YT_DOWNLOAD_CLIENT_FALLBACKS = [
+    'youtube:player_client=android_embedded,android,ios',
     'youtube:player_client=android,ios',
     'youtube:player_client=ios,mweb',
     'youtube:player_client=mweb,android',
-    'youtube:player_client=tv,android',
+    'youtube:player_client=tv_embedded,android',
     'youtube:player_client=android_vr,android'
 ];
+
+async function searchSoundcloud(query) {
+    if (!ytDlpExec) return null;
+    try {
+        const info = await ytDlpExec(`scsearch1:${query}`, {
+            dumpSingleJson: true,
+            skipDownload: true,
+            noWarnings: true,
+            noCheckCertificates: true
+        }, { timeout: 12000 });
+        const item = info?.entries?.[0] || info;
+        if (!item || (!item.url && !item.webpage_url)) return null;
+        return {
+            title: item.title || query,
+            url: item.webpage_url || item.url,
+            duration: Number(item.duration) || 0,
+            thumbnail: item.thumbnail || null,
+            source: 'SoundCloud'
+        };
+    } catch {
+        return null;
+    }
+}
+
 
 function getYtCommonOpts() {
     const opts = {
@@ -4241,20 +4266,15 @@ async function playNextTrack(guildId, opts = {}) {
 
         // Bắt lỗi khi tiến trình yt-dlp thoát bất thường (đây là lỗi BẤT ĐỒNG BỘ,
         // không được try/catch phía trên bắt được — phải lắng nghe riêng như thế này)
-        ytdlProcess.catch((err) => {
-            if (mq.current !== next || mq.playGeneration !== genId) return; // đã chuyển bài / thế hệ khác
+        ytdlProcess.catch(async (err) => {
+            if (mq.current !== next || mq.playGeneration !== genId) return;
             const rawErr = stderrBuffer || err.message || '';
             console.error(`❌ [Music] yt-dlp lỗi khi phát "${next.title}" ở server ${guildId}:`, rawErr);
 
-            // 🔁 Lỗi 403 (YouTube chặn client đang dùng để TẢI data): thử lại CHÍNH bài này với bộ
-            // player_client kế tiếp trước khi coi là lỗi. YouTube xoay client liên tục nên client nào cũng
-            // có lúc bị chặn — đổi client thường phát lại được ngay mà không cần bỏ bài / báo lỗi cho user.
-            // YouTube thường xuyên đổi cơ chế, có lúc trả 403, có lúc trả "Requested format is not available"
             const isRetryable = /403|forbidden|Requested format is not available|Sign in to confirm you|bot|confirm you’re not a bot|needs_auth|login/i.test(rawErr);
             const nextAttempt = clientAttempt + 1;
             if (isRetryable && nextAttempt < YT_DOWNLOAD_CLIENT_FALLBACKS.length) {
                 console.warn(`🔁 [Music] 403 với client #${clientAttempt} — thử lại "${next.title}" bằng bộ client #${nextAttempt}.`);
-                // replayCurrent giữ nguyên bài + vị trí tua + hiệu ứng; chỉ đổi clientAttempt.
                 playNextTrack(guildId, {
                     replayCurrent: true,
                     seekSec,
@@ -4262,6 +4282,31 @@ async function playNextTrack(guildId, opts = {}) {
                     clientAttempt: nextAttempt
                 }).catch(e => console.error(`❌ [Music] Lỗi khi thử lại client cho "${next.title}":`, e?.message || e));
                 return;
+            }
+
+            // 🛡️ BẢO HIỂM 403: NẾU YOUTUBE 403 HẾT CÁC CLIENT -> TỰ ĐỘNG PHÁT TỪ SOUNDCLOUD
+            if (isRetryable && !next.scFallbackAttempted) {
+                next.scFallbackAttempted = true;
+                console.warn(`🔄 [Music] YouTube 403 toàn bộ client -> Tự động tìm nguồn phát SoundCloud cho "${next.title}"...`);
+                try {
+                    const scTrack = await searchSoundcloud(next.title);
+                    if (scTrack && scTrack.url) {
+                        console.log(`✅ [Music] Đã tìm thấy trên SoundCloud: ${scTrack.url} -> Tiếp tục phát nhạc!`);
+                        next.url = scTrack.url;
+                        next.source = 'SoundCloud';
+                        if (mq.textChannel) {
+                            mq.textChannel.send({ embeds: [buildMusicNoticeContainer('🔄 Tự Động Chuyển Nguồn Nhạc', `YouTube đang chặn kết nối IP (403). MIMI đã tự động chuyển sang phát từ **SoundCloud** mượt mà cho bài **${next.title}**!`, 0x00D2D3)] }).catch(() => null);
+                        }
+                        return playNextTrack(guildId, {
+                            replayCurrent: true,
+                            seekSec: 0,
+                            effectKey,
+                            clientAttempt: 0
+                        });
+                    }
+                } catch (scErr) {
+                    console.error('❌ [Music] Lỗi fallback sang SoundCloud:', scErr?.message);
+                }
             }
 
             const shortErr = (rawErr.split('\n').filter(Boolean).pop() || 'Không rõ lỗi').slice(0, 300);
