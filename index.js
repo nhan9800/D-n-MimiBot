@@ -29,6 +29,9 @@ const { colors, buildBaseEmbed, generateProgressBar } = require('./uiBuilder');
 const { startInternalApi } = require('./internalApi');
 const { MusicStore, MAX_ALBUMS_PER_USER, MAX_TRACKS_PER_ALBUM } = require('./musicStore');
 const { createDashboardKey, resolveDashboardSecret, DEFAULT_TTL_MS: DASHBOARD_KEY_TTL_MS } = require('./dashboardAuth');
+const licenseStore = require('./licenseStore');
+const antiRaid = require('./antiRaid');
+const { startLicenseScheduler } = require('./licenseScheduler');
 
 // Gốc URL website — dùng dựng link Dashboard kèm khoá trong lệnh /dashboard.
 const WEB_BASE_URL = (process.env.MIMI_WEB_BASE || 'https://mimibot.id.vn').replace(/\/+$/, '');
@@ -5533,6 +5536,36 @@ client.once('ready', async () => {
             .setDescription('Hiển thị bảng điều khiển bài hát đang phát'),
 
         new SlashCommandBuilder()
+            .setName('license')
+            .setDescription('Xem thông tin bản quyền bảo vệ Anti-Raid của máy chủ'),
+
+        new SlashCommandBuilder()
+            .setName('kichhoat')
+            .setDescription('Kích hoạt hoặc gia hạn bản quyền Anti-Raid bằng mã Key')
+            .addStringOption(o => o.setName('mã_key').setDescription('Mã License Key (dạng MIMI-ANTI-XXXX-XXXX-XXXX)').setRequired(true)),
+
+        new SlashCommandBuilder()
+            .setName('antiraid')
+            .setDescription('Cấu hình và kiểm soát hệ thống bảo vệ máy chủ Anti-Raid')
+            .addSubcommand(s => s.setName('trangthai').setDescription('Xem trạng thái hoạt động của hệ thống Anti-Raid'))
+            .addSubcommand(s => s.setName('lockdown').setDescription('Khóa hoặc mở khóa khẩn cấp toàn bộ kênh chat')
+                .addStringOption(o => o.setName('chế_độ').setDescription('Bật hoặc tắt khóa khẩn cấp').setRequired(true)
+                    .addChoices({ name: '🔒 Bật Khóa Khẩn Cấp (Lockdown)', value: 'on' }, { name: '🔓 Mở Khóa Server', value: 'off' }))),
+
+        new SlashCommandBuilder()
+            .setName('genkey')
+            .setDescription('[Admin/Owner] Tạo mã License Key bản quyền để cấp cho khách hàng')
+            .setDefaultMemberPermissions(PermissionFlagsBits.Administrator)
+            .addStringOption(o => o.setName('gói').setDescription('Gói bản quyền cần tạo').setRequired(true)
+                .addChoices(
+                    { name: '🌟 Gói 1 Tháng (50.000đ - 30 ngày)', value: '1m' },
+                    { name: '💎 Gói 3 Tháng (140.000đ - 90 ngày)', value: '3m' },
+                    { name: '👑 Gói 12 Tháng (390.000đ - 365 ngày)', value: '12m' }
+                ))
+            .addIntegerOption(o => o.setName('số_lượng').setDescription('Số lượng mã key muốn tạo (1-20)').setMinValue(1).setMaxValue(20).setRequired(false))
+            .addStringOption(o => o.setName('ghi_chú').setDescription('Ghi chú người mua / lý do').setRequired(false)),
+
+        new SlashCommandBuilder()
             .setName('play')
             .setDescription('Phát nhạc từ YouTube, Spotify, SoundCloud — tìm theo tên hoặc dán link')
             .addStringOption(o => o.setName('từ_khóa').setDescription('Tên bài hát hoặc link (YouTube, Spotify, SoundCloud, v.v.)').setRequired(true))
@@ -8490,6 +8523,61 @@ client.on('messageCreate', async (message) => {
         }
         stopAndLeaveVoice(message.guild.id);
         return message.reply({ content: '👋 Đã ngắt kết nối và rời khỏi kênh thoại theo yêu cầu!', allowedMentions: { repliedUser: false } });
+    }
+
+    // ==========================================
+    // 🔑 PREFIX: BẢN QUYỀN & ANTI-RAID
+    // ==========================================
+    if (command === 'mibanqyuen' || command === 'mibanq' || command === 'milicense' || command === 'mihwid') {
+        const lic = licenseStore.getLicense(message.guild.id);
+        const statusColor = lic.active ? '#2ECC71' : '#E74C3C';
+        const statusIcon = lic.active ? '🟢' : '🔴';
+        const expireStr = lic.isPermanent ? '👑 Vĩnh viễn (Lifetime VIP)' : (lic.active ? `<t:${Math.floor(lic.expiresTimestamp / 1000)}:F> (Còn ${lic.remainingDays} ngày)` : 'Đã hết hạn');
+
+        const embed = new EmbedBuilder()
+            .setColor(statusColor)
+            .setTitle(`🛡️ THÔNG TIN BẢN QUYỀN: ${message.guild.name}`)
+            .setDescription(
+                `• **Server ID (HWID):** \`${message.guild.id}\`\n` +
+                `• **Trạng thái:** ${statusIcon} **${lic.active ? 'ĐANG HOẠT ĐỘNG' : 'HẾT HẠN / CHƯA KÍCH HOẠT'}**\n` +
+                `• **Gói dịch vụ:** **${lic.planName}**\n` +
+                `• **Hạn bảo vệ:** ${expireStr}`
+            )
+            .addFields(
+                {
+                    name: '💎 3 Gói Dịch Vụ',
+                    value: '• **1 Tháng**: `50.000đ` • **3 Tháng**: `140.000đ` • **12 Tháng**: `390.000đ`'
+                },
+                {
+                    name: '💳 Chuyển Khoản Vietcombank',
+                    value: `STK: **9369144188** (DAO NGOC QUANG) — Cú pháp: **\`MIMI 1M ${message.guild.id}\`**`
+                }
+            )
+            .setFooter({ text: 'Gõ /kichhoat [mã_key] để gia hạn' });
+
+        return message.reply({ embeds: [embed], allowedMentions: { repliedUser: false } });
+    }
+
+    if (command === 'mikichhoat' || command === 'miredeem') {
+        const key = args.slice(1).join(' ').trim();
+        if (!key) {
+            return message.reply({ content: '❌ Vui lòng nhập mã Key!\nCú pháp: \`mikichhoat MIMI-ANTI-XXXX-XXXX-XXXX\`', allowedMentions: { repliedUser: false } });
+        }
+        const result = licenseStore.redeemKey(message.guild.id, key, message.author.tag);
+        if (!result.ok) {
+            return message.reply({ content: `❌ ${result.error}`, allowedMentions: { repliedUser: false } });
+        }
+        return message.reply({ content: `🎉 **KÍCH HOẠT THÀNH CÔNG!** Đã cộng **+${result.daysAdded} ngày** bảo vệ cho server. Hạn mới: ${result.license.expiresAt}`, allowedMentions: { repliedUser: false } });
+    }
+
+    if (command === 'milockdown') {
+        if (!message.member?.permissions.has(PermissionFlagsBits.Administrator)) {
+            return message.reply({ content: '❌ Bạn không có quyền Administrator để dùng lệnh này.', allowedMentions: { repliedUser: false } });
+        }
+        const sub = args[1]?.toLowerCase();
+        const enable = sub === 'on' || sub === 'bat';
+        const res = await antiRaid.triggerLockdown(message.guild, enable, message.member);
+        return message.reply({ content: enable ? `🔒 Đã kích hoạt Khóa Khẩn Cấp (${res.channelCount} kênh)!` : `🔓 Đã mở khóa máy chủ (${res.channelCount} kênh)!`, allowedMentions: { repliedUser: false } });
     }
 
     if (command === 'miplay' || command === 'mipl') {
@@ -11597,6 +11685,148 @@ if (commandName === 'setup') {
             stopAndLeaveVoice(guild.id);
             return interaction.editReply({ content: '👋 Đã ngắt kết nối và rời khỏi kênh thoại theo yêu cầu!' });
         }
+        // ==========================================
+        // 🔑 LỆNH: BẢN QUYỀN & ANTI-RAID
+        // ==========================================
+        if (commandName === 'license' || commandName === 'banquyen') {
+            await interaction.deferReply();
+            const lic = licenseStore.getLicense(guild.id);
+            const statusColor = lic.active ? '#2ECC71' : '#E74C3C';
+            const statusIcon = lic.active ? '🟢' : '🔴';
+            const expireStr = lic.isPermanent ? '👑 Vĩnh viễn (Lifetime VIP)' : (lic.active ? `<t:${Math.floor(lic.expiresTimestamp / 1000)}:F> (Còn ${lic.remainingDays} ngày ${lic.remainingHours % 24} giờ)` : 'Đã hết hạn');
+
+            const embed = new EmbedBuilder()
+                .setColor(statusColor)
+                .setTitle(`🛡️ THÔNG TIN BẢN QUYỀN ANTI-RAID: ${guild.name}`)
+                .setDescription(
+                    `• **Server ID (HWID):** \`${guild.id}\`\n` +
+                    `• **Trạng thái:** ${statusIcon} **${lic.active ? 'ĐANG ĐƯỢC BẢO VỆ' : 'CHƯA KÍCH HOẠT / HẾT HẠN'}**\n` +
+                    `• **Gói dịch vụ:** **${lic.planName}**\n` +
+                    `• **Hạn bảo vệ:** ${expireStr}`
+                )
+                .addFields(
+                    {
+                        name: '💎 3 Gói Dịch Vụ Thành Viên',
+                        value:
+                            '• **Gói 1 Tháng**: `50.000đ` (30 ngày)\n' +
+                            '• **Gói 3 Tháng**: `140.000đ` *(Tiết kiệm 10k - 90 ngày)*\n' +
+                            '• **Gói 12 Tháng**: `390.000đ` *(VIP Tiết kiệm 210k - 365 ngày)*',
+                        inline: false
+                    },
+                    {
+                        name: '💳 Thanh Toán Vietcombank (Tự Động)',
+                        value:
+                            '• Số TK: **`9369144188`** (Vietcombank)\n' +
+                            '• Chủ TK: **DAO NGOC QUANG**\n' +
+                            `• Cú pháp CK: **\`MIMI 1M ${guild.id}\`** (hoặc \`MIMI 3M ${guild.id}\`, \`MIMI 12M ${guild.id}\`)`,
+                        inline: false
+                    }
+                )
+                .setFooter({ text: 'Gõ /kichhoat [mã_key] để gia hạn tức thì • Bot sẽ tự động rời server khi hết hạn' })
+                .setTimestamp();
+
+            const row = new ActionRowBuilder().addComponents(
+                new ButtonBuilder()
+                    .setLabel('🌐 Mở Trang Web Mua Gói & VietQR')
+                    .setStyle(ButtonStyle.Link)
+                    .setURL(WEB_BASE_URL || 'https://mimibot.id.vn')
+            );
+
+            return interaction.editReply({ embeds: [embed], components: [row] });
+        }
+
+        if (commandName === 'kichhoat') {
+            await interaction.deferReply();
+            const key = options.getString('mã_key');
+            const result = licenseStore.redeemKey(guild.id, key, user.tag);
+
+            if (!result.ok) {
+                return interaction.editReply({ content: `❌ ${result.error}` });
+            }
+
+            const embed = new EmbedBuilder()
+                .setColor('#2ECC71')
+                .setTitle('🎉 KÍCH HOẠT BẢN QUYỀN THÀNH CÔNG!')
+                .setDescription(
+                    `Chúc mừng! Máy chủ **${guild.name}** đã được kích hoạt gói bảo vệ Anti-Raid thành công.\n\n` +
+                    `• **Mã Key:** \`${result.key}\`\n` +
+                    `• **Gói:** **${result.planName}** (+${result.daysAdded} ngày)\n` +
+                    `• **Thời hạn mới:** <t:${Math.floor(result.license.expiresTimestamp / 1000)}:F> (Còn **${result.license.remainingDays} ngày**)`
+                )
+                .setFooter({ text: `Kích hoạt bởi @${user.username} • Server ID: ${guild.id}` })
+                .setTimestamp();
+
+            return interaction.editReply({ embeds: [embed] });
+        }
+
+        if (commandName === 'antiraid') {
+            await interaction.deferReply();
+            const lic = licenseStore.getLicense(guild.id);
+            if (!lic.active) {
+                return interaction.editReply({ content: '❌ Máy chủ chưa kích hoạt bản quyền Anti-Raid hoặc đã hết hạn. Vui lòng gõ `/license` để xem hướng dẫn mua gói và kích hoạt.' });
+            }
+
+            const sub = options.getSubcommand();
+            if (sub === 'trangthai') {
+                const embed = new EmbedBuilder()
+                    .setColor('#00D2D3')
+                    .setTitle(`🛡️ TRẠNG THÁI HỆ THỐNG ANTI-RAID: ${guild.name}`)
+                    .setDescription('Hệ thống lá chắn bảo mật đang hoạt động liên tục 24/7:')
+                    .addFields(
+                        { name: '⚡ Anti-Nuke Kênh & Role', value: '🟢 **Kích hoạt (0.1s)** — Tự động tước quyền khi xóa > 3 kênh/role trong 10s', inline: false },
+                        { name: '🤖 Chống Bot Lạ Xâm Nhập', value: '🟢 **Kích hoạt** — Tự động kick bot lạ không có phép từ Owner', inline: false },
+                        { name: '👥 Chống Mass-Join & Clone Raid', value: '🟢 **Kích hoạt** — Tự động lọc tài khoản mới tạo khi bị dội người vào', inline: false },
+                        { name: '🛑 Chống Spam Webhook & @everyone', value: '🟢 **Kích hoạt** — Tự động xóa tin nhắn và timeout kẻ spam', inline: false }
+                    )
+                    .setFooter({ text: `Bản quyền: ${lic.planName} • Còn ${lic.remainingDays} ngày` })
+                    .setTimestamp();
+                return interaction.editReply({ embeds: [embed] });
+            }
+
+            if (sub === 'lockdown') {
+                const mode = options.getString('chế_độ');
+                const isEnable = mode === 'on';
+                const res = await antiRaid.triggerLockdown(guild, isEnable, member);
+
+                if (!res.ok) return interaction.editReply({ content: `❌ Lỗi: ${res.error}` });
+
+                const embed = new EmbedBuilder()
+                    .setColor(isEnable ? '#FF3366' : '#2ECC71')
+                    .setTitle(isEnable ? '🔒 ĐÃ BẬT KHÓA KHẨN CẤP (EMERGENCY LOCKDOWN)' : '🔓 ĐÃ MỞ KHÓA MÁY CHỦ')
+                    .setDescription(
+                        isEnable
+                            ? `⚠️ Toàn bộ **${res.channelCount} kênh chat** đã được đóng băng thành viên không thể gửi tin nhắn để ngăn chặn cuộc tấn công!\n\nGõ \`/antiraid lockdown chế_độ: Mở Khóa Server\` khi tình hình an toàn.`
+                            : `✅ Toàn bộ **${res.channelCount} kênh chat** đã được mở khóa bình thường cho mọi người trò chuyện.`
+                    )
+                    .setTimestamp();
+                return interaction.editReply({ embeds: [embed] });
+            }
+        }
+
+        if (commandName === 'genkey') {
+            await interaction.deferReply({ flags: MessageFlags.Ephemeral });
+            const isOwner = user.id === '1138315103821889566' || user.id === guild.ownerId;
+            if (!isOwner && !member.permissions.has(PermissionFlagsBits.Administrator)) {
+                return interaction.editReply({ content: '❌ Chỉ Quản trị viên / Creator mới có quyền tạo mã Key bản quyền.' });
+            }
+
+            const plan = options.getString('gói');
+            const count = options.getInteger('số_lượng') || 1;
+            const note = options.getString('ghi_chú') || `Created by ${user.tag}`;
+
+            const keys = licenseStore.generateKeys(plan, count, note, user.tag);
+            const keyText = keys.map((k, i) => `${i + 1}. \`${k.key}\` — **${k.planName}** (${k.durationDays} ngày)`).join('\n');
+
+            const embed = new EmbedBuilder()
+                .setColor('#F1C40F')
+                .setTitle(`🔑 ĐÃ TẠO THÀNH CÔNG ${count} MÃ LICENSE KEY`)
+                .setDescription(`Danh sách mã key mới tạo (gửi mã này cho khách hàng):\n\n${keyText}`)
+                .setFooter({ text: 'Khách hàng có thể nhập mã bằng lệnh /kichhoat [mã_key] hoặc trên website' })
+                .setTimestamp();
+
+            return interaction.editReply({ embeds: [embed] });
+        }
+
         if (commandName === 'play') {
             await interaction.deferReply();
 

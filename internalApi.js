@@ -22,6 +22,9 @@
 const http = require('http');
 const crypto = require('crypto');
 const { verifyDashboardKey, resolveDashboardSecret } = require('./dashboardAuth');
+const fs = require('fs');
+const path = require('path');
+const licenseStore = require('./licenseStore');
 const { buildInfo } = require('./buildInfo');
 
 const pkgVersion = (() => {
@@ -275,6 +278,69 @@ function startInternalApi(deps) {
             }
 
             // Mọi endpoint /internal/* cần token
+            // 🌐 PHỤC VỤ STATIC WEBSITE LANDING PAGE
+            if (url.pathname === '/' || url.pathname === '/index.html') {
+                const htmlPath = path.join(__dirname, 'public', 'index.html');
+                if (fs.existsSync(htmlPath)) {
+                    res.writeHead(200, { 'Content-Type': 'text/html; charset=utf-8' });
+                    return fs.createReadStream(htmlPath).pipe(res);
+                }
+            }
+            if (url.pathname === '/style.css') {
+                const cssPath = path.join(__dirname, 'public', 'style.css');
+                if (fs.existsSync(cssPath)) {
+                    res.writeHead(200, { 'Content-Type': 'text/css; charset=utf-8' });
+                    return fs.createReadStream(cssPath).pipe(res);
+                }
+            }
+            if (url.pathname === '/app.js') {
+                const jsPath = path.join(__dirname, 'public', 'app.js');
+                if (fs.existsSync(jsPath)) {
+                    res.writeHead(200, { 'Content-Type': 'application/javascript; charset=utf-8' });
+                    return fs.createReadStream(jsPath).pipe(res);
+                }
+            }
+
+            // 🌐 PUBLIC APIS (Tra cứu & Kích hoạt bản quyền từ Web)
+            if (url.pathname === '/api/stats') {
+                return send(res, 200, {
+                    ok: true,
+                    guildCount: client.guilds?.cache?.size || 0,
+                    userCount: client.users?.cache?.size || 0,
+                    uptimeSeconds: Math.floor((client.uptime ?? 0) / 1000)
+                }, reqId);
+            }
+
+            if (url.pathname === '/api/pricing') {
+                return send(res, 200, {
+                    ok: true,
+                    plans: licenseStore.PLANS,
+                    bank: {
+                        bankName: 'Vietcombank (VCB)',
+                        accountNumber: '9369144188',
+                        accountName: 'DAO NGOC QUANG'
+                    }
+                }, reqId);
+            }
+
+            if (url.pathname === '/api/license/check') {
+                const guildId = url.searchParams.get('guildId')?.trim();
+                if (!guildId) return fail(res, 400, 'MISSING_GUILD_ID', 'Vui lòng cung cấp Server ID (guildId).', reqId);
+                const lic = licenseStore.getLicense(guildId);
+                return send(res, 200, { ok: true, license: lic }, reqId);
+            }
+
+            if (req.method === 'POST' && url.pathname === '/api/license/redeem') {
+                const body = await readJson(req);
+                const { guildId, key } = body || {};
+                if (!guildId || !key) return fail(res, 400, 'INVALID_BODY', 'Thiếu Server ID hoặc mã Key.', reqId);
+                const result = licenseStore.redeemKey(guildId, key, 'Website Client');
+                if (!result.ok) {
+                    return fail(res, 400, 'REDEEM_FAILED', result.error, reqId);
+                }
+                return send(res, 200, { ok: true, ...result }, reqId);
+            }
+
             if (parts[0] !== 'internal') return fail(res, 404, 'NOT_FOUND', 'Không tìm thấy tài nguyên.', reqId);
 
             // Chặn theo IP nguồn thật trước khi so token (giảm bề mặt brute-force token)
