@@ -6470,7 +6470,7 @@ client.on('messageCreate', async (message) => {
     if ((command === 'miannounce' || command === 'mithongbao') && message.author.id === OWNER_ID) {
         const channel = message.client.channels.cache.get('1527814721053655092') || await message.client.channels.fetch('1527814721053655092').catch(() => null);
         if (!channel) return message.reply('❌ Không tìm thấy kênh 1527814721053655092 (hoặc bot chưa có quyền xem kênh đó)');
-        const payload = buildChangelogAnnouncement();
+        const payload = await buildChangelogAnnouncement(targetChannel.guild || guild, client);
         await channel.send(payload);
         return message.reply('✅ Đã phát sóng thông báo V2.3 Component & Separator thành công vào kênh 1527814721053655092!');
     }
@@ -12198,7 +12198,70 @@ if (commandName === 'setup') {
             )], flags: MessageFlags.Ephemeral });
         }
 
-        function buildChangelogAnnouncement() {
+        
+// 🎨 BỘ EMOJI CUSTOM TỰ ĐỘNG NẠP VÀO SERVER ĐỂ TRANG TRÍ THÔNG BÁO VÀ HỆ THỐNG
+const DECORATION_EMOJIS = {
+    shield: { name: 'mimi_shield', url: 'https://cdn3.emoji.gg/emojis/2627_shield_cyan.png', fallback: '🛡️' },
+    crown: { name: 'mimi_crown', url: 'https://cdn3.emoji.gg/emojis/8422-crown-neon.png', fallback: '👑' },
+    music: { name: 'mimi_music', url: 'https://cdn3.emoji.gg/emojis/8621-neon-music.png', fallback: '🎵' },
+    verify: { name: 'mimi_verify', url: 'https://cdn3.emoji.gg/emojis/4531_verify_cyan.png', fallback: '✅' },
+    fire: { name: 'mimi_fire', url: 'https://cdn3.emoji.gg/emojis/7918-neon-fire.png', fallback: '🔥' },
+    diamond: { name: 'mimi_diamond', url: 'https://cdn3.emoji.gg/emojis/9826-diamond.png', fallback: '💎' },
+    sparkles: { name: 'mimi_sparkles', url: 'https://cdn3.emoji.gg/emojis/6231-sparkles-neon.png', fallback: '✨' },
+    arrow: { name: 'mimi_arrow', url: 'https://cdn3.emoji.gg/emojis/8724-cyan-arrow.png', fallback: '➔' },
+    dot: { name: 'mimi_dot', url: 'https://cdn3.emoji.gg/emojis/5421-neon-dot.png', fallback: '✦' }
+};
+
+const customEmojiCache = {};
+
+async function ensureDecorationEmojis(guild, client) {
+    const results = {};
+    for (const [key, item] of Object.entries(DECORATION_EMOJIS)) {
+        if (customEmojiCache[item.name]) {
+            results[key] = customEmojiCache[item.name];
+            continue;
+        }
+
+        // Tìm trong guild emojis
+        let existing = guild?.emojis?.cache?.find(e => e.name === item.name);
+        if (!existing && client?.application) {
+            try {
+                const appEmojis = await client.application.emojis.fetch().catch(() => null);
+                if (appEmojis) existing = appEmojis.find(e => e.name === item.name);
+            } catch {}
+        }
+
+        if (existing) {
+            const formatted = `<${existing.animated ? 'a' : ''}:${existing.name}:${existing.id}>`;
+            customEmojiCache[item.name] = formatted;
+            results[key] = formatted;
+            continue;
+        }
+
+        // Tự động tải từ emoji.gg và thêm vào server nếu có quyền
+        if (guild?.members?.me?.permissions?.has(PermissionFlagsBits.ManageEmojisAndStickers)) {
+            try {
+                const created = await guild.emojis.create({ attachment: item.url, name: item.name }).catch(() => null);
+                if (created) {
+                    const formatted = `<${created.animated ? 'a' : ''}:${created.name}:${created.id}>`;
+                    customEmojiCache[item.name] = formatted;
+                    results[key] = formatted;
+                    console.log(`🎨 [Auto-Emoji] Đã tự động tạo emoji custom "${created.name}" vào server ${guild.name}!`);
+                    continue;
+                }
+            } catch (e) {
+                console.warn(`⚠️ [Auto-Emoji] Không thể tạo emoji "${item.name}":`, e?.message || e);
+            }
+        }
+
+        results[key] = item.fallback;
+    }
+    return results;
+}
+
+async function buildChangelogAnnouncement(guild, client) {
+    const em = await ensureDecorationEmojis(guild, client);
+
     const inviteUrl = 'https://discord.com/oauth2/authorize?client_id=1539527939723497473&permissions=8&integration_type=0&scope=bot';
     const pricingUrl = 'https://mimibot.id.vn/pricing';
     const websiteUrl = 'https://mimibot.id.vn';
@@ -12214,15 +12277,15 @@ if (commandName === 'setup') {
     const embed = new EmbedBuilder()
         .setColor('#2ECC71')
         .setAuthor({ name: 'MIMI BOT • HỆ THỐNG AN NINH & ÂM NHẠC 2026', iconURL: 'https://mimibot.id.vn/logo.webp', url: websiteUrl })
-        .setTitle('🚀 BẢN CẬP NHẬT ĐẠI TU: MIMI BOT V2.3 SHIELD & MUSIC REVOLUTION')
+        .setTitle(`${em.sparkles} BẢN CẬP NHẬT ĐẠI TU: MIMI BOT V2.3 SHIELD & MUSIC REVOLUTION ${em.sparkles}`)
         .setDescription(
             '━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n' +
-            '✨ **Chào mừng toàn thể cộng đồng!** Hệ thống **MIMI BOT** vừa chính thức hoàn tất đợt đại tu toàn diện về **Lá Chắn Bảo Vệ Anti-Raid**, **Engine Âm Nhạc Bất Tử 403**, và **Giao Diện Website 3D Vũ Trụ**!\n' +
+            `${em.sparkles} **Chào mừng toàn thể cộng đồng!** Hệ thống **MIMI BOT** vừa chính thức hoàn tất đợt đại tu toàn diện về **Lá Chắn Bảo Vệ Anti-Raid**, **Engine Âm Nhạc Bất Tử 403**, và **Giao Diện Website 3D Vũ Trụ**!\n` +
             '━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━'
         )
         .addFields(
             {
-                name: '🎵 1. ENGINE ÂM NHẠC BYPASS 403 & TỰ ĐỘNG CHUYỂN NGUỒN',
+                name: `${em.music} 1. ENGINE ÂM NHẠC BYPASS 403 & TỰ ĐỘNG CHUYỂN NGUỒN`,
                 value: (
                     '```diff\n' +
                     '+ Khắc phục 100% mã lỗi "HTTP Error 403: Forbidden" của YouTube.\n' +
@@ -12234,7 +12297,7 @@ if (commandName === 'setup') {
                 inline: false
             },
             {
-                name: '🛡️ 2. HỆ THỐNG ANTI-RAID & QUẢN LÝ BẢN QUYỀN (HWID SERVER)',
+                name: `${em.shield} 2. HỆ THỐNG ANTI-RAID & QUẢN LÝ BẢN QUYỀN (HWID SERVER)`,
                 value: (
                     '```fix\n' +
                     '* Lá chắn bảo vệ phản ứng siêu tốc 0.1s (Anti-Nuke, Anti-Bot, Anti-MassJoin, Anti-Spam Webhook).\n' +
@@ -12246,7 +12309,7 @@ if (commandName === 'setup') {
                 inline: false
             },
             {
-                name: '🌐 3. ĐẠI TU WEBSITE MIMIBOT.ID.VN (3D CYBER VISUALS)',
+                name: `${em.diamond} 3. ĐẠI TU WEBSITE MIMIBOT.ID.VN (3D CYBER VISUALS)`,
                 value: (
                     '```yaml\n' +
                     'Trải Nghiệm Web 3D Cao Cấp:\n' +
@@ -12259,13 +12322,13 @@ if (commandName === 'setup') {
                 inline: false
             },
             {
-                name: '👑 4. BỘ LỆNH MỚI NÂNG CAO CHO MỌI NGƯỜI',
+                name: `${em.crown} 4. BỘ LỆNH MỚI NÂNG CAO CHO MỌI NGƯỜI`,
                 value: (
-                    '✦ `/xacnhan [server_id] [gói]` — Admin duyệt thanh toán & cấp hạn Server tức thì.\n' +
-                    '✦ `/genkey [gói]` — Tạo mã License Key cấp cho thành viên.\n' +
-                    '✦ `/addemoji [link_ảnh_hoặc_emoji] [tên]` — Tải nhanh emoji từ emoji.gg & discadia vào server.\n' +
-                    '✦ `/antiraid [lockdown/status]` — Kiểm tra trạng thái lá chắn và kích hoạt phong tỏa khẩn cấp.\n' +
-                    '✦ `/autoplay` & `/247` — Tự động tiếp nối âm nhạc và bám trụ kênh thoại 24/24.\n' +
+                    `${em.dot} \`/xacnhan [server_id] [gói]\` — Admin duyệt thanh toán & cấp hạn Server tức thì.\n` +
+                    `${em.dot} \`/genkey [gói]\` — Tạo mã License Key cấp cho thành viên.\n` +
+                    `${em.dot} \`/addemoji [link_ảnh_hoặc_emoji] [tên]\` — Tải nhanh emoji từ emoji.gg & discadia vào server.\n` +
+                    `${em.dot} \`/antiraid [lockdown/status]\` — Kiểm tra trạng thái lá chắn và kích hoạt phong tỏa khẩn cấp.\n` +
+                    `${em.dot} \`/autoplay\` & \`/247\` — Tự động tiếp nối âm nhạc và bám trụ kênh thoại 24/24.\n` +
                     '━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━'
                 ),
                 inline: false
@@ -12287,7 +12350,7 @@ if (commandName === 'setup') {
             if (!targetChannel) return interaction.editReply('Không tìm thấy kênh 1527814721053655092.');
 
             try {
-                const payload = buildChangelogAnnouncement();
+                const payload = await buildChangelogAnnouncement(channel.guild, message.client);
                 await targetChannel.send(payload);
                 return interaction.editReply('✅ Đã gửi thông báo V2.3 Component & Separator thành công vào kênh 1527814721053655092!');
             } catch (err) {
