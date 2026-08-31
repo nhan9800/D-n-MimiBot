@@ -3353,34 +3353,46 @@ function buildMusicProgressBar(currentSec, totalSec, size = 14) {
 // 🎨 BỘ EMOJI CUSTOM TỰ ĐỘNG NẠP VÀO SERVER & TRANG TRÍ THÔNG BÁO V2.3
 // =====================================================================
 const DECORATION_EMOJIS = {
-    shield: { name: 'mimi_shield', url: 'https://cdn3.emoji.gg/emojis/2627_shield_cyan.png', fallback: '🛡️' },
-    crown: { name: 'mimi_crown', url: 'https://cdn3.emoji.gg/emojis/8422-crown-neon.png', fallback: '👑' },
-    music: { name: 'mimi_music', url: 'https://cdn3.emoji.gg/emojis/8621-neon-music.png', fallback: '🎵' },
-    verify: { name: 'mimi_verify', url: 'https://cdn3.emoji.gg/emojis/4531_verify_cyan.png', fallback: '✅' },
-    fire: { name: 'mimi_fire', url: 'https://cdn3.emoji.gg/emojis/7918-neon-fire.png', fallback: '🔥' },
-    diamond: { name: 'mimi_diamond', url: 'https://cdn3.emoji.gg/emojis/9826-diamond.png', fallback: '💎' },
-    sparkles: { name: 'mimi_sparkles', url: 'https://cdn3.emoji.gg/emojis/6231-sparkles-neon.png', fallback: '✨' },
-    arrow: { name: 'mimi_arrow', url: 'https://cdn3.emoji.gg/emojis/8724-cyan-arrow.png', fallback: '➔' },
-    dot: { name: 'mimi_dot', url: 'https://cdn3.emoji.gg/emojis/5421-neon-dot.png', fallback: '✦' }
+    shield: { name: 'mimi_shield', filename: 'mimi_shield.png', fallback: '🛡️' },
+    crown: { name: 'mimi_crown', filename: 'mimi_crown.png', fallback: '👑' },
+    music: { name: 'mimi_music', filename: 'mimi_music.png', fallback: '🎵' },
+    verify: { name: 'mimi_verify', filename: 'mimi_verify.png', fallback: '✅' },
+    fire: { name: 'mimi_fire', filename: 'mimi_fire.png', fallback: '🔥' },
+    diamond: { name: 'mimi_diamond', filename: 'mimi_diamond.png', fallback: '💎' },
+    sparkles: { name: 'mimi_sparkles', filename: 'mimi_sparkles.png', fallback: '✨' },
+    arrow: { name: 'mimi_arrow', filename: 'mimi_arrow.png', fallback: '➔' },
+    dot: { name: 'mimi_dot', filename: 'mimi_dot.png', fallback: '✦' }
 };
 
 const customEmojiCache = {};
 
 async function ensureDecorationEmojis(guild, client) {
     const results = {};
+    const emojisDir = path.join(__dirname, 'assets', 'emojis');
+
+    // Nạp Application Emojis trước để dùng chung cho toàn bộ server
+    let appEmojisMap = new Map();
+    if (client?.application) {
+        try {
+            const fetched = await client.application.emojis.fetch().catch(() => null);
+            if (fetched) {
+                for (const em of fetched.values()) appEmojisMap.set(em.name, em);
+            }
+        } catch {}
+    }
+
     for (const [key, item] of Object.entries(DECORATION_EMOJIS)) {
         if (customEmojiCache[item.name]) {
             results[key] = customEmojiCache[item.name];
             continue;
         }
 
-        // Tìm trong guild emojis
+        // 1. Tìm trong guild emojis của server
         let existing = guild?.emojis?.cache?.find(e => e.name === item.name);
-        if (!existing && client?.application) {
-            try {
-                const appEmojis = await client.application.emojis.fetch().catch(() => null);
-                if (appEmojis) existing = appEmojis.find(e => e.name === item.name);
-            } catch {}
+
+        // 2. Tìm trong Application emojis
+        if (!existing && appEmojisMap.has(item.name)) {
+            existing = appEmojisMap.get(item.name);
         }
 
         if (existing) {
@@ -3390,19 +3402,41 @@ async function ensureDecorationEmojis(guild, client) {
             continue;
         }
 
-        // Tự động tải từ emoji.gg và thêm vào server nếu có quyền
-        if (guild?.members?.me?.permissions?.has(PermissionFlagsBits.ManageEmojisAndStickers)) {
-            try {
-                const created = await guild.emojis.create({ attachment: item.url, name: item.name }).catch(() => null);
-                if (created) {
-                    const formatted = `<${created.animated ? 'a' : ''}:${created.name}:${created.id}>`;
-                    customEmojiCache[item.name] = formatted;
-                    results[key] = formatted;
-                    console.log(`🎨 [Auto-Emoji] Đã tự động tạo emoji custom "${created.name}" vào server ${guild.name}!`);
-                    continue;
+        // 3. Nếu chưa có -> Đọc file ảnh local từ assets/emojis và upload thẳng lên server
+        const localFilePath = path.join(emojisDir, item.filename);
+        if (fs.existsSync(localFilePath)) {
+            const attachment = fs.readFileSync(localFilePath);
+
+            // Thử tạo trực tiếp vào Server Guild
+            if (guild?.members?.me?.permissions?.has(PermissionFlagsBits.ManageEmojisAndStickers)) {
+                try {
+                    const created = await guild.emojis.create({ attachment, name: item.name }).catch(() => null);
+                    if (created) {
+                        const formatted = `<${created.animated ? 'a' : ''}:${created.name}:${created.id}>`;
+                        customEmojiCache[item.name] = formatted;
+                        results[key] = formatted;
+                        console.log(`🎨 [Auto-Emoji] Đã tự động tạo emoji custom "${created.name}" vào server ${guild.name}!`);
+                        continue;
+                    }
+                } catch (e) {
+                    console.warn(`⚠️ [Auto-Emoji] Lỗi tạo emoji guild "${item.name}":`, e?.message || e);
                 }
-            } catch (e) {
-                console.warn(`⚠️ [Auto-Emoji] Không thể tạo emoji "${item.name}":`, e?.message || e);
+            }
+
+            // Thử tạo vào Application Emojis của Bot
+            if (client?.application) {
+                try {
+                    const appCreated = await client.application.emojis.create({ attachment, name: item.name }).catch(() => null);
+                    if (appCreated) {
+                        const formatted = `<${appCreated.animated ? 'a' : ''}:${appCreated.name}:${appCreated.id}>`;
+                        customEmojiCache[item.name] = formatted;
+                        results[key] = formatted;
+                        console.log(`🎨 [Auto-Emoji] Đã tạo Application Emoji "${appCreated.name}"!`);
+                        continue;
+                    }
+                } catch (e) {
+                    console.warn(`⚠️ [Auto-Emoji] Lỗi tạo Application Emoji "${item.name}":`, e?.message || e);
+                }
             }
         }
 
