@@ -5054,6 +5054,22 @@ client.once('ready', async () => {
     // 🔄 Khôi phục các phiên phát nhạc đang dở (session-restore độc quyền)
     restoreMusicSessions().catch(e => console.error('❌ [Music] restoreMusicSessions lỗi:', e?.message));
 
+    // 📢 Tự động đăng tải thông báo V2.3 vào kênh cập nhật chính 1527814721053655092 khi khởi động
+    setTimeout(async () => {
+        try {
+            const targetChannel = await client.channels.fetch('1527814721053655092').catch(() => null);
+            if (targetChannel && config.lastAutoAnnouncedVersion !== 'v2.3') {
+                const payload = await buildChangelogAnnouncement(targetChannel.guild, client);
+                await targetChannel.send(payload);
+                config.lastAutoAnnouncedVersion = 'v2.3';
+                saveConfig();
+                console.log('📢 [Auto-Announce] Đã tự động gửi thông báo V2.3 thành công vào kênh 1527814721053655092!');
+            }
+        } catch (err) {
+            console.error('❌ [Auto-Announce] Không thể gửi thông báo tự động:', err?.message);
+        }
+    }, 4000);
+
 
     const activities = [
         { name: 'Danh Sách Lương', type: 0 }, 
@@ -6467,10 +6483,10 @@ client.on('messageCreate', async (message) => {
 
     // --- A. LẮNG NGHE LỆNH GIẢI TRÍ VIẾT LIỀN (CÓ HỖ TRỢ VIẾT TẮT) ---
 
-    if ((command === 'miannounce' || command === 'mithongbao') && message.author.id === OWNER_ID) {
+    if ((command === 'miannounce' || command === 'mithongbao') && (message.author.id === OWNER_ID || message.member?.permissions?.has(PermissionFlagsBits.Administrator))) {
         const channel = message.client.channels.cache.get('1527814721053655092') || await message.client.channels.fetch('1527814721053655092').catch(() => null);
         if (!channel) return message.reply('❌ Không tìm thấy kênh 1527814721053655092 (hoặc bot chưa có quyền xem kênh đó)');
-        const payload = await buildChangelogAnnouncement(targetChannel.guild || guild, client);
+        const payload = await buildChangelogAnnouncement(channel.guild || message.guild, message.client);
         await channel.send(payload);
         return message.reply('✅ Đã phát sóng thông báo V2.3 Component & Separator thành công vào kênh 1527814721053655092!');
     }
