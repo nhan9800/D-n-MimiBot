@@ -3358,6 +3358,26 @@ function buildMusicProgressBar(currentSec, totalSec, size = 14) {
 // =====================================================================
 const PRIMARY_UPDATE_CHANNEL_ID = '1527814721053655092';
 const CURRENT_UPDATE_VERSION = '2026.09.02';
+const ANNOUNCED_UPDATES_FILE = path.join(__dirname, 'data', 'announced_updates.json');
+
+function readAnnouncedUpdates() {
+    try {
+        if (!fs.existsSync(ANNOUNCED_UPDATES_FILE)) return {};
+        return JSON.parse(fs.readFileSync(ANNOUNCED_UPDATES_FILE, 'utf8'));
+    } catch {
+        return {};
+    }
+}
+
+function saveAnnouncedUpdates(data) {
+    try {
+        const dir = path.dirname(ANNOUNCED_UPDATES_FILE);
+        if (!fs.existsSync(dir)) fs.mkdirSync(dir, { recursive: true });
+        fs.writeFileSync(ANNOUNCED_UPDATES_FILE, JSON.stringify(data, null, 2), 'utf8');
+    } catch (e) {
+        console.error('[Update] Lỗi lưu announced_updates.json:', e.message);
+    }
+}
 
 function buildComponentsV2Announcement() {
     const inviteMusicUrl = 'https://discord.com/oauth2/authorize?client_id=1516603522584416376&permissions=8&integration_type=0&scope=bot';
@@ -3498,21 +3518,56 @@ async function broadcastUpdateAnnouncement(force = false) {
     if (!config.announcedUpdateGuilds) config.announcedUpdateGuilds = {};
     if (!config.announcedUpdateGuilds[CURRENT_UPDATE_VERSION]) config.announcedUpdateGuilds[CURRENT_UPDATE_VERSION] = [];
 
+    const announcedHistory = readAnnouncedUpdates();
+    if (!announcedHistory[CURRENT_UPDATE_VERSION]) {
+        announcedHistory[CURRENT_UPDATE_VERSION] = {
+            primarySent: false,
+            primaryMessageId: null,
+            primarySentAt: null,
+            guilds: []
+        };
+    }
+    const verRecord = announcedHistory[CURRENT_UPDATE_VERSION];
+
     const payload = buildComponentsV2Announcement();
     let sentCount = 0;
     let failedCount = 0;
 
-    // 1. Kênh chính chỉ định: 1527814721053655092
+    // 1. Kênh chính cố định: 1527814721053655092 (Chống spam / chống gửi lặp tuyệt đối)
     try {
         const primaryChannel = await client.channels.fetch(PRIMARY_UPDATE_CHANNEL_ID).catch(() => null);
         if (primaryChannel && primaryChannel.isTextBased?.()) {
-            if (force || config.lastAnnouncedUpdateVersion !== CURRENT_UPDATE_VERSION) {
+            let alreadySent = !force && (verRecord.primarySent || config.lastAnnouncedUpdateVersion === CURRENT_UPDATE_VERSION);
+
+            // Kiểm tra thêm 10 tin nhắn gần nhất trong kênh để chống gửi đúp khi restart bot
+            if (!alreadySent && !force) {
+                try {
+                    const recentMessages = await primaryChannel.messages.fetch({ limit: 10 }).catch(() => null);
+                    if (recentMessages) {
+                        const hasRecent = recentMessages.some(m => {
+                            if (m.author.id !== client.user?.id) return false;
+                            const text = m.content || JSON.stringify(m.components || []);
+                            return text.includes(CURRENT_UPDATE_VERSION) || text.includes('BẢN CẬP NHẬT HỆ THỐNG');
+                        });
+                        if (hasRecent) {
+                            console.log(`[Anti-Spam] Phát hiện thông báo ${CURRENT_UPDATE_VERSION} đã tồn tại trong kênh chính -> Bỏ qua không gửi lại.`);
+                            alreadySent = true;
+                            verRecord.primarySent = true;
+                        }
+                    }
+                } catch {}
+            }
+
+            if (!alreadySent || force) {
                 const sentMsg = await primaryChannel.send(payload).catch(e => {
                     console.error('[Update] Lỗi gửi kênh chính:', e.message);
                     return null;
                 });
                 if (sentMsg) {
                     sentCount++;
+                    verRecord.primarySent = true;
+                    verRecord.primaryMessageId = sentMsg.id;
+                    verRecord.primarySentAt = new Date().toISOString();
                     console.log(`[Update] Đã gửi thông báo ${CURRENT_UPDATE_VERSION} vào kênh chính ${PRIMARY_UPDATE_CHANNEL_ID}`);
                     if (primaryChannel.type === ChannelType.GuildAnnouncement && sentMsg.crosspost) {
                         await sentMsg.crosspost().catch(() => null);
@@ -3524,12 +3579,15 @@ async function broadcastUpdateAnnouncement(force = false) {
         console.error('[Update] Ngoại lệ kênh chính:', e.message);
     }
 
-    // 2. Tự nhận diện kênh ở các server khác và thông báo liên server
+    // 2. Tự nhận diện kênh ở các server khác và thông báo liên server (chống trùng lặp tuyệt đối)
     for (const guild of client.guilds.cache.values()) {
         if (guild.id === '1517068246493429852') continue; // Đã gửi qua kênh chính của support server
 
-        if (!force && config.announcedUpdateGuilds[CURRENT_UPDATE_VERSION].includes(guild.id)) {
-            continue;
+        // Chống lặp tin: kiểm tra cả trong config lẫn file lịch sử
+        if (!force) {
+            if (verRecord.guilds.includes(guild.id) || config.announcedUpdateGuilds[CURRENT_UPDATE_VERSION].includes(guild.id)) {
+                continue;
+            }
         }
 
         try {
@@ -3568,7 +3626,10 @@ async function broadcastUpdateAnnouncement(force = false) {
 
             if (targetChannel && canSendToChannel(targetChannel, guild)) {
                 await targetChannel.send(payload);
-                config.announcedUpdateGuilds[CURRENT_UPDATE_VERSION].push(guild.id);
+                if (!verRecord.guilds.includes(guild.id)) verRecord.guilds.push(guild.id);
+                if (!config.announcedUpdateGuilds[CURRENT_UPDATE_VERSION].includes(guild.id)) {
+                    config.announcedUpdateGuilds[CURRENT_UPDATE_VERSION].push(guild.id);
+                }
                 sentCount++;
                 console.log(`[Update] Đã thông báo liên server tới: ${guild.name} -> #${targetChannel.name}`);
             } else {
@@ -3582,6 +3643,7 @@ async function broadcastUpdateAnnouncement(force = false) {
 
     config.lastAnnouncedUpdateVersion = CURRENT_UPDATE_VERSION;
     saveConfig();
+    saveAnnouncedUpdates(announcedHistory);
 
     return { sentCount, failedCount, version: CURRENT_UPDATE_VERSION };
 }

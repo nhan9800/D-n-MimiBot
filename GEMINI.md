@@ -32,6 +32,14 @@
   - Sử dụng `ActionRow` (`type: 1`) chứa các nút bấm Link (`type: 2`, `style: 5`).
   - Nhãn nút bấm (label) thuần túy văn bản, không chứa emoji.
 
+### 1.4. Quy Tắc Chống Spam & Trùng Lặp (STRICT ANTI-SPAM & DEDUPLICATION)
+- **TUYỆT ĐỐI KHÔNG SPAM / GỬI LẶP LẠI THÔNG BÁO ĐÃ GỬI TRƯỚC ĐÓ**:
+  - Nghiêm cấm gửi lại thông báo của các phiên bản cũ đã đăng tải.
+  - Bắt buộc kiểm tra lịch sử đã phát hành trước khi gửi (`data/announced_updates.json` và `config`).
+  - Phải kiểm tra tin nhắn gần nhất trong kênh thông báo để chống gửi đúp khi bot khởi động lại.
+  - Mỗi máy chủ (Guild) chỉ nhận duy nhất 1 lần thông báo cho mỗi phiên bản cập nhật.
+  - Khi bot khởi động lại (Restart / Crash Recovery), tuyệt đối KHÔNG ĐƯỢC TỰ ĐỘNG GỬI LẠI thông báo đã đăng. Chỉ gửi khi có phiên bản mới hoặc khi Admin chủ động dùng lệnh `/broadcastupdate force: true`.
+
 ---
 
 ## 2. QUY CHUẨN PHÂN ĐỊNH 2 DÒNG BOT
