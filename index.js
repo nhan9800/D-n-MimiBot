@@ -6593,22 +6593,7 @@ client.on('messageCreate', async (message) => {
         }
     }
 
-    // 🔒 KIỂM TRA BẢN QUYỀN TRƯỚC KHI XỬ LÝ LỆNH PREFIX
-    if (command) {
-        const allowedPrefixCommands = ['mibanqyuen', 'mibanq', 'milicense', 'mihwid', 'mikichhoat', 'miredeem', 'migenkey', 'mixacnhan', 'miduyet'];
-        if (!allowedPrefixCommands.includes(command)) {
-            const lic = licenseStore.getLicense(message.guild.id);
-            if (!lic || !lic.active) {
-                return message.reply({
-                    content: '🔒 **MÁY CHỦ CHƯA KÍCH HOẠT BẢN QUYỀN!**\n\n' +
-                             'Bot đang ở trạng thái khóa và **sẽ không làm gì** cho đến khi máy chủ được kích hoạt mã Key hợp lệ.\n' +
-                             '👉 Gõ: `mikichhoat [MÃ_KEY]` để kích hoạt bản quyền ngay.\n' +
-                             '*(Gõ `mibanqyuen` để xem hướng dẫn mua gói bản quyền)*.',
-                    allowedMentions: { repliedUser: false }
-                }).catch(() => null);
-            }
-        }
-    }
+    // 🎵 MIMI BOT 100% MIỄN PHÍ TRỌN ĐỜI - KHÔNG GIỚI HẠN LỆNH PREFIX
 
     // --- A. LẮNG NGHE LỆNH GIẢI TRÍ VIẾT LIỀN (CÓ HỖ TRỢ VIẾT TẮT) ---
 
@@ -8733,31 +8718,19 @@ client.on('messageCreate', async (message) => {
     // 🔑 PREFIX: BẢN QUYỀN & ANTI-RAID
     // ==========================================
     if (command === 'mibanqyuen' || command === 'mibanq' || command === 'milicense' || command === 'mihwid') {
-        const lic = licenseStore.getLicense(message.guild.id);
-        const statusColor = lic.active ? '#2ECC71' : '#E74C3C';
-        const statusIcon = lic.active ? '🟢' : '🔴';
-        const expireStr = lic.isPermanent ? '👑 Vĩnh viễn (Lifetime VIP)' : (lic.active ? `<t:${Math.floor(lic.expiresTimestamp / 1000)}:F> (Còn ${lic.remainingDays} ngày)` : 'Đã hết hạn');
-
         const embed = new EmbedBuilder()
-            .setColor(statusColor)
-            .setTitle(`🛡️ THÔNG TIN BẢN QUYỀN: ${message.guild.name}`)
+            .setColor('#00FFA3')
+            .setTitle('🎧 MIMI BOT: HOÀN TOÀN MIỄN PHÍ 100% TRỌN ĐỜI!')
             .setDescription(
-                `• **Server ID (HWID):** \`${message.guild.id}\`\n` +
-                `• **Trạng thái:** ${statusIcon} **${lic.active ? 'ĐANG HOẠT ĐỘNG' : 'HẾT HẠN / CHƯA KÍCH HOẠT'}**\n` +
-                `• **Gói dịch vụ:** **${lic.planName}**\n` +
-                `• **Hạn bảo vệ:** ${expireStr}`
+                `Chào bạn! **MIMI BOT** là bot âm nhạc & giải trí cộng đồng **100% MIỄN PHÍ** cho mọi máy chủ Discord.\n\n` +
+                `• **Máy chủ:** ${message.guild.name} (\`${message.guild.id}\`)\n` +
+                `• **Trạng thái:** 🟢 **MIỄN PHÍ TRỌN ĐỜI (FREE FOREVER)**\n` +
+                `• **Tính năng:** Nghe nhạc 24/7, Bypass 403 YouTube & SoundCloud, Autoplay, BXH Level Chat, Minigame.\n\n` +
+                `🛡️ **Bạn muốn bot bảo vệ an ninh Anti-Raid & Chống Nuke?**\n` +
+                `Hãy mời **MIMI SHIELD BOT** (dòng bot an ninh có phí) tại: https://mimibot.id.vn/pricing`
             )
-            .addFields(
-                {
-                    name: '💎 3 Gói Dịch Vụ',
-                    value: '• **1 Tháng**: `50.000đ` • **3 Tháng**: `140.000đ` • **12 Tháng**: `390.000đ`'
-                },
-                {
-                    name: '💳 Chuyển Khoản Vietcombank',
-                    value: `STK: **9369144188** (DAO NGOC QUANG) — Cú pháp: **\`MIMI 1M ${message.guild.id}\`**`
-                }
-            )
-            .setFooter({ text: 'Gõ /kichhoat [mã_key] để gia hạn' });
+            .setFooter({ text: 'MIMI BOT • 100% Miễn Phí Trọn Đời' })
+            .setTimestamp();
 
         return message.reply({ embeds: [embed], allowedMentions: { repliedUser: false } });
     }
@@ -8926,22 +8899,7 @@ client.on('interactionCreate', async interaction => {
     }
     const gConfig = getGuildConfig(guild.id);
 
-    // 🔒 KIỂM TRA BẢN QUYỀN MÁY CHỦ (BẮT BUỘC KÍCH HOẠT KEY MỚI HOẠT ĐỘNG)
-    if (interaction.isChatInputCommand()) {
-        const allowedCommands = ['kichhoat', 'license', 'banquyen', 'genkey', 'xacnhan'];
-        if (!allowedCommands.includes(interaction.commandName)) {
-            const lic = licenseStore.getLicense(guild.id);
-            if (!lic || !lic.active) {
-                return interaction.reply({
-                    content: '🔒 **MÁY CHỦ CHƯA ĐƯỢC KÍCH HOẠT BẢN QUYỀN!**\n\n' +
-                             'Bot đang ở trạng thái khóa chức năng và **sẽ không làm gì** cho đến khi máy chủ được kích hoạt bản quyền hợp lệ.\n\n' +
-                             '👉 **Cách kích hoạt:** Gõ lệnh `/kichhoat mã_key: [MÃ_KEY_CỦA_BẠN]`\n' +
-                             '*(Hoặc gõ `/license` để xem hướng dẫn mua gói bản quyền từ 50k)*.',
-                    flags: MessageFlags.Ephemeral
-                }).catch(() => null);
-            }
-        }
-    }
+    // 🎵 MIMI BOT 100% MIỄN PHÍ TRỌN ĐỜI - KHÔNG GIỚI HẠN SLASH COMMANDS
 
     // Debounce / Cooldown cho Button, Select Menu, Modal Submit để tránh spam click và crash
     if (interaction.isButton() || interaction.isStringSelectMenu() || interaction.isModalSubmit()) {
@@ -11911,46 +11869,29 @@ if (commandName === 'setup') {
         // ==========================================
         if (commandName === 'license' || commandName === 'banquyen') {
             await interaction.deferReply();
-            const lic = licenseStore.getLicense(guild.id);
-            const statusColor = lic.active ? '#2ECC71' : '#E74C3C';
-            const statusIcon = lic.active ? '🟢' : '🔴';
-            const expireStr = lic.isPermanent ? '👑 Vĩnh viễn (Lifetime VIP)' : (lic.active ? `<t:${Math.floor(lic.expiresTimestamp / 1000)}:F> (Còn ${lic.remainingDays} ngày ${lic.remainingHours % 24} giờ)` : 'Đã hết hạn');
-
             const embed = new EmbedBuilder()
-                .setColor(statusColor)
-                .setTitle(`🛡️ THÔNG TIN BẢN QUYỀN ANTI-RAID: ${guild.name}`)
+                .setColor('#00FFA3')
+                .setTitle('🎧 MIMI BOT: HOÀN TOÀN MIỄN PHÍ 100% TRỌN ĐỜI!')
                 .setDescription(
-                    `• **Server ID (HWID):** \`${guild.id}\`\n` +
-                    `• **Trạng thái:** ${statusIcon} **${lic.active ? 'ĐANG ĐƯỢC BẢO VỆ' : 'CHƯA KÍCH HOẠT / HẾT HẠN'}**\n` +
-                    `• **Gói dịch vụ:** **${lic.planName}**\n` +
-                    `• **Hạn bảo vệ:** ${expireStr}`
+                    `Chào bạn! **MIMI BOT** là bot âm nhạc & giải trí cộng đồng **100% MIỄN PHÍ** cho toàn bộ máy chủ Discord.\n\n` +
+                    `• **Máy chủ:** ${guild.name} (\`${guild.id}\`)\n` +
+                    `• **Trạng thái:** 🟢 **MIỄN PHÍ TRỌN ĐỜI (FREE FOREVER)**\n` +
+                    `• **Tính năng:** Phát nhạc 24/7, Bypass 403 YouTube & SoundCloud, Autoplay, BXH Level Chat, Minigame.\n\n` +
+                    `🛡️ **Bạn muốn mua bot bảo vệ an ninh Anti-Raid & Chống Nuke?**\n` +
+                    `Hãy mời **MIMI SHIELD BOT** (dòng bot bảo vệ chuyên nghiệp) tại [mimibot.id.vn/pricing](https://mimibot.id.vn/pricing).`
                 )
-                .addFields(
-                    {
-                        name: '💎 3 Gói Dịch Vụ Thành Viên',
-                        value:
-                            '• **Gói 1 Tháng**: `50.000đ` (30 ngày)\n' +
-                            '• **Gói 3 Tháng**: `140.000đ` *(Tiết kiệm 10k - 90 ngày)*\n' +
-                            '• **Gói 12 Tháng**: `390.000đ` *(VIP Tiết kiệm 210k - 365 ngày)*',
-                        inline: false
-                    },
-                    {
-                        name: '💳 Thanh Toán Vietcombank (Tự Động)',
-                        value:
-                            '• Số TK: **`9369144188`** (Vietcombank)\n' +
-                            '• Chủ TK: **DAO NGOC QUANG**\n' +
-                            `• Cú pháp CK: **\`MIMI 1M ${guild.id}\`** (hoặc \`MIMI 3M ${guild.id}\`, \`MIMI 12M ${guild.id}\`)`,
-                        inline: false
-                    }
-                )
-                .setFooter({ text: 'Gõ /kichhoat [mã_key] để gia hạn tức thì • Bot sẽ tự động rời server khi hết hạn' })
+                .setFooter({ text: 'MIMI BOT • 100% Miễn Phí Trọn Đời' })
                 .setTimestamp();
 
             const row = new ActionRowBuilder().addComponents(
                 new ButtonBuilder()
-                    .setLabel('🌐 Mở Trang Web Mua Gói & VietQR')
+                    .setLabel('🌐 Bảng Giá MIMI SHIELD (Vệ Sĩ)')
                     .setStyle(ButtonStyle.Link)
-                    .setURL(WEB_BASE_URL || 'https://mimibot.id.vn')
+                    .setURL('https://mimibot.id.vn/pricing'),
+                new ButtonBuilder()
+                    .setLabel('🛡️ Mời MIMI Shield')
+                    .setStyle(ButtonStyle.Link)
+                    .setURL('https://discord.com/oauth2/authorize?client_id=1539527939723497473&permissions=8&integration_type=0&scope=bot%20applications.commands')
             );
 
             return interaction.editReply({ embeds: [embed], components: [row] });
