@@ -3505,39 +3505,85 @@ function canSendToChannel(channel, guild) {
  */
 async function cleanupDuplicateAnnouncements() {
     let deletedCount = 0;
-    try {
-        const primaryChannel = await client.channels.fetch(PRIMARY_UPDATE_CHANNEL_ID).catch(() => null);
-        if (primaryChannel && primaryChannel.isTextBased?.()) {
-            const messages = await primaryChannel.messages.fetch({ limit: 50 }).catch(() => null);
-            if (messages) {
-                const botAnnouncements = messages
-                    .filter(m => m.author.id === client.user?.id)
-                    .sort((a, b) => b.createdTimestamp - a.createdTimestamp);
-                
-                // Giữ lại tin nhắn mới nhất, xoá tất cả các tin nhắn cũ bị lặp
-                let isFirst = true;
-                for (const msg of botAnnouncements.values()) {
-                    const text = msg.content || JSON.stringify(msg.components || []);
-                    if (text.includes('BẢN CẬP NHẬT HỆ THỐNG') || text.includes('MIMI ECOSYSTEM')) {
-                        if (isFirst) {
-                            isFirst = false; // Giữ lại tin nhắn mới nhất
-                            continue;
-                        }
-                        try {
-                            await msg.delete();
-                            deletedCount++;
-                            console.log(`[Cleanup] Đã xoá tin nhắn trùng lặp cũ: ${msg.id}`);
-                        } catch (e) {
-                            console.error(`[Cleanup] Không xoá được tin nhắn ${msg.id}:`, e.message);
-                        }
+    const cleanedGuilds = [];
+
+    // Helper: quét và dọn dẹp các thông báo cũ trong 1 channel, chỉ giữ lại 1 tin nhắn mới nhất
+    async function purgeDuplicatesInChannel(channel) {
+        if (!channel || !channel.isTextBased?.() || channel.isThread?.()) return 0;
+        let purged = 0;
+        try {
+            const messages = await channel.messages.fetch({ limit: 40 }).catch(() => null);
+            if (!messages) return 0;
+
+            const botMsgs = messages
+                .filter(m => m.author.id === client.user?.id)
+                .sort((a, b) => b.createdTimestamp - a.createdTimestamp);
+
+            let isFirst = true;
+            for (const msg of botMsgs.values()) {
+                const text = msg.content || JSON.stringify(msg.components || []);
+                if (text.includes('BẢN CẬP NHẬT HỆ THỐNG') || text.includes('MIMI ECOSYSTEM') || text.includes('MIMI SHIELD')) {
+                    if (isFirst) {
+                        isFirst = false; // Giữ lại 1 thông báo mới nhất duy nhất
+                        continue;
+                    }
+                    try {
+                        await msg.delete();
+                        purged++;
+                        console.log(`[Cleanup] Đã thu hồi thông báo cũ ${msg.id} tại kênh #${channel.name}`);
+                    } catch (e) {
+                        console.error(`[Cleanup] Lỗi xoá ${msg.id}:`, e.message);
                     }
                 }
             }
+        } catch (e) {
+            console.error(`[Cleanup] Lỗi quét kênh #${channel.name}:`, e.message);
         }
-    } catch (err) {
-        console.error('[Cleanup] Lỗi dọn dẹp tin nhắn:', err.message);
+        return purged;
     }
-    return { deletedCount };
+
+    // 1. Dọn dẹp kênh chính
+    try {
+        const primaryChannel = await client.channels.fetch(PRIMARY_UPDATE_CHANNEL_ID).catch(() => null);
+        if (primaryChannel) {
+            const c = await purgeDuplicatesInChannel(primaryChannel);
+            deletedCount += c;
+        }
+    } catch {}
+
+    // 2. Dọn dẹp liên server trên toàn bộ máy chủ bot tham gia
+    for (const guild of client.guilds.cache.values()) {
+        try {
+            const gConfig = getGuildConfig(guild.id);
+            const candidateChannels = new Set();
+
+            if (gConfig?.systemChannelId) {
+                const ch = guild.channels.cache.get(gConfig.systemChannelId);
+                if (ch) candidateChannels.add(ch);
+            }
+            if (guild.systemChannel) candidateChannels.add(guild.systemChannel);
+
+            guild.channels.cache.forEach(c => {
+                if (c.isTextBased?.() && !c.isThread?.() && /^(update|updates|thong-bao|thông-báo|announcement|announcements|news|bot-update|changelog)$/i.test(c.name)) {
+                    candidateChannels.add(c);
+                }
+            });
+
+            let guildPurged = 0;
+            for (const ch of candidateChannels) {
+                guildPurged += await purgeDuplicatesInChannel(ch);
+            }
+            if (guildPurged > 0) {
+                deletedCount += guildPurged;
+                cleanedGuilds.push({ guildId: guild.id, name: guild.name, count: guildPurged });
+            }
+        } catch (err) {
+            console.error(`[Cleanup] Lỗi quét server ${guild.name}:`, err.message);
+        }
+    }
+
+    console.log(`[Cleanup] Tổng kết thu hồi: Đã xoá ${deletedCount} thông báo trùng lặp trên toàn bộ server.`);
+    return { deletedCount, cleanedGuilds };
 }
 
 async function broadcastUpdateAnnouncement(force = false) {
