@@ -3547,7 +3547,7 @@ async function broadcastUpdateAnnouncement(force = false) {
                         const hasRecent = recentMessages.some(m => {
                             if (m.author.id !== client.user?.id) return false;
                             const text = m.content || JSON.stringify(m.components || []);
-                            return text.includes(CURRENT_UPDATE_VERSION) || text.includes('BẢN CẬP NHẬT HỆ THỐNG');
+                            return text.includes(CURRENT_UPDATE_VERSION);
                         });
                         if (hasRecent) {
                             console.log(`[Anti-Spam] Phát hiện thông báo ${CURRENT_UPDATE_VERSION} đã tồn tại trong kênh chính -> Bỏ qua không gửi lại.`);
