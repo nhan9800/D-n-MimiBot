@@ -139,6 +139,7 @@ function startInternalApi(deps) {
         killCurrentProcess,
         persistSession,
         skipCurrentTrack,
+        broadcastUpdateAnnouncement,
         logger = console,
         // các field cấu hình guild được phép sửa qua API (allowlist — chống ghi bừa)
         editableSettingKeys = [
@@ -326,11 +327,11 @@ function startInternalApi(deps) {
             if (url.pathname === '/api/broadcast/trigger') {
                 const force = url.searchParams.get('force') === 'true' || url.searchParams.get('force') === '1';
                 try {
-                    if (typeof ctx.broadcastUpdateAnnouncement === 'function') {
-                        const result = await ctx.broadcastUpdateAnnouncement(force);
+                    if (typeof broadcastUpdateAnnouncement === 'function') {
+                        const result = await broadcastUpdateAnnouncement(force);
                         return send(res, 200, { ok: true, result }, reqId);
                     }
-                    return send(res, 200, { ok: false, error: 'broadcastUpdateAnnouncement not found in context' }, reqId);
+                    return send(res, 200, { ok: false, error: 'broadcastUpdateAnnouncement not provided in deps' }, reqId);
                 } catch (err) {
                     return send(res, 500, { ok: false, error: err?.message, stack: err?.stack }, reqId);
                 }
