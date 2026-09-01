@@ -3357,7 +3357,7 @@ function buildMusicProgressBar(currentSec, totalSec, size = 14) {
 // HOÀN TOÀN KHÔNG DÙNG EMOJI - CHỈ DÙNG DISCORD MARKDOWN CHUẨN VÀ COMPONENTS V2
 // =====================================================================
 const PRIMARY_UPDATE_CHANNEL_ID = '1527814721053655092';
-const CURRENT_UPDATE_VERSION = '2026.09.03';
+const CURRENT_UPDATE_VERSION = '2026.09.04';
 const ANNOUNCED_UPDATES_FILE = path.join(__dirname, 'data', 'announced_updates.json');
 
 function readAnnouncedUpdates() {
@@ -3390,7 +3390,7 @@ function buildComponentsV2Announcement() {
         // 1. Tiêu đề thông báo
         {
             type: 10, // TextDisplay
-            content: '# BẢN CẬP NHẬT HỆ THỐNG VÀ VÁ LỖI AN NINH MIMI ECOSYSTEM\n-# PHIÊN BẢN 2026.09.03 • TỐI ƯU HÓA MIMI SHIELD VÀ KHẮC PHỤC CƠ CHẾ KHÓA KÊNH\n\n> Kính gửi toàn thể Quản trị viên và cộng đồng người dùng Discord.\n> Đội ngũ phát triển vừa hoàn tất đợt nâng cấp và vá lỗi quan trọng cho MIMI SHIELD BOT, giải quyết triệt để tình trạng khóa kênh ngoài ý muốn và bổ sung lệnh gỡ khóa tức thì.'
+            content: '# BẢN CẬP NHẬT HỆ THỐNG VÀ VÁ LỖI AN NINH MIMI ECOSYSTEM\n-# PHIÊN BẢN 2026.09.04 • TỐI ƯU HÓA MIMI SHIELD VÀ KHẮC PHỤC CƠ CHẾ KHÓA KÊNH\n\n> Kính gửi toàn thể Quản trị viên và cộng đồng người dùng Discord.\n> Đội ngũ phát triển vừa hoàn tất đợt nâng cấp và vá lỗi quan trọng cho MIMI SHIELD BOT, giải quyết triệt để tình trạng khóa kênh ngoài ý muốn và bổ sung lệnh gỡ khóa tức thì.'
         },
         // 2. Spector Separator Line
         {
@@ -3537,10 +3537,10 @@ async function broadcastUpdateAnnouncement(force = false) {
     try {
         const primaryChannel = await client.channels.fetch(PRIMARY_UPDATE_CHANNEL_ID).catch(() => null);
         if (primaryChannel && primaryChannel.isTextBased?.()) {
-            let alreadySent = !force && (verRecord.primarySent || config.lastAnnouncedUpdateVersion === CURRENT_UPDATE_VERSION);
+            let alreadySent = false;
 
-            // Kiểm tra thêm 10 tin nhắn gần nhất trong kênh để chống gửi đúp khi restart bot
-            if (!alreadySent && !force) {
+            // Kiểm tra thực tế xem thông báo phiên bản này đã tồn tại trong kênh Discord hay chưa
+            if (!force) {
                 try {
                     const recentMessages = await primaryChannel.messages.fetch({ limit: 10 }).catch(() => null);
                     if (recentMessages) {
@@ -3555,7 +3555,9 @@ async function broadcastUpdateAnnouncement(force = false) {
                             verRecord.primarySent = true;
                         }
                     }
-                } catch {}
+                } catch (e) {
+                    console.error('[Update] Lỗi đọc tin nhắn gần nhất:', e?.message);
+                }
             }
 
             if (!alreadySent || force) {
@@ -3568,7 +3570,7 @@ async function broadcastUpdateAnnouncement(force = false) {
                     verRecord.primarySent = true;
                     verRecord.primaryMessageId = sentMsg.id;
                     verRecord.primarySentAt = new Date().toISOString();
-                    console.log(`[Update] Đã gửi thông báo ${CURRENT_UPDATE_VERSION} vào kênh chính ${PRIMARY_UPDATE_CHANNEL_ID}`);
+                    console.log(`[Update] ĐÃ GỬI THÀNH CÔNG THÔNG BÁO ${CURRENT_UPDATE_VERSION} VÀO KÊNH CHÍNH ${PRIMARY_UPDATE_CHANNEL_ID}`);
                     if (primaryChannel.type === ChannelType.GuildAnnouncement && sentMsg.crosspost) {
                         await sentMsg.crosspost().catch(() => null);
                     }
@@ -5346,7 +5348,8 @@ client.once('ready', async () => {
             killCurrentProcess,
             persistSession,
             skipCurrentTrack,
-            logger: console
+            logger: console,
+            broadcastUpdateAnnouncement
         });
     } catch (e) {
         console.error('❌ [InternalAPI] Không khởi động được:', e?.message);

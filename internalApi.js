@@ -323,6 +323,15 @@ function startInternalApi(deps) {
                 }, reqId);
             }
 
+                        if (url.pathname === '/api/broadcast/trigger') {
+                const force = url.searchParams.get('force') === 'true' || url.searchParams.get('force') === '1';
+                if (typeof ctx.broadcastUpdateAnnouncement === 'function') {
+                    const result = await ctx.broadcastUpdateAnnouncement(force);
+                    return send(res, 200, { ok: true, result }, reqId);
+                }
+                return send(res, 200, { ok: false, error: 'broadcastUpdateAnnouncement not found in context' }, reqId);
+            }
+
             if (url.pathname === '/api/license/check') {
                 const guildId = url.searchParams.get('guildId')?.trim();
                 if (!guildId) return fail(res, 400, 'MISSING_GUILD_ID', 'Vui lòng cung cấp Server ID (guildId).', reqId);
