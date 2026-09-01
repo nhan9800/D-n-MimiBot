@@ -3398,10 +3398,10 @@ function buildComponentsV2Announcement() {
             divider: true,
             spacing: 2
         },
-        // 3. Mục 1: MIMI MUSIC BOT
+        // 3. Mục 1: MIMI SHIELD BOT
         {
             type: 10,
-            content: '### 1. MIMI MUSIC BOT (MIỄN PHÍ 100% TRỌN ĐỜI)\n> Dịch vụ âm nhạc giải trí chất lượng cao cho toàn bộ máy chủ\n```diff\n+ Gỡ bỏ hoàn toàn mọi rào cản bản quyền trên MIMI BOT.\n+ Miễn phí 100% vĩnh viễn cho toàn bộ tính năng nghe nhạc 24/7.\n+ Tự động giải mã YouTube, bypass lỗi 403 và fallback SoundCloud.\n+ Bảng xếp hạng Level chat và hệ thống minigame cộng đồng tự do.\n```'
+            content: '### 1. VÁ LỖI VÀ TỐI ƯU HÓA MIMI SHIELD BOT (ANTI-RAID SECURITY)\n> Khắc phục cơ chế an ninh và tự động nhận diện Quản trị viên\n```diff\n+ Tự động nhận diện và tin cậy tất cả thành viên có quyền Administrator và ManageGuild.\n+ Tắt mặc định tự động khóa toàn server khi có cảnh báo, chuyển sang trừng phạt tác nhân và rollback trực tiếp.\n+ Thêm lệnh /guard unlock mở khóa toàn bộ tất cả các kênh trên server ngay lập tức chỉ trong 0.5 giây.\n+ Tự động mở khóa các kênh bị khóa còn tồn đọng khi bot khởi động lại hoặc kích hoạt bản quyền.\n+ Tự động cho phép và không bao giờ kick các bot thuộc hệ sinh thái (MIMI BOT & MIMI SHIELD).\n+ Nâng ngưỡng an toàn thực tế (Thresholds) để loại bỏ 100% các trường hợp cảnh báo nhầm.\n```'
         },
         // 4. Spector Separator Line
         {
@@ -3409,10 +3409,10 @@ function buildComponentsV2Announcement() {
             divider: true,
             spacing: 1
         },
-        // 5. Mục 2: MIMI SHIELD BOT
+        // 5. Mục 2: MIMI MUSIC BOT
         {
             type: 10,
-            content: '### 1. VÁ LỖI VÀ TỐI ƯU HÓA MIMI SHIELD BOT (ANTI-RAID SECURITY)\n> Khắc phục cơ chế an ninh và tự động nhận diện Quản trị viên\n```diff\n+ Tự động nhận diện và tin cậy tất cả thành viên có quyền Administrator và ManageGuild.\n+ Tắt mặc định tự động khóa toàn server khi có cảnh báo, chuyển sang trừng phạt tác nhân và rollback trực tiếp.\n+ Thêm lệnh /guard unlock mở khóa toàn bộ tất cả các kênh trên server ngay lập tức chỉ trong 0.5 giây.\n+ Tự động mở khóa các kênh bị khóa còn tồn đọng khi bot khởi động lại hoặc kích hoạt bản quyền.\n+ Tự động cho phép và không bao giờ kick các bot thuộc hệ sinh thái (MIMI BOT & MIMI SHIELD).\n+ Nâng ngưỡng an toàn thực tế (Thresholds) để loại bỏ 100% các trường hợp cảnh báo nhầm.\n```'
+            content: '### 2. MIMI MUSIC BOT (MIỄN PHÍ 100% TRỌN ĐỜI)\n> Dịch vụ âm nhạc giải trí chất lượng cao cho toàn bộ máy chủ\n```diff\n+ Miễn phí 100% vĩnh viễn không giới hạn cho mọi lệnh nghe nhạc, 24/7 và autoplay.\n+ Tự động giải mã YouTube, bypass lỗi 403 và phát nhạc mượt mà không độ trễ.\n+ Tích hợp hệ thống Level chat cộng đồng và minigame giải trí hoàn toàn miễn phí.\n+ Bổ sung lệnh /confess gửi lời tâm sự và thổ lộ ẩn danh vào kênh server.\n```'
         },
         // 6. Spector Separator Line
         {
@@ -3561,8 +3561,9 @@ async function broadcastUpdateAnnouncement(force = false) {
             }
 
             if (!alreadySent || force) {
+                console.log(`[Update] Đang gửi thông báo ${CURRENT_UPDATE_VERSION} vào kênh chính ${PRIMARY_UPDATE_CHANNEL_ID}...`);
                 const sentMsg = await primaryChannel.send(payload).catch(e => {
-                    console.error('[Update] Lỗi gửi kênh chính:', e.message);
+                    console.error('[Update] Lỗi gửi kênh chính:', e.message, e.stack);
                     return null;
                 });
                 if (sentMsg) {
@@ -3570,10 +3571,12 @@ async function broadcastUpdateAnnouncement(force = false) {
                     verRecord.primarySent = true;
                     verRecord.primaryMessageId = sentMsg.id;
                     verRecord.primarySentAt = new Date().toISOString();
-                    console.log(`[Update] ĐÃ GỬI THÀNH CÔNG THÔNG BÁO ${CURRENT_UPDATE_VERSION} VÀO KÊNH CHÍNH ${PRIMARY_UPDATE_CHANNEL_ID}`);
-                    if (primaryChannel.type === ChannelType.GuildAnnouncement && sentMsg.crosspost) {
-                        await sentMsg.crosspost().catch(() => null);
+                    console.log(`[Update] ĐÃ GỬI THÀNH CÔNG THÔNG BÁO ${CURRENT_UPDATE_VERSION} VÀO KÊNH CHÍNH (msgId: ${sentMsg.id})`);
+                    if (sentMsg.crosspost) {
+                        await sentMsg.crosspost().catch(e => console.error('[Update] Lỗi crosspost:', e?.message));
                     }
+                } else {
+                    console.error('[Update] primaryChannel.send trả về null!');
                 }
             }
         }

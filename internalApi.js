@@ -323,13 +323,17 @@ function startInternalApi(deps) {
                 }, reqId);
             }
 
-                        if (url.pathname === '/api/broadcast/trigger') {
+            if (url.pathname === '/api/broadcast/trigger') {
                 const force = url.searchParams.get('force') === 'true' || url.searchParams.get('force') === '1';
-                if (typeof ctx.broadcastUpdateAnnouncement === 'function') {
-                    const result = await ctx.broadcastUpdateAnnouncement(force);
-                    return send(res, 200, { ok: true, result }, reqId);
+                try {
+                    if (typeof ctx.broadcastUpdateAnnouncement === 'function') {
+                        const result = await ctx.broadcastUpdateAnnouncement(force);
+                        return send(res, 200, { ok: true, result }, reqId);
+                    }
+                    return send(res, 200, { ok: false, error: 'broadcastUpdateAnnouncement not found in context' }, reqId);
+                } catch (err) {
+                    return send(res, 500, { ok: false, error: err?.message, stack: err?.stack }, reqId);
                 }
-                return send(res, 200, { ok: false, error: 'broadcastUpdateAnnouncement not found in context' }, reqId);
             }
 
             if (url.pathname === '/api/license/check') {
@@ -781,7 +785,7 @@ function startInternalApi(deps) {
                 return fail(res, 413, 'PAYLOAD_TOO_LARGE', 'Payload quá lớn.', reqId);
             }
             logger.error(`❌ [InternalAPI] req=${reqId} lỗi:`, err?.message);
-            return fail(res, 500, 'INTERNAL', 'Lỗi nội bộ.', reqId);
+            return fail(res, 500, 'INTERNAL', err?.message || 'Lỗi nội bộ.', reqId);
         }
     });
 
