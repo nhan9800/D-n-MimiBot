@@ -40,6 +40,12 @@
   - Mỗi máy chủ (Guild) chỉ nhận duy nhất 1 lần thông báo cho mỗi phiên bản cập nhật.
   - Khi bot khởi động lại (Restart / Crash Recovery), tuyệt đối KHÔNG ĐƯỢC TỰ ĐỘNG GỬI LẠI thông báo đã đăng. Chỉ gửi khi có phiên bản mới hoặc khi Admin chủ động dùng lệnh `/broadcastupdate force: true`.
 
+### 1.5. Quy Tắc Nội Dung: Chỉ Đăng Cập Nhật Mới Nhất (NO REPEATED OLD CHANGELOGS)
+- **TUYỆT ĐỐI KHÔNG LẶP LẠI NỘI DUNG CỦA CÁC ĐỢT CẬP NHẬT CŨ**:
+  - Mỗi thông báo cập nhật CHỈ ĐƯỢC PHÉP đăng tải các tính năng mới, bản vá lỗi hoặc tối ưu hóa thực tế vừa được thực hiện trong lần phát hành đó.
+  - Nghiêm cấm sao chép / nhồi nhét lại nội dung của các phiên bản trước (ví dụ: không lặp lại thông báo miễn phí nhạc ở các bản update sau nếu bản update này chỉ vá lỗi Anti-Raid).
+  - Nội dung phải ngắn gọn, súc tích, đánh số thứ tự chuẩn xác (`### 1.`, `### 2.`, `### 3.`, `### 4.`), đúng trọng tâm thay đổi gần nhất.
+
 ---
 
 ## 2. QUY CHUẨN PHÂN ĐỊNH 2 DÒNG BOT
