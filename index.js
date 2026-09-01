@@ -3352,113 +3352,115 @@ function buildMusicProgressBar(currentSec, totalSec, size = 14) {
 // =====================================================================
 // 🎨 DISCORD COMPONENTS V2 NATIVE CONTAINER (TYPE 17) + SEPARATORS (TYPE 14) + TEXTDISPLAY (TYPE 10)
 // =====================================================================
+// =====================================================================
+// DISCORD COMPONENTS V2 NATIVE CONTAINER (TYPE 17) + SPECTOR SEPARATORS (TYPE 14) + TEXTDISPLAY (TYPE 10)
+// HOÀN TOÀN KHÔNG DÙNG EMOJI - CHỈ DÙNG DISCORD MARKDOWN CHUẨN VÀ COMPONENTS V2
+// =====================================================================
+const PRIMARY_UPDATE_CHANNEL_ID = '1527814721053655092';
+const CURRENT_UPDATE_VERSION = '2026.09.01';
+
 function buildComponentsV2Announcement() {
-    const inviteMusicUrl = 'https://discord.com/oauth2/authorize?client_id=1138315103821889566&permissions=8&scope=bot%20applications.commands';
-    const inviteShieldUrl = 'https://discord.com/oauth2/authorize?client_id=1539527939723497473&permissions=8&integration_type=0&scope=bot%20applications.commands';
+    const inviteMusicUrl = 'https://discord.com/oauth2/authorize?client_id=1516603522584416376&permissions=8&integration_type=0&scope=bot';
+    const inviteShieldUrl = 'https://discord.com/oauth2/authorize?client_id=1539527939723497473&permissions=8&integration_type=0&scope=bot';
     const pricingUrl = 'https://mimibot.id.vn/pricing';
     const websiteUrl = 'https://mimibot.id.vn';
     const supportServerUrl = 'https://discord.gg/vibestore';
 
     const innerComponents = [
-        // 1. Header Banner Title
+        // 1. Tiêu đề thông báo
         {
             type: 10, // TextDisplay
-            content: '# <:mimi_sparkles:1543950865830912102> ĐẠI TU HỆ SINH THÁI: MIMI MUSIC & MIMI SHIELD 2026\n-# MIMI ECOSYSTEM • CẤU TRÚC DISCORD COMPONENTS V2 CONTAINER & SEPARATORS\n\n> ### 🌟 Kính chào toàn thể cộng đồng Discord Việt Nam!\n> Hệ thống chính thức ra mắt kiến trúc **Components V2 Container**, phân định độc lập 2 dòng sản phẩm chủ lực:\n> \n> ✦ <:mimi_music:1543950857593159792> **MIMI MUSIC BOT**: Âm Nhạc Giải Trí — **100% MIỄN PHÍ TRỌN ĐỜI**.\n> ✦ <:mimi_shield:1543950853499781273> **MIMI SHIELD BOT**: Lá Chắn An Ninh Anti-Raid — **Bản Quyền HWID**.'
+            content: '# BẢN CẬP NHẬT HỆ THỐNG MIMI ECOSYSTEM\n-# PHIÊN BẢN 2026.09.01 • KIẾN TRÚC DISCORD COMPONENTS V2 VÀ SPECTOR DIVIDER\n\n> Kính gửi toàn thể Quản trị viên và cộng đồng người dùng Discord.\n> Hệ thống vừa hoàn tất đợt tái cấu trúc toàn diện, phân định rõ ràng giữa hai dòng bot độc lập và tự động hóa 100% quy trình kích hoạt an ninh.'
         },
-        // 2. Native Separator Line (Type 14)
+        // 2. Spector Separator Line
         {
             type: 14, // Separator
             divider: true,
             spacing: 2
         },
-        // 3. Section 1: MIMI MUSIC BOT
+        // 3. Mục 1: MIMI MUSIC BOT
         {
             type: 10,
-            content: '### <:mimi_music:1543950857593159792> 1. MIMI MUSIC BOT (MIỄN PHÍ 100% • BYPASS 403 & SOUNDCLOUD)\n> <:mimi_verify:1543950859002716243> **Trải nghiệm âm nhạc không giới hạn cho mọi máy chủ**\n```diff\n+ [BẢO HIỂM 403] Tự động giải mã YouTube & Fallback sang SoundCloud.\n+ [BẤT TỬ 24/7] Luôn túc trực trong Voice Channel không bao giờ rớt mạng.\n+ [AUTOPLAY] Tự động tìm và phát nối tiếp các bài hát thịnh hành.\n+ [LEVEL CHAT] Bảng xếp hạng thành viên hoạt động sôi nổi theo Server.\n```'
+            content: '### 1. MIMI MUSIC BOT (MIỄN PHÍ 100% TRỌN ĐỜI)\n> Dịch vụ âm nhạc giải trí chất lượng cao cho toàn bộ máy chủ\n```diff\n+ Gỡ bỏ hoàn toàn mọi rào cản bản quyền trên MIMI BOT.\n+ Miễn phí 100% vĩnh viễn cho toàn bộ tính năng nghe nhạc 24/7.\n+ Tự động giải mã YouTube, bypass lỗi 403 và fallback SoundCloud.\n+ Bảng xếp hạng Level chat và hệ thống minigame cộng đồng tự do.\n```'
         },
-        // 4. Native Separator Line (Type 14)
+        // 4. Spector Separator Line
         {
             type: 14,
             divider: true,
             spacing: 1
         },
-        // 5. Section 2: MIMI SHIELD BOT
+        // 5. Mục 2: MIMI SHIELD BOT
         {
             type: 10,
-            content: '### <:mimi_shield:1543950853499781273> 2. MIMI SHIELD BOT (LÁ CHẮN VỆ SĨ • BẢN QUYỀN HWID CHUYÊN NGHIỆP)\n> <:mimi_diamond:1543950863046025249> **Phòng thủ toàn diện trước mọi cuộc tấn công phá hoại**\n```fix\n* Phản xạ 0.1s: Anti-Nuke, Anti-Bot Lạ, Anti-MassJoin & Spam Webhook.\n* Tự động Snapshot cấu trúc máy chủ & Khôi phục nguyên trạng sau sự cố.\n* Khóa bản quyền theo Server ID (HWID), tự rời server nếu chưa có Key.\n* 3 Gói Linh Hoạt: 1 Tháng (50k), 3 Tháng (140k), 12 Tháng (390k).\n```'
+            content: '### 2. MIMI SHIELD BOT (LÁ CHẮN AN NINH ANTI-RAID VÀ BẢN QUYỀN HWID)\n> Hệ thống an ninh phản xạ 0.1 giây bảo vệ máy chủ toàn diện\n```diff\n+ Tự động mở khóa toàn diện tính năng bảo vệ ngay khi nhận Key hợp lệ.\n+ Tự động kích hoạt lá chắn Anti-Raid, Anti-Nuke và Message Guard 24/7.\n+ Tự động gỡ bỏ trạng thái Khóa Khẩn Cấp (Lockdown) khi đã kích hoạt.\n+ Tự động sao lưu cấu trúc kênh và vai trò (Snapshot) ngay khi mở khóa.\n+ Chuẩn hóa quyền Quản trị viên và Owner duyệt thanh toán trực tiếp.\n```'
         },
-        // 6. Native Separator Line (Type 14)
+        // 6. Spector Separator Line
         {
             type: 14,
             divider: true,
             spacing: 1
         },
-        // 7. Section 3: WEBSITE MIMIBOT.ID.VN
+        // 7. Mục 3: WEBSITE & KEY HMAC
         {
             type: 10,
-            content: '### <:mimi_diamond:1543950863046025249> 3. ĐẠI TU WEBSITE MIMIBOT.ID.VN (3D CYBER VISUALS & ADMIN)\n> <:mimi_fire:1543950860910989396> **Giao diện Web 3D chuẩn Cyberpunk vũ trụ**\n```yaml\nTrải Nghiệm Trực Tuyến:\n  - Đĩa Vinyl 3D WebGL + Vòng Equalizer Neon quay 60 FPS.\n  - Thẻ 3D TiltCard & Quầng Sáng Spotlight Glow theo con trỏ chuột.\n  - Bảng Xếp Hạng LIVE Top 10 Apple Music Việt Nam thời gian thực.\n  - Bảng Admin Duyệt Tiền & Cấp License Key MIMI Shield tức thì.\n```'
+            content: '### 3. HỆ THỐNG LICENSE KEY HMAC VÀ NÂNG CẤP WEBSITE\n> Đồng bộ hóa xác thực bản quyền liên nền tảng\n```yaml\nChi Tiết Kỹ Thuật:\n  - Triển khai thuật toán chữ ký điện tử HMAC cho mã License Key MIMI SHIELD.\n  - Website mimibot.id.vn tích hợp nút mời MIMI SHIELD trực tiếp tại bước thanh toán.\n  - Đồng bộ tự động giữa Web Admin và bot Discord không độ trễ.\n  - Cập nhật chuẩn xác link mời bot chính thức cho cả hai dòng bot.\n```'
         },
-        // 8. Native Separator Line (Type 14)
+        // 8. Spector Separator Line
         {
             type: 14,
             divider: true,
             spacing: 1
         },
-        // 9. Section 4: COMMANDS
+        // 9. Mục 4: BẢNG LỆNH ĐIỀU KHIỂN
         {
             type: 10,
-            content: '### <:mimi_crown:1543950855764582460> 4. BẢNG TRA CỨU BỘ LỆNH ĐIỀU KHIỂN\n▸ `/kichhoat [mã_key]` — Kích hoạt bản quyền MIMI Shield cho server.\n▸ `/license` — Tra cứu Server ID (HWID) và thời hạn bảo vệ.\n▸ `/xacnhan [server_id] [gói]` — Admin duyệt thanh toán trực tiếp.\n▸ `/genkey [gói]` — Admin tạo mã Key cấp cho thành viên.\n▸ `/guard [setup/lockdown/status]` — Cấu hình lá chắn an ninh.\n▸ `/autoplay` & `/247` — Tự động nghe nhạc 24/24 trên MIMI Bot.'
+            content: '### 4. DANH SÁCH LỆNH ĐIỀU KHIỂN CHÍNH\n- `/kichhoat [mã_key]` : Kích hoạt bản quyền và tự động mở khóa bảo vệ.\n- `/license` : Kiểm tra Server ID (HWID) và thời hạn bản quyền.\n- `/xacnhan [server_id] [gói]` : Admin duyệt thanh toán và kích hoạt máy chủ.\n- `/genkey [gói]` : Admin tạo mã License Key HMAC cấp cho thành viên.\n- `/guard` : Cấu hình lá chắn an ninh và phòng thủ máy chủ.\n- `/play`, `/247`, `/autoplay` : Trải nghiệm âm nhạc không giới hạn.'
         },
-        // 10. Native Separator Line (Type 14)
+        // 10. Spector Separator Line
         {
             type: 14,
             divider: true,
             spacing: 2
         },
-        // 11. ActionRow 1
+        // 11. Hàng nút 1 (Không có emoji)
         {
             type: 1, // ActionRow
             components: [
                 {
                     type: 2, // Button
                     style: 5, // Link
-                    label: 'Mời MIMI Nhạc (Free)',
-                    url: inviteMusicUrl,
-                    emoji: { name: 'mimi_music', id: '1543950857593159792' }
+                    label: 'Mời MIMI SHIELD (Anti-Raid)',
+                    url: inviteShieldUrl
                 },
                 {
                     type: 2,
                     style: 5,
-                    label: 'Mời MIMI Shield (Vệ Sĩ)',
-                    url: inviteShieldUrl,
-                    emoji: { name: 'mimi_shield', id: '1543950853499781273' }
-                },
-                {
-                    type: 2,
-                    style: 5,
-                    label: 'Trang Chủ Website',
-                    url: websiteUrl,
-                    emoji: { name: '🌐' }
+                    label: 'Mời MIMI BOT (Miễn Phí)',
+                    url: inviteMusicUrl
                 }
             ]
         },
-        // 12. ActionRow 2
+        // 12. Hàng nút 2 (Không có emoji)
         {
             type: 1,
             components: [
                 {
                     type: 2,
                     style: 5,
-                    label: 'Bảng Giá MIMI Shield',
-                    url: pricingUrl,
-                    emoji: { name: 'mimi_diamond', id: '1543950863046025249' }
+                    label: 'Trang Chủ Website',
+                    url: websiteUrl
                 },
                 {
                     type: 2,
                     style: 5,
-                    label: 'Server Hỗ Trợ (VibeStore)',
-                    url: supportServerUrl,
-                    emoji: { name: 'mimi_crown', id: '1543950855764582460' }
+                    label: 'Bảng Giá & Kích Hoạt',
+                    url: pricingUrl
+                },
+                {
+                    type: 2,
+                    style: 5,
+                    label: 'Máy Chủ Hỗ Trợ',
+                    url: supportServerUrl
                 }
             ]
         }
@@ -3474,6 +3476,114 @@ function buildComponentsV2Announcement() {
             }
         ]
     };
+}
+
+function buildChangelogAnnouncement() {
+    return buildComponentsV2Announcement();
+}
+
+function canSendToChannel(channel, guild) {
+    if (!channel || !channel.isTextBased?.() || channel.isThread?.()) return false;
+    const me = guild.members.me;
+    if (!me) return false;
+    const perms = channel.permissionsFor(me);
+    return perms?.has(PermissionFlagsBits.ViewChannel) && perms?.has(PermissionFlagsBits.SendMessages);
+}
+
+/**
+ * Phát thông báo cập nhật tới kênh chính 1527814721053655092 và tự động nhận diện
+ * các kênh update/thông báo ở mọi server khác mà bot đang tham gia.
+ */
+async function broadcastUpdateAnnouncement(force = false) {
+    if (!config.announcedUpdateGuilds) config.announcedUpdateGuilds = {};
+    if (!config.announcedUpdateGuilds[CURRENT_UPDATE_VERSION]) config.announcedUpdateGuilds[CURRENT_UPDATE_VERSION] = [];
+
+    const payload = buildComponentsV2Announcement();
+    let sentCount = 0;
+    let failedCount = 0;
+
+    // 1. Kênh chính chỉ định: 1527814721053655092
+    try {
+        const primaryChannel = await client.channels.fetch(PRIMARY_UPDATE_CHANNEL_ID).catch(() => null);
+        if (primaryChannel && primaryChannel.isTextBased?.()) {
+            if (force || config.lastAnnouncedUpdateVersion !== CURRENT_UPDATE_VERSION) {
+                const sentMsg = await primaryChannel.send(payload).catch(e => {
+                    console.error('[Update] Lỗi gửi kênh chính:', e.message);
+                    return null;
+                });
+                if (sentMsg) {
+                    sentCount++;
+                    console.log(`[Update] Đã gửi thông báo ${CURRENT_UPDATE_VERSION} vào kênh chính ${PRIMARY_UPDATE_CHANNEL_ID}`);
+                    if (primaryChannel.type === ChannelType.GuildAnnouncement && sentMsg.crosspost) {
+                        await sentMsg.crosspost().catch(() => null);
+                    }
+                }
+            }
+        }
+    } catch (e) {
+        console.error('[Update] Ngoại lệ kênh chính:', e.message);
+    }
+
+    // 2. Tự nhận diện kênh ở các server khác và thông báo liên server
+    for (const guild of client.guilds.cache.values()) {
+        if (guild.id === '1517068246493429852') continue; // Đã gửi qua kênh chính của support server
+
+        if (!force && config.announcedUpdateGuilds[CURRENT_UPDATE_VERSION].includes(guild.id)) {
+            continue;
+        }
+
+        try {
+            const gConfig = getGuildConfig(guild.id);
+            let targetChannel = null;
+
+            // Ưu tiên 1: Kênh cài qua /setupsystem
+            if (gConfig?.systemChannelId) {
+                targetChannel = guild.channels.cache.get(gConfig.systemChannelId) || await guild.channels.fetch(gConfig.systemChannelId).catch(() => null);
+            }
+
+            // Ưu tiên 2: Tự động tìm kênh có tên chứa update/thông báo
+            if (!targetChannel || !canSendToChannel(targetChannel, guild)) {
+                targetChannel = guild.channels.cache.find(c =>
+                    c.isTextBased() &&
+                    !c.isThread() &&
+                    /^(update|updates|thong-bao|thông-báo|announcement|announcements|news|bot-update|changelog)$/i.test(c.name) &&
+                    canSendToChannel(c, guild)
+                );
+            }
+
+            // Ưu tiên 3: Kênh systemChannel mặc định của server
+            if (!targetChannel && guild.systemChannel && canSendToChannel(guild.systemChannel, guild)) {
+                targetChannel = guild.systemChannel;
+            }
+
+            // Ưu tiên 4: Kênh text thông thường đầu tiên có quyền gửi
+            if (!targetChannel) {
+                targetChannel = guild.channels.cache.find(c =>
+                    c.isTextBased() &&
+                    !c.isThread() &&
+                    c.type === ChannelType.GuildText &&
+                    canSendToChannel(c, guild)
+                );
+            }
+
+            if (targetChannel && canSendToChannel(targetChannel, guild)) {
+                await targetChannel.send(payload);
+                config.announcedUpdateGuilds[CURRENT_UPDATE_VERSION].push(guild.id);
+                sentCount++;
+                console.log(`[Update] Đã thông báo liên server tới: ${guild.name} -> #${targetChannel.name}`);
+            } else {
+                failedCount++;
+            }
+        } catch (err) {
+            console.error(`[Update] Lỗi gửi liên server tới ${guild.name}:`, err.message);
+            failedCount++;
+        }
+    }
+
+    config.lastAnnouncedUpdateVersion = CURRENT_UPDATE_VERSION;
+    saveConfig();
+
+    return { sentCount, failedCount, version: CURRENT_UPDATE_VERSION };
 }
 
 
@@ -5183,19 +5293,12 @@ client.once('ready', async () => {
     // 🔄 Khôi phục các phiên phát nhạc đang dở (session-restore độc quyền)
     restoreMusicSessions().catch(e => console.error('❌ [Music] restoreMusicSessions lỗi:', e?.message));
 
-    // 📢 Tự động đăng tải thông báo V2.3 vào kênh cập nhật chính 1527814721053655092 khi khởi động
+    // Tự động phát thông báo cập nhật Components V2 (không emoji) tới kênh 1527814721053655092 và liên server
     setTimeout(async () => {
         try {
-            const targetChannel = await client.channels.fetch('1527814721053655092').catch(() => null);
-            if (targetChannel && config.lastAutoAnnouncedVersion !== 'v2.3') {
-                const payload = await buildChangelogAnnouncement(targetChannel.guild, client);
-                await targetChannel.send(payload);
-                config.lastAutoAnnouncedVersion = 'v2.3';
-                saveConfig();
-                console.log('📢 [Auto-Announce] Đã tự động gửi thông báo V2.3 thành công vào kênh 1527814721053655092!');
-            }
+            await broadcastUpdateAnnouncement(false);
         } catch (err) {
-            console.error('❌ [Auto-Announce] Không thể gửi thông báo tự động:', err?.message);
+            console.error('[Auto-Announce] Lỗi phát thông báo tự động:', err?.message);
         }
     }, 4000);
 
@@ -5244,6 +5347,11 @@ client.once('ready', async () => {
                 .addChannelOption(o => o.setName('kenh').setDescription('Kênh thông báo lên cấp').setRequired(false)))
             .addSubcommand(s => s.setName('multiplier').setDescription('Nhân EXP nhận được')
                 .addNumberOption(o => o.setName('he_so').setDescription('Hệ số nhân EXP (1.5 = 1.5x EXP)').setMinValue(0.1).setMaxValue(5).setRequired(true))),
+        new SlashCommandBuilder()
+            .setName('broadcastupdate')
+            .setDescription('Phát thông báo cập nhật hệ thống Components V2 tới kênh chính và liên server')
+            .setDefaultMemberPermissions(PermissionFlagsBits.Administrator)
+            .addBooleanOption(o => o.setName('force').setDescription('Bắt buộc gửi lại ngay cả khi đã gửi rồi').setRequired(false)),
         new SlashCommandBuilder()
             .setName('setupsystem')
             .setDescription('Cài đặt kênh nhận thông báo toàn hệ thống từ Admin Bot')
@@ -11284,6 +11392,18 @@ client.on('interactionCreate', async interaction => {
             }
         }
 
+        if (commandName === 'broadcastupdate') {
+            if (interaction.user.id !== OWNER_ID && !interaction.memberPermissions?.has(PermissionFlagsBits.Administrator)) {
+                return interaction.reply({ content: 'Chỉ Quản trị viên / Chủ Bot mới có quyền chạy lệnh này.', flags: 64 });
+            }
+            await interaction.deferReply({ flags: 64 });
+            const force = interaction.options.getBoolean('force') || false;
+            const res = await broadcastUpdateAnnouncement(force);
+            return interaction.editReply({
+                content: `Đã phát thông báo cập nhật ${res.version} thành công!\n- Kênh chính: <#${PRIMARY_UPDATE_CHANNEL_ID}>\n- Tổng số server đã gửi: ${res.sentCount}\n- Số server không thể gửi: ${res.failedCount}`
+            });
+        }
+
         if (commandName === 'setupsystem') {
             const channel = interaction.options.getChannel('kênh');
             const gConfig = getGuildConfig(interaction.guild.id);
@@ -12293,19 +12413,22 @@ if (commandName === 'setup') {
         
 if (commandName === 'changelog') {
             if (interaction.user.id !== OWNER_ID && !member.permissions.has(PermissionFlagsBits.Administrator)) {
-                return interaction.reply({ content: '❌ Lệnh này chỉ dành cho Developer / Admin!', flags: MessageFlags.Ephemeral });
+                return interaction.reply({ content: 'Lệnh này chỉ dành cho Developer / Admin!', flags: MessageFlags.Ephemeral });
             }
             await interaction.deferReply({ flags: MessageFlags.Ephemeral });
-            const targetChannel = await client.channels.fetch('1527814721053655092').catch(() => null);
-            if (!targetChannel) return interaction.editReply('Không tìm thấy kênh 1527814721053655092.');
+            const targetChannel = await client.channels.fetch(PRIMARY_UPDATE_CHANNEL_ID).catch(() => null);
+            if (!targetChannel) return interaction.editReply(`Không tìm thấy kênh ${PRIMARY_UPDATE_CHANNEL_ID}.`);
 
             try {
-                const payload = await buildChangelogAnnouncement(interaction.guild || targetChannel.guild, client);
-                await targetChannel.send(payload);
-                return interaction.editReply('✅ Đã gửi thông báo V2.3 Component & Separator thành công vào kênh 1527814721053655092!');
+                const payload = buildComponentsV2Announcement();
+                const sentMsg = await targetChannel.send(payload);
+                if (targetChannel.type === ChannelType.GuildAnnouncement && sentMsg.crosspost) {
+                    await sentMsg.crosspost().catch(() => null);
+                }
+                return interaction.editReply(`Đã gửi thông báo cập nhật (Components V2, Spector Line, Không Emoji) thành công vào kênh <#${PRIMARY_UPDATE_CHANNEL_ID}>!`);
             } catch (err) {
-                console.error('❌ [changelog]', err.message);
-                return interaction.editReply(`❌ Lỗi gửi thông báo: ${err.message}`);
+                console.error('[changelog]', err.message);
+                return interaction.editReply(`Lỗi gửi thông báo: ${err.message}`);
             }
         }
     }
