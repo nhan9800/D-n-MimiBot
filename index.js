@@ -3357,7 +3357,7 @@ function buildMusicProgressBar(currentSec, totalSec, size = 14) {
 // HOÀN TOÀN KHÔNG DÙNG EMOJI - CHỈ DÙNG DISCORD MARKDOWN CHUẨN VÀ COMPONENTS V2
 // =====================================================================
 const PRIMARY_UPDATE_CHANNEL_ID = '1527814721053655092';
-const CURRENT_UPDATE_VERSION = '2026.09.02';
+const CURRENT_UPDATE_VERSION = '2026.09.03';
 const ANNOUNCED_UPDATES_FILE = path.join(__dirname, 'data', 'announced_updates.json');
 
 function readAnnouncedUpdates() {
@@ -3390,7 +3390,7 @@ function buildComponentsV2Announcement() {
         // 1. Tiêu đề thông báo
         {
             type: 10, // TextDisplay
-            content: '# BẢN CẬP NHẬT HỆ THỐNG MIMI ECOSYSTEM\n-# PHIÊN BẢN 2026.09.02 • TỐI ƯU TOÀN DIỆN VÀ RÀ SOÁT TÍNH NĂNG\n\n> Kính gửi toàn thể Quản trị viên và cộng đồng người dùng Discord.\n> Đội ngũ phát triển đã hoàn tất đợt kiểm tra toàn diện, rà soát mọi thuật toán và tối ưu hóa hệ thống vận hành trên toàn bộ mạng lưới.'
+            content: '# BẢN CẬP NHẬT HỆ THỐNG VÀ VÁ LỖI AN NINH MIMI ECOSYSTEM\n-# PHIÊN BẢN 2026.09.03 • TỐI ƯU HÓA MIMI SHIELD VÀ KHẮC PHỤC CƠ CHẾ KHÓA KÊNH\n\n> Kính gửi toàn thể Quản trị viên và cộng đồng người dùng Discord.\n> Đội ngũ phát triển vừa hoàn tất đợt nâng cấp và vá lỗi quan trọng cho MIMI SHIELD BOT, giải quyết triệt để tình trạng khóa kênh ngoài ý muốn và bổ sung lệnh gỡ khóa tức thì.'
         },
         // 2. Spector Separator Line
         {
@@ -3412,7 +3412,7 @@ function buildComponentsV2Announcement() {
         // 5. Mục 2: MIMI SHIELD BOT
         {
             type: 10,
-            content: '### 2. MIMI SHIELD BOT (LÁ CHẮN AN NINH ANTI-RAID VÀ BẢN QUYỀN HWID)\n> Hệ thống an ninh phản xạ 0.1 giây bảo vệ máy chủ toàn diện\n```diff\n+ Tự động mở khóa toàn diện tính năng bảo vệ ngay khi nhận Key hợp lệ.\n+ Tự động kích hoạt lá chắn Anti-Raid, Anti-Nuke và Message Guard 24/7.\n+ Tự động gỡ bỏ trạng thái Khóa Khẩn Cấp (Lockdown) khi đã kích hoạt.\n+ Tự động sao lưu cấu trúc kênh và vai trò (Snapshot) ngay khi mở khóa.\n+ Chuẩn hóa quyền Quản trị viên và Owner duyệt thanh toán trực tiếp.\n```'
+            content: '### 1. VÁ LỖI VÀ TỐI ƯU HÓA MIMI SHIELD BOT (ANTI-RAID SECURITY)\n> Khắc phục cơ chế an ninh và tự động nhận diện Quản trị viên\n```diff\n+ Tự động nhận diện và tin cậy tất cả thành viên có quyền Administrator và ManageGuild.\n+ Tắt mặc định tự động khóa toàn server khi có cảnh báo, chuyển sang trừng phạt tác nhân và rollback trực tiếp.\n+ Thêm lệnh /guard unlock mở khóa toàn bộ tất cả các kênh trên server ngay lập tức chỉ trong 0.5 giây.\n+ Tự động mở khóa các kênh bị khóa còn tồn đọng khi bot khởi động lại hoặc kích hoạt bản quyền.\n+ Tự động cho phép và không bao giờ kick các bot thuộc hệ sinh thái (MIMI BOT & MIMI SHIELD).\n+ Nâng ngưỡng an toàn thực tế (Thresholds) để loại bỏ 100% các trường hợp cảnh báo nhầm.\n```'
         },
         // 6. Spector Separator Line
         {
@@ -3423,7 +3423,7 @@ function buildComponentsV2Announcement() {
         // 7. Mục 3: WEBSITE & KEY HMAC
         {
             type: 10,
-            content: '### 3. TỐI ƯU HẠ TẦNG VÀ ĐỒNG BỘ DỮ LIỆU\n> Rà soát toàn bộ thuật toán và vá lỗi hệ thống\n```yaml\nNội Dung Nâng Cấp:\n  - Tự động đồng bộ toàn bộ Slash Commands khi bot khởi động, tránh thiếu lệnh.\n  - Nâng cấp tra cứu bản quyền HWID trên Website chính xác theo thời gian thực.\n  - Bổ sung lệnh Confess ẩn danh vào danh sách Slash Commands chính thức.\n  - Tối ưu hóa bộ đệm phát nhạc, chống giật lag khi chuyển bài.\n  - Đồng bộ mã Key HMAC và cơ chế tự động mở khóa bảo vệ liên server.\n```'
+            content: '### 3. NÂNG CẤP BẢN QUYỀN HWID VÀ CHỐNG SPAM THÔNG BÁO\n> Đồng bộ dữ liệu liên nền tảng và kiểm soát chất lượng\n```yaml\nNâng Cấp Kỹ Thuật:\n  - Tích hợp bộ lọc 3 lớp chống spam thông báo lặp lại khi bot khởi động lại.\n  - Chuẩn hóa API tra cứu bản quyền HWID trên Website mimibot.id.vn theo thời gian thực.\n  - Đồng bộ mã Key HMAC ký bảo mật đa máy chủ.\n  - Tự động đồng bộ toàn bộ Slash Commands ngay khi bot đăng nhập Discord.\n```'
         },
         // 8. Spector Separator Line
         {
@@ -3434,7 +3434,7 @@ function buildComponentsV2Announcement() {
         // 9. Mục 4: BẢNG LỆNH ĐIỀU KHIỂN
         {
             type: 10,
-            content: '### 4. DANH SÁCH LỆNH ĐIỀU KHIỂN CHÍNH\n- `/kichhoat [mã_key]` : Kích hoạt bản quyền và tự động mở khóa bảo vệ.\n- `/license` : Kiểm tra Server ID (HWID) và thời hạn bản quyền.\n- `/xacnhan [server_id] [gói]` : Admin duyệt thanh toán và kích hoạt máy chủ.\n- `/genkey [gói]` : Admin tạo mã License Key HMAC cấp cho thành viên.\n- `/guard` : Cấu hình lá chắn an ninh và phòng thủ máy chủ.\n- `/play`, `/247`, `/autoplay` : Trải nghiệm âm nhạc không giới hạn.'
+            content: '### 4. HƯỚNG DẪN QUẢN TRỊ VIÊN\n- `/guard unlock` : Mở khóa toàn bộ tất cả các kênh trên máy chủ ngay lập tức (1 chạm).\n- `/guard status` : Xem trạng thái bảo vệ 24/7 và thông số an ninh của server.\n- `/kichhoat [mã_key]` : Kích hoạt bản quyền MIMI SHIELD theo mã key.\n- `/license` : Xem thông tin Server ID (HWID) và hạn dùng.\n- `/confess [nội_dung]` : Gửi tâm sự ẩn danh vào kênh server.\n- `/play`, `/247`, `/autoplay` : Thưởng thức âm nhạc chất lượng cao.'
         },
         // 10. Spector Separator Line
         {
