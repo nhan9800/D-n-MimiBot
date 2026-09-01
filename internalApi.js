@@ -326,7 +326,7 @@ function startInternalApi(deps) {
             if (url.pathname === '/api/license/check') {
                 const guildId = url.searchParams.get('guildId')?.trim();
                 if (!guildId) return fail(res, 400, 'MISSING_GUILD_ID', 'Vui lòng cung cấp Server ID (guildId).', reqId);
-                const lic = licenseStore.getLicense(guildId);
+                const lic = licenseStore.getShieldLicense ? licenseStore.getShieldLicense(guildId) : licenseStore.getLicense(guildId);
                 return send(res, 200, { ok: true, license: lic }, reqId);
             }
 

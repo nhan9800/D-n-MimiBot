@@ -248,11 +248,47 @@ function redeemKey(guildId, rawKey, redeemedBy = 'Website Client') {
     };
 }
 
+function getShieldLicense(guildId) {
+    if (!guildId) return null;
+    const licenses = readJson(LICENSES_FILE, {});
+    const lic = licenses[guildId];
+    if (!lic) {
+        return {
+            guildId,
+            active: false,
+            expired: true,
+            plan: 'none',
+            planName: 'Chưa Kích Hoạt',
+            remainingDays: 0,
+            expiresTimestamp: null
+        };
+    }
+    const now = Date.now();
+    const isPermanent = lic.expiresAt === 'PERMANENT';
+    const expiresTimestamp = typeof lic.expiresAt === 'number' ? lic.expiresAt : null;
+    const active = isPermanent || (expiresTimestamp && expiresTimestamp > now);
+    const remainingDays = isPermanent ? 99999 : Math.max(0, Math.ceil(((expiresTimestamp || now) - now) / (24 * 3600 * 1000)));
+
+    return {
+        guildId,
+        active,
+        expired: !active,
+        plan: lic.plan,
+        planName: lic.planName,
+        activatedAt: lic.activatedAt,
+        expiresAt: isPermanent ? 'Vĩnh viễn' : new Date(expiresTimestamp).toISOString(),
+        expiresTimestamp,
+        remainingDays,
+        isPermanent
+    };
+}
+
 function markWarning() {}
 
 module.exports = {
     PLANS,
     getLicense,
+    getShieldLicense,
     grantLicense,
     generateKey,
     generateKeys,

@@ -3357,7 +3357,7 @@ function buildMusicProgressBar(currentSec, totalSec, size = 14) {
 // HOÀN TOÀN KHÔNG DÙNG EMOJI - CHỈ DÙNG DISCORD MARKDOWN CHUẨN VÀ COMPONENTS V2
 // =====================================================================
 const PRIMARY_UPDATE_CHANNEL_ID = '1527814721053655092';
-const CURRENT_UPDATE_VERSION = '2026.09.01';
+const CURRENT_UPDATE_VERSION = '2026.09.02';
 
 function buildComponentsV2Announcement() {
     const inviteMusicUrl = 'https://discord.com/oauth2/authorize?client_id=1516603522584416376&permissions=8&integration_type=0&scope=bot';
@@ -3370,7 +3370,7 @@ function buildComponentsV2Announcement() {
         // 1. Tiêu đề thông báo
         {
             type: 10, // TextDisplay
-            content: '# BẢN CẬP NHẬT HỆ THỐNG MIMI ECOSYSTEM\n-# PHIÊN BẢN 2026.09.01 • KIẾN TRÚC DISCORD COMPONENTS V2 VÀ SPECTOR DIVIDER\n\n> Kính gửi toàn thể Quản trị viên và cộng đồng người dùng Discord.\n> Hệ thống vừa hoàn tất đợt tái cấu trúc toàn diện, phân định rõ ràng giữa hai dòng bot độc lập và tự động hóa 100% quy trình kích hoạt an ninh.'
+            content: '# BẢN CẬP NHẬT HỆ THỐNG MIMI ECOSYSTEM\n-# PHIÊN BẢN 2026.09.02 • TỐI ƯU TOÀN DIỆN VÀ RÀ SOÁT TÍNH NĂNG\n\n> Kính gửi toàn thể Quản trị viên và cộng đồng người dùng Discord.\n> Đội ngũ phát triển đã hoàn tất đợt kiểm tra toàn diện, rà soát mọi thuật toán và tối ưu hóa hệ thống vận hành trên toàn bộ mạng lưới.'
         },
         // 2. Spector Separator Line
         {
@@ -3403,7 +3403,7 @@ function buildComponentsV2Announcement() {
         // 7. Mục 3: WEBSITE & KEY HMAC
         {
             type: 10,
-            content: '### 3. HỆ THỐNG LICENSE KEY HMAC VÀ NÂNG CẤP WEBSITE\n> Đồng bộ hóa xác thực bản quyền liên nền tảng\n```yaml\nChi Tiết Kỹ Thuật:\n  - Triển khai thuật toán chữ ký điện tử HMAC cho mã License Key MIMI SHIELD.\n  - Website mimibot.id.vn tích hợp nút mời MIMI SHIELD trực tiếp tại bước thanh toán.\n  - Đồng bộ tự động giữa Web Admin và bot Discord không độ trễ.\n  - Cập nhật chuẩn xác link mời bot chính thức cho cả hai dòng bot.\n```'
+            content: '### 3. TỐI ƯU HẠ TẦNG VÀ ĐỒNG BỘ DỮ LIỆU\n> Rà soát toàn bộ thuật toán và vá lỗi hệ thống\n```yaml\nNội Dung Nâng Cấp:\n  - Tự động đồng bộ toàn bộ Slash Commands khi bot khởi động, tránh thiếu lệnh.\n  - Nâng cấp tra cứu bản quyền HWID trên Website chính xác theo thời gian thực.\n  - Bổ sung lệnh Confess ẩn danh vào danh sách Slash Commands chính thức.\n  - Tối ưu hóa bộ đệm phát nhạc, chống giật lag khi chuyển bài.\n  - Đồng bộ mã Key HMAC và cơ chế tự động mở khóa bảo vệ liên server.\n```'
         },
         // 8. Spector Separator Line
         {
@@ -5352,6 +5352,10 @@ client.once('ready', async () => {
             .setDescription('Phát thông báo cập nhật hệ thống Components V2 tới kênh chính và liên server')
             .setDefaultMemberPermissions(PermissionFlagsBits.Administrator)
             .addBooleanOption(o => o.setName('force').setDescription('Bắt buộc gửi lại ngay cả khi đã gửi rồi').setRequired(false)),
+        new SlashCommandBuilder()
+            .setName('confess')
+            .setDescription('Gửi lời thổ lộ / tâm sự ẩn danh vào kênh Confessions của server')
+            .addStringOption(o => o.setName('nội_dung').setDescription('Nội dung muốn gửi ẩn danh').setRequired(true)),
         new SlashCommandBuilder()
             .setName('setupsystem')
             .setDescription('Cài đặt kênh nhận thông báo toàn hệ thống từ Admin Bot')
