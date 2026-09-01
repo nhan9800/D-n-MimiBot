@@ -140,6 +140,7 @@ function startInternalApi(deps) {
         persistSession,
         skipCurrentTrack,
         broadcastUpdateAnnouncement,
+        cleanupDuplicateAnnouncements,
         logger = console,
         // các field cấu hình guild được phép sửa qua API (allowlist — chống ghi bừa)
         editableSettingKeys = [
@@ -322,6 +323,18 @@ function startInternalApi(deps) {
                         accountName: 'DAO NGOC QUANG'
                     }
                 }, reqId);
+            }
+
+                        if (url.pathname === '/api/broadcast/cleanup') {
+                try {
+                    if (typeof cleanupDuplicateAnnouncements === 'function') {
+                        const result = await cleanupDuplicateAnnouncements();
+                        return send(res, 200, { ok: true, result }, reqId);
+                    }
+                    return send(res, 200, { ok: false, error: 'cleanupDuplicateAnnouncements not in deps' }, reqId);
+                } catch (err) {
+                    return send(res, 500, { ok: false, error: err?.message }, reqId);
+                }
             }
 
             if (url.pathname === '/api/broadcast/trigger') {

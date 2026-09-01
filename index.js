@@ -3503,6 +3503,43 @@ function canSendToChannel(channel, guild) {
  * Phát thông báo cập nhật tới kênh chính 1527814721053655092 và tự động nhận diện
  * các kênh update/thông báo ở mọi server khác mà bot đang tham gia.
  */
+async function cleanupDuplicateAnnouncements() {
+    let deletedCount = 0;
+    try {
+        const primaryChannel = await client.channels.fetch(PRIMARY_UPDATE_CHANNEL_ID).catch(() => null);
+        if (primaryChannel && primaryChannel.isTextBased?.()) {
+            const messages = await primaryChannel.messages.fetch({ limit: 50 }).catch(() => null);
+            if (messages) {
+                const botAnnouncements = messages
+                    .filter(m => m.author.id === client.user?.id)
+                    .sort((a, b) => b.createdTimestamp - a.createdTimestamp);
+                
+                // Giữ lại tin nhắn mới nhất, xoá tất cả các tin nhắn cũ bị lặp
+                let isFirst = true;
+                for (const msg of botAnnouncements.values()) {
+                    const text = msg.content || JSON.stringify(msg.components || []);
+                    if (text.includes('BẢN CẬP NHẬT HỆ THỐNG') || text.includes('MIMI ECOSYSTEM')) {
+                        if (isFirst) {
+                            isFirst = false; // Giữ lại tin nhắn mới nhất
+                            continue;
+                        }
+                        try {
+                            await msg.delete();
+                            deletedCount++;
+                            console.log(`[Cleanup] Đã xoá tin nhắn trùng lặp cũ: ${msg.id}`);
+                        } catch (e) {
+                            console.error(`[Cleanup] Không xoá được tin nhắn ${msg.id}:`, e.message);
+                        }
+                    }
+                }
+            }
+        }
+    } catch (err) {
+        console.error('[Cleanup] Lỗi dọn dẹp tin nhắn:', err.message);
+    }
+    return { deletedCount };
+}
+
 async function broadcastUpdateAnnouncement(force = false) {
     if (!config.announcedUpdateGuilds) config.announcedUpdateGuilds = {};
     if (!config.announcedUpdateGuilds[CURRENT_UPDATE_VERSION]) config.announcedUpdateGuilds[CURRENT_UPDATE_VERSION] = [];
@@ -5341,7 +5378,8 @@ client.once('ready', async () => {
             persistSession,
             skipCurrentTrack,
             logger: console,
-            broadcastUpdateAnnouncement
+            broadcastUpdateAnnouncement,
+            cleanupDuplicateAnnouncements
         });
     } catch (e) {
         console.error('❌ [InternalAPI] Không khởi động được:', e?.message);
@@ -5350,14 +5388,8 @@ client.once('ready', async () => {
     // 🔄 Khôi phục các phiên phát nhạc đang dở (session-restore độc quyền)
     restoreMusicSessions().catch(e => console.error('❌ [Music] restoreMusicSessions lỗi:', e?.message));
 
-    // Tự động phát thông báo cập nhật Components V2 (không emoji) tới kênh 1527814721053655092 và liên server
-    setTimeout(async () => {
-        try {
-            await broadcastUpdateAnnouncement(false);
-        } catch (err) {
-            console.error('[Auto-Announce] Lỗi phát thông báo tự động:', err?.message);
-        }
-    }, 4000);
+    // ĐÃ TẮT TỰ ĐỘNG PHÁT THÔNG BÁO KHI KHỞI ĐỘNG ĐỂ CHỐNG SPAM 100%
+    // Chỉ phát khi Admin thực thi lệnh /broadcastupdate force: true
 
 
     const activities = [
