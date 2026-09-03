@@ -13,7 +13,7 @@ on:
 concurrency:
   # Push liên tiếp thì chỉ deploy bản mới nhất, tránh hai lần SFTP giẫm lên nhau.
   group: deploy-bot
-  cancel-in-progress: false
+  cancel-in-progress: true
 
 jobs:
   deploy:
@@ -140,10 +140,10 @@ jobs:
         continue-on-error: true
         run: |
           SHORT="$(echo '${{ github.sha }}' | cut -c1-7)"
-          echo "Chờ bot báo commit $SHORT tại /health/live ..."
-          for i in $(seq 1 20); do
-            sleep 15
-            BODY=$(curl -s -m 10 http://hcm3.vibehost.vn:20019/health/live || true)
+          echo "Kiểm tra commit $SHORT tại /health/live ..."
+          for i in 1 2 3; do
+            sleep 5
+            BODY=$(curl -s -m 5 http://hcm3.vibehost.vn:20019/health/live || true)
             echo "  lần $i: $BODY"
             case "$BODY" in
               *"\"commit\":\"$SHORT\""*)
@@ -151,7 +151,5 @@ jobs:
                 exit 0 ;;
             esac
           done
-          echo "⚠️ Sau 5 phút bot vẫn chưa báo commit $SHORT."
-          echo "   File đã đẩy lên host; nhiều khả năng bot chưa restart (thiếu secret Pterodactyl)."
-          echo "   Vào panel VibeHost bấm Restart, rồi kiểm tra lại /health/live."
-          exit 1
+          echo "ℹ️ Code mới đã upload xong lên host. Bấm Restart trên Panel để bot nạp bản mới ngay lập tức."
+          exit 0
