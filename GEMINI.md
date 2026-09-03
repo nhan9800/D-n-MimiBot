@@ -38,6 +38,10 @@
 - Nghiêm cấm sao chép / nhồi nhét lại nội dung của các phiên bản trước.
 - Nội dung ngắn gọn, súc tích, đánh số thứ tự chuẩn xác (`### 1.`, `### 2.`, `### 3.`, `### 4.`), đúng trọng tâm thay đổi gần nhất.
 
+### 1.6. Chuẩn Hóa Ngôn Ngữ: 100% Tiếng Việt Có Dấu Chuẩn Xác (STRICT VIETNAMESE ACCENTS)
+- Mọi thông báo cập nhật **BẮT BUỘC PHẢI VIẾT 100% TIẾNG VIỆT CÓ DẤU CHUẨN XÁC**, chuẩn ngữ pháp tiếng Việt.
+- Tuyệt đối **KHÔNG VIẾT KHÔNG DẤU**, không viết tắt cẩu thả trong toàn bộ nội dung thông báo, kể cả các đoạn văn bản trong khối codeblock (`diff`, `yaml`, `fix`).
+
 ---
 
 ## 2. QUY CHUẨN PHÂN ĐỊNH 2 DÒNG BOT
