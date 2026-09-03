@@ -3379,22 +3379,21 @@ function saveAnnouncedUpdates(data) {
     }
 }
 
-// BỘ CUSTOM EMOJI TRANG TRÍ THÔNG BÁO (Nguồn: emoji.gg, discadia.com & server emoji)
+// BỘ CUSTOM EMOJI TRANG TRÍ THÔNG BÁO (Đã add trực tiếp vào Server chính 1517068246493429852 & Application Emojis)
 const ANNOUNCE_EMOJIS = {
-    fire: '<a:tsm_fire:1327553120842158111>',
-    starSpin: '<a:starxoay:1481141954346483845>',
-    tickGreen: '<a:tickgreen:1384069022831874169>',
-    dotYellow: '<a:Dotyellow:1481134440725090315>',
-    chamXanh: '<a:chamxanh:1481124932447371374>',
-    diamond: '<:Diamond:1485905790903783465>',
-    arrow: '<a:Arrow2:1367139234833498113>',
-    arrowSmall: '<:muiten:1481124261501337601>',
-    verify: '<:verifybadge:1481127479702847646>',
-    money: '<:money:1442876095442714748>',
-    heartGlow: '<:purple_heart_glow:1327541911749263360>',
-    star: '<:star:1327549089704837142>',
-    dotGreen: '<:2k_dotGreen:1481150040150900759>',
-    shield: '<:cr_baohanh:1348625535512870965>'
+    fire: '<a:tsm_fire:1545057696527552623>',
+    starSpin: '<a:starxoay:1545057795404070913>',
+    tickGreen: '<a:tickgreen:1545057805998891108>',
+    dotYellow: '<a:dotyellow:1545057812181155883>',
+    chamXanh: '<a:chamxanh:1545057822461526046>',
+    diamond: '<:mimi_diamond:1545057827049967636>',
+    arrow: '<a:mimi_arrow2:1545057835866398750>',
+    arrowSmall: '<:muiten:1545057896901902457>',
+    verify: '<:verifybadge:1545057877599719545>',
+    money: '<:mimi_money:1545057842321690624>',
+    heartGlow: '<:heart_glow:1545057849841815643>',
+    dotGreen: '<:dotgreen:1545057885669687336>',
+    shield: '<:cr_baohanh:1545057857794478262>'
 };
 
 function buildComponentsV2Announcement() {
@@ -3462,7 +3461,7 @@ function buildComponentsV2Announcement() {
             divider: true,
             spacing: 2
         },
-        // 11. Hàng nút 1 (Có custom emoji)
+        // 11. Hàng nút 1 (Gắn application emojis của bot)
         {
             type: 1, // ActionRow
             components: [
@@ -3471,18 +3470,18 @@ function buildComponentsV2Announcement() {
                     style: 5, // Link
                     label: 'Mời MIMI BOT (Miễn Phí)',
                     url: inviteMusicUrl,
-                    emoji: { id: '1481141954346483845', name: 'starxoay', animated: true }
+                    emoji: { id: '1545057795404070913', name: 'starxoay', animated: true }
                 },
                 {
                     type: 2,
                     style: 5,
                     label: 'Mời MIMI SHIELD (Anti-Raid)',
                     url: inviteShieldUrl,
-                    emoji: { id: '1348625535512870965', name: 'cr_baohanh' }
+                    emoji: { id: '1545057857794478262', name: 'cr_baohanh' }
                 }
             ]
         },
-        // 12. Hàng nút 2 (Có custom emoji)
+        // 12. Hàng nút 2 (Gắn application emojis của bot)
         {
             type: 1,
             components: [
@@ -3491,21 +3490,21 @@ function buildComponentsV2Announcement() {
                     style: 5,
                     label: 'Trang Chủ',
                     url: websiteUrl,
-                    emoji: { id: '1485905790903783465', name: 'Diamond' }
+                    emoji: { id: '1545057827049967636', name: 'mimi_diamond' }
                 },
                 {
                     type: 2,
                     style: 5,
                     label: 'Bảng Giá & Kích Hoạt',
                     url: pricingUrl,
-                    emoji: { id: '1442876095442714748', name: 'money' }
+                    emoji: { id: '1545057842321690624', name: 'mimi_money' }
                 },
                 {
                     type: 2,
                     style: 5,
                     label: 'Máy Chủ Hỗ Trợ',
                     url: supportServerUrl,
-                    emoji: { id: '1327541911749263360', name: 'purple_heart_glow' }
+                    emoji: { id: '1545057849841815643', name: 'heart_glow' }
                 }
             ]
         }
