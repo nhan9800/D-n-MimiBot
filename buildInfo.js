@@ -30,3 +30,5 @@ const buildInfo = loadBuildInfo();
 
 module.exports = { buildInfo, loadBuildInfo };
 // trigger deploy: 2026-08-31T18:37:15Z
+
+// Update 2026.09.06: Minigame fast commands and support server link
