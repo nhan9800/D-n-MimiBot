@@ -64,16 +64,31 @@ jobs:
           ls -A
 
       - name: SFTP lên VibeHost
-        uses: wlixcc/SFTP-Deploy-Action@v1.2.6
-        with:
-          server: ${{ secrets.SFTP_SERVER || 'hcm3.vibehost.vn' }}
-          port: ${{ secrets.SFTP_PORT || 2022 }}
-          username: ${{ secrets.SFTP_USERNAME || 'nhan98-889566.9d9f7a18' }}
-          password: ${{ secrets.SFTP_PASSWORD }}
-          local_path: './'
-          remote_path: './'
-          sftp_only: true
-          sftpArgs: '-o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null -o ConnectTimeout=30'
+        env:
+          SFTP_PASSWORD: ${{ secrets.SFTP_PASSWORD }}
+          SFTP_USER: ${{ secrets.SFTP_USERNAME || 'nhan98-889566.9d9f7a18' }}
+          SFTP_HOST: ${{ secrets.SFTP_SERVER || 'hcm3.vibehost.vn' }}
+          SFTP_PORT: ${{ secrets.SFTP_PORT || 2022 }}
+        run: |
+          sudo apt-get update && sudo apt-get install -y sshpass
+          export SSHPASS="$SFTP_PASSWORD"
+          echo "Bắt đầu SFTP upload..."
+          sshpass -e sftp -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null -o ConnectTimeout=30 -P "$SFTP_PORT" "$SFTP_USER@$SFTP_HOST" << 'EOF'
+          put index.js
+          put internalApi.js
+          put buildInfo.js
+          put build-info.json
+          put licenseStore.js
+          put licenseScheduler.js
+          put antiRaid.js
+          put musicStore.js
+          put uiBuilder.js
+          put dashboardAuth.js
+          put package.json
+          put package-lock.json
+          bye
+          EOF
+          echo "✅ SFTP hoàn tất." 
 
       - name: Restart bot qua Pterodactyl API
         env:
