@@ -3534,14 +3534,27 @@ async function cleanupDuplicateAnnouncements() {
             for (const msg of botMsgs.values()) {
                 const text = msg.content || JSON.stringify(msg.components || []);
                 if (text.includes('BẢN CẬP NHẬT HỆ THỐNG') || text.includes('MIMI ECOSYSTEM') || text.includes('MIMI SHIELD')) {
+                    // Xóa hoàn toàn tất cả các thông báo cũ không thuộc phiên bản mới nhất CURRENT_UPDATE_VERSION
+                    if (text.includes('2026.09.05') || !text.includes(CURRENT_UPDATE_VERSION)) {
+                        try {
+                            await msg.delete();
+                            purged++;
+                            console.log(`[Cleanup] Đã thu hồi thông báo cũ ${msg.id} tại kênh #${channel.name}`);
+                        } catch (e) {
+                            console.error(`[Cleanup] Lỗi xoá ${msg.id}:`, e.message);
+                        }
+                        continue;
+                    }
+
+                    // Đối với phiên bản hiện tại, chỉ giữ lại đúng 1 tin mới nhất
                     if (isFirst) {
-                        isFirst = false; // Giữ lại 1 thông báo mới nhất duy nhất
+                        isFirst = false;
                         continue;
                     }
                     try {
                         await msg.delete();
                         purged++;
-                        console.log(`[Cleanup] Đã thu hồi thông báo cũ ${msg.id} tại kênh #${channel.name}`);
+                        console.log(`[Cleanup] Đã thu hồi thông báo trùng ${msg.id} tại kênh #${channel.name}`);
                     } catch (e) {
                         console.error(`[Cleanup] Lỗi xoá ${msg.id}:`, e.message);
                     }
@@ -3575,7 +3588,7 @@ async function cleanupDuplicateAnnouncements() {
             if (guild.systemChannel) candidateChannels.add(guild.systemChannel);
 
             guild.channels.cache.forEach(c => {
-                if (c.isTextBased?.() && !c.isThread?.() && /^(update|updates|thong-bao|thông-báo|announcement|announcements|news|bot-update|changelog)$/i.test(c.name)) {
+                if (c.isTextBased?.() && !c.isThread?.() && /(update|updates|thong-bao|thông-báo|announcement|announcements|news|bot-update|changelog)/i.test(c.name)) {
                     candidateChannels.add(c);
                 }
             });
