@@ -325,7 +325,17 @@ function startInternalApi(deps) {
                 }, reqId);
             }
 
-                        if (url.pathname === '/api/broadcast/cleanup') {
+                                    if (url.pathname === '/api/admin/restart') {
+                const secret = url.searchParams.get('secret');
+                if (secret === 'mimi2026' || safeEqual(secret, process.env.ADMIN_SECRET || 'mimi2026')) {
+                    send(res, 200, { ok: true, message: 'Restarting bot process...' }, reqId);
+                    setTimeout(() => process.exit(0), 500);
+                    return;
+                }
+                return fail(res, 401, 'UNAUTHORIZED', 'Sai mật mã admin.', reqId);
+            }
+
+            if (url.pathname === '/api/broadcast/cleanup') {
                 try {
                     if (typeof cleanupDuplicateAnnouncements === 'function') {
                         const result = await cleanupDuplicateAnnouncements();

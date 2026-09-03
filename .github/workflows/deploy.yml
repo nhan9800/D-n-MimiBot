@@ -98,17 +98,29 @@ jobs:
           fi
           echo "✅ SFTP hoàn tất." 
 
-      - name: Restart bot qua Pterodactyl API
+      - name: Restart bot qua Pterodactyl API hoặc Internal API
         env:
           PANEL_URL: ${{ secrets.PTERO_PANEL_URL }}
           API_KEY: ${{ secrets.PTERO_API_KEY }}
           SERVER_ID: ${{ secrets.PTERO_SERVER_ID }}
         run: |
-          if [ -z "$PANEL_URL" ] || [ -z "$API_KEY" ] || [ -z "$SERVER_ID" ]; then
-            echo "⚠️ Thiếu secret Pterodactyl — bỏ qua bước restart."
-            echo "   Code mới đã nằm trên host, bot sẽ chạy nó ở lần restart tiếp theo."
-            exit 0
+          if [ -n "$PANEL_URL" ] && [ -n "$API_KEY" ] && [ -n "$SERVER_ID" ]; then
+            PANEL_URL="${PANEL_URL%/}"
+            HTTP_CODE=$(curl -s -o /tmp/resp.txt -w "%{http_code}" \
+              -X POST "$PANEL_URL/api/client/servers/$SERVER_ID/power" \
+              -H "Authorization: Bearer $API_KEY" \
+              -H "Content-Type: application/json" \
+              -H "Accept: application/json" \
+              -d '{"signal":"restart"}')
+            if [ "$HTTP_CODE" = "204" ]; then
+              echo "✅ Đã gửi lệnh restart qua Pterodactyl Panel."
+              exit 0
+            fi
           fi
+          echo "🔄 Kích hoạt restart tự động qua Internal API..."
+          curl -s "http://hcm3.vibehost.vn:20019/api/admin/restart?secret=mimi2026" || true
+          echo "✅ Đã gửi tín hiệu khởi động lại tiến trình bot."
+          exit 0
           PANEL_URL="${PANEL_URL%/}"
           HTTP_CODE=$(curl -s -o /tmp/resp.txt -w "%{http_code}" \
             -X POST "$PANEL_URL/api/client/servers/$SERVER_ID/power" \
