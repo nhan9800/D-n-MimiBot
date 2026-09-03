@@ -3379,6 +3379,24 @@ function saveAnnouncedUpdates(data) {
     }
 }
 
+// BỘ CUSTOM EMOJI TRANG TRÍ THÔNG BÁO (Nguồn: emoji.gg, discadia.com & server emoji)
+const ANNOUNCE_EMOJIS = {
+    fire: '<a:tsm_fire:1327553120842158111>',
+    starSpin: '<a:starxoay:1481141954346483845>',
+    tickGreen: '<a:tickgreen:1384069022831874169>',
+    dotYellow: '<a:Dotyellow:1481134440725090315>',
+    chamXanh: '<a:chamxanh:1481124932447371374>',
+    diamond: '<:Diamond:1485905790903783465>',
+    arrow: '<a:Arrow2:1367139234833498113>',
+    arrowSmall: '<:muiten:1481124261501337601>',
+    verify: '<:verifybadge:1481127479702847646>',
+    money: '<:money:1442876095442714748>',
+    heartGlow: '<:purple_heart_glow:1327541911749263360>',
+    star: '<:star:1327549089704837142>',
+    dotGreen: '<:2k_dotGreen:1481150040150900759>',
+    shield: '<:cr_baohanh:1348625535512870965>'
+};
+
 function buildComponentsV2Announcement() {
     const inviteMusicUrl = 'https://discord.com/oauth2/authorize?client_id=1516603522584416376&permissions=8&integration_type=0&scope=bot';
     const inviteShieldUrl = 'https://discord.com/oauth2/authorize?client_id=1539527939723497473&permissions=8&integration_type=0&scope=bot';
@@ -3386,11 +3404,13 @@ function buildComponentsV2Announcement() {
     const websiteUrl = 'https://mimibot.id.vn';
     const supportServerUrl = 'https://discord.gg/gBUHY3qph2';
 
+    const E = ANNOUNCE_EMOJIS;
+
     const innerComponents = [
         // 1. Tiêu đề thông báo
         {
             type: 10, // TextDisplay
-            content: '# BẢN CẬP NHẬT HỆ THỐNG MIMI ECOSYSTEM\n-# PHIÊN BẢN 2026.09.06 • BỔ SUNG LỆNH CÂU NHANH, TÌM NHANH VÀ CHUẨN HÓA MÁY CHỦ HỖ TRỢ\n\n> Kính gửi toàn thể Quản trị viên và cộng đồng người dùng Discord.\n> Đội ngũ phát triển vừa hoàn tất đợt nâng cấp tính năng minigame giải trí, tối ưu hóa thời gian chờ theo số lượng và chuẩn hóa toàn bộ hạ tầng kết nối.'
+            content: `# ${E.fire} BẢN CẬP NHẬT HỆ THỐNG MIMI ECOSYSTEM ${E.starSpin}\n-# ${E.dotGreen} PHIÊN BẢN 2026.09.06 • CÂU NHANH • TÌM NHANH • KINH TẾ CÂN BẰNG\n\n> ${E.verify} **Kính gửi toàn thể Quản trị viên và cộng đồng người dùng Discord.**\n> ${E.arrowSmall} Đội ngũ phát triển vừa hoàn tất đợt nâng cấp toàn diện minigame, đồng bộ thời gian chờ theo số lượng và chuẩn hóa hạ tầng kết nối.`
         },
         // 2. Spector Separator Line
         {
@@ -3401,7 +3421,7 @@ function buildComponentsV2Announcement() {
         // 3. Mục 1: LỆNH CÂU NHANH VÀ TÌM NHANH
         {
             type: 10,
-            content: '### 1. TÍNH NĂNG CÂU NHANH VÀ TÌM NHANH HÀNG LOẠT\n> Nâng cấp trải nghiệm minigame và cơ chế thời gian hồi thông minh\n```diff\n+ Thêm lệnh câu nhanh micaonhanh (hoặc /caonhanh) với tùy chọn số lần câu từ 1 đến 30 lần.\n+ Thêm lệnh tìm đồ nhanh mitimnhanh (hoặc /timnhanh) cho phép khai quật thần tốc số lượng lớn.\n+ Thời gian chờ linh hoạt theo công thức: Số lần thao tác = Số phút chờ (ví dụ câu 10 lần đợi 10 phút).\n+ Tự động tổng hợp bảng thống kê chiến lợi phẩm, số lượng từng loại và tổng giá trị xu ước tính.\n+ Tự động khấu trừ số lần sử dụng cần câu và cất toàn bộ vật phẩm vào kho đồ an toàn.\n```'
+            content: `### ${E.chamXanh} 1. TÍNH NĂNG CÂU NHANH VÀ TÌM NHANH HÀNG LOẠT\n> ${E.star} Trải nghiệm cày cuốc thần tốc và cơ chế thời gian hồi linh hoạt\n\`\`\`diff\n+ Thêm lệnh câu nhanh micaonhanh (hoặc /caonhanh) với số lần tùy chọn từ 1 đến 30.\n+ Thêm lệnh tìm đồ nhanh mitimnhanh (hoặc /timnhanh) khai quật thần tốc số lượng lớn.\n+ Cơ chế thời gian chờ chuẩn: Số lần thao tác = Số phút nghỉ (ví dụ: 10 lần = đợi 10 phút).\n+ Tự động tổng hợp chi tiết chiến lợi phẩm thu được và tổng giá trị xu ước tính.\n+ Tự động trừ độ bền cần câu và cất toàn bộ vật phẩm vào kho đồ an toàn.\n\`\`\``
         },
         // 4. Spector Separator Line
         {
@@ -3412,7 +3432,7 @@ function buildComponentsV2Announcement() {
         // 5. Mục 2: CÂN BẰNG KINH TẾ & ĐỘ HIẾM
         {
             type: 10,
-            content: '### 2. ĐIỀU CHỈNH ĐỘ HIẾM VÀ CÂN BẰNG KINH TẾ\n> Bảo vệ giá trị vật phẩm hiếm và giữ cân bằng thị trường xu\n```yaml\nCo Che Do Hiem Khi Tim Nhanh:\n  - Truyền Thuyết: Giảm tỷ lệ xuất hiện xuống 2% khi tìm nhanh để giữ giá trị đồ cổ cao cấp.\n  - Sử Thi: Điều chỉnh tỷ lệ xuống 10% nhằm hạn chế lạm phát kinh tế quy mô lớn.\n  - Tìm Đơn Lẻ: Lệnh tìm lẻ (mitimdo) vẫn giữ nguyên tỷ lệ độ hiếm gốc cho người chơi truyền thống.\n  - Giới Hạn An Toàn: Duy trì hệ thống giám sát thu nhập và cảnh báo vượt ngưỡng tự động.\n```'
+            content: `### ${E.diamond} 2. ĐIỀU CHỈNH ĐỘ HIẾM VÀ CÂN BẰNG KINH TẾ\n> ${E.money} Bảo vệ giá trị vật phẩm hiếm và giữ cân bằng thị trường xu\n\`\`\`yaml\nTy Le Do Hiem Khi Tim Nhanh:\n  - Truyen Thuyet: Giam ty le xuat hien xuong 2% de giu gia tri do quy.\n  - Su Thi: Dieu chinh ty le xuong 10% nham on dinh kinh te server.\n  - Tim Don Le: Lenh tim le (mitimdo) van giu nguyen ty le goc (8% & 20%).\n  - An Toan Kinh Te: Tu dong kiem soat thu nhap va chong cheat xu 24/7.\n\`\`\``
         },
         // 6. Spector Separator Line
         {
@@ -3423,7 +3443,7 @@ function buildComponentsV2Announcement() {
         // 7. Mục 3: CHUẨN HÓA MÁY CHỦ HỖ TRỢ
         {
             type: 10,
-            content: '### 3. CHUẨN HÓA MÁY CHỦ HỖ TRỢ CHÍNH THỨC\n> Đồng bộ đường dẫn kết nối cộng đồng trên toàn bộ hệ thống\n```fix\n* Cập nhật toàn bộ link máy chủ hỗ trợ trên bot và website về địa chỉ chính thức: discord.gg/gBUHY3qph2\n* Đồng bộ nút bấm liên hệ trên các panel Ticket, Chấm công và Bảng điều khiển quản trị.\n* Hỗ trợ giải đáp thắc mắc, tiếp nhận phản hồi và xử lý yêu cầu kỹ thuật 24/7.\n```'
+            content: `### ${E.shield} 3. CHUẨN HÓA MÁY CHỦ HỖ TRỢ CHÍNH THỨC\n> ${E.heartGlow} Kết nối cộng đồng nhanh chóng và tiện lợi\n\`\`\`fix\n* Dong bo duong dan may chu ho tro tren toan he thong ve: discord.gg/gBUHY3qph2\n* Cap nhat nut bam ho tro tai cac panel Ticket, Cham cong va Dashboard.\n* Tiep nhan gop y, giai dap thac mac va ho tro ky thuat 24/7.\n\`\`\``
         },
         // 8. Spector Separator Line
         {
@@ -3434,7 +3454,7 @@ function buildComponentsV2Announcement() {
         // 9. Mục 4: BẢNG LỆNH MỚI
         {
             type: 10,
-            content: '### 4. HƯỚNG DẪN SỬ DỤNG LỆNH MỚI\n- `/caonhanh [so_lan]` hoặc `micaonhanh [số_lần]` : Câu cá nhanh số lượng lớn (thời gian chờ = số lần / phút).\n- `/timnhanh [so_lan]` hoặc `mitimnhanh [số_lần]` : Khai quật đồ cổ nhanh (thời gian chờ = số lần / phút).\n- `/cauca` hoặc `micaoca` : Đi câu cá giải trí từng lượt.\n- `/timdo` hoặc `mitimdo` : Khai quật đồ cổ từng lượt với tỷ lệ độ hiếm gốc.\n- `mikho ban` : Bán toàn bộ cá và đồ cổ thu thập được để nhận xu.'
+            content: `### ${E.arrow} 4. HƯỚNG DẪN SỬ DỤNG NHANH\n${E.dotGreen} \`/caonhanh [so_lan]\` hoặc \`micaonhanh [số_lần]\` : Câu cá số lượng lớn (thời gian chờ = số lần/phút).\n${E.dotGreen} \`/timnhanh [so_lan]\` hoặc \`mitimnhanh [số_lần]\` : Tìm đồ cổ số lượng lớn (thời gian chờ = số lần/phút).\n${E.dotGreen} \`/cauca\` hoặc \`micaoca\` : Câu cá giải trí từng lượt.\n${E.dotGreen} \`/timdo\` hoặc \`mitimdo\` : Đào đồ cổ từng lượt theo tỷ lệ gốc.\n${E.dotGreen} \`mikho ban\` : Bán toàn bộ chiến lợi phẩm để thu về xu.`
         },
         // 10. Spector Separator Line
         {
@@ -3442,7 +3462,7 @@ function buildComponentsV2Announcement() {
             divider: true,
             spacing: 2
         },
-        // 11. Hàng nút 1 (Không có emoji)
+        // 11. Hàng nút 1 (Có custom emoji)
         {
             type: 1, // ActionRow
             components: [
@@ -3450,37 +3470,42 @@ function buildComponentsV2Announcement() {
                     type: 2, // Button
                     style: 5, // Link
                     label: 'Mời MIMI BOT (Miễn Phí)',
-                    url: inviteMusicUrl
+                    url: inviteMusicUrl,
+                    emoji: { id: '1481141954346483845', name: 'starxoay', animated: true }
                 },
                 {
                     type: 2,
                     style: 5,
                     label: 'Mời MIMI SHIELD (Anti-Raid)',
-                    url: inviteShieldUrl
+                    url: inviteShieldUrl,
+                    emoji: { id: '1348625535512870965', name: 'cr_baohanh' }
                 }
             ]
         },
-        // 12. Hàng nút 2 (Không có emoji)
+        // 12. Hàng nút 2 (Có custom emoji)
         {
             type: 1,
             components: [
                 {
                     type: 2,
                     style: 5,
-                    label: 'Trang Chủ Website',
-                    url: websiteUrl
+                    label: 'Trang Chủ',
+                    url: websiteUrl,
+                    emoji: { id: '1485905790903783465', name: 'Diamond' }
                 },
                 {
                     type: 2,
                     style: 5,
                     label: 'Bảng Giá & Kích Hoạt',
-                    url: pricingUrl
+                    url: pricingUrl,
+                    emoji: { id: '1442876095442714748', name: 'money' }
                 },
                 {
                     type: 2,
                     style: 5,
                     label: 'Máy Chủ Hỗ Trợ',
-                    url: supportServerUrl
+                    url: supportServerUrl,
+                    emoji: { id: '1327541911749263360', name: 'purple_heart_glow' }
                 }
             ]
         }
@@ -3603,7 +3628,22 @@ async function cleanupDuplicateAnnouncements() {
     return { deletedCount, cleanedGuilds };
 }
 
+let isBroadcastInProgress = false;
+
 async function broadcastUpdateAnnouncement(force = false) {
+    if (isBroadcastInProgress) {
+        console.warn('[Anti-Spam] Đang có tiến trình phát sóng thông báo đang chạy -> Chặn phát trùng lặp.');
+        return { sentCount: 0, failedCount: 0, version: CURRENT_UPDATE_VERSION, message: 'Broadcast already running' };
+    }
+    isBroadcastInProgress = true;
+    try {
+        return await doBroadcastUpdate(force);
+    } finally {
+        isBroadcastInProgress = false;
+    }
+}
+
+async function doBroadcastUpdate(force = false) {
     if (!config.announcedUpdateGuilds) config.announcedUpdateGuilds = {};
     if (!config.announcedUpdateGuilds[CURRENT_UPDATE_VERSION]) config.announcedUpdateGuilds[CURRENT_UPDATE_VERSION] = [];
 
@@ -3708,14 +3748,12 @@ async function broadcastUpdateAnnouncement(force = false) {
                 targetChannel = guild.systemChannel;
             }
 
-            // Ưu tiên 4: Kênh text thông thường đầu tiên có quyền gửi
+            // BẢO VỆ CHỐNG SPAM CỘNG ĐỒNG:
+            // Tuyệt đối KHÔNG gửi vào kênh chat chung/bừa bãi nếu server không có kênh update chuyên dụng hoặc system channel.
+            // Điều này đảm bảo 100% không làm phiền thành viên và không gây khó chịu cho các Owner cộng đồng.
             if (!targetChannel) {
-                targetChannel = guild.channels.cache.find(c =>
-                    c.isTextBased() &&
-                    !c.isThread() &&
-                    c.type === ChannelType.GuildText &&
-                    canSendToChannel(c, guild)
-                );
+                console.log(`[Anti-Spam] Bỏ qua ${guild.name}: Máy chủ không có kênh update chuyên dụng và chưa cài đặt kênh qua /setupsystem.`);
+                continue;
             }
 
             if (targetChannel && canSendToChannel(targetChannel, guild)) {
