@@ -14,16 +14,19 @@
 - **TUYỆT ĐỐI KHÔNG GỬI VÀO KÊNH CHAT CHUNG**: Nếu máy chủ không có kênh thuộc 3 diện trên, bot PHẢI bỏ qua server đó, tuyệt đối không gửi vào các kênh chat chung (`#general`, `#chat-tong`, `#welcome`) để không làm phiền người dùng và không làm ảnh hưởng trải nghiệm các server cộng đồng.
 - Không gửi trùng lặp: Lưu vết theo phiên bản (`announcedUpdateGuilds[version]`) và file `data/announced_updates.json`.
 
-### 1.3. Tiêu Chuẩn Định Dạng & Emoji Custom (CUSTOM EMOJIS & DISCORD COMPONENTS V2)
-- **TÍCH HỢP CUSTOM EMOJI ĐẸP MẮT**:
-  - Tự động tích hợp và sử dụng các emoji custom đẹp mắt, sinh động từ các nguồn uy tín (`https://emoji.gg/`, `https://discadia.com/emojis/`) và danh mục emoji server (ví dụ: `<a:tsm_fire:...>`, `<a:starxoay:...>`, `<a:tickgreen:...>`, `<a:chamxanh:...>`, `<:Diamond:...>`, `<a:Arrow2:...>`, `<:money:...>`, `<:verifybadge:...>`, `<:cr_baohanh:...>`, v.v.).
-  - Bố trí emoji hài hòa, sang trọng tại các tiêu đề mục, danh sách tính năng và các nút bấm liên kết.
-- **DISCORD COMPONENTS V2**:
-  - Gắn cờ: `flags: 32768` (`IS_COMPONENTS_V2`).
-  - Khung thông báo: Thẻ `Container` (`type: 17`, `accent_color: 0x00FFA3`).
+### 1.3. Tiêu Chuẩn Giao Diện Discord Components V2 & Spector Separator & Emoji Custom
+- **BẮT BUỘC SỬ DỤNG DISCORD COMPONENTS V2 (TUYỆT ĐỐI KHÔNG DÙNG EMBED)**:
+  - Mọi thông báo cập nhật **BẮT BUỘC** phải được xây dựng bằng cấu trúc Discord Components V2 Native gắn cờ `flags: 32768` (`IS_COMPONENTS_V2`).
+  - **NGHIÊM CẤM DÙNG EMBED TRUYỀN THỐNG**: Không sử dụng `embeds: [...]` hay `new EmbedBuilder()` cho các thông báo cập nhật hệ thống.
+  - Khung bao ngoài: Thẻ `Container` (`type: 17`, `accent_color: 0x00FFA3`).
   - Khối văn bản: `TextDisplay` (`type: 10`, `content: "..."`).
-  - Phân tách bằng Spector `Separator` (`type: 14`, `divider: true`, `spacing: 1` hoặc `2`).
-  - Nút bấm: `ActionRow` (`type: 1`) chứa các nút bấm Link (`type: 2`, `style: 5`), hỗ trợ kèm emoji custom.
+  - Nút bấm liên kết: `ActionRow` (`type: 1`) chứa các Button Link (`type: 2`, `style: 5`), tích hợp icon/emoji custom.
+- **SỬ DỤNG SPECTOR SEPARATOR NATIVE (TUYỆT ĐỐI KHÔNG DÙNG UNICODE THỦ CÔNG)**:
+  - **BẮT BUỘC** phân tách các phần nội dung bằng Spector `Separator` (`type: 14`, `divider: true`, `spacing: 1` hoặc `2`).
+  - **NGHIÊM CẤM KẺ LINE THỦ CÔNG**: Tuyệt đối không dùng các chuỗi ký tự unicode như `───────────────`, `-------------------`, `══════════════════` trong nội dung thông báo.
+- **TỰ LÊN THÔNG BÁO VÀ TỰ ADD EMOJI CUSTOM TRANG TRÍ**:
+  - Mỗi khi hoàn tất nâng cấp tính năng mới hoặc vá lỗi, AI/Bot **tự động soạn thảo thông báo hoàn chỉnh**.
+  - **TỰ ĐỘNG TÍCH HỢP EMOJI CUSTOM**: Sử dụng và tự add các emoji custom sinh động, đẹp mắt từ các nguồn được cung cấp (`https://emoji.gg/`, `https://discadia.com/emojis/`) và danh mục emoji server (ví dụ: `<a:tsm_fire:...>`, `<a:starxoay:...>`, `<a:tickgreen:...>`, `<a:chamxanh:...>`, `<:Diamond:...>`, `<a:Arrow2:...>`, `<:money:...>`, `<:verifybadge:...>`, `<:cr_baohanh:...>`, v.v.) để bố trí tại tiêu đề, danh sách tính năng và nút bấm.
 
 ### 1.4. Quy Tắc Chống Spam Tuyệt Đối (STRICT ANTI-SPAM & CONCURRENCY LOCK)
 - **KHÓA TƯƠNG TRANH (CONCURRENCY LOCK)**: Sử dụng cờ `isBroadcastInProgress` để ngăn chặn hoàn toàn việc gọi lệnh đúp hoặc phát sóng song song dẫn đến việc gửi 2 tin nhắn cùng lúc.
