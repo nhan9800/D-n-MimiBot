@@ -73,7 +73,8 @@ jobs:
           sudo apt-get update && sudo apt-get install -y sshpass
           export SSHPASS="$SFTP_PASSWORD"
           echo "Bắt đầu SFTP upload..."
-          sshpass -e sftp -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null -o ConnectTimeout=30 -P "$SFTP_PORT" "$SFTP_USER@$SFTP_HOST" << 'EOF'
+          set +e
+          sshpass -e sftp -v -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null -o ConnectTimeout=30 -P "$SFTP_PORT" "$SFTP_USER@$SFTP_HOST" << 'EOF' 2>&1 | tee /tmp/sftp.log
           put index.js
           put internalApi.js
           put buildInfo.js
@@ -88,6 +89,13 @@ jobs:
           put package-lock.json
           bye
           EOF
+          RC=$?
+          echo "SFTP return code: $RC"
+          if [ $RC -ne 0 ]; then
+            LAST_ERR=$(grep -iE "permission denied|connection refused|timed out|host key|auth" /tmp/sftp.log | tail -n 5)
+            echo "::error title=SFTP Error::Exit code $RC: $LAST_ERR"
+            exit $RC
+          fi
           echo "✅ SFTP hoàn tất." 
 
       - name: Restart bot qua Pterodactyl API
