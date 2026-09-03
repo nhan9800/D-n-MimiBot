@@ -3554,15 +3554,22 @@ async function cleanupDuplicateAnnouncements() {
                 .filter(m => m.author.id === client.user?.id)
                 .sort((a, b) => b.createdTimestamp - a.createdTimestamp);
 
-            let isFirst = true;
+            let keptCurrent = false;
             for (const msg of botMsgs.values()) {
                 const text = msg.content || JSON.stringify(msg.components || []);
                 if (text.includes('BẢN CẬP NHẬT HỆ THỐNG') || text.includes('MIMI ECOSYSTEM') || text.includes('MIMI SHIELD')) {
-                    // Xóa hoàn toàn 100% tất cả các thông báo cũ/trùng lặp để thu hồi sạch sẽ toàn server
+                    const isCurrentVer = text.includes(CURRENT_UPDATE_VERSION);
+                    // Giữ lại DUY NHẤT 1 bản mới nhất của phiên bản hiện tại (CURRENT_UPDATE_VERSION)
+                    if (isCurrentVer && !keptCurrent) {
+                        keptCurrent = true;
+                        continue;
+                    }
+
+                    // Xóa các bản phiên bản cũ (2026.09.05, 2026.09.01...) hoặc các bản trùng lặp thừa
                     try {
                         await msg.delete();
                         purged++;
-                        console.log(`[Cleanup] Đã thu hồi thông báo ${msg.id} tại kênh #${channel.name}`);
+                        console.log(`[Cleanup] Đã thu hồi thông báo cũ/trùng ${msg.id} tại kênh #${channel.name}`);
                     } catch (e) {
                         console.error(`[Cleanup] Lỗi xoá ${msg.id}:`, e.message);
                     }
