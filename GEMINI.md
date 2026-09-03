@@ -3,7 +3,7 @@
 ## 1. QUY CHUẨN THÔNG BÁO CẬP NHẬT (UPDATE & CHANGELOG ANNOUNCEMENT)
 
 ### 1.1. Kênh Thông Báo Cố Định
-- **Kênh thông báo chính**: `<#1527814721053655092>` (`1527814721053655092` thuộc Support Server `1517068246493429852`).
+- **Kênh thông báo chính**: `<#1527814721053655092>` (`1527814721053655092` thuộc Support Server `1517068246493429852`, Link mời Server Hỗ Trợ: `https://discord.gg/gBUHY3qph2`).
 - **Quy trình bắt buộc**: Bất cứ khi nào thực hiện update tính năng mới, vá lỗi hoặc nâng cấp hệ thống, bot PHẢI tự động đăng tải thông báo chi tiết vào kênh `<#1527814721053655092>` và tự động `crosspost()` nếu là kênh dạng Announcement.
 
 ### 1.2. Phát Thông Báo Liên Server Tự Động

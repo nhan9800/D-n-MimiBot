@@ -35,4 +35,4 @@ Push to main branch
 - [x] Chạy `npm run check` thành công.
 - [x] Chạy `npm run test` thành công.
 - [x] Đã cấu hình đủ Secrets trên GitHub Repository (`SFTP_PASSWORD`, `PTERO_PANEL_URL`, `PTERO_API_KEY`, `PTERO_SERVER_ID`).
-- [x] File `.env` trên production chứa `DISCORD_SUPPORT_URL=https://discord.gg/KwHvTG2EmW`.
+- [x] File `.env` trên production chứa `DISCORD_SUPPORT_URL=https://discord.gg/gBUHY3qph2`.

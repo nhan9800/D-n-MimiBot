@@ -18,4 +18,4 @@
 
 ## 3. LINK SUPPORT SERVER BỊ HỎNG
 
-- **Khắc phục:** Tất cả các nút/embed đã được cập nhật về `https://discord.gg/KwHvTG2EmW`.
+- **Khắc phục:** Tất cả các nút/embed đã được cập nhật về `https://discord.gg/gBUHY3qph2`.

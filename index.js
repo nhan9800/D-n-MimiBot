@@ -88,7 +88,7 @@ const OWNER_ID = '1143387904064888942';  // ID duy nhất có quyền quản lý
 let activeSystemEvent = null;
 const MAX_BALANCE = 999_999_999_999;    // Giới hạn xu tối đa (dùng khi Owner bật chế độ Test)
 const HOME_GUILD_ID = '1517068246493429852'; // Server hỗ trợ
-const SUPPORT_LINK = process.env.DISCORD_SUPPORT_URL || 'https://discord.gg/KwHvTG2EmW';
+const SUPPORT_LINK = process.env.DISCORD_SUPPORT_URL || 'https://discord.gg/gBUHY3qph2';
 
 // -----------------------------------------------------------------
 // ⏰ HỆ THỐNG ĐẶT LỊCH NHẮC NHỞ (REMINDERS PERSISTENCE)
@@ -1030,7 +1030,7 @@ async function updateGiveawayEmbed(channel, msgId, gData, ended = false) {
             new ButtonBuilder()
                 .setLabel('🌐 Máy Chủ Hỗ Trợ')
                 .setStyle(ButtonStyle.Link)
-                .setURL('https://discord.gg/KwHvTG2EmW')
+                .setURL('https://discord.gg/gBUHY3qph2')
         );
     } else {
         // Đang chạy: nút Tham Gia + End sớm + Link hỗ trợ
@@ -1046,7 +1046,7 @@ async function updateGiveawayEmbed(channel, msgId, gData, ended = false) {
             new ButtonBuilder()
                 .setLabel('🌐 Máy Chủ Hỗ Trợ')
                 .setStyle(ButtonStyle.Link)
-                .setURL('https://discord.gg/KwHvTG2EmW')
+                .setURL('https://discord.gg/gBUHY3qph2')
         );
     }
 
@@ -1980,7 +1980,7 @@ async function rebuildGuildPanels(targetGuild, gCfg) {
             await clearBotMessages(ticketChan);
             const row = new ActionRowBuilder().addComponents(
                 new ButtonBuilder().setCustomId('create_ticket_btn:Default').setLabel('📩 Tạo Ticket').setStyle(ButtonStyle.Primary),
-                new ButtonBuilder().setLabel('🌐 Máy Chủ Hỗ Trợ').setStyle(ButtonStyle.Link).setURL('https://discord.gg/KwHvTG2EmW')
+                new ButtonBuilder().setLabel('🌐 Máy Chủ Hỗ Trợ').setStyle(ButtonStyle.Link).setURL('https://discord.gg/gBUHY3qph2')
             );
             const ticketPanelEmbed = new EmbedBuilder().setColor('#5865F2').setTitle('📩 Hệ Thống Hỗ Trợ').setDescription('Nhấn vào nút bên dưới để điền Form mở Ticket ẩn.');
             const sent = await sendToRestrictedChannel(ticketChan, embedToV2Payload(ticketPanelEmbed, { components: [row] }));
@@ -2025,7 +2025,7 @@ async function rebuildGuildPanels(targetGuild, gCfg) {
                     .setFooter({ text: 'Nhấn nút dưới đây để xác thực bạn không phải là Bot' });
                 const verifyRow = new ActionRowBuilder().addComponents(
                     new ButtonBuilder().setCustomId('verify_btn').setLabel('✅ Xác Thực Ngay').setStyle(ButtonStyle.Success),
-                    new ButtonBuilder().setLabel('🌐 Máy Chủ Hỗ Trợ').setStyle(ButtonStyle.Link).setURL('https://discord.gg/KwHvTG2EmW')
+                    new ButtonBuilder().setLabel('🌐 Máy Chủ Hỗ Trợ').setStyle(ButtonStyle.Link).setURL('https://discord.gg/gBUHY3qph2')
                 );
                 const sent = await sendToRestrictedChannel(verifyChan, embedToV2Payload(verifyEmbed, { components: [verifyRow] }));
                 rebuildLog.push(sent ? `  🛡️ Gửi lại nút Xác Thực → <#${verifyChan.id}>` : `  ❌ Gửi nút Xác Thực thất bại`);
@@ -2081,7 +2081,7 @@ async function rebuildGuildPanels(targetGuild, gCfg) {
                     .setFooter({ text: 'Voice Room System — Tự động & riêng tư' });
                 const vrRow = new ActionRowBuilder().addComponents(
                     new ButtonBuilder().setCustomId('voiceroom_settings_btn').setLabel('⚙️ Quản Lý Phòng Của Tôi').setStyle(ButtonStyle.Primary),
-                    new ButtonBuilder().setLabel('🌐 Máy Chủ Hỗ Trợ').setStyle(ButtonStyle.Link).setURL('https://discord.gg/KwHvTG2EmW')
+                    new ButtonBuilder().setLabel('🌐 Máy Chủ Hỗ Trợ').setStyle(ButtonStyle.Link).setURL('https://discord.gg/gBUHY3qph2')
                 );
                 const sent = await sendToRestrictedChannel(vrControlChan, embedToV2Payload(vrEmbed, { components: [vrRow] }));
                 rebuildLog.push(sent ? `  🔊 Gửi lại bảng Voice Room → <#${vrControlChan.id}>` : `  ❌ Gửi bảng Voice Room thất bại`);
@@ -2169,7 +2169,7 @@ async function setupVerifySystem(guild, gConfig) {
             .setFooter({ text: 'Nhấn nút dưới đây để xác thực bạn không phải là Bot' });
         const verifyRow = new ActionRowBuilder().addComponents(
             new ButtonBuilder().setCustomId('verify_btn').setLabel('✅ Xác Thực Ngay').setStyle(ButtonStyle.Success),
-            new ButtonBuilder().setLabel('🌐 Máy Chủ Hỗ Trợ').setStyle(ButtonStyle.Link).setURL('https://discord.gg/KwHvTG2EmW')
+            new ButtonBuilder().setLabel('🌐 Máy Chủ Hỗ Trợ').setStyle(ButtonStyle.Link).setURL('https://discord.gg/gBUHY3qph2')
         );
         await verifyChannel.send(embedToV2Payload(verifyEmbed, { components: [verifyRow] }));
 
@@ -3384,7 +3384,7 @@ function buildComponentsV2Announcement() {
     const inviteShieldUrl = 'https://discord.com/oauth2/authorize?client_id=1539527939723497473&permissions=8&integration_type=0&scope=bot';
     const pricingUrl = 'https://mimibot.id.vn/pricing';
     const websiteUrl = 'https://mimibot.id.vn';
-    const supportServerUrl = 'https://discord.gg/vibestore';
+    const supportServerUrl = 'https://discord.gg/gBUHY3qph2';
 
     const innerComponents = [
         // 1. Tiêu đề thông báo
@@ -6079,6 +6079,20 @@ client.once('ready', async () => {
             .setDescription('Xem lời bài hát đang phát, hoặc tìm lời theo tên bài')
             .addStringOption(o => o.setName('tên_bài').setDescription('Tên bài muốn tìm lời. Bỏ trống = bài đang phát.').setRequired(false)),
 
+                new SlashCommandBuilder()
+            .setName('caonhanh')
+            .setDescription('Câu cá nhanh hàng loạt (thời gian chờ = số lần câu / phút)')
+            .addIntegerOption(o => o.setName('so_lan').setDescription('Số lần muốn câu (1 đến 30 lần, mặc định: 10)').setRequired(false).setMinValue(1).setMaxValue(30)),
+        new SlashCommandBuilder()
+            .setName('cauca')
+            .setDescription('Đi câu cá thư giãn nhận xu và cá vào kho đồ'),
+        new SlashCommandBuilder()
+            .setName('timnhanh')
+            .setDescription('Tìm kiếm đồ cổ nhanh hàng loạt (độ hiếm giảm nhẹ, thời gian chờ = số lần / phút)')
+            .addIntegerOption(o => o.setName('so_lan').setDescription('Số lần muốn tìm (1 đến 30 lần, mặc định: 10)').setRequired(false).setMinValue(1).setMaxValue(30)),
+        new SlashCommandBuilder()
+            .setName('timdo')
+            .setDescription('Khai quật và tìm kiếm đồ cổ quý hiếm'),
         new SlashCommandBuilder()
             .setName('farm')
             .setDescription('Mở nông trại MIMI Farm: Trồng trọt, tưới nước, thu hoạch và làm giàu'),
@@ -6695,9 +6709,6 @@ client.on('messageReactionRemove', async (reaction, user) => {
     }
 });
 
-// -----------------------------------------------------------------
-// 💬 HỆ THỐNG GIẢI TRÍ VÀ CÀY CUỐC QUA TIN NHẮN (PREFIX + ALIASES TOÀN CẦU)
-// -----------------------------------------------------------------
 client.on('messageCreate', async (message) => {
     if (message.author.bot) return;
 
@@ -6766,6 +6777,370 @@ client.on('messageCreate', async (message) => {
         }
     }
 });
+
+// =====================================================================
+// 🎣 HỆ THỐNG CÂU CÁ & CÂU NHANH (BỘ LỆNH ĐỘC QUYỀN)
+// ---------------------------------------------------------------------
+// Quy tắc thời gian đợi: số lần câu = số phút chờ (câu 10 lần -> đợi 10 phút)
+// =====================================================================
+const FISH_POOL = [
+    { id: null, name: 'Khúc Gỗ Mục', price: 0, emoji: '🪵', weight: 40, rarity: 'Rác' },
+    { id: null, name: 'Chiếc Giày Cũ', price: 0, emoji: '👞', weight: 30, rarity: 'Rác' },
+    { id: 'ca_thuong', name: 'Cá Bảy Màu', price: 1000, emoji: '🐟', weight: 100, rarity: 'Thường' },
+    { id: 'ca_thuong', name: 'Cá Rô Phi', price: 1500, emoji: '🐟', weight: 90, rarity: 'Thường' },
+    { id: 'ca_kha', name: 'Cá Hồi', price: 3000, emoji: '🐠', weight: 70, rarity: 'Khá' },
+    { id: 'ca_hiem', name: 'Cá Ngừ Đại Dương', price: 8000, emoji: '🐡', weight: 40, rarity: 'Hiếm' },
+    { id: 'ca_cuchiem', name: 'Cá Mập Con', price: 15000, emoji: '🦈', weight: 15, rarity: 'Cực Hiếm' },
+    { id: 'ca_thanthoai', name: 'Cá Heo Hồng', price: 50000, emoji: '🐬', weight: 5, rarity: 'Thần Thoại' },
+    { id: 'ca_truyenthuyet', name: 'Tiên Cá', price: 200000, emoji: '🧜‍♀️', weight: 1, rarity: 'Truyền Thuyết' },
+];
+
+function executeFishing(userId, username, avatarUrl, count = 1) {
+    const banInfo = isMinigameBanned(userId);
+    if (banInfo) {
+        return {
+            ok: false,
+            message: `🚫 **BẠN ĐÃ BỊ CẤM CHƠI MINIGAME!**\n📝 **Lý do:** ${banInfo.reason || 'Vi phạm quy định'}`
+        };
+    }
+
+    const userData = getUserData(userId);
+    if (!userData.cancau_uses || userData.cancau_uses <= 0) {
+        return {
+            ok: false,
+            message: '❌ Bạn không có **🎣 Cần Câu** hoặc cần câu đã hỏng! Hãy vào cửa hàng (`mishop` hoặc `/shop`) để mua Cần Câu (10,000 xu/10 lần câu).'
+        };
+    }
+
+    if (userData.cancau_uses < count) {
+        return {
+            ok: false,
+            message: `❌ Cần câu của bạn chỉ còn **${userData.cancau_uses} lần** sử dụng (bạn yêu cầu **${count} lần**)! Hãy mua thêm Cần Câu trong \`mishop\` hoặc giảm số lần câu.`
+        };
+    }
+
+    const now = Date.now();
+    if (userData.cooldowns && userData.cooldowns.caoca && now < userData.cooldowns.caoca) {
+        const leftSec = Math.ceil((userData.cooldowns.caoca - now) / 1000);
+        const min = Math.floor(leftSec / 60);
+        const sec = leftSec % 60;
+        const timeStr = min > 0 ? `${min} phút ${sec} giây` : `${sec} giây`;
+        return {
+            ok: false,
+            message: `⏳ Đang móc mồi và nghỉ ngơi... Vui lòng chờ **${timeStr}** nữa mới có thể câu tiếp!`
+        };
+    }
+
+    // Trừ số lần cần câu & set thời gian đợi: số lần * 1 phút (câu 10 lần -> đợi 10 phút)
+    userData.cancau_uses -= count;
+    if (!userData.cooldowns) userData.cooldowns = {};
+    const cooldownMs = count * 60 * 1000;
+    userData.cooldowns.caoca = now + cooldownMs;
+
+    if (!userData.inventory) userData.inventory = {};
+
+    let totalWeight = FISH_POOL.reduce((sum, item) => sum + item.weight, 0);
+    const catches = [];
+    const fishTally = {};
+    let totalEstPrice = 0;
+    let trashCount = 0;
+
+    for (let i = 0; i < count; i++) {
+        let randomNum = Math.floor(Math.random() * totalWeight);
+        let caughtFish = FISH_POOL[0];
+        for (const fish of FISH_POOL) {
+            if (randomNum < fish.weight) {
+                caughtFish = fish;
+                break;
+            }
+            randomNum -= fish.weight;
+        }
+
+        catches.push(caughtFish);
+        if (caughtFish.id) {
+            userData.inventory[caughtFish.id] = (userData.inventory[caughtFish.id] || 0) + 1;
+            totalEstPrice += caughtFish.price;
+            if (!fishTally[caughtFish.name]) {
+                fishTally[caughtFish.name] = { ...caughtFish, count: 0 };
+            }
+            fishTally[caughtFish.name].count += 1;
+        } else {
+            trashCount++;
+        }
+    }
+
+    saveEconomy();
+
+    if (count === 1) {
+        const caughtFish = catches[0];
+        let desc = `🎣 **${username}** thả cần câu xuống nước... và giật được:\n\n`;
+        desc += `**${caughtFish.emoji} ${caughtFish.name}**\n`;
+        desc += `• **Độ hiếm:** ${caughtFish.rarity}\n`;
+        if (caughtFish.id) {
+            desc += `• **Đã cất vào kho đồ!** (Dùng \`mikho\` hoặc \`mikho bán\` để bán lấy xu)\n\n`;
+        } else {
+            desc += `• **Giá trị:** Trắng tay! 🗑️\n\n`;
+        }
+        desc += `🪝 Cần câu còn: **${userData.cancau_uses} lần** sử dụng.\n`;
+        desc += `⏳ Thời gian chờ: **1 phút** *(Mẹo: Dùng \`micaonhanh [số_lần]\` để câu hàng loạt)*.`;
+        if (userData.cancau_uses === 0) {
+            desc += `\n⚠️ *Cần câu của bạn đã hỏng! Hãy mua cái mới trong \`mishop\`.*`;
+        }
+
+        const embed = new EmbedBuilder()
+            .setColor(caughtFish.price > 10000 ? '#FFD700' : (caughtFish.price > 0 ? '#3498DB' : '#95A5A6'))
+            .setTitle('🎣 KẾT QUẢ ĐI CÂU')
+            .setDescription(desc)
+            .setThumbnail(avatarUrl)
+            .setTimestamp();
+
+        return { ok: true, embed };
+    }
+
+    // Câu nhanh (count > 1)
+    let desc = `🎣 **${username}** đã dùng kỹ năng câu nhanh **${count} lần** liên tiếp!\n\n`;
+    desc += `**📋 CHIẾN LỢI PHẨM THU ĐƯỢC:**\n`;
+
+    const tallyKeys = Object.keys(fishTally);
+    if (tallyKeys.length === 0) {
+        desc += `*Toàn vớt phải rác và đồ cũ mục nát (${trashCount} món), không câu được con cá nào!* 🗑️\n`;
+    } else {
+        for (const k of tallyKeys) {
+            const item = fishTally[k];
+            desc += `• ${item.emoji} **${item.name}** (${item.rarity}): \`x${item.count}\` *(Ước tính: ${(item.price * item.count).toLocaleString()} xu)*\n`;
+        }
+        if (trashCount > 0) {
+            desc += `• 🗑️ Đồ cũ / Rác mục: \`x${trashCount}\`\n`;
+        }
+    }
+
+    desc += `\n💰 **Tổng giá trị cá:** \`~${totalEstPrice.toLocaleString()} xu\``;
+    desc += `\n📦 Tất cả cá đã tự động cất vào kho đồ! (Dùng \`mikho bán\` để bán lấy xu).`;
+    desc += `\n\n🪝 **Cần câu còn:** \`${userData.cancau_uses} lần\` sử dụng.`;
+    if (userData.cancau_uses === 0) {
+        desc += `\n⚠️ *Cần câu của bạn đã hết lần dùng! Hãy mua cái mới trong \`mishop\`.*`;
+    }
+    desc += `\n⏳ **Thời gian chờ:** \`${count} phút\` (${count} lần câu = ${count} phút hồi phục).`;
+
+    const embed = new EmbedBuilder()
+        .setColor(totalEstPrice >= 50000 ? '#F1C40F' : (totalEstPrice >= 10000 ? '#3498DB' : '#2ECC71'))
+        .setTitle(`🎣 KẾT QUẢ CÂU NHANH (${count} LẦN)`)
+        .setDescription(desc)
+        .setThumbnail(avatarUrl)
+        .setFooter({ text: `Mimi Minigame • Câu ${count} lần đợi ${count} phút (1p/lần)` })
+        .setTimestamp();
+
+    return { ok: true, embed };
+}
+
+// =====================================================================
+// 🔍 HỆ THỐNG TÌM ĐỒ CỔ & TÌM NHANH (GIẢM ĐỘ HIẾM KHI TÌM NHANH)
+// ---------------------------------------------------------------------
+// Quy tắc thời gian đợi: số lần tìm = số phút chờ (tìm 10 lần -> đợi 10 phút)
+// =====================================================================
+const ARTIFACT_POOLS = {
+    do_co_4: {
+        rarity: 'Truyền Thuyết',
+        color: 0xF1C40F,
+        emoji: '🌟',
+        items: [
+            'Chén Ngọc Hoàng Kim Cổ Đại',
+            'Vương Miện Cổ Mạ Vàng',
+            'Long Bội Triều Nguyễn',
+            'Thanh Kiếm Cổ Cẩn Ngọc Hoàng Gia'
+        ],
+        priceRange: '200,000 - 500,000 xu',
+        estVal: 350000
+    },
+    do_co_3: {
+        rarity: 'Sử Thi',
+        color: 0x9B59B6,
+        emoji: '💜',
+        items: [
+            'Bình Gốm Chu Đậu Khảm Lam',
+            'Tượng Phật Đồng Mạ Vàng Cổ',
+            'Gương Đồng Cổ Thời Trần',
+            'Ngọc Tỷ Khắc Chữ Nho Hoàng Gia'
+        ],
+        priceRange: '50,000 - 100,000 xu',
+        estVal: 75000
+    },
+    do_co_2: {
+        rarity: 'Hiếm',
+        color: 0x3498DB,
+        emoji: '💙',
+        items: [
+            'Đồng Xu Cổ Thời Lê',
+            'Bát Sứ Hoa Mai Men Lam',
+            'Rìu Đồng Cổ Đông Sơn',
+            'Trâm Cài Tóc Bạc Cổ Khảm Đá'
+        ],
+        priceRange: '15,000 - 35,000 xu',
+        estVal: 25000
+    },
+    do_co: {
+        rarity: 'Thường',
+        color: 0x2ECC71,
+        emoji: '💚',
+        items: [
+            'Mảnh Gốm Cổ Men Rạn',
+            'Bình Rượu Đất Nung Thời Lý',
+            'Đĩa Sành Cổ Hoa Chanh',
+            'Ngọc Bội Thô Khắc Họa Tiết Cổ'
+        ],
+        priceRange: '3,000 - 8,000 xu',
+        estVal: 5500
+    }
+};
+
+function executeSearching(userId, username, avatarUrl, count = 1, isFast = false, guildId = null) {
+    const banInfo = isMinigameBanned(userId);
+    if (banInfo) {
+        return {
+            ok: false,
+            message: `🚫 **BẠN ĐÃ BỊ CẤM CHƠI MINIGAME & TÌM ĐỒ!**\n📝 **Lý do:** ${banInfo.reason || 'Vi phạm quy định'}`
+        };
+    }
+
+    const userData = getUserData(userId);
+    const now = Date.now();
+    const cooldownMs = count * 60 * 1000; // 1 phút / lần tìm
+
+    const activeCooldown = userData.cooldowns?.timdo || (userData.lastTimDo ? userData.lastTimDo + 60000 : 0);
+    if (activeCooldown && now < activeCooldown) {
+        const leftSec = Math.ceil((activeCooldown - now) / 1000);
+        const min = Math.floor(leftSec / 60);
+        const sec = leftSec % 60;
+        const timeStr = min > 0 ? `${min} phút ${sec} giây` : `${sec} giây`;
+        return {
+            ok: false,
+            message: `⏳ Bạn vừa mới đào bới xong và đang nghỉ mệt! Hãy chờ **${timeStr}** nữa rồi tiếp tục tìm đồ nhé.`
+        };
+    }
+
+    if (!userData.cooldowns) userData.cooldowns = {};
+    userData.cooldowns.timdo = now + cooldownMs;
+    userData.lastTimDo = now;
+    if (!userData.inventory) userData.inventory = {};
+
+    const todayKey = nowVN().toISOString().slice(0, 10);
+    if (!userData.dailyTimDo || userData.dailyTimDo.dateKey !== todayKey) {
+        userData.dailyTimDo = { dateKey: todayKey, count: 0, totalEstimatedValue: 0, alertSent: false };
+    }
+
+    if (count === 1 && !isFast) {
+        // Tỷ lệ tìm đơn lẻ bình thường: 8% Truyền Thuyết, 20% Sử Thi, 35% Hiếm, 37% Thường
+        const rand = Math.random();
+        let chosenKey = 'do_co';
+        if (rand < 0.08) chosenKey = 'do_co_4';
+        else if (rand < 0.28) chosenKey = 'do_co_3';
+        else if (rand < 0.63) chosenKey = 'do_co_2';
+        else chosenKey = 'do_co';
+
+        const pool = ARTIFACT_POOLS[chosenKey];
+        const itemName = pool.items[Math.floor(Math.random() * pool.items.length)];
+        userData.inventory[chosenKey] = (userData.inventory[chosenKey] || 0) + 1;
+        userData.dailyTimDo.count += 1;
+        userData.dailyTimDo.totalEstimatedValue += (pool.estVal || 5000);
+
+        let warningNote = '';
+        if (userData.dailyTimDo.totalEstimatedValue >= 5_000_000) {
+            if (!userData.dailyTimDo.alertSent) {
+                userData.dailyTimDo.alertSent = true;
+                sendEconomyOwnerAlert(userId, guildId, userData.dailyTimDo.totalEstimatedValue, 5_000_000, userData.balance, { 'tim_do_uoc_tinh': userData.dailyTimDo.totalEstimatedValue, 'so_lan_tim': userData.dailyTimDo.count });
+            }
+            warningNote = `\n\n⚠️ **Nhắc nhở:** Hôm nay bạn đã tìm đồ đạt tổng giá trị trên **5,000,000 xu** (đã đào ${userData.dailyTimDo.count} lần)! Hãy chú ý giữ gìn sức khỏe nhé.`;
+        }
+
+        saveEconomy();
+
+        const embed = new EmbedBuilder()
+            .setColor(pool.color)
+            .setTitle(`${pool.emoji} TÌM THẤY ĐỒ CỔ: ${pool.rarity.toUpperCase()}!`)
+            .setDescription(
+                `🎉 **${username}** đã lặn lội tìm kiếm và khai quật được:\n\n` +
+                `🏺 **${itemName}**\n` +
+                `• **Phẩm cấp:** ${pool.emoji} **${pool.rarity}**\n` +
+                `• **Giá trị ước tính:** \`${pool.priceRange}\`\n\n` +
+                `📦 Đã lưu vào kho đồ! Dùng \`mikho\` (hoặc \`mikho bán\`) để bán lấy xu làm giàu.\n` +
+                `💡 *Mẹo: Dùng \`mitimnhanh [số_lần]\` để đào bới số lượng lớn liên tục!*${warningNote}`
+            )
+            .setThumbnail(avatarUrl)
+            .setFooter({ text: `Cooldown: 60s • Hôm nay đã tìm: ${userData.dailyTimDo.count} lần • Bán đồ: mikho bán` })
+            .setTimestamp();
+
+        return { ok: true, embed };
+    }
+
+    // TÌM NHANH: Độ hiếm giảm bớt theo yêu cầu:
+    // Truyền Thuyết: 2% (giảm từ 8%), Sử Thi: 10% (giảm từ 20%), Hiếm: 28% (giảm từ 35%), Thường: 60%
+    const artifactTally = {
+        do_co_4: { count: 0, items: [] },
+        do_co_3: { count: 0, items: [] },
+        do_co_2: { count: 0, items: [] },
+        do_co:   { count: 0, items: [] }
+    };
+    let totalEstVal = 0;
+
+    for (let i = 0; i < count; i++) {
+        const rand = Math.random();
+        let chosenKey = 'do_co';
+        if (rand < 0.02) chosenKey = 'do_co_4';
+        else if (rand < 0.12) chosenKey = 'do_co_3';
+        else if (rand < 0.40) chosenKey = 'do_co_2';
+        else chosenKey = 'do_co';
+
+        const pool = ARTIFACT_POOLS[chosenKey];
+        const itemName = pool.items[Math.floor(Math.random() * pool.items.length)];
+        userData.inventory[chosenKey] = (userData.inventory[chosenKey] || 0) + 1;
+        totalEstVal += (pool.estVal || 5000);
+
+        artifactTally[chosenKey].count += 1;
+        if (!artifactTally[chosenKey].items.includes(itemName)) {
+            artifactTally[chosenKey].items.push(itemName);
+        }
+    }
+
+    userData.dailyTimDo.count += count;
+    userData.dailyTimDo.totalEstimatedValue += totalEstVal;
+
+    let warningNote = '';
+    if (userData.dailyTimDo.totalEstimatedValue >= 5_000_000) {
+        if (!userData.dailyTimDo.alertSent) {
+            userData.dailyTimDo.alertSent = true;
+            sendEconomyOwnerAlert(userId, guildId, userData.dailyTimDo.totalEstimatedValue, 5_000_000, userData.balance, { 'tim_do_uoc_tinh': userData.dailyTimDo.totalEstimatedValue, 'so_lan_tim': userData.dailyTimDo.count });
+        }
+        warningNote = `\n\n⚠️ **Nhắc nhở:** Hôm nay bạn đã tìm đồ đạt tổng giá trị trên **5,000,000 xu**! Hãy chú ý giữ gìn sức khỏe nhé.`;
+    }
+
+    saveEconomy();
+
+    let desc = `⛏️ **${username}** đã dẫn đầu đội khai quật tìm kiếm thần tốc **${count} lần** liên tiếp!\n\n`;
+    desc += `**🏺 TỔNG KẾT ĐỒ CỔ KHAI QUẬT ĐƯỢC:**\n`;
+
+    for (const key of ['do_co_4', 'do_co_3', 'do_co_2', 'do_co']) {
+        const p = ARTIFACT_POOLS[key];
+        const t = artifactTally[key];
+        if (t.count > 0) {
+            desc += `• ${p.emoji} **${p.rarity}**: \`x${t.count}\` *(Món tiêu biểu: ${t.items.slice(0, 2).join(', ')}${t.items.length > 2 ? '...' : ''})*\n`;
+        }
+    }
+
+    desc += `\n💰 **Tổng giá trị ước tính:** \`~${totalEstVal.toLocaleString()} xu\``;
+    desc += `\n📦 Tất cả đồ cổ đã được cất vào kho an toàn! Dùng \`mikho bán\` để bán lấy xu.`;
+    desc += `\n\n⚖️ **Cân bằng:** *Độ hiếm khi tìm nhanh đã được giảm bớt để giữ cân bằng kinh tế.*`;
+    desc += `\n⏳ **Thời gian chờ:** \`${count} phút\` (${count} lần tìm = ${count} phút hồi phục thể lực).${warningNote}`;
+
+    const embed = new EmbedBuilder()
+        .setColor(artifactTally.do_co_4.count > 0 ? 0xF1C40F : (artifactTally.do_co_3.count > 0 ? 0x9B59B6 : 0x3498DB))
+        .setTitle(`🔍 KẾT QUẢ TÌM NHANH (${count} LẦN)`)
+        .setDescription(desc)
+        .setThumbnail(avatarUrl)
+        .setFooter({ text: `Cooldown: ${count} phút (${count} lần x 1p) • Hôm nay đã tìm: ${userData.dailyTimDo.count} lần • Bán đồ: mikho bán` })
+        .setTimestamp();
+
+    return { ok: true, embed };
+}
 
 client.on('messageCreate', async (message) => {
     if (message.author.bot || !message.guild) return;
@@ -7523,7 +7898,7 @@ client.on('messageCreate', async (message) => {
                 `• Mua thêm Ô thứ **${nextPlot <= MAX_FARM_PLOTS ? nextPlot : 'MAX'}**: ` +
                 (nextPlot <= MAX_FARM_PLOTS ? `\`${nextPlotPrice.toLocaleString()} xu\`` : `*(Đã đạt tối đa)*`) + `\n\n` +
                 `💍 **3. VẬT PHẨM ĐẶC BIỆT:**\n` +
-                `• 🎣 **Cần Câu (10 lần)** — \`10,000 xu\` *(Dùng câu cá \`micaoca\`)*\n` +
+                `• 🎣 **Cần Câu (10 lần)** — \`10,000 xu\` *(Dùng câu cá \`micaoca\`, câu nhanh \`micaonhanh [số_lần]\`)*\n` +
                 `• 💍 **Nhẫn Cưới** — \`1,000,000 xu\` *(Dùng cầu hôn \`mikethon @user\`)*\n` +
                 `• 🖼️ **Ảnh Bìa Profile** — \`50,000 xu\` *(Đổi hình nền \`miprofile\`)*`
             )
@@ -7806,215 +8181,57 @@ client.on('messageCreate', async (message) => {
     }
     
     // ==========================================
-    // 🔍 LỆNH TÌM ĐỒ CỔ: mitimdo | mitd | mitim
+    // 🔍 LỆNH TÌM ĐỒ CỔ & TÌM NHANH: mitimdo | mitimnhanh | mitn
     // ==========================================
-    if (command === 'mitimdo' || command === 'mitd' || command === 'mitim') {
-        const banInfo = isMinigameBanned(userId);
-        if (banInfo) {
-            return message.reply({ 
-                content: `🚫 **BẠN ĐÃ BỊ CẤM CHƠI MINIGAME & TÌM ĐỒ!**\n📝 **Lý do:** ${banInfo.reason || 'Vi phạm quy định'}\n⏱️ **Thời điểm cấm:** <t:${Math.floor(banInfo.bannedAt / 1000)}:f>\n👑 *Vui lòng liên hệ Owner bot nếu có thắc mắc.*`,
-                allowedMentions: { repliedUser: false } 
-            });
-        }
-
-        const userData = getUserData(userId);
-        const now = Date.now();
-        const cooldown = 60 * 1000; // 60 giây cooldown (nhanh, vui vẻ)
-        if (userData.lastTimDo && now - userData.lastTimDo < cooldown) {
-            const leftSec = Math.ceil((cooldown - (now - userData.lastTimDo)) / 1000);
-            return message.reply(`⏳ Bạn vừa mới đào bới xong và đang nghỉ mệt! Hãy chờ **${leftSec} giây** nữa rồi tiếp tục tìm đồ nhé.`);
-        }
-        userData.lastTimDo = now;
-        if (!userData.inventory) userData.inventory = {};
-
-        // Danh mục Đồ Cổ phong phú theo phẩm cấp
-        const ARTIFACT_POOLS = {
-            do_co_4: {
-                rarity: 'Truyền Thuyết',
-                color: 0xF1C40F,
-                emoji: '🌟',
-                items: [
-                    'Chén Ngọc Hoàng Kim Cổ Đại',
-                    'Vương Miện Cổ Mạ Vàng',
-                    'Long Bội Triều Nguyễn',
-                    'Thanh Kiếm Cổ Cẩn Ngọc Hoàng Gia'
-                ],
-                priceRange: '200,000 - 500,000 xu',
-                estVal: 350000
-            },
-            do_co_3: {
-                rarity: 'Sử Thi',
-                color: 0x9B59B6,
-                emoji: '💜',
-                items: [
-                    'Bình Gốm Chu Đậu Khảm Lam',
-                    'Tượng Phật Đồng Mạ Vàng Cổ',
-                    'Gương Đồng Cổ Thời Trần',
-                    'Ngọc Tỷ Khắc Chữ Nho Hoàng Gia'
-                ],
-                priceRange: '50,000 - 100,000 xu',
-                estVal: 75000
-            },
-            do_co_2: {
-                rarity: 'Hiếm',
-                color: 0x3498DB,
-                emoji: '💙',
-                items: [
-                    'Đồng Xu Cổ Thời Lê',
-                    'Bát Sứ Hoa Mai Men Lam',
-                    'Rìu Đồng Cổ Đông Sơn',
-                    'Trâm Cài Tóc Bạc Cổ Khảm Đá'
-                ],
-                priceRange: '15,000 - 35,000 xu',
-                estVal: 25000
-            },
-            do_co: {
-                rarity: 'Thường',
-                color: 0x2ECC71,
-                emoji: '💚',
-                items: [
-                    'Mảnh Gốm Cổ Men Rạn',
-                    'Bình Rượu Đất Nung Thời Lý',
-                    'Đĩa Sành Cổ Hoa Chanh',
-                    'Ngọc Bội Thô Khắc Họa Tiết Cổ'
-                ],
-                priceRange: '3,000 - 8,000 xu',
-                estVal: 5500
+    if (command === 'mitimdo' || command === 'mitd' || command === 'mitim' || command === 'mitimnhanh' || command === 'mitn' || command === 'mitimdonhanh' || command === 'mifastsearch') {
+        const isFastCommand = command === 'mitimnhanh' || command === 'mitn' || command === 'mitimdonhanh' || command === 'mifastsearch';
+        let count = 1;
+        let isFast = isFastCommand;
+        if (isFastCommand) {
+            count = 10;
+            if (args[1]) {
+                const parsed = parseInt(args[1], 10);
+                if (!isNaN(parsed) && parsed > 0) count = Math.min(parsed, 30);
             }
-        };
-
-        const rand = Math.random();
-        let chosenKey = 'do_co';
-        if (rand < 0.08) {
-            chosenKey = 'do_co_4'; // 8% Truyền Thuyết
-        } else if (rand < 0.28) {
-            chosenKey = 'do_co_3'; // 20% Sử Thi
-        } else if (rand < 0.63) {
-            chosenKey = 'do_co_2'; // 35% Hiếm
-        } else {
-            chosenKey = 'do_co';   // 37% Thường
-        }
-
-        const pool = ARTIFACT_POOLS[chosenKey];
-        const itemName = pool.items[Math.floor(Math.random() * pool.items.length)];
-        userData.inventory[chosenKey] = (userData.inventory[chosenKey] || 0) + 1;
-
-        // Theo dõi thu nhập tìm đồ hàng ngày và cảnh báo Owner nếu > 5M xu / ngày
-        const todayKey = nowVN().toISOString().slice(0, 10);
-        if (!userData.dailyTimDo || userData.dailyTimDo.dateKey !== todayKey) {
-            userData.dailyTimDo = { dateKey: todayKey, count: 0, totalEstimatedValue: 0, alertSent: false };
-        }
-        userData.dailyTimDo.count += 1;
-        userData.dailyTimDo.totalEstimatedValue += (pool.estVal || 5000);
-
-        let warningNote = '';
-        if (userData.dailyTimDo.totalEstimatedValue >= 5_000_000) {
-            if (!userData.dailyTimDo.alertSent) {
-                userData.dailyTimDo.alertSent = true;
-                sendEconomyOwnerAlert(
-                    userId, 
-                    message.guild?.id, 
-                    userData.dailyTimDo.totalEstimatedValue, 
-                    5_000_000, 
-                    userData.balance, 
-                    { 'tim_do_uoc_tinh': userData.dailyTimDo.totalEstimatedValue, 'so_lan_tim': userData.dailyTimDo.count }
-                );
+        } else if (args[1]) {
+            const parsed = parseInt(args[1], 10);
+            if (!isNaN(parsed) && parsed > 1) {
+                count = Math.min(parsed, 30);
+                isFast = true;
             }
-            warningNote = `\n\n⚠️ **Nhắc nhở:** Hôm nay bạn đã tìm đồ đạt tổng giá trị trên **5,000,000 xu** (đã đào ${userData.dailyTimDo.count} lần)! Hãy chú ý giữ gìn sức khỏe nhé.`;
         }
 
-        saveEconomy();
-
-        const embed = new EmbedBuilder()
-            .setColor(pool.color)
-            .setTitle(`${pool.emoji} TÌM THẤY ĐỒ CỔ: ${pool.rarity.toUpperCase()}!`)
-            .setDescription(
-                `🎉 **${message.author.username}** đã lặn lội tìm kiếm và khai quật được:\n\n` +
-                `🏺 **${itemName}**\n` +
-                `• **Phẩm cấp:** ${pool.emoji} **${pool.rarity}**\n` +
-                `• **Giá trị ước tính:** \`${pool.priceRange}\`\n\n` +
-                `📦 Đã lưu vào kho đồ! Dùng \`mikho\` (hoặc \`mikho bán\`) để bán lấy xu làm giàu.${warningNote}`
-            )
-            .setThumbnail(message.author.displayAvatarURL())
-            .setFooter({ text: `Cooldown tìm đồ: 60s • Hôm nay đã tìm: ${userData.dailyTimDo.count} lần • Bán đồ: mikho bán` })
-            .setTimestamp();
-
-        return message.reply({ embeds: [embed] });
+        const res = executeSearching(userId, message.author.username, message.author.displayAvatarURL(), count, isFast, message.guild?.id);
+        if (!res.ok) {
+            return message.reply({ content: res.message, allowedMentions: { repliedUser: false } });
+        }
+        return message.reply({ embeds: [res.embed] });
     }
 
-    // 🎣 LỆNH CÂU CÁ: micaoca | mifish
-    if (command === 'micaoca' || command === 'mifish') {
-        const banInfo = isMinigameBanned(userId);
-        if (banInfo) {
-            return message.reply({ 
-                content: `🚫 **BẠN ĐÃ BỊ CẤM CHƠI MINIGAME!**\n📝 **Lý do:** ${banInfo.reason || 'Vi phạm quy định'}`,
-                allowedMentions: { repliedUser: false } 
-            });
-        }
-
-        const userData = getUserData(userId);
-        if (!userData.cancau_uses || userData.cancau_uses <= 0) {
-            return message.reply('❌ Bạn không có **🎣 Cần Câu** hoặc cần câu đã hỏng! Hãy vào cửa hàng (`mishop`) để mua Cần Câu (10k xu/10 lần câu).');
-        }
-
-        const now = Date.now();
-        if (userData.cooldowns && userData.cooldowns.caoca && now < userData.cooldowns.caoca) {
-            const timeLeft = Math.ceil((userData.cooldowns.caoca - now) / 1000);
-            return message.reply(`⏳ Đang móc mồi... Vui lòng chờ **${timeLeft}s** nữa mới có thể câu tiếp!`);
-        }
-
-        userData.cancau_uses -= 1;
-        if (!userData.cooldowns) userData.cooldowns = {};
-        userData.cooldowns.caoca = now + 60000; // 60 giây cooldown
-
-        const fishPool = [
-            { id: null, name: 'Khúc Gỗ Mục', price: 0, emoji: '🪵', weight: 40, rarity: 'Rác' },
-            { id: null, name: 'Chiếc Giày Cũ', price: 0, emoji: '👞', weight: 30, rarity: 'Rác' },
-            { id: 'ca_thuong', name: 'Cá Bảy Màu', price: 1000, emoji: '🐟', weight: 100, rarity: 'Thường' },
-            { id: 'ca_thuong', name: 'Cá Rô Phi', price: 1500, emoji: '🐟', weight: 90, rarity: 'Thường' },
-            { id: 'ca_kha', name: 'Cá Hồi', price: 3000, emoji: '🐠', weight: 70, rarity: 'Khá' },
-            { id: 'ca_hiem', name: 'Cá Ngừ Đại Dương', price: 8000, emoji: '🐡', weight: 40, rarity: 'Hiếm' },
-            { id: 'ca_cuchiem', name: 'Cá Mập Con', price: 15000, emoji: '🦈', weight: 15, rarity: 'Cực Hiếm' },
-            { id: 'ca_thanthoai', name: 'Cá Heo Hồng', price: 50000, emoji: '🐬', weight: 5, rarity: 'Thần Thoại' },
-            { id: 'ca_truyenthuyet', name: 'Tiên Cá', price: 200000, emoji: '🧜‍♀️', weight: 1, rarity: 'Truyền Thuyết' },
-        ];
-
-        let totalWeight = fishPool.reduce((sum, item) => sum + item.weight, 0);
-        let randomNum = Math.floor(Math.random() * totalWeight);
-        let caughtFish = null;
-
-        for (const fish of fishPool) {
-            if (randomNum < fish.weight) {
-                caughtFish = fish;
-                break;
+    // ==========================================
+    // 🎣 LỆNH CÂU CÁ & CÂU NHANH: micaoca | mifish | micaonhanh | micn
+    // ==========================================
+    if (command === 'micaoca' || command === 'mifish' || command === 'micaonhanh' || command === 'micn' || command === 'mifastfish' || command === 'mifishfast') {
+        const isFastCommand = command === 'micaonhanh' || command === 'micn' || command === 'mifastfish' || command === 'mifishfast';
+        let count = 1;
+        if (isFastCommand) {
+            count = 10;
+            if (args[1]) {
+                const parsed = parseInt(args[1], 10);
+                if (!isNaN(parsed) && parsed > 0) count = Math.min(parsed, 30);
             }
-            randomNum -= fish.weight;
+        } else if (args[1]) {
+            const parsed = parseInt(args[1], 10);
+            if (!isNaN(parsed) && parsed > 1) {
+                count = Math.min(parsed, 30);
+            }
         }
 
-        let desc = `🎣 **${message.author.username}** thả cần câu xuống nước... và giật được:\n\n`;
-        desc += `**${caughtFish.emoji} ${caughtFish.name}**\n`;
-        desc += `• **Độ hiếm:** ${caughtFish.rarity}\n`;
-        
-        if (caughtFish.id) {
-            desc += `• **Đã cất vào kho đồ!** (Dùng \`mikho\` để bán lấy xu)\n\n`;
-            if (!userData.inventory) userData.inventory = {};
-            userData.inventory[caughtFish.id] = (userData.inventory[caughtFish.id] || 0) + 1;
-        } else {
-            desc += `• **Giá trị:** Trắng tay! 🗑️\n\n`;
+        const res = executeFishing(userId, message.author.username, message.author.displayAvatarURL(), count);
+        if (!res.ok) {
+            return message.reply({ content: res.message, allowedMentions: { repliedUser: false } });
         }
-
-        desc += `🪝 Cần câu còn: **${userData.cancau_uses} lần** sử dụng.`;
-        if (userData.cancau_uses === 0) {
-            desc += `\n⚠️ *Cần câu của bạn đã hỏng! Hãy mua cái mới trong \`mishop\`.*`;
-        }
-        saveEconomy();
-
-        const embed = new EmbedBuilder()
-            .setColor(caughtFish.price > 10000 ? '#FFD700' : (caughtFish.price > 0 ? '#3498DB' : '#95A5A6'))
-            .setTitle('🎣 KẾT QUẢ ĐI CÂU')
-            .setDescription(desc)
-            .setThumbnail(message.author.displayAvatarURL());
-        return message.reply({ embeds: [embed] });
+        return message.reply({ embeds: [res.embed] });
     }
 
     // 🐾 LỆNH NUÔI THÚ: mipet | minuoithu
@@ -9590,7 +9807,7 @@ client.on('interactionCreate', async interaction => {
             const row = new ActionRowBuilder().addComponents(
                 new ButtonBuilder().setCustomId('giveaway_join_PLACEHOLDER').setLabel('🎉 Tham Gia (0)').setStyle(ButtonStyle.Success),
                 new ButtonBuilder().setCustomId('giveaway_end_PLACEHOLDER').setLabel('⏹️ End sớm').setStyle(ButtonStyle.Danger),
-                new ButtonBuilder().setLabel('🌐 Máy Chủ Hỗ Trợ').setStyle(ButtonStyle.Link).setURL('https://discord.gg/KwHvTG2EmW')
+                new ButtonBuilder().setLabel('🌐 Máy Chủ Hỗ Trợ').setStyle(ButtonStyle.Link).setURL('https://discord.gg/gBUHY3qph2')
             );
 
             const sent = await giveChan.send({ embeds: [initEmbed], components: [row] }).catch(() => null);
@@ -9600,7 +9817,7 @@ client.on('interactionCreate', async interaction => {
             const realRow = new ActionRowBuilder().addComponents(
                 new ButtonBuilder().setCustomId(`giveaway_join_${sent.id}`).setLabel('🎉 Tham Gia (0)').setStyle(ButtonStyle.Success),
                 new ButtonBuilder().setCustomId(`giveaway_end_${sent.id}`).setLabel('⏹️ End sớm').setStyle(ButtonStyle.Danger),
-                new ButtonBuilder().setLabel('🌐 Máy Chủ Hỗ Trợ').setStyle(ButtonStyle.Link).setURL('https://discord.gg/KwHvTG2EmW')
+                new ButtonBuilder().setLabel('🌐 Máy Chủ Hỗ Trợ').setStyle(ButtonStyle.Link).setURL('https://discord.gg/gBUHY3qph2')
             );
             await sent.edit({ components: [realRow] }).catch(() => null);
 
@@ -10376,7 +10593,7 @@ client.on('interactionCreate', async interaction => {
 
             if (addSupport) {
                 buttons.push(
-                    new ButtonBuilder().setLabel('🌐 Máy Chủ Hỗ Trợ').setStyle(ButtonStyle.Link).setURL('https://discord.gg/KwHvTG2EmW')
+                    new ButtonBuilder().setLabel('🌐 Máy Chủ Hỗ Trợ').setStyle(ButtonStyle.Link).setURL('https://discord.gg/gBUHY3qph2')
                 );
             }
 
@@ -10730,6 +10947,25 @@ client.on('interactionCreate', async interaction => {
             return interaction.editReply({ content: `✅ Đã **BẬT** hệ thống nhật ký quản trị tại ${modLogChan} — chỉ **Admin** thấy được kênh này.\n📋 Từ giờ mọi lượt kick/ban/mute, tin nhắn bị sửa/xóa, đổi biệt danh/tên/avatar đều sẽ được ghi lại tự động.` });
         }
 
+                if (commandName === 'caonhanh' || commandName === 'cauca') {
+            const count = commandName === 'cauca' ? 1 : (options.getInteger('so_lan') || 10);
+            const res = executeFishing(user.id, user.username, user.displayAvatarURL(), count);
+            if (!res.ok) {
+                return interaction.reply({ content: res.message, flags: MessageFlags.Ephemeral });
+            }
+            return interaction.reply({ embeds: [res.embed] });
+        }
+
+        if (commandName === 'timnhanh' || commandName === 'timdo') {
+            const isFast = commandName === 'timnhanh';
+            const count = isFast ? (options.getInteger('so_lan') || 10) : 1;
+            const res = executeSearching(user.id, user.username, user.displayAvatarURL(), count, isFast, guild?.id);
+            if (!res.ok) {
+                return interaction.reply({ content: res.message, flags: MessageFlags.Ephemeral });
+            }
+            return interaction.reply({ embeds: [res.embed] });
+        }
+
         if (commandName === 'farm') {
             const banInfo = isMinigameBanned(user.id);
             if (banInfo) {
@@ -10774,7 +11010,7 @@ client.on('interactionCreate', async interaction => {
                     `• Mua thêm Ô thứ **${nextPlot <= MAX_FARM_PLOTS ? nextPlot : 'MAX'}**: ` +
                     (nextPlot <= MAX_FARM_PLOTS ? `\`${nextPlotPrice.toLocaleString()} xu\`` : `*(Đã đạt tối đa)*`) + `\n\n` +
                     `💍 **3. VẬT PHẨM ĐẶC BIỆT:**\n` +
-                    `• 🎣 **Cần Câu (10 lần)** — \`10,000 xu\` *(Dùng câu cá \`micaoca\`)*\n` +
+                    `• 🎣 **Cần Câu (10 lần)** — \`10,000 xu\` *(Dùng câu cá \`micaoca\`, câu nhanh \`micaonhanh [số_lần]\`)*\n` +
                     `• 💍 **Nhẫn Cưới** — \`1,000,000 xu\` *(Dùng cầu hôn \`mikethon @user\`)*\n` +
                     `• 🖼️ **Ảnh Bìa Profile** — \`50,000 xu\` *(Đổi hình nền \`miprofile\`)*`
                 )
@@ -11833,7 +12069,7 @@ if (commandName === 'setupticket') {
             const embed = new EmbedBuilder().setColor('#EB459E').setTitle('HỆ THỐNG TICKET HỖ TRỢ').setDescription('Nhấn vào nút bên dưới để tạo Ticket mới. Đội ngũ hỗ trợ sẽ phản hồi sớm nhất có thể!');
             const row = new ActionRowBuilder().addComponents(
                 new ButtonBuilder().setCustomId('create_ticket_btn:Ticket').setLabel('Mở Ticket Mới').setStyle(ButtonStyle.Primary).setEmoji('📝'),
-                new ButtonBuilder().setLabel('🌐 Máy Chủ Hỗ Trợ').setStyle(ButtonStyle.Link).setURL('https://discord.gg/KwHvTG2EmW')
+                new ButtonBuilder().setLabel('🌐 Máy Chủ Hỗ Trợ').setStyle(ButtonStyle.Link).setURL('https://discord.gg/gBUHY3qph2')
             );
             await ticketControlChannel.send(embedToV2Payload(embed, { components: [row] }));
             return interaction.editReply('✅ Đã **BẬT** và khởi tạo hệ thống Ticket!');

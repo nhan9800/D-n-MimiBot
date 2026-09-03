@@ -24,7 +24,7 @@
 - **Xác thực:** Định nghĩa hàm `reopenLockedChannels` khi tắt xác thực (`/setupverify state:off`), khắc phục hoàn toàn lỗi không thể tắt xác thực.
 - **Tái sử dụng Role:** Sửa `setupVerifySystem` tự động tìm và sử dụng lại role `"🔒 Chưa Xác Thực"` và `"✅ Đã Xác Thực"` hiện có thay vì tự tạo role trùng lặp.
 - **Nút Xác thực (`verify_btn`):** Xử lý giao dịch gán role Đã Xác Thực & gỡ role Chưa Xác Thực an toàn; trả về mã lỗi `MIMI-VERIFY-ROLE-002` chuẩn khi thiếu quyền; tự động dọn role cũ nếu thành viên đã xác thực trước đó.
-- **Support Link:** Cập nhật đồng bộ toàn bộ link máy chủ hỗ trợ về `https://discord.gg/KwHvTG2EmW`.
+- **Support Link:** Cập nhật đồng bộ toàn bộ link máy chủ hỗ trợ về `https://discord.gg/gBUHY3qph2`.
 
 ### 🌟 Tính năng mới (New Features & P1)
 - **Bulk Reset Verification:** Thêm lệnh `/resetverify-all` dành cho Administrator với bảng xác nhận nguy hiểm, xử lý theo đợt (batch/queue) tránh rate limit và báo cáo kết quả chi tiết.
