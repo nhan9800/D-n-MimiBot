@@ -3534,27 +3534,11 @@ async function cleanupDuplicateAnnouncements() {
             for (const msg of botMsgs.values()) {
                 const text = msg.content || JSON.stringify(msg.components || []);
                 if (text.includes('BẢN CẬP NHẬT HỆ THỐNG') || text.includes('MIMI ECOSYSTEM') || text.includes('MIMI SHIELD')) {
-                    // Xóa hoàn toàn tất cả các thông báo cũ không thuộc phiên bản mới nhất CURRENT_UPDATE_VERSION
-                    if (text.includes('2026.09.05') || !text.includes(CURRENT_UPDATE_VERSION)) {
-                        try {
-                            await msg.delete();
-                            purged++;
-                            console.log(`[Cleanup] Đã thu hồi thông báo cũ ${msg.id} tại kênh #${channel.name}`);
-                        } catch (e) {
-                            console.error(`[Cleanup] Lỗi xoá ${msg.id}:`, e.message);
-                        }
-                        continue;
-                    }
-
-                    // Đối với phiên bản hiện tại, chỉ giữ lại đúng 1 tin mới nhất
-                    if (isFirst) {
-                        isFirst = false;
-                        continue;
-                    }
+                    // Xóa hoàn toàn 100% tất cả các thông báo cũ/trùng lặp để thu hồi sạch sẽ toàn server
                     try {
                         await msg.delete();
                         purged++;
-                        console.log(`[Cleanup] Đã thu hồi thông báo trùng ${msg.id} tại kênh #${channel.name}`);
+                        console.log(`[Cleanup] Đã thu hồi thông báo ${msg.id} tại kênh #${channel.name}`);
                     } catch (e) {
                         console.error(`[Cleanup] Lỗi xoá ${msg.id}:`, e.message);
                     }
@@ -3592,6 +3576,15 @@ async function cleanupDuplicateAnnouncements() {
                     candidateChannels.add(c);
                 }
             });
+
+            // Quét thêm kênh văn bản đầu tiên mà bot có quyền gửi (kênh fallback mà broadcast đã gửi đến)
+            const fallbackCh = guild.channels.cache.find(c =>
+                c.isTextBased?.() &&
+                !c.isThread?.() &&
+                c.type === ChannelType.GuildText &&
+                canSendToChannel(c, guild)
+            );
+            if (fallbackCh) candidateChannels.add(fallbackCh);
 
             let guildPurged = 0;
             for (const ch of candidateChannels) {
@@ -5459,7 +5452,16 @@ client.once('ready', async () => {
     restoreMusicSessions().catch(e => console.error('❌ [Music] restoreMusicSessions lỗi:', e?.message));
 
     // ĐÃ TẮT TỰ ĐỘNG PHÁT THÔNG BÁO KHI KHỞI ĐỘNG ĐỂ CHỐNG SPAM 100%
-    // Chỉ phát khi Admin thực thi lệnh /broadcastupdate force: true
+    // Tự động quét và thu hồi sạch sẽ tất cả thông báo cũ trên toàn bộ các server khi khởi động:
+    setTimeout(async () => {
+        try {
+            console.log('🧹 [Startup] Đang quét và thu hồi toàn bộ thông báo cũ trên tất cả server...');
+            await cleanupDuplicateAnnouncements();
+            console.log('🧹 [Startup] Hoàn tất dọn dẹp và thu hồi thông báo cũ.');
+        } catch (e) {
+            console.error('🧹 [Startup] Lỗi dọn dẹp thông báo cũ:', e.message);
+        }
+    }, 4000);
 
 
     const activities = [
