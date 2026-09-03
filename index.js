@@ -3357,7 +3357,7 @@ function buildMusicProgressBar(currentSec, totalSec, size = 14) {
 // HOÀN TOÀN KHÔNG DÙNG EMOJI - CHỈ DÙNG DISCORD MARKDOWN CHUẨN VÀ COMPONENTS V2
 // =====================================================================
 const PRIMARY_UPDATE_CHANNEL_ID = '1527814721053655092';
-const CURRENT_UPDATE_VERSION = '2026.09.05';
+const CURRENT_UPDATE_VERSION = '2026.09.06';
 const ANNOUNCED_UPDATES_FILE = path.join(__dirname, 'data', 'announced_updates.json');
 
 function readAnnouncedUpdates() {
@@ -3390,7 +3390,7 @@ function buildComponentsV2Announcement() {
         // 1. Tiêu đề thông báo
         {
             type: 10, // TextDisplay
-            content: '# BẢN CẬP NHẬT HỆ THỐNG VÀ VÁ LỖI AN NINH MIMI ECOSYSTEM\n-# PHIÊN BẢN 2026.09.05 • TỐI ƯU HÓA MIMI SHIELD VÀ LỆNH MỞ KHÓA TỨC THÌ\n\n> Kính gửi toàn thể Quản trị viên và cộng đồng người dùng Discord.\n> Đội ngũ phát triển vừa hoàn tất đợt nâng cấp và vá lỗi an ninh quan trọng cho MIMI SHIELD BOT, khắc phục triệt để cơ chế khóa kênh và bổ sung lệnh mở khóa tức thì.'
+            content: '# BẢN CẬP NHẬT HỆ THỐNG MIMI ECOSYSTEM\n-# PHIÊN BẢN 2026.09.06 • BỔ SUNG LỆNH CÂU NHANH, TÌM NHANH VÀ CHUẨN HÓA MÁY CHỦ HỖ TRỢ\n\n> Kính gửi toàn thể Quản trị viên và cộng đồng người dùng Discord.\n> Đội ngũ phát triển vừa hoàn tất đợt nâng cấp tính năng minigame giải trí, tối ưu hóa thời gian chờ theo số lượng và chuẩn hóa toàn bộ hạ tầng kết nối.'
         },
         // 2. Spector Separator Line
         {
@@ -3398,10 +3398,10 @@ function buildComponentsV2Announcement() {
             divider: true,
             spacing: 2
         },
-        // 3. Mục 1: VÁ LỖI AN NINH MIMI SHIELD BOT
+        // 3. Mục 1: LỆNH CÂU NHANH VÀ TÌM NHANH
         {
             type: 10,
-            content: '### 1. VÁ LỖI VÀ TỐI ƯU HÓA MIMI SHIELD BOT (ANTI-RAID SECURITY)\n> Khắc phục cơ chế an ninh và tự động nhận diện Quản trị viên\n```diff\n+ Tự động nhận diện và tin cậy tất cả thành viên có quyền Administrator và ManageGuild.\n+ Tắt mặc định tự động khóa toàn server khi có cảnh báo, chuyển sang trừng phạt tác nhân và rollback trực tiếp.\n+ Thêm lệnh /guard unlock mở khóa toàn bộ tất cả các kênh trên server ngay lập tức chỉ trong 0.5 giây.\n+ Tự động mở khóa các kênh bị khóa còn tồn đọng khi bot khởi động lại hoặc kích hoạt bản quyền.\n+ Tự động cho phép và không bao giờ kick các bot thuộc hệ sinh thái (MIMI BOT & MIMI SHIELD).\n+ Nâng ngưỡng an toàn thực tế (Thresholds) để loại bỏ 100% các trường hợp cảnh báo nhầm.\n```'
+            content: '### 1. TÍNH NĂNG CÂU NHANH VÀ TÌM NHANH HÀNG LOẠT\n> Nâng cấp trải nghiệm minigame và cơ chế thời gian hồi thông minh\n```diff\n+ Thêm lệnh câu nhanh micaonhanh (hoặc /caonhanh) với tùy chọn số lần câu từ 1 đến 30 lần.\n+ Thêm lệnh tìm đồ nhanh mitimnhanh (hoặc /timnhanh) cho phép khai quật thần tốc số lượng lớn.\n+ Thời gian chờ linh hoạt theo công thức: Số lần thao tác = Số phút chờ (ví dụ câu 10 lần đợi 10 phút).\n+ Tự động tổng hợp bảng thống kê chiến lợi phẩm, số lượng từng loại và tổng giá trị xu ước tính.\n+ Tự động khấu trừ số lần sử dụng cần câu và cất toàn bộ vật phẩm vào kho đồ an toàn.\n```'
         },
         // 4. Spector Separator Line
         {
@@ -3409,10 +3409,10 @@ function buildComponentsV2Announcement() {
             divider: true,
             spacing: 1
         },
-        // 5. Mục 2: NÂNG CẤP BẢN QUYỀN HWID VÀ HẠ TẦNG
+        // 5. Mục 2: CÂN BẰNG KINH TẾ & ĐỘ HIẾM
         {
             type: 10,
-            content: '### 2. NÂNG CẤP BẢN QUYỀN HWID VÀ ĐỒNG BỘ DỮ LIỆU\n> Đồng bộ dữ liệu liên nền tảng và kiểm soát chất lượng\n```yaml\nNâng Cấp Kỹ Thuật:\n  - Tích hợp bộ lọc 3 lớp chống spam thông báo lặp lại khi bot khởi động lại.\n  - Chuẩn hóa API tra cứu bản quyền HWID trên Website mimibot.id.vn theo thời gian thực.\n  - Đồng bộ mã Key HMAC ký bảo mật đa máy chủ.\n  - Tự động đồng bộ toàn bộ Slash Commands ngay khi bot đăng nhập Discord.\n```'
+            content: '### 2. ĐIỀU CHỈNH ĐỘ HIẾM VÀ CÂN BẰNG KINH TẾ\n> Bảo vệ giá trị vật phẩm hiếm và giữ cân bằng thị trường xu\n```yaml\nCo Che Do Hiem Khi Tim Nhanh:\n  - Truyền Thuyết: Giảm tỷ lệ xuất hiện xuống 2% khi tìm nhanh để giữ giá trị đồ cổ cao cấp.\n  - Sử Thi: Điều chỉnh tỷ lệ xuống 10% nhằm hạn chế lạm phát kinh tế quy mô lớn.\n  - Tìm Đơn Lẻ: Lệnh tìm lẻ (mitimdo) vẫn giữ nguyên tỷ lệ độ hiếm gốc cho người chơi truyền thống.\n  - Giới Hạn An Toàn: Duy trì hệ thống giám sát thu nhập và cảnh báo vượt ngưỡng tự động.\n```'
         },
         // 6. Spector Separator Line
         {
@@ -3420,36 +3420,47 @@ function buildComponentsV2Announcement() {
             divider: true,
             spacing: 1
         },
-        // 7. Mục 3: HƯỚNG DẪN QUẢN TRỊ VIÊN
+        // 7. Mục 3: CHUẨN HÓA MÁY CHỦ HỖ TRỢ
         {
             type: 10,
-            content: '### 3. HƯỚNG DẪN QUẢN TRỊ VIÊN\n- `/guard unlock` : Mở khóa toàn bộ tất cả các kênh trên máy chủ ngay lập tức (1 chạm).\n- `/guard status` : Xem trạng thái bảo vệ 24/7 và thông số an ninh của server.\n- `/kichhoat [mã_key]` : Kích hoạt bản quyền MIMI SHIELD theo mã key.\n- `/license` : Xem thông tin Server ID (HWID) và hạn dùng.\n- `/confess [nội_dung]` : Gửi tâm sự ẩn danh vào kênh server.'
+            content: '### 3. CHUẨN HÓA MÁY CHỦ HỖ TRỢ CHÍNH THỨC\n> Đồng bộ đường dẫn kết nối cộng đồng trên toàn bộ hệ thống\n```fix\n* Cập nhật toàn bộ link máy chủ hỗ trợ trên bot và website về địa chỉ chính thức: discord.gg/gBUHY3qph2\n* Đồng bộ nút bấm liên hệ trên các panel Ticket, Chấm công và Bảng điều khiển quản trị.\n* Hỗ trợ giải đáp thắc mắc, tiếp nhận phản hồi và xử lý yêu cầu kỹ thuật 24/7.\n```'
         },
         // 8. Spector Separator Line
         {
             type: 14,
             divider: true,
+            spacing: 1
+        },
+        // 9. Mục 4: BẢNG LỆNH MỚI
+        {
+            type: 10,
+            content: '### 4. HƯỚNG DẪN SỬ DỤNG LỆNH MỚI\n- `/caonhanh [so_lan]` hoặc `micaonhanh [số_lần]` : Câu cá nhanh số lượng lớn (thời gian chờ = số lần / phút).\n- `/timnhanh [so_lan]` hoặc `mitimnhanh [số_lần]` : Khai quật đồ cổ nhanh (thời gian chờ = số lần / phút).\n- `/cauca` hoặc `micaoca` : Đi câu cá giải trí từng lượt.\n- `/timdo` hoặc `mitimdo` : Khai quật đồ cổ từng lượt với tỷ lệ độ hiếm gốc.\n- `mikho ban` : Bán toàn bộ cá và đồ cổ thu thập được để nhận xu.'
+        },
+        // 10. Spector Separator Line
+        {
+            type: 14,
+            divider: true,
             spacing: 2
         },
-        // 9. Hàng nút 1 (Không có emoji)
+        // 11. Hàng nút 1 (Không có emoji)
         {
             type: 1, // ActionRow
             components: [
                 {
                     type: 2, // Button
                     style: 5, // Link
-                    label: 'Mời MIMI SHIELD (Anti-Raid)',
-                    url: inviteShieldUrl
+                    label: 'Mời MIMI BOT (Miễn Phí)',
+                    url: inviteMusicUrl
                 },
                 {
                     type: 2,
                     style: 5,
-                    label: 'Mời MIMI BOT (Miễn Phí)',
-                    url: inviteMusicUrl
+                    label: 'Mời MIMI SHIELD (Anti-Raid)',
+                    url: inviteShieldUrl
                 }
             ]
         },
-        // 10. Hàng nút 2 (Không có emoji)
+        // 12. Hàng nút 2 (Không có emoji)
         {
             type: 1,
             components: [
