@@ -31,6 +31,7 @@ const { MusicStore, MAX_ALBUMS_PER_USER, MAX_TRACKS_PER_ALBUM } = require('./mus
 const { createDashboardKey, resolveDashboardSecret, DEFAULT_TTL_MS: DASHBOARD_KEY_TTL_MS } = require('./dashboardAuth');
 const licenseStore = require('./licenseStore');
 const antiRaid = require('./antiRaid');
+antiRaid.setToggleCheck(guildId => getGuildConfig(guildId).antiRaidEnabled !== false);
 const { startLicenseScheduler } = require('./licenseScheduler');
 
 // Gốc URL website — dùng dựng link Dashboard kèm khoá trong lệnh /dashboard.
@@ -5467,6 +5468,7 @@ async function postUpdateAnnouncement() {
 // 🚀 ĐỒNG BỘ LỆNH SLASH COMMANDS
 // -----------------------------------------------------------------
 client.once('ready', async () => {
+    antiRaid.initAntiRaid(client);
 
     // 🎨 Tự cấp Application Emoji cho panel nhạc (an toàn, không cần quyền server).
     await provisionAppEmojis().catch(e => console.error('🎨 [Emoji] provisionAppEmojis lỗi:', e?.message));
@@ -9281,6 +9283,18 @@ client.on('messageCreate', async (message) => {
         return message.reply({ content: `🎉 **KÍCH HOẠT THÀNH CÔNG!** Đã cộng **+${result.daysAdded} ngày** bảo vệ cho server. Hạn mới: ${result.license.expiresAt}`, allowedMentions: { repliedUser: false } });
     }
 
+    if (command === 'miantiraid') {
+        if (!message.member?.permissions.has(PermissionFlagsBits.Administrator)) {
+            return message.reply({ content: '❌ Bạn không có quyền Administrator để dùng lệnh này.', allowedMentions: { repliedUser: false } });
+        }
+        const sub = args[1]?.toLowerCase();
+        if (sub === 'toggle' || sub === 'bat_tat') {
+            const gConfig = getGuildConfig(message.guild.id);
+            gConfig.antiRaidEnabled = !(gConfig.antiRaidEnabled !== false);
+            saveConfig();
+            return message.reply({ content: gConfig.antiRaidEnabled ? '✅ Đã **BẬT** hệ thống Anti-Raid cho máy chủ này!' : '⚠️ Đã **TẮT** hệ thống Anti-Raid cho máy chủ này.', allowedMentions: { repliedUser: false } });
+        }
+    }
     if (command === 'milockdown') {
         if (!message.member?.permissions.has(PermissionFlagsBits.Administrator)) {
             return message.reply({ content: '❌ Bạn không có quyền Administrator để dùng lệnh này.', allowedMentions: { repliedUser: false } });
@@ -12527,6 +12541,16 @@ if (commandName === 'setup') {
                     )
                     .setTimestamp();
                 return interaction.editReply({ embeds: [embed] });
+            }
+            if (sub === 'toggle') {
+                const isOwner = user.id === '1143387904064888942' || user.id === '1138315103821889566' || user.id === guild.ownerId;
+                if (!isOwner && !member.permissions.has(PermissionFlagsBits.Administrator)) {
+                    return interaction.editReply({ content: '❌ Chỉ Quản trị viên / Owner mới có quyền Bật/Tắt Anti-Raid.' });
+                }
+                const gConfig = getGuildConfig(guild.id);
+                gConfig.antiRaidEnabled = !(gConfig.antiRaidEnabled !== false);
+                saveConfig();
+                return interaction.editReply({ content: gConfig.antiRaidEnabled ? '✅ Đã **BẬT** hệ thống Anti-Raid cho máy chủ này!' : '⚠️ Đã **TẮT** hệ thống Anti-Raid cho máy chủ này.' });
             }
         }
 

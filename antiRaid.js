@@ -29,6 +29,7 @@ function getTracker(guildId) {
 
 // Kiểm tra xem Guild có bản quyền hợp lệ để dùng tính năng Anti-Raid không
 function isLicenseValid(guildId) {
+    if (customToggleCheck && !customToggleCheck(guildId)) return false;
     const lic = licenseStore.getLicense(guildId);
     return lic && lic.active;
 }
@@ -181,7 +182,10 @@ function initAntiRaid(client) {
     });
 }
 
-// Khóa khẩn cấp toàn bộ máy chủ (Emergency Lockdown)
+// Bộ nhớ lưu trạng thái khóa gốc của từng kênh (guildId -> Map(channelId -> state))
+const lockdownStates = new Map();
+
+// Khóa khẩn cấp toàn bộ máy chủ (Emergency Lockdown Thông Minh)
 async function triggerLockdown(guild, enable = true, executorMember = null) {
     if (!guild || !guild.members.me?.permissions.has(PermissionFlagsBits.ManageChannels)) {
         return { ok: false, error: 'Bot thiếu quyền Manage Channels để khóa kênh.' };
@@ -190,14 +194,52 @@ async function triggerLockdown(guild, enable = true, executorMember = null) {
     const textChannels = guild.channels.cache.filter(c => c.type === ChannelType.GuildText || c.type === ChannelType.GuildAnnouncement);
     let count = 0;
 
+    if (!lockdownStates.has(guild.id)) {
+        lockdownStates.set(guild.id, new Map());
+    }
+    const guildStates = lockdownStates.get(guild.id);
+
     for (const [, ch] of textChannels) {
         try {
-            await ch.permissionOverwrites.edit(guild.roles.everyone, {
-                SendMessages: enable ? false : null,
-                AddReactions: enable ? false : null
-            }, { reason: `[MIMI Anti-Raid] ${enable ? 'Bật' : 'Tắt'} Lockdown bởi ${executorMember?.user?.tag || 'Admin'}` });
-            count++;
+            if (enable) {
+                // Đang khóa: Lưu trạng thái hiện tại (chỉ lưu nếu chưa từng lưu trong đợt lockdown này)
+                if (!guildStates.has(ch.id)) {
+                    const everyonePerms = ch.permissionOverwrites.cache.get(guild.roles.everyone.id);
+                    const originalState = everyonePerms ? (everyonePerms.deny.has(PermissionFlagsBits.SendMessages) ? false : (everyonePerms.allow.has(PermissionFlagsBits.SendMessages) ? true : null)) : null;
+                    guildStates.set(ch.id, originalState);
+                }
+
+                // Nếu kênh CHƯA bị khóa trước đó (original !== false), thì ta mới khóa
+                const savedState = guildStates.get(ch.id);
+                if (savedState !== false) {
+                    await ch.permissionOverwrites.edit(guild.roles.everyone, {
+                        SendMessages: false,
+                        AddReactions: false
+                    }, { reason: `[MIMI Anti-Raid] Bật Lockdown bởi ${executorMember?.user?.tag || 'Admin'}` });
+                    count++;
+                }
+            } else {
+                // Đang mở khóa
+                const savedState = guildStates.get(ch.id);
+                
+                // Nếu kênh ĐÃ bị khóa TỪ TRƯỚC khi có lệnh lockdown (savedState === false), ta KHÔNG MỞ KHÓA kênh đó!
+                if (savedState === false) {
+                    continue; 
+                }
+
+                // Phục hồi lại trạng thái null hoặc true
+                await ch.permissionOverwrites.edit(guild.roles.everyone, {
+                    SendMessages: savedState === true ? true : null,
+                    AddReactions: savedState === true ? true : null
+                }, { reason: `[MIMI Anti-Raid] Tắt Lockdown bởi ${executorMember?.user?.tag || 'Admin'}` });
+                count++;
+            }
         } catch {}
+    }
+
+    if (!enable) {
+        // Đã mở khóa xong, clear state
+        lockdownStates.delete(guild.id);
     }
 
     return {
@@ -208,6 +250,8 @@ async function triggerLockdown(guild, enable = true, executorMember = null) {
 }
 
 module.exports = {
+    setToggleCheck,
+    setToggleCheck,
     initAntiRaid,
     triggerLockdown,
     isLicenseValid
