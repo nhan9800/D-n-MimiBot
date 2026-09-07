@@ -28,7 +28,11 @@ function getTracker(guildId) {
 }
 
 // Kiểm tra xem Guild có bản quyền hợp lệ để dùng tính năng Anti-Raid không
+let customToggleCheck = null;
+function setToggleCheck(fn) { customToggleCheck = fn; }
+
 function isLicenseValid(guildId) {
+    if (customToggleCheck && customToggleCheck(guildId) === false) return false;
     if (customToggleCheck && !customToggleCheck(guildId)) return false;
     const lic = licenseStore.getLicense(guildId);
     return lic && lic.active;
@@ -250,7 +254,6 @@ async function triggerLockdown(guild, enable = true, executorMember = null) {
 }
 
 module.exports = {
-    setToggleCheck,
     setToggleCheck,
     initAntiRaid,
     triggerLockdown,
