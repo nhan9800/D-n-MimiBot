@@ -225,34 +225,41 @@ function isMinigameBanned(userId) {
     return null;
 }
 
-async function sendMinigameBanNotice(targetId, isBan, reason, authorUser, guildName) {
+async function sendMinigameBanNotice(targetId, isBan, reason, authorUser, guildName, expiresAt = null) {
     try {
         const userObj = await client.users.fetch(targetId).catch(() => null);
         if (!userObj) return;
 
+        let desc = '';
+        if (isBan) {
+            desc = `Chào **${userObj.username}**, \n\nTài khoản của bạn đã bị **khóa quyền tham gia** các hoạt động kinh tế, minigame và giải trí trên hệ thống **MIMI BOT**.\n\n` +
+                   `🏢 **Máy chủ:** ${guildName || 'Hệ thống Mimi'}\n` +
+                   `📌 **Lý do cấm:** \`${reason || 'Vi phạm quy định giải trí'}\`\n` +
+                   `👮 **Người thực hiện:** ${authorUser ? `${authorUser.username} (\`${authorUser.id}\`)` : 'Ban Quản Trị'}\n` +
+                   `⏱️ **Thời điểm khóa:** <t:${Math.floor(Date.now() / 1000)}:F>\n`;
+            if (expiresAt) {
+                desc += `⏳ **Hết hạn lúc:** <t:${Math.floor(expiresAt / 1000)}:F> (Thời hạn còn lại: <t:${Math.floor(expiresAt / 1000)}:R>)\n\n`;
+            } else {
+                desc += `⏳ **Hết hạn lúc:** ❌ Vĩnh viễn\n\n`;
+            }
+            desc += `⚠️ *Trong thời gian bị cấm, bạn sẽ không thể sử dụng các lệnh ví tiền (\`mic\`), daily (\`mid\`), nông trại (\`mifarm\`), minigame cá cược hay chuyển xu. Hãy liên hệ Quản trị viên máy chủ nếu bạn có thắc mắc.*`;
+        } else {
+            desc = `Chào **${userObj.username}**, \n\nTài khoản của bạn đã được **gỡ bỏ lệnh cấm** tính năng minigame & kinh tế trên hệ thống **MIMI BOT**.\n\n` +
+                   `🏢 **Máy chủ:** ${guildName || 'Hệ thống Mimi'}\n` +
+                   `👮 **Người thực hiện:** ${authorUser ? `${authorUser.username} (\`${authorUser.id}\`)` : 'Ban Quản Trị'}\n` +
+                   `⏱️ **Thời điểm:** <t:${Math.floor(Date.now() / 1000)}:F>\n\n` +
+                   `🎉 *Bạn hiện đã có thể tiếp tục tham gia cày cuốc, chơi minigame, nông trại và các hoạt động giải trí bình thường!*`;
+        }
+
         const embed = new EmbedBuilder()
             .setColor(isBan ? '#E74C3C' : '#2ECC71')
-            .setTitle(isBan ? '🚫 THÔNG BÁO KHÓA TÍNH NĂNG MINIGAME & KINH TẾ' : '🎉 THÔNG BÁO GỠ LỆNH CẤM MINIGAME & KINH TẾ')
-            .setDescription(
-                isBan 
-                    ? `Chào **${userObj.username}**,\n\nTài khoản của bạn đã bị **khóa quyền tham gia** các hoạt động kinh tế, minigame và giải trí trên hệ thống **MIMI BOT**.\n\n` +
-                      `🏰 **Máy chủ:** ${guildName || 'Hệ thống Mimi'}\n` +
-                      `📝 **Lý do cấm:** \`${reason || 'Vi phạm quy định giải trí'}\`\n` +
-                      `👮 **Người thực hiện:** ${authorUser ? `${authorUser.username} (\`${authorUser.id}\`)` : 'Ban Quản Trị'}\n` +
-                      `⏱️ **Thời điểm:** <t:${Math.floor(Date.now() / 1000)}:F>\n\n` +
-                      `⚠️ *Trong thời gian bị cấm, bạn sẽ không thể sử dụng các lệnh ví tiền (\`mic\`), daily (\`mid\`), nông trại (\`mifarm\`), minigame cá cược hay chuyển xu. Hãy liên hệ Quản trị viên máy chủ nếu bạn có thắc mắc.*`
-                    : `Chào **${userObj.username}**,\n\nTài khoản của bạn đã được **gỡ bỏ lệnh cấm** tính năng minigame & kinh tế trên hệ thống **MIMI BOT**.\n\n` +
-                      `🏰 **Máy chủ:** ${guildName || 'Hệ thống Mimi'}\n` +
-                      `👮 **Người thực hiện:** ${authorUser ? `${authorUser.username} (\`${authorUser.id}\`)` : 'Ban Quản Trị'}\n` +
-                      `⏱️ **Thời điểm:** <t:${Math.floor(Date.now() / 1000)}:F>\n\n` +
-                      `✨ *Bạn hiện đã có thể tiếp tục tham gia cày cuốc, chơi minigame, nông trại và các hoạt động giải trí bình thường!*`
-            )
-            .setFooter({ text: 'MIMI BOT Security & Moderation System' })
+            .setTitle(isBan ? '🚨 THÔNG BÁO KHÓA TÍNH NĂNG MINIGAME & KINH TẾ' : '🎉 THÔNG BÁO GỠ LỆNH CẤM MINIGAME & KINH TẾ')
+            .setDescription(desc)
             .setTimestamp();
 
         await userObj.send({ embeds: [embed] }).catch(() => null);
-    } catch (e) {
-        console.error('Không thể gửi DM thông báo ban minigame:', e.message);
+    } catch (err) {
+        console.error('Lỗi khi gửi DM báo ban/unban:', err.message);
     }
 }
 
@@ -7701,13 +7708,13 @@ if (command === 'mibanminigame' || command === 'mibanmg') {
 
         let targetId = null;
         let targetUsername = null;
-        let reason = 'Vi phạm quy định giải trí';
 
         const mentioned = message.mentions.users.first();
+        let reasonParts = [];
         if (mentioned) {
             targetId = mentioned.id;
             targetUsername = mentioned.username;
-            reason = args.slice(2).join(' ') || reason;
+            reasonParts = args.slice(2);
         } else if (args[1] && /^\d{17,20}$/.test(args[1])) {
             targetId = args[1];
             try {
@@ -7716,29 +7723,41 @@ if (command === 'mibanminigame' || command === 'mibanmg') {
             } catch {
                 targetUsername = targetId;
             }
-            reason = args.slice(2).join(' ') || reason;
+            reasonParts = args.slice(2);
         }
 
         if (!targetId) {
             return message.reply({ 
-                content: `❌ Vui lòng tag người cần cấm minigame hoặc nhập User ID!\nCú pháp: \`${command} @User [lý do]\` hoặc \`${command} [UserID] [lý do]\`\nXem danh sách: \`${command} list\``, 
+                content: `❌ Vui lòng tag người cần cấm minigame hoặc nhập User ID!\nCú pháp: \`${command} @User [thời_gian] [lý do]\` hoặc \`${command} [UserID] [thời_gian] [lý do]\`\nXem danh sách: \`${command} list\``, 
                 allowedMentions: { repliedUser: false } 
             });
         }
+        
+        let durationMs = null;
+        if (reasonParts.length > 0) {
+            const parsed = parseDuration(reasonParts[0]);
+            if (parsed > 0) {
+                durationMs = parsed;
+                reasonParts.shift();
+            }
+        }
+        const reason = reasonParts.join(' ') || 'Vi phạm quy định giải trí';
 
         const uData = getUserData(targetId);
+        const expiresAt = durationMs ? Date.now() + durationMs : null;
         uData.minigameBan = {
             banned: true,
             reason,
             bannedAt: Date.now(),
-            bannedBy: message.author.id
+            bannedBy: message.author.id,
+            expiresAt
         };
         flushEconomy();
 
-        await sendMinigameBanNotice(targetId, true, reason, message.author, message.guild?.name);
+        await sendMinigameBanNotice(targetId, true, reason, message.author, message.guild?.name, expiresAt);
 
         return message.reply({
-            content: `✅ Đã **CẤM** người dùng **${targetUsername}** (\`${targetId}\`) tham gia tất cả minigame!\n📝 **Lý do:** ${reason}\n📬 *Đã gửi tin nhắn riêng (DM) thông báo tới người dùng.*`,
+            content: `✅ Đã **CẤM** người dùng **${targetUsername}** (\`${targetId}\`) tham gia tất cả minigame ${durationMs ? 'trong một khoảng thời gian' : 'vĩnh viễn'}!\n📌 **Lý do:** ${reason}\n💌 *Đã gửi tin nhắn riêng (DM) thông báo tới người dùng.*`,
             allowedMentions: { repliedUser: false }
         });
     }
@@ -8073,16 +8092,18 @@ if (command === 'mibanminigame' || command === 'mibanmg') {
 
         const rowMenu = new ActionRowBuilder().addComponents(selectMenu);
 
-        const rowButtons = new ActionRowBuilder().addComponents(
+        const rowButtons1 = new ActionRowBuilder().addComponents(
             new ButtonBuilder().setCustomId('shop_buy_plot').setLabel(`🚜 Mua Thêm Đất (${nextPlot <= MAX_FARM_PLOTS ? nextPlotPrice.toLocaleString() + ' xu' : 'Đã Đạt Max'})`).setStyle(ButtonStyle.Success).setDisabled(nextPlot > MAX_FARM_PLOTS),
             new ButtonBuilder().setCustomId('buy_ring').setLabel('💍 Mua Nhẫn Cưới').setStyle(ButtonStyle.Secondary),
-            new ButtonBuilder().setCustomId('buy_bg').setLabel('🖼️ Nền Profile').setStyle(ButtonStyle.Secondary),
+            new ButtonBuilder().setCustomId('buy_bg').setLabel('🖼️ Nền Profile').setStyle(ButtonStyle.Secondary)
+        );
+        const rowButtons2 = new ActionRowBuilder().addComponents(
             new ButtonBuilder().setCustomId('buy_fishing_rod').setLabel('🎣 Mua Cần Câu (50k)').setStyle(ButtonStyle.Primary),
             new ButtonBuilder().setCustomId('buy_cuoc').setLabel('⛏️ Mua Cuốc (50k)').setStyle(ButtonStyle.Primary),
-            new ButtonBuilder().setCustomId('farm_open_btn').setLabel('🌾 Vào Nông Trại').setStyle(ButtonStyle.Success)
+            new ButtonBuilder().setCustomId('farm_open_btn').setLabel('🧑‍🌾 Vào Nông Trại').setStyle(ButtonStyle.Success)
         );
 
-        return message.reply({ embeds: [shopEmbed], components: [rowMenu, rowButtons] });
+        return message.reply({ embeds: [shopEmbed], components: [rowMenu, rowButtons1, rowButtons2] });
     }
 
     if (command === 'mikethon') {
@@ -8162,7 +8183,7 @@ if (command === 'mibanminigame' || command === 'mibanmg') {
     if (command === 'miprofile' || command === 'mip') {
         const userData = getUserData(userId);
         const xpNeeded = xpNeededForLevel(userData.level);
-        const userAvatar = message.author.displayAvatarURL({ dynamic: true, size: 256 });
+        const userAvatar = message.author.displayAvatarURL({ extension: 'png', size: 256 });
 
         const row = new ActionRowBuilder().addComponents(
             new ButtonBuilder().setCustomId('profile_sell_item').setLabel('💰 Bán Đồ').setStyle(ButtonStyle.Danger),
@@ -10626,20 +10647,30 @@ client.on('interactionCreate', async interaction => {
             }
 
             const targetUser = options.getUser('người_dùng');
+            const timeStr = options.getString('thời_gian');
+            let durationMs = null;
+            if (timeStr) {
+                durationMs = parseDuration(timeStr);
+                if (!durationMs || durationMs < 5000) {
+                    return interaction.editReply({ content: '❌ Thời gian không hợp lệ. Ví dụ: `10m`, `1h`, `1d`' });
+                }
+            }
             const reason = options.getString('lý_do') || 'Vi phạm quy định giải trí';
+            const expiresAt = durationMs ? Date.now() + durationMs : null;
             const uData = getUserData(targetUser.id);
             uData.minigameBan = {
                 banned: true,
                 reason,
                 bannedAt: Date.now(),
-                bannedBy: interaction.user.id
+                bannedBy: interaction.user.id,
+                expiresAt
             };
             flushEconomy();
 
-            await sendMinigameBanNotice(targetUser.id, true, reason, interaction.user, interaction.guild?.name);
+            await sendMinigameBanNotice(targetUser.id, true, reason, interaction.user, interaction.guild?.name, expiresAt);
 
             return interaction.editReply({
-                content: `✅ Đã **CẤM** người dùng **${targetUser.username}** (\`${targetUser.id}\`) tham gia tất cả minigame cá cược & kinh tế!\n📝 **Lý do:** ${reason}\n📬 *Đã gửi tin nhắn riêng (DM) thông báo tới người dùng.*`
+                content: `✅ Đã **CẤM** người dùng **${targetUser.username}** (\`${targetUser.id}\`) tham gia tất cả minigame ${durationMs ? 'trong một khoảng thời gian' : 'vĩnh viễn'}!\n📌 **Lý do:** ${reason}\n💌 *Đã gửi tin nhắn riêng (DM) thông báo tới người dùng.*`
             });
         }
 
@@ -11198,16 +11229,18 @@ client.on('interactionCreate', async interaction => {
 
             const rowMenu = new ActionRowBuilder().addComponents(selectMenu);
 
-            const rowButtons = new ActionRowBuilder().addComponents(
-                new ButtonBuilder().setCustomId('shop_buy_plot').setLabel(`🚜 Mua Thêm Đất (${nextPlot <= MAX_FARM_PLOTS ? nextPlotPrice.toLocaleString() + ' xu' : 'Đã Đạt Max'})`).setStyle(ButtonStyle.Success).setDisabled(nextPlot > MAX_FARM_PLOTS),
-                new ButtonBuilder().setCustomId('buy_ring').setLabel('💍 Mua Nhẫn Cưới').setStyle(ButtonStyle.Secondary),
-                new ButtonBuilder().setCustomId('buy_bg').setLabel('🖼️ Nền Profile').setStyle(ButtonStyle.Secondary),
-                new ButtonBuilder().setCustomId('buy_fishing_rod').setLabel('🎣 Mua Cần Câu (50k)').setStyle(ButtonStyle.Primary),
+            const rowButtons1 = new ActionRowBuilder().addComponents(
+            new ButtonBuilder().setCustomId('shop_buy_plot').setLabel(`🚜 Mua Thêm Đất (${nextPlot <= MAX_FARM_PLOTS ? nextPlotPrice.toLocaleString() + ' xu' : 'Đã Đạt Max'})`).setStyle(ButtonStyle.Success).setDisabled(nextPlot > MAX_FARM_PLOTS),
+            new ButtonBuilder().setCustomId('buy_ring').setLabel('💍 Mua Nhẫn Cưới').setStyle(ButtonStyle.Secondary),
+            new ButtonBuilder().setCustomId('buy_bg').setLabel('🖼️ Nền Profile').setStyle(ButtonStyle.Secondary)
+        );
+        const rowButtons2 = new ActionRowBuilder().addComponents(
+            new ButtonBuilder().setCustomId('buy_fishing_rod').setLabel('🎣 Mua Cần Câu (50k)').setStyle(ButtonStyle.Primary),
             new ButtonBuilder().setCustomId('buy_cuoc').setLabel('⛏️ Mua Cuốc (50k)').setStyle(ButtonStyle.Primary),
-                new ButtonBuilder().setCustomId('farm_open_btn').setLabel('🌾 Vào Nông Trại').setStyle(ButtonStyle.Success)
-            );
+            new ButtonBuilder().setCustomId('farm_open_btn').setLabel('🧑‍🌾 Vào Nông Trại').setStyle(ButtonStyle.Success)
+        );
 
-            return interaction.reply({ embeds: [shopEmbed], components: [rowMenu, rowButtons] });
+        return interaction.reply({ embeds: [shopEmbed], components: [rowMenu, rowButtons1, rowButtons2] });
         }
 
         if (commandName === 'help') {
@@ -13822,8 +13855,8 @@ if (commandName === 'changelog') {
         
         if (customId === 'buy_fishing_rod') {
             const userData = getUserData(interaction.user.id);
-            if (userData.balance < 10000) {
-                return interaction.reply({ content: '❌ Bạn không đủ 10,000 xu để mua Cần Câu!', flags: MessageFlags.Ephemeral });
+            if (userData.balance < 50000) {
+                return interaction.reply({ content: '❌ Bạn không đủ 50,000 xu để mua Cần Câu!', flags: MessageFlags.Ephemeral });
             }
             userData.balance -= 50000;
             userData.cancau_uses = (userData.cancau_uses || 0) + 10;
