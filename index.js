@@ -216,13 +216,25 @@ function isMinigameBanned(userId) {
     const data = economyData[userId];
     if (data && data.minigameBan && data.minigameBan.banned) {
         if (data.minigameBan.expiresAt && Date.now() > data.minigameBan.expiresAt) {
-            data.minigameBan.banned = false;
+            delete data.minigameBan;
             saveEconomy();
+            sendMinigameBanNotice(userId, false, '', client.user, 'Hệ thống Mimi').catch(() => null);
             return null;
         }
         return data.minigameBan;
     }
     return null;
+}
+
+function formatBanMessage(banInfo) {
+    let msg = `🚨 **BẠN ĐÃ BỊ CẤM THAM GIA MINIGAME & TÍNH NĂNG KINH TẾ!**\n📌 **Lý do:** ${banInfo.reason || 'Vi phạm quy định'}\n⏱️ **Thời điểm cấm:** <t:${Math.floor((banInfo.bannedAt || Date.now()) / 1000)}:f>`;
+    if (banInfo.expiresAt) {
+        msg += `\n⏳ **Hết hạn lúc:** <t:${Math.floor(banInfo.expiresAt / 1000)}:f> (Còn lại: <t:${Math.floor(banInfo.expiresAt / 1000)}:R>)`;
+    } else {
+        msg += `\n⏳ **Hết hạn lúc:** ❌ Vĩnh viễn`;
+    }
+    msg += `\n💌 *Vui lòng liên hệ Quản trị viên / Owner bot nếu có khiếu nại.*`;
+    return msg;
 }
 
 async function sendMinigameBanNotice(targetId, isBan, reason, authorUser, guildName, expiresAt = null) {
@@ -2498,7 +2510,6 @@ function startMonthlyModReset() {
 // -----------------------------------------------------------------
 const GIVEAWAY_KEEP_MS = 7 * 24 * 60 * 60 * 1000; // giữ 7 ngày sau khi kết thúc để còn tra lại kết quả
 
-
 function startYearlyModReset() {
     let lastResetYear = null;
     setInterval(() => {
@@ -2873,7 +2884,6 @@ async function searchSoundcloud(query) {
         return null;
     }
 }
-
 
 function getYtCommonOpts() {
     const opts = {
@@ -3808,7 +3818,6 @@ async function doBroadcastUpdate(force = false) {
 
     return { sentCount, failedCount, version: CURRENT_UPDATE_VERSION };
 }
-
 
 // ⭐ HỆ THỐNG LEVEL CHAT THEO SERVER
 // =====================================================================
@@ -4989,8 +4998,6 @@ async function getOrCreateMusicQueue(guild, voiceChannel, textChannel) {
         return { mq };
     }
 
-
-
     const connection = voiceLib.joinVoiceChannel({
         channelId: voiceChannel.id,
         guildId: guild.id,
@@ -5083,7 +5090,6 @@ async function getOrCreateMusicQueue(guild, voiceChannel, textChannel) {
 
     return { mq };
 }
-
 
 // 🛑 Dừng phát nhạc và ngắt kết nối kênh thoại an toàn
 function stopAndLeaveVoice(guildId) {
@@ -5271,7 +5277,6 @@ async function enqueueTts(guild, voiceChannel, text) {
     }
     return { ok: true };
 }
-
 
 client.on('voiceStateUpdate', (oldState, newState) => {
     const guild = newState?.guild || oldState.guild;
@@ -5492,6 +5497,23 @@ async function postUpdateAnnouncement() {
 client.once('ready', async () => {
     antiRaid.initAntiRaid(client);
 
+    // Auto unban interval
+    setInterval(() => {
+        let changed = false;
+        const now = Date.now();
+        for (const userId in economyData) {
+            const uData = economyData[userId];
+            if (uData && uData.minigameBan && uData.minigameBan.banned && uData.minigameBan.expiresAt) {
+                if (now > uData.minigameBan.expiresAt) {
+                    delete uData.minigameBan;
+                    changed = true;
+                    sendMinigameBanNotice(userId, false, '', client.user, 'Hệ thống Mimi').catch(() => null);
+                }
+            }
+        }
+        if (changed) saveEconomy();
+    }, 60000).unref();
+
     // 🎨 Tự cấp Application Emoji cho panel nhạc (an toàn, không cần quyền server).
     await provisionAppEmojis().catch(e => console.error('🎨 [Emoji] provisionAppEmojis lỗi:', e?.message));
     await syncChannels();
@@ -5530,7 +5552,6 @@ client.once('ready', async () => {
             console.error('🧹 [Startup] Lỗi dọn dẹp thông báo cũ:', e.message);
         }
     }, 4000);
-
 
     const activities = [
         { name: 'Danh Sách Lương', type: 0 }, 
@@ -5677,7 +5698,6 @@ client.once('ready', async () => {
             .setDescription('Treo máy (AFK). Tự động thông báo nếu ai đó nhắc đến bạn.')
             .addStringOption(option => option.setName('lý_do').setDescription('Lý do bạn AFK').setRequired(true))
             .setIntegrationTypes([0, 1]).setContexts([0, 1, 2]),
-
 
         new SlashCommandBuilder()
             .setName('setupticket')
@@ -7107,7 +7127,6 @@ function executeSearching(userId, username, avatarUrl, count = 1, isFast = false
     }
     userData.cuoc_uses -= count;
 
-
     const activeCooldown = userData.cooldowns?.timdo || (userData.lastTimDo ? userData.lastTimDo + 60000 : 0);
     if (activeCooldown && now < activeCooldown) {
         const leftSec = Math.ceil((activeCooldown - now) / 1000);
@@ -7513,18 +7532,6 @@ client.on('messageCreate', async (message) => {
 
         // Initial render logic will be handled by renderBroadcastBuilder
 
-
-
-
-
-
-
-
-
-
-
-
-
         return renderBroadcastBuilder(message, broadcastDrafts.get(message.author.id));
 
         return message.reply({ embeds: [helpEmbed], components: [row, rowSend], allowedMentions: { repliedUser: false } });
@@ -7699,9 +7706,19 @@ if (command === 'mibanminigame' || command === 'mibanmg') {
                 .setColor('#E74C3C')
                 .setTitle(`🚫 DANH SÁCH BỊ CẤM MINIGAME (${bannedList.length})`)
                 .setDescription(
-                    bannedList.map(([uid, d], i) => 
-                        `**${i + 1}.** <@${uid}> (\`${uid}\`)\n> 📝 Lý do: ${d.minigameBan.reason || 'Vi phạm quy định'}\n> ⏱️ Thời gian: <t:${Math.floor((d.minigameBan.bannedAt || Date.now()) / 1000)}:f>`
-                    ).join('\n\n')
+                    bannedList.map(([uid, d], i) => {
+                        let str = `**${i + 1}.** <@${uid}> (\`${uid}\`)
+> 📌 Lý do: ${d.minigameBan.reason || 'Vi phạm quy định'}
+> ⏱️ Ngày cấm: <t:${Math.floor((d.minigameBan.bannedAt || Date.now()) / 1000)}:f>`;
+                        if (d.minigameBan.expiresAt) {
+                            str += `
+> ⏳ Hết hạn: <t:${Math.floor(d.minigameBan.expiresAt / 1000)}:R>`;
+                        } else {
+                            str += `
+> ⏳ Hết hạn: ❌ Vĩnh viễn`;
+                        }
+                        return str;
+                    }).join('\n\n')
                 );
             return message.reply({ embeds: [banListEmbed], allowedMentions: { repliedUser: false } });
         }
@@ -7913,9 +7930,6 @@ if (command === 'mibanminigame' || command === 'mibanmg') {
 
         return message.reply({ content: `🎁 **${message.author.username}** điểm danh thành công và nhận được **+${reward.toLocaleString()} xu**!`, allowedMentions: { repliedUser: false } });
     }
-
-
-
 
     // ==========================================
     // 🌾 LỆNH NÔNG TRẠI: mifarm | minongtrai
@@ -8242,7 +8256,6 @@ if (command === 'mibanminigame' || command === 'mibanmg') {
             allowedMentions: { repliedUser: false }
         });
     }
-
 
     // ==========================================
     // 🎒 HỆ THỐNG KHO ĐỒ & BÁN ĐỒ TÁCH PHẨM CẤP
@@ -9079,7 +9092,6 @@ if (command === 'mibanminigame' || command === 'mibanmg') {
 
         return;
     }
-
 
     if (command === 'misay' || command === 'mis') {
         const hasPermission = message.member.permissions.has(PermissionFlagsBits.ManageGuild) || message.member.permissions.has(PermissionFlagsBits.ManageMessages);
@@ -12234,7 +12246,6 @@ if (commandName === 'setupticket') {
 
     gConfig.ticketCategoryId = ticketCategory.id;
 
-
     let ticketControlChannel = guild.channels.cache.get(gConfig.ticketControlChannelId) || guild.channels.cache.find(ch => ch.type === ChannelType.GuildText && ch.name.includes('hỗ-trợ-ticket'));
 
     if (!ticketControlChannel) {
@@ -12250,7 +12261,6 @@ if (commandName === 'setupticket') {
     }
 
     gConfig.ticketControlChannelId = ticketControlChannel.id;
-
 
     let archiveChan = guild.channels.cache.get(gConfig.ticketArchiveChannelId) || guild.channels.cache.find(ch => ch.type === ChannelType.GuildText && ch.name.includes('lưu-trữ-ticket'));
 
@@ -12276,8 +12286,6 @@ if (commandName === 'setupticket') {
             return interaction.editReply('✅ Đã **BẬT** và khởi tạo hệ thống Ticket!');
 
 }
-
-
 
 if (commandName === 'setupcategory') {
 
@@ -12306,7 +12314,6 @@ if (commandName === 'setupcategory') {
     return interaction.editReply('✅ Đã **BẬT** Danh Mục và tạo kênh ' + chan.toString() + '. Dùng `/category add` (nếu có) để thêm nội dung!');
 
 }
-
 
 if (commandName === 'setup') {
             try { await interaction.deferReply({ flags: MessageFlags.Ephemeral }); } catch (e) { return; }
@@ -15231,7 +15238,6 @@ async function updateStatsChannels(guild) {
     });
 }
 
-
 // DM Notification handler added manually
 client.on('messageCreate', async (msg) => {
     try {
@@ -15255,8 +15261,6 @@ client.on('messageCreate', async (msg) => {
         }
     } catch(e) {}
 });
-
-
 
 async function renderBroadcastBuilder(interaction, draft) {
     const previewContainers = draft.embeds.map((e, idx) => {
