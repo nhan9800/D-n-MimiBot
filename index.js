@@ -8154,7 +8154,9 @@ if (command === 'mibanminigame' || command === 'mibanmg') {
                 `💍 **3. VẬT PHẨM ĐẶC BIỆT:**\n` +
                 `• 🎣 **Cần Câu (10 lần)** — \`10,000 xu\` *(Dùng câu cá \`micaoca\`, câu nhanh \`micaonhanh [số_lần]\`)*\n` +
                 `• 💍 **Nhẫn Cưới** — \`1,000,000 xu\` *(Dùng cầu hôn \`mikethon @user\`)*\n` +
-                `• 🖼️ **Ảnh Bìa Profile** — \`50,000 xu\` *(Đổi hình nền \`miprofile\`)*`
+                `• 🖼️ **Ảnh Bìa Profile** — \`50,000 xu\` *(Đổi hình nền \`miprofile\`)*\n\n` +
+                `🐾 **4. THÚ CƯNG:**\n` +
+                `• *Dùng lệnh \`mipet\` để mở cửa hàng thú cưng và nhận nuôi với giá từ \`2,000,000 xu\`!*`
             )
             .setFooter({ text: 'Chọn nút bên dưới hoặc menu để mua hàng tức thì' })
             .setTimestamp();
@@ -8558,13 +8560,19 @@ if (command === 'mibanminigame' || command === 'mibanmg') {
         if (!userData.pet) {
             const adoptEmbed = new EmbedBuilder()
                 .setColor('#E67E22')
-                .setTitle('🐾 TRUNG TÂM NHẬN NUÔI THÚ CƯNG')
-                .setDescription('Bạn chưa có thú cưng nào! Hãy chọn nhận nuôi một bé thú cưng với giá **50,000 xu** nhé.')
+                .setTitle('🐾 SHOP THÚ CƯNG')
+                .setDescription('Bạn chưa có thú cưng nào! Hãy chọn mua một bé thú cưng để làm bạn nhé.\\n\\n' +
+                                '🐶 **Chó Cún** - `2,000,000 xu`\\n' +
+                                '🐱 **Mèo Miu** - `2,000,000 xu`\\n' +
+                                '🦜 **Vẹt** - `2,000,000 xu`\\n' +
+                                '🐰 **Thỏ** - `2,000,000 xu`')
                 .setThumbnail(message.author.displayAvatarURL());
             
             const row = new ActionRowBuilder().addComponents(
-                new ButtonBuilder().setCustomId('pet_adopt_dog').setLabel('🐶 Nhận Nuôi Chó').setStyle(ButtonStyle.Primary),
-                new ButtonBuilder().setCustomId('pet_adopt_cat').setLabel('🐱 Nhận Nuôi Mèo').setStyle(ButtonStyle.Primary)
+                new ButtonBuilder().setCustomId('pet_adopt_dog').setLabel('🐶 Chó').setStyle(ButtonStyle.Primary),
+                new ButtonBuilder().setCustomId('pet_adopt_cat').setLabel('🐱 Mèo').setStyle(ButtonStyle.Primary),
+                new ButtonBuilder().setCustomId('pet_adopt_parrot').setLabel('🦜 Vẹt').setStyle(ButtonStyle.Primary),
+                new ButtonBuilder().setCustomId('pet_adopt_rabbit').setLabel('🐰 Thỏ').setStyle(ButtonStyle.Primary)
             );
             return message.reply({ embeds: [adoptEmbed], components: [row] });
         }
@@ -11377,7 +11385,9 @@ client.on('interactionCreate', async interaction => {
                     `💍 **3. VẬT PHẨM ĐẶC BIỆT:**\n` +
                     `• 🎣 **Cần Câu (10 lần)** — \`10,000 xu\` *(Dùng câu cá \`micaoca\`, câu nhanh \`micaonhanh [số_lần]\`)*\n` +
                     `• 💍 **Nhẫn Cưới** — \`1,000,000 xu\` *(Dùng cầu hôn \`mikethon @user\`)*\n` +
-                    `• 🖼️ **Ảnh Bìa Profile** — \`50,000 xu\` *(Đổi hình nền \`miprofile\`)*`
+                    `• 🖼️ **Ảnh Bìa Profile** — \`50,000 xu\` *(Đổi hình nền \`miprofile\`)*\n\n` +
+                `🐾 **4. THÚ CƯNG:**\n` +
+                `• *Dùng lệnh \`mipet\` để mở cửa hàng thú cưng và nhận nuôi với giá từ \`2,000,000 xu\`!*`
                 )
                 .setFooter({ text: 'Chọn nút bên dưới hoặc menu để mua hàng tức thì' })
                 .setTimestamp();
