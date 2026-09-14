@@ -8218,9 +8218,8 @@ if (command === 'mibanminigame' || command === 'mibanmg') {
                 new SectionBuilder()
                     .addTextDisplayComponents(
                         new TextDisplayBuilder().setContent(
-                            `## 📊 HỒ SƠ TOÀN CẦU CỦA ${message.author.username.toUpperCase()}\n` +
-                            `### 👤 Thông tin tài khoản\n` +
-                            `> Thành viên: ${message.author} (\`${message.author.id}\`)`
+                            `### 👤 HỒ SƠ CỦA ${message.author.username.toUpperCase()}\n` +
+                            `> ${message.author} (\`${message.author.id}\`)`
                         )
                     )
                     .setThumbnailAccessory(
@@ -8232,24 +8231,36 @@ if (command === 'mibanminigame' || command === 'mibanmg') {
             )
             .addTextDisplayComponents(
                 new TextDisplayBuilder().setContent(
-                    `**Chi tiết tài sản & tiến trình:**\n` +
-                    `- 🌟 Cấp độ: \`Level ${userData.level}\`\n` +
-                    `- 💰 Ví tiền: \`${userData.balance.toLocaleString()} xu\`\n` +
-                    `- ✨ Kinh nghiệm: \`${userData.xp.toLocaleString()} / ${xpNeeded.toLocaleString()} XP\`\n` +
-                    `  ${generateProgressBar(userData.xp, xpNeeded, 10)}\n\n` +
-                    `**Thông tin cá nhân:**\n` +
-                    `- ❤️ Tình trạng: ${userData.spouseId ? `Đã kết hôn với <@${userData.spouseId}>` : 'Độc thân'}\n` +
-                    `- 💍 Nhẫn cưới: ${userData.inventory?.nhan_cuoi ? 'Có' : 'Không có'}` +
-                    `\n- 🖼️ Background: ${userData.bgUrl ? 'Đã trang bị' : 'Mặc định'}`
+                    `**✨ TÀI SẢN & CẤP ĐỘ**\n` +
+                    `> 🌟 **Cấp độ:** \`Level ${userData.level}\`\n` +
+                    `> 💰 **Ví tiền:** \`${userData.balance.toLocaleString()} xu\`\n` +
+                    `> 📈 **Kinh nghiệm:** \`${userData.xp.toLocaleString()} / ${xpNeeded.toLocaleString()} XP\`\n` +
+                    `> ${generateProgressBar(userData.xp, xpNeeded, 10)}`
+                )
+            )
+            .addSeparatorComponents(
+                new SeparatorBuilder().setSpacing(SeparatorSpacingSize.Small).setDivider(true)
+            )
+            .addTextDisplayComponents(
+                new TextDisplayBuilder().setContent(
+                    `**❤️ THÔNG TIN CÁ NHÂN**\n` +
+                    `> 💘 **Tình trạng:** ${userData.spouseId ? `Đã kết hôn với <@${userData.spouseId}>` : 'Độc thân'}\n` +
+                    `> 💍 **Nhẫn cưới:** ${userData.inventory?.nhan_cuoi ? 'Có trang bị' : 'Không có'}\n` +
+                    `> 🖼️ **Ảnh nền:** ${userData.bgUrl ? 'Đã trang bị (Xem bên dưới)' : 'Chưa trang bị'}`
                 )
             );
         
-        // Hiển thị ảnh Background nếu đã trang bị
-        if (userData.bgUrl) {
+        // Hiển thị ảnh Background nếu đã trang bị và link hợp lệ
+        if (userData.bgUrl && userData.bgUrl.match(/\.(jpeg|jpg|gif|png|webp)(\?.*)?$/i)) {
             profileContainer.addMediaGalleryComponents(
                 new MediaGalleryBuilder().addItems(
                     new MediaGalleryItemBuilder().setURL(userData.bgUrl)
                 )
+            );
+        } else if (userData.bgUrl) {
+            // Nếu có link nhưng không hợp lệ, hiển thị thông báo
+            profileContainer.addTextDisplayComponents(
+                new TextDisplayBuilder().setContent(`> ⚠️ *Ảnh nền của bạn bị lỗi hoặc không đúng định dạng. Hãy dùng \`mibg clear\` để xoá hoặc đặt lại ảnh khác có đuôi .png/.jpg!*`)
             );
         }
         
