@@ -911,7 +911,11 @@ function bjHandValue(hand) {
     return total;
 }
 
-function bjIsBlackjack(hand) {
+function bjIsXiban(hand) {
+    return hand.length === 2 && hand[0].rank === 'A' && hand[1].rank === 'A';
+}
+
+function bjIsXilat(hand) {
     return hand.length === 2 && bjHandValue(hand) === 21;
 }
 
@@ -9201,31 +9205,38 @@ if (command === 'mibanminigame' || command === 'mibanmg') {
         };
         blackjackGames.set(userId, game);
 
-        const playerBJ = bjIsBlackjack(playerHand);
-        const dealerBJ = bjIsBlackjack(dealerHand);
+        const pXiban = bjIsXiban(playerHand);
+        const pXilat = bjIsXilat(playerHand);
+        const dXiban = bjIsXiban(dealerHand);
+        const dXilat = bjIsXilat(dealerHand);
+
+        const instantEnd = pXiban || pXilat || dXiban || dXilat;
 
         let sent;
         try {
             sent = await message.reply({
                 embeds: [bjBuildEmbed(game)],
-                components: playerBJ || dealerBJ ? [] : bjBuildRow(game),
+                components: instantEnd ? [] : bjBuildRow(game),
                 allowedMentions: { repliedUser: false }
             });
         } catch (err) {
-            // Không gửi được ván bài → hoàn cọc và xoá ván, tránh kẹt Map vĩnh viễn
             blackjackGames.delete(userId);
             userData.balance += bet;
             saveEconomy();
             if (err.code === 50013) {
-                message.channel.send({ content: `❌ **LỖI:** Bot bị thiếu quyền gửi Bảng Nhúng (Embed Links) nên không thể hiển thị ván bài Blackjack! Vui lòng nhờ Quản trị viên cấp quyền.\n(Hệ thống đã tự động hoàn lại **${bet.toLocaleString()} xu** cược cho bạn).` }).catch(() => null);
+                message.channel.send({ content: `❌ **LỖI:** Bot bị thiếu quyền gửi Bảng Nhúng (Embed Links) nên không thể hiển thị ván bài Blackjack! Vui lòng nhờ Quản trị viên cấp quyền.\\n(Hệ thống đã tự động hoàn lại **${bet.toLocaleString()} xu** cược cho bạn).` }).catch(() => null);
             }
             console.error('❌ Không gửi được tin nhắn Blackjack, đã hoàn tiền cược:', err.message);
             return;
         }
 
-        // Cả hai đều Blackjack tự nhiên → Hòa. Chỉ người chơi → Blackjack. Chỉ bot → Thua ngay.
-        if (playerBJ || dealerBJ) {
-            const outcome = playerBJ && dealerBJ ? 'push' : (playerBJ ? 'blackjack' : 'lose');
+        if (instantEnd) {
+            let outcome = 'lose';
+            if (pXiban && !dXiban) outcome = 'xiban';
+            else if (pXiban && dXiban) outcome = 'push';
+            else if (dXiban) outcome = 'lose'; // Nhà cái xì bàn, nhà con xì lát cũng thua
+            else if (pXilat && !dXilat) outcome = 'xilat';
+            else if (pXilat && dXilat) outcome = 'push';
             return bjEndGame(game, sent, outcome);
         }
 
@@ -14383,10 +14394,19 @@ if (commandName === 'changelog') {
                 game.playerHand.push(bjDraw(game.deck));
                 const val = bjHandValue(game.playerHand);
 
-                if (val >= 21) {
-                    // 21 điểm hoặc quắc → tự động kết thúc lượt, không cần chờ bấm Dừng
+                if (val > 21) {
                     await interaction.deferUpdate().catch(() => null);
-                    return bjEndGame(game, interaction.message, val > 21 ? 'lose' : null);
+                    return bjEndGame(game, interaction.message, 'lose');
+                }
+                
+                if (game.playerHand.length === 5) {
+                    await interaction.deferUpdate().catch(() => null);
+                    return bjEndGame(game, interaction.message, 'ngulinh');
+                }
+                
+                if (val === 21) {
+                    await interaction.deferUpdate().catch(() => null);
+                    return bjEndGame(game, interaction.message, null);
                 }
 
                 await interaction.update({ embeds: [bjBuildEmbed(game)], components: bjBuildRow(game) }).catch(() => null);
