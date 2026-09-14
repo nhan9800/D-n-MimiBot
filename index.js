@@ -3303,6 +3303,36 @@ const MUSIC_EMOJI = {
     dot:        '•'
 };
 
+// =====================================================================
+// PROFILE_EMOJI: Emoji trang trí cho thẻ Hồ Sơ. Mặc định là unicode,
+// sẽ được ghi đè bằng Application Emoji khi provisionAppEmojis() chạy.
+// =====================================================================
+const PROFILE_EMOJI = {
+    user:     '👤',
+    level:    '🏆',
+    coin:     '💰',
+    xp:       '📊',
+    heart:    '💗',
+    ring:     '💍',
+    image:    '🖼️',
+    id:       '🆔',
+    info:     '📋',
+    stats:    '📈',
+    crown:    '👑',
+    diamond:  '💎',
+    dot:      '◈',
+    arrow:    '▸',
+    check:    '✅',
+    sparkle:  '✨',
+    fire:     '🔥',
+    shield:   '🛡️',
+    bar_full: '█',
+    bar_empty:'░',
+};
+
+
+
+
 // Gán emoji cho nút một cách AN TOÀN: chấp nhận cả unicode ('▶️') lẫn custom ('<:tên:id>').
 // discord.js tự phân giải cả hai. Bọc try/catch để 1 emoji hỏng không làm sập cả panel.
 function applyBtnEmoji(button, key) {
@@ -3368,6 +3398,31 @@ async function provisionAppEmojis() {
             console.error(`🎨 [Emoji] Bỏ qua "${key}" (${match}):`, e?.message);
         }
     }
+    // Provision PROFILE_EMOJI too
+    for (const key of Object.keys(PROFILE_EMOJI)) {
+        const match = files.find(f => {
+            const base = f.replace(/\.(png|gif|webp)$/i, '');
+            return base === key && /\.(png|gif|webp)$/i.test(f);
+        });
+        if (!match) continue;
+
+        const name = emojiName(key);
+        try {
+            let em = byName.get(name);
+            if (em) {
+                reused++;
+            } else {
+                const attachment = fs.readFileSync(path.join(dir, match));
+                em = await client.application.emojis.create({ attachment, name });
+                created++;
+            }
+            const animated = /\.gif$/i.test(match) || em.animated;
+            PROFILE_EMOJI[key] = `<${animated ? 'a' : ''}:${em.name}:${em.id}>`;
+        } catch (e) {
+            console.error(`🎨 [Emoji] Bỏ qua profile "${key}" (${match}):`, e?.message);
+        }
+    }
+
     console.log(`🎨 [Emoji] Application Emoji: tạo mới ${created}, dùng lại ${reused}.`);
 }
 
@@ -8206,20 +8261,43 @@ if (command === 'mibanminigame' || command === 'mibanmg') {
         const userData = getUserData(userId);
         const xpNeeded = xpNeededForLevel(userData.level);
         const userAvatar = message.author.displayAvatarURL({ extension: 'png', size: 256 });
+        
+        // Custom progress bar with dot/diamond markers
+        const pctValue = xpNeeded > 0 ? Math.max(0, Math.min(1, userData.xp / xpNeeded)) : 0;
+        const pctInt = Math.round(pctValue * 100);
+        const barLen = 12;
+        const filled = Math.round(pctValue * barLen);
+        const progressBar = '▰'.repeat(filled) + '▱'.repeat(barLen - filled);
+        
+        // Tính toán thêm thông tin
+        const petInfo = userData.pet ? `${userData.pet.type === 'dog' ? '🐶' : '🐱'} **${userData.pet.name}** (Level ${userData.pet.level || 1})` : '❌ Chưa nuôi';
+        const canCauInfo = userData.cancau_uses ? `**${userData.cancau_uses}** lượt` : '❌ Chưa mua';
+        const cuocInfo = userData.cuoc_uses ? `**${userData.cuoc_uses}** lượt` : '❌ Chưa mua';
 
-        const row = new ActionRowBuilder().addComponents(
-            new ButtonBuilder().setCustomId('profile_sell_item').setLabel('💰 Bán Đồ').setStyle(ButtonStyle.Danger),
-            new ButtonBuilder().setCustomId('profile_shop').setLabel('🛒 Mua Sắm').setStyle(ButtonStyle.Secondary)
-        );
+        const btnSell = new ButtonBuilder().setCustomId('profile_sell_item').setLabel('Bán Đồ').setStyle(ButtonStyle.Danger);
+            try { btnSell.setEmoji(PROFILE_EMOJI.coin); } catch {}
+            const btnShop = new ButtonBuilder().setCustomId('profile_shop').setLabel('Mua Sắm').setStyle(ButtonStyle.Primary);
+            try { btnShop.setEmoji(PROFILE_EMOJI.diamond); } catch {}
+
+        const row = new ActionRowBuilder().addComponents(btnSell, btnShop);
 
         const profileContainer = new ContainerBuilder()
-            .setAccentColor(0x2F3136)
+            .setAccentColor(0x5865F2)
+            .addTextDisplayComponents(
+                new TextDisplayBuilder().setContent(
+                    `# ${PROFILE_EMOJI.crown} HỒ SƠ CỦA ${message.author.username.toUpperCase()}`
+                )
+            )
+            .addSeparatorComponents(
+                new SeparatorBuilder().setSpacing(SeparatorSpacingSize.Small).setDivider(true)
+            )
             .addSectionComponents(
                 new SectionBuilder()
                     .addTextDisplayComponents(
                         new TextDisplayBuilder().setContent(
-                            `### 👤 HỒ SƠ CỦA ${message.author.username.toUpperCase()}\n` +
-                            `> ${message.author} (\`${message.author.id}\`)`
+                            `${PROFILE_EMOJI.user} **Thành viên:** ${message.author}\n` +
+                            `${PROFILE_EMOJI.id} **ID:** \`${message.author.id}\`\n` +
+                            `${PROFILE_EMOJI.level} **Cấp độ:** \`Level ${userData.level}\``
                         )
                     )
                     .setThumbnailAccessory(
@@ -8231,11 +8309,10 @@ if (command === 'mibanminigame' || command === 'mibanmg') {
             )
             .addTextDisplayComponents(
                 new TextDisplayBuilder().setContent(
-                    `**✨ TÀI SẢN & CẤP ĐỘ**\n` +
-                    `> 🌟 **Cấp độ:** \`Level ${userData.level}\`\n` +
-                    `> 💰 **Ví tiền:** \`${userData.balance.toLocaleString()} xu\`\n` +
-                    `> 📈 **Kinh nghiệm:** \`${userData.xp.toLocaleString()} / ${xpNeeded.toLocaleString()} XP\`\n` +
-                    `> ${generateProgressBar(userData.xp, xpNeeded, 10)}`
+                    `### ${PROFILE_EMOJI.stats} Tài sản & Tiến trình\n` +
+                    `> ${PROFILE_EMOJI.coin} **Ví tiền:** \`${userData.balance.toLocaleString()} xu\`\n` +
+                    `> ${PROFILE_EMOJI.xp} **Kinh nghiệm:** \`${userData.xp.toLocaleString()} / ${xpNeeded.toLocaleString()} XP\`\n` +
+                    `> ${progressBar} **${pctInt}%**`
                 )
             )
             .addSeparatorComponents(
@@ -8243,24 +8320,38 @@ if (command === 'mibanminigame' || command === 'mibanmg') {
             )
             .addTextDisplayComponents(
                 new TextDisplayBuilder().setContent(
-                    `**❤️ THÔNG TIN CÁ NHÂN**\n` +
-                    `> 💘 **Tình trạng:** ${userData.spouseId ? `Đã kết hôn với <@${userData.spouseId}>` : 'Độc thân'}\n` +
-                    `> 💍 **Nhẫn cưới:** ${userData.inventory?.nhan_cuoi ? 'Có trang bị' : 'Không có'}\n` +
-                    `> 🖼️ **Ảnh nền:** ${userData.bgUrl ? 'Đã trang bị (Xem bên dưới)' : 'Chưa trang bị'}`
+                    `### ${PROFILE_EMOJI.heart} Thông tin cá nhân\n` +
+                    `> ${PROFILE_EMOJI.heart} **Tình trạng:** ${userData.spouseId ? `Đã kết hôn với <@${userData.spouseId}>` : 'Độc thân'}\n` +
+                    `> ${PROFILE_EMOJI.ring} **Nhẫn cưới:** ${userData.inventory?.nhan_cuoi ? `${PROFILE_EMOJI.check} Có trang bị` : '❌ Không có'}\n` +
+                    `> ${PROFILE_EMOJI.image} **Ảnh nền:** ${userData.bgUrl ? `${PROFILE_EMOJI.check} Đã trang bị` : '❌ Chưa trang bị'}`
+                )
+            )
+            .addSeparatorComponents(
+                new SeparatorBuilder().setSpacing(SeparatorSpacingSize.Small).setDivider(true)
+            )
+            .addTextDisplayComponents(
+                new TextDisplayBuilder().setContent(
+                    `### ${PROFILE_EMOJI.sparkle} Vật phẩm & Dụng cụ\n` +
+                    `> 🐾 **Thú cưng:** ${petInfo}\n` +
+                    `> 🎣 **Cần câu:** ${canCauInfo}\n` +
+                    `> ⛏️ **Cuốc:** ${cuocInfo}`
                 )
             );
         
         // Hiển thị ảnh Background nếu đã trang bị và link hợp lệ
         if (userData.bgUrl && userData.bgUrl.match(/\.(jpeg|jpg|gif|png|webp)(\?.*)?$/i)) {
-            profileContainer.addMediaGalleryComponents(
-                new MediaGalleryBuilder().addItems(
-                    new MediaGalleryItemBuilder().setURL(userData.bgUrl)
+            profileContainer
+                .addSeparatorComponents(
+                    new SeparatorBuilder().setSpacing(SeparatorSpacingSize.Small).setDivider(true)
                 )
-            );
+                .addMediaGalleryComponents(
+                    new MediaGalleryBuilder().addItems(
+                        new MediaGalleryItemBuilder().setURL(userData.bgUrl)
+                    )
+                );
         } else if (userData.bgUrl) {
-            // Nếu có link nhưng không hợp lệ, hiển thị thông báo
             profileContainer.addTextDisplayComponents(
-                new TextDisplayBuilder().setContent(`> ⚠️ *Ảnh nền của bạn bị lỗi hoặc không đúng định dạng. Hãy dùng \`mibg clear\` để xoá hoặc đặt lại ảnh khác có đuôi .png/.jpg!*`)
+                new TextDisplayBuilder().setContent(`> ⚠️ *Ảnh nền bị lỗi. Dùng \`mibg clear\` để xoá hoặc đặt lại ảnh có đuôi .png/.jpg!*`)
             );
         }
         
