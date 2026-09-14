@@ -982,12 +982,20 @@ async function bjEndGame(game, message, outcomeOverride = null) {
             userData.balance -= actualPenalty;
             saveEconomy();
         }
-        resultText = `🤬 **ĐỀN BÀI!** Bạn dừng khi dưới 15 điểm (Non). Bị phạt x5 cược: **-${penaltyAmount.toLocaleString()} xu**`;
+        resultText = `👿 **ĐỀN BÀI!** Bạn dừng khi dưới 15 điểm (Non). Bị phạt x5 cược: **-${penaltyAmount.toLocaleString()} xu**`;
         resultColor = '#800080';
-    } else if (outcome === 'blackjack') {
-        payout = Math.round(game.totalBet * 2.5);
-        resultText = `🎉 **BLACKJACK!** Bạn có 21 điểm ngay từ đầu! +**${(payout - game.totalBet).toLocaleString()} xu** (x1.5)`;
+    } else if (outcome === 'xiban') {
+        payout = game.totalBet * 4;
+        resultText = `🎉 **XÌ BÀN!** Bạn bốc được 2 lá Xì (Át) ngay từ đầu! +**${(payout - game.totalBet).toLocaleString()} xu** (x4 cược)`;
+        resultColor = '#FFD700';
+    } else if (outcome === 'xilat' || outcome === 'blackjack') {
+        payout = game.totalBet * 5;
+        resultText = `🎉 **XÌ LÁT!** Bạn có 21 điểm ngay từ đầu! +**${(payout - game.totalBet).toLocaleString()} xu** (x5 cược)`;
         resultColor = '#57F287';
+    } else if (outcome === 'ngulinh') {
+        payout = game.totalBet * 3;
+        resultText = `🎉 **NGŨ LINH!** Bạn đã bốc 5 lá mà không quá 21 điểm! +**${(payout - game.totalBet).toLocaleString()} xu** (x3 cược)`;
+        resultColor = '#FF8C00';
     } else if (outcome === 'push') {
         payout = game.totalBet;
         resultText = `🤝 **HÒA!** Hoàn lại tiền cược — không lời không lỗ.`;
@@ -8360,9 +8368,16 @@ if (command === 'mibanminigame' || command === 'mibanmg') {
         if (!userData.inventory || !userData.inventory.bg_profile) {
             return message.reply('❌ Bạn chưa mua **Ảnh Bìa Profile** trong Cửa Hàng (`mishop`)!');
         }
+        
+        if (args[1] === 'clear' || args[1] === 'xoa') {
+            userData.bgUrl = null;
+            saveEconomy();
+            return message.reply('✅ Đã xóa Ảnh Bìa Profile! Ảnh bìa của bạn đã trở về mặc định.');
+        }
+
         const url = args[1];
-        if (!url || !url.startsWith('http')) {
-            return message.reply('❌ Vui lòng cung cấp link ảnh hợp lệ!\nVí dụ: `mibg https://i.imgur.com/abc.png`');
+        if (!url || !url.startsWith('http') || !url.match(/\.(jpeg|jpg|gif|png|webp)(\?.*)?$/i)) {
+            return message.reply('❌ Vui lòng cung cấp link ảnh trực tiếp hợp lệ (đuôi .png, .jpg, .gif, .webp)!\nVí dụ: \`mibg https://i.imgur.com/abc.png\`\nHoặc gõ \`mibg clear\` để xóa nền bị lỗi.');
         }
         userData.bgUrl = url;
         saveEconomy();
@@ -8543,11 +8558,9 @@ if (command === 'mibanminigame' || command === 'mibanmg') {
     // 4. Lệnh chuyển xu cho người khác: migive @user [số_tiền]
     if (command === 'migive' || command === 'mig') {
         const targetMember = message.mentions.members.first();
-        // Chỉ nhận chuỗi thuần số: parseInt('100k') = 100 nên phải chặn đuôi rác
         const rawAmount = args[2] ? String(args[2]).trim() : '';
         const amount = /^\d+$/.test(rawAmount) ? parseInt(rawAmount, 10) : NaN;
 
-        // Kiểm tra cú pháp
         if (!targetMember || !amount || isNaN(amount) || amount <= 0) {
             return message.reply({ 
                 content: `❌ Cú pháp sai! Vui lòng gõ:\n\`migive @người_nhận [số_tiền]\`\nVí dụ: \`migive @Username 500\``, 
@@ -8555,22 +8568,51 @@ if (command === 'mibanminigame' || command === 'mibanmg') {
             });
         }
 
-        // Kiểm tra tự chuyển cho chính mình
         if (targetMember.id === userId) {
             return message.reply({ content: '❌ Bạn không thể chuyển xu cho chính mình!', allowedMentions: { repliedUser: false } });
         }
 
-        // Kiểm tra số dư người gửi
         const senderData = getUserData(userId);
         if (senderData.balance < amount) {
             return message.reply({ content: `❌ Bạn không đủ xu để thực hiện giao dịch này (Số dư: ${senderData.balance.toLocaleString()} xu)!`, allowedMentions: { repliedUser: false } });
         }
 
-        // Thực hiện giao dịch
+        if (amount > 5000000) {
+            const banDurations = [1, 3, 5, 7, 30];
+            senderData.giveBanLevel = (senderData.giveBanLevel || 0);
+            const banDays = banDurations[Math.min(senderData.giveBanLevel, banDurations.length - 1)];
+            const expiresAt = Date.now() + banDays * 24 * 60 * 60 * 1000;
+            
+            senderData.minigameBan = {
+                banned: true,
+                reason: `Chuyển quá giới hạn 5,000,000 xu (Cấp độ phạt: ${senderData.giveBanLevel + 1})`,
+                bannedAt: Date.now(),
+                bannedBy: client.user.id,
+                expiresAt
+            };
+            senderData.giveBanLevel++;
+            saveEconomy();
+            
+            sendMinigameBanNotice(userId, true, senderData.minigameBan.reason, client.user, message.guild?.name, expiresAt).catch(() => null);
+            return message.reply({ content: `🚨 **CẢNH BÁO:** Bạn đã bị cấm minigame/kinh tế ${banDays} ngày do vi phạm giới hạn chuyển xu!`, allowedMentions: { repliedUser: false } });
+        }
+
         const receiverData = getUserData(targetMember.id);
+        const todayStr = new Date(Date.now() + 7 * 3600 * 1000).toISOString().split('T')[0];
         
+        if (receiverData.lastGiveReceivedDate !== todayStr) {
+            receiverData.dailyReceived = 0;
+            receiverData.lastGiveReceivedDate = todayStr;
+        }
+        
+        const limitPerDay = (receiverData.level || 1) * 500000;
+        if (receiverData.dailyReceived + amount > limitPerDay) {
+            return message.reply({ content: `❌ Giao dịch thất bại! **${targetMember.user.username}** (Level ${receiverData.level || 1}) chỉ có thể nhận tối đa ${limitPerDay.toLocaleString()} xu/ngày. Hôm nay họ đã nhận ${receiverData.dailyReceived.toLocaleString()} xu.`, allowedMentions: { repliedUser: false } });
+        }
+
         senderData.balance -= amount;
         receiverData.balance += amount;
+        receiverData.dailyReceived += amount;
         
         saveEconomy();
 
@@ -13454,7 +13496,7 @@ if (commandName === 'changelog') {
         return interaction.update({ embeds: [pageEmbed], components: interaction.message.components });
     }
 
-    const ECONOMY_INTERACTION_PREFIXES = ['shop_seed_select', 'farm_plant_seed_select', 'farm_', 'shop_', 'mikho_sell:', 'marry_', 'buy_ring', 'buy_bg', 'buy_fishing_rod', 'pet_', 'bj_'];
+    const ECONOMY_INTERACTION_PREFIXES = ['shop_seed_select', 'farm_plant_seed_select', 'farm_', 'shop_', 'mikho_sell:', 'marry_', 'buy_ring', 'buy_bg', 'buy_fishing_rod', 'buy_cuoc', 'pet_', 'bj_'];
     if (ECONOMY_INTERACTION_PREFIXES.some(p => interaction.customId && interaction.customId.startsWith(p))) {
         const banInfo = isMinigameBanned(interaction.user.id);
         if (banInfo) {
@@ -13860,6 +13902,17 @@ if (commandName === 'changelog') {
             return interaction.reply({ content: '✅ Bạn đã mua **Ảnh Bìa Profile**! Hãy dùng lệnh `mibg <link_ảnh>` để cài đặt nền cho thẻ hồ sơ của bạn.', flags: MessageFlags.Ephemeral });
         }
         
+                if (customId === 'buy_cuoc') {
+            const userData = getUserData(interaction.user.id);
+            if (userData.balance < 50000) {
+                return interaction.reply({ content: '❌ Bạn không đủ 50,000 xu để mua Cuốc!', flags: MessageFlags.Ephemeral });
+            }
+            userData.balance -= 50000;
+            userData.cuoc_uses = (userData.cuoc_uses || 0) + 10;
+            saveEconomy();
+            return interaction.reply({ content: `✅ Bạn đã mua **⛏️ Cuốc** thành công! Cuốc hiện tại có **${userData.cuoc_uses} lần** sử dụng.\nHãy dùng lệnh \`mitimdo\` hoặc \`mitimnhanh\` để tìm đồ!`, flags: MessageFlags.Ephemeral });
+        }
+
         if (customId === 'buy_fishing_rod') {
             const userData = getUserData(interaction.user.id);
             if (userData.balance < 50000) {
