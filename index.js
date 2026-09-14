@@ -989,15 +989,15 @@ async function bjEndGame(game, message, outcomeOverride = null) {
         resultText = `👿 **ĐỀN BÀI!** Bạn dừng khi dưới 15 điểm (Non). Bị phạt x5 cược: **-${penaltyAmount.toLocaleString()} xu**`;
         resultColor = '#800080';
     } else if (outcome === 'xiban') {
-        payout = game.totalBet * 4;
+        payout = game.totalBet * 5;
         resultText = `🎉 **XÌ BÀN!** Bạn bốc được 2 lá Xì (Át) ngay từ đầu! +**${(payout - game.totalBet).toLocaleString()} xu** (x4 cược)`;
         resultColor = '#FFD700';
     } else if (outcome === 'xilat' || outcome === 'blackjack') {
-        payout = game.totalBet * 5;
+        payout = game.totalBet * 6;
         resultText = `🎉 **XÌ LÁT!** Bạn có 21 điểm ngay từ đầu! +**${(payout - game.totalBet).toLocaleString()} xu** (x5 cược)`;
         resultColor = '#57F287';
     } else if (outcome === 'ngulinh') {
-        payout = game.totalBet * 3;
+        payout = game.totalBet * 4;
         resultText = `🎉 **NGŨ LINH!** Bạn đã bốc 5 lá mà không quá 21 điểm! +**${(payout - game.totalBet).toLocaleString()} xu** (x3 cược)`;
         resultColor = '#FF8C00';
     } else if (outcome === 'push') {
