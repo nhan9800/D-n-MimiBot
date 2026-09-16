@@ -5581,6 +5581,84 @@ client.once('ready', async () => {
         if (changed) saveEconomy();
     }, 60000).unref();
 
+    // 🐾 Pet decay interval - giảm độ no & vui vẻ theo thời gian (100% → 0% trong 12 giờ)
+    // Chạy mỗi 10 phút, mỗi lần giảm ~1.39 điểm (100 / (12*6) ≈ 1.39)
+    setInterval(async () => {
+        let changed = false;
+        const now = Date.now();
+        const DECAY_INTERVAL_MS = 10 * 60 * 1000; // 10 phút
+        const DECAY_AMOUNT = 100 / (12 * 6); // ~1.39 mỗi 10 phút → hết 100 trong 12h
+        
+        for (const userId in economyData) {
+            const uData = economyData[userId];
+            if (!uData || !uData.pet) continue;
+            
+            const pet = uData.pet;
+            if (!pet.lastDecay) pet.lastDecay = now;
+            
+            // Tính số lần decay đã bỏ lỡ
+            const elapsed = now - pet.lastDecay;
+            if (elapsed < DECAY_INTERVAL_MS) continue;
+            
+            const missedTicks = Math.floor(elapsed / DECAY_INTERVAL_MS);
+            const totalDecay = Math.round(DECAY_AMOUNT * missedTicks);
+            
+            if (totalDecay <= 0) continue;
+            
+            const oldHunger = pet.hunger;
+            const oldHappiness = pet.happiness;
+            
+            pet.hunger = Math.max(0, pet.hunger - totalDecay);
+            pet.happiness = Math.max(0, pet.happiness - totalDecay);
+            pet.lastDecay = now;
+            changed = true;
+            
+            // 🔔 Gửi DM nhắc nhở khi chỉ số về 20% hoặc thấp hơn
+            if ((pet.hunger <= 20 || pet.happiness <= 20) && (oldHunger > 20 || oldHappiness > 20)) {
+                if (!pet.petDmWarnings) pet.petDmWarnings = 0;
+                pet.petDmWarnings += 1;
+                
+                try {
+                    const dmUser = await client.users.fetch(userId).catch(() => null);
+                    if (dmUser) {
+                        const hungerBar = pet.hunger <= 20 ? `🔴 **Độ no:** ${pet.hunger}/100 — RẤT ĐÓI!` : `🟡 **Độ no:** ${pet.hunger}/100`;
+                        const happyBar = pet.happiness <= 20 ? `🔴 **Vui vẻ:** ${pet.happiness}/100 — RẤT BUỒN!` : `🟡 **Vui vẻ:** ${pet.happiness}/100`;
+                        
+                        let warningText = `⚠️ **CẢNH BÁO THÚ CƯNG!**\n\n` +
+                            `${pet.emoji} **${pet.name}** của bạn đang cần được chăm sóc!\n` +
+                            `${hungerBar}\n${happyBar}\n\n` +
+                            `Hãy dùng lệnh \`mipet\` để cho ăn và chơi cùng nhé!`;
+                        
+                        if (pet.petDmWarnings >= 2) {
+                            warningText += `\n\n🚨 **Lưu ý:** Đây là lần nhắc nhở thứ **${pet.petDmWarnings}/3**. Nếu nhận đủ **3 lần** nhắc nhở mà không chăm sóc, bạn sẽ bị **cấm minigame 1 ngày**!`;
+                        }
+                        
+                        await dmUser.send({ content: warningText }).catch(() => null);
+                    }
+                } catch (e) {
+                    // Bỏ qua nếu không gửi được DM
+                }
+                
+                // 🔒 Auto-ban minigame 1 ngày sau 3 lần cảnh báo
+                if (pet.petDmWarnings >= 3) {
+                    pet.petDmWarnings = 0; // Reset counter
+                    if (!uData.minigameBan || !uData.minigameBan.banned) {
+                        const banDuration = 24 * 60 * 60 * 1000; // 1 ngày
+                        uData.minigameBan = {
+                            banned: true,
+                            reason: 'Bỏ bê thú cưng quá lâu (3 lần cảnh báo không chăm sóc)',
+                            bannedAt: now,
+                            expiresAt: now + banDuration,
+                            bannedBy: client.user.id
+                        };
+                        sendMinigameBanNotice(userId, true, uData.minigameBan.reason, client.user, 'Hệ thống Mimi', uData.minigameBan.expiresAt).catch(() => null);
+                    }
+                }
+            }
+        }
+        if (changed) saveEconomy();
+    }, 10 * 60 * 1000).unref(); // Chạy mỗi 10 phút
+
     // 🎨 Tự cấp Application Emoji cho panel nhạc (an toàn, không cần quyền server).
     await provisionAppEmojis().catch(e => console.error('🎨 [Emoji] provisionAppEmojis lỗi:', e?.message));
     await syncChannels();
@@ -6977,14 +7055,6 @@ const FISH_POOL = [
 ];
 
 function executeFishing(userId, username, avatarUrl, count = 1) {
-    const banInfo = isMinigameBanned(userId);
-    if (banInfo) {
-        return {
-            ok: false,
-            message: `🚫 **BẠN ĐÃ BỊ CẤM CHƠI MINIGAME!**\n📝 **Lý do:** ${banInfo.reason || 'Vi phạm quy định'}`
-        };
-    }
-
     const userData = getUserData(userId);
     if (!userData.cancau_uses || userData.cancau_uses <= 0) {
         return {
@@ -7175,14 +7245,6 @@ const ARTIFACT_POOLS = {
 };
 
 function executeSearching(userId, username, avatarUrl, count = 1, isFast = false, guildId = null) {
-    const banInfo = isMinigameBanned(userId);
-    if (banInfo) {
-        return {
-            ok: false,
-            message: `🚫 **BẠN ĐÃ BỊ CẤM CHƠI MINIGAME & TÌM ĐỒ!**\n📝 **Lý do:** ${banInfo.reason || 'Vi phạm quy định'}`
-        };
-    }
-
     const userData = getUserData(userId);
     const now = Date.now();
     const cooldownMs = count * 60 * 1000; // 1 phút / lần tìm
@@ -7941,21 +8003,9 @@ if (command === 'mibanminigame' || command === 'mibanmg') {
     // ==========================================
     const MINIGAME_COMMANDS = new Set([
         'midaily', 'mid',
-        'micash', 'mic', `${serverPrefix}cash`, `${serverPrefix}c`,
-        'miprofile', 'mip', `${serverPrefix}profile`, `${serverPrefix}p`,
-        'mitop', 'mit', `${serverPrefix}top`, `${serverPrefix}t`,
         'migive', 'mig', `${serverPrefix}give`,
-        'mifarm', 'minongtrai', `${serverPrefix}farm`,
-        'mituoicay', 'mituoi', `${serverPrefix}tuoi`,
-        'mithuhoach', 'mith', `${serverPrefix}th`,
         'mibannongsan', 'mibns',
-        'mishop', 'mis', `${serverPrefix}shop`,
-        'mikho', 'mibando', 'miban', 'mibanca',
-        'mibg', 'setbackground',
         'mikethon', 'milyhon', 'lyhon',
-        'micaoca', 'mifish',
-        'mipet', 'minuoithu',
-        'mitimdo', 'mitd', 'mitim',
         'micf', 'micoinflip', `${serverPrefix}cf`, `${serverPrefix}coinflip`,
         'mid6', 'mixucxac', `${serverPrefix}dice`,
         'mitx', 'mitaixiu', `${serverPrefix}tx`, `${serverPrefix}taixiu`,
@@ -8548,14 +8598,6 @@ if (command === 'mibanminigame' || command === 'mibanmg') {
 
     // 🐾 LỆNH NUÔI THÚ: mipet | minuoithu
     if (command === 'mipet' || command === 'minuoithu') {
-        const banInfo = isMinigameBanned(userId);
-        if (banInfo) {
-            return message.reply({ 
-                content: `🚫 **BẠN ĐÃ BỊ CẤM CHƠI MINIGAME!**`,
-                allowedMentions: { repliedUser: false } 
-            });
-        }
-
         const userData = getUserData(userId);
         if (!userData.pet) {
             const adoptEmbed = new EmbedBuilder()
@@ -8578,8 +8620,25 @@ if (command === 'mibanminigame' || command === 'mibanmg') {
         }
 
         const pet = userData.pet;
-        const hungerStatus = pet.hunger >= 80 ? '🟢 Căng bụng' : (pet.hunger >= 40 ? '🟡 Hơi đói' : '🔴 Rất đói');
-        const happyStatus = pet.happiness >= 80 ? '🟢 Vui vẻ' : (pet.happiness >= 40 ? '🟡 Bình thường' : '🔴 Buồn chán');
+        
+        // Tính toán decay real-time khi xem
+        const now = Date.now();
+        if (!pet.lastDecay) pet.lastDecay = now;
+        const elapsed = now - pet.lastDecay;
+        const DECAY_INTERVAL_MS = 10 * 60 * 1000;
+        if (elapsed >= DECAY_INTERVAL_MS) {
+            const missedTicks = Math.floor(elapsed / DECAY_INTERVAL_MS);
+            const totalDecay = Math.round((100 / (12 * 6)) * missedTicks);
+            if (totalDecay > 0) {
+                pet.hunger = Math.max(0, pet.hunger - totalDecay);
+                pet.happiness = Math.max(0, pet.happiness - totalDecay);
+                pet.lastDecay = now;
+                saveEconomy();
+            }
+        }
+        
+        const hungerStatus = pet.hunger >= 80 ? '🟢 Căng bụng' : (pet.hunger >= 40 ? '🟡 Hơi đói' : (pet.hunger >= 20 ? '🟠 Khá đói' : '🔴 Rất đói'));
+        const happyStatus = pet.happiness >= 80 ? '🟢 Vui vẻ' : (pet.happiness >= 40 ? '🟡 Bình thường' : (pet.happiness >= 20 ? '🟠 Hơi buồn' : '🔴 Buồn chán'));
 
         const petEmbed = new EmbedBuilder()
             .setColor('#2ECC71')
@@ -8593,7 +8652,7 @@ if (command === 'mibanminigame' || command === 'mibanmg') {
             .setThumbnail(message.author.displayAvatarURL());
         
         const row = new ActionRowBuilder().addComponents(
-            new ButtonBuilder().setCustomId('pet_feed').setLabel('🍖 Cho Ăn (5k xu)').setStyle(ButtonStyle.Success).setDisabled(pet.hunger >= 100),
+            new ButtonBuilder().setCustomId('pet_feed').setLabel('🍖 Cho Ăn (10k xu)').setStyle(ButtonStyle.Success).setDisabled(pet.hunger >= 100),
             new ButtonBuilder().setCustomId('pet_play').setLabel('🎾 Chơi Cùng').setStyle(ButtonStyle.Primary).setDisabled(pet.happiness >= 100)
         );
 
@@ -11340,26 +11399,12 @@ client.on('interactionCreate', async interaction => {
         }
 
         if (commandName === 'farm') {
-            const banInfo = isMinigameBanned(user.id);
-            if (banInfo) {
-                return interaction.reply({
-                    content: `🚫 **BẠN ĐÃ BỊ CẤM THAM GIA MINIGAME & TÍNH NĂNG KINH TẾ!**\n📝 **Lý do:** ${banInfo.reason || 'Vi phạm quy định giải trí'}`,
-                    flags: MessageFlags.Ephemeral
-                });
-            }
             const userData = getUserData(user.id);
             const payload = buildFarmPayload(user, userData);
             return interaction.reply(payload);
         }
 
         if (commandName === 'shop') {
-            const banInfo = isMinigameBanned(user.id);
-            if (banInfo) {
-                return interaction.reply({
-                    content: `🚫 **BẠN ĐÃ BỊ CẤM THAM GIA MINIGAME & TÍNH NĂNG KINH TẾ!**\n📝 **Lý do:** ${banInfo.reason || 'Vi phạm quy định giải trí'}`,
-                    flags: MessageFlags.Ephemeral
-                });
-            }
             const userData = getUserData(user.id);
             const farm = getFarmData(user.id);
             const nextPlot = farm.plots.length + 1;
@@ -13338,6 +13383,8 @@ if (commandName === 'changelog') {
     // 📂 HANDLER SELECT MENU: PHÂN NHÁNH /HELP
     // ==========================================
     if (interaction.isStringSelectMenu() && interaction.customId === 'sell_item_select') {
+        const sellBanCheck = isMinigameBanned(interaction.user.id);
+        if (sellBanCheck) return interaction.reply({ content: '🚫 Bạn đang bị cấm minigame, không thể bán đồ!', flags: MessageFlags.Ephemeral });
         const choice = interaction.values[0];
         const userData = getUserData(interaction.user.id);
         const inv = userData.inventory || {};
@@ -13619,7 +13666,7 @@ if (commandName === 'changelog') {
         return interaction.update({ embeds: [pageEmbed], components: interaction.message.components });
     }
 
-    const ECONOMY_INTERACTION_PREFIXES = ['shop_seed_select', 'farm_plant_seed_select', 'farm_', 'shop_', 'mikho_sell:', 'marry_', 'buy_ring', 'buy_bg', 'buy_fishing_rod', 'buy_cuoc', 'pet_', 'bj_'];
+    const ECONOMY_INTERACTION_PREFIXES = ['marry_', 'buy_ring', 'bj_'];
     if (ECONOMY_INTERACTION_PREFIXES.some(p => interaction.customId && interaction.customId.startsWith(p))) {
         const banInfo = isMinigameBanned(interaction.user.id);
         if (banInfo) {
@@ -13906,6 +13953,8 @@ if (commandName === 'changelog') {
         }
 
         if (customId.startsWith('mikho_sell:')) {
+            const sellBanInfo = isMinigameBanned(interaction.user.id);
+            if (sellBanInfo) return interaction.reply({ content: '🚫 Bạn đang bị cấm minigame, không thể bán đồ!', flags: MessageFlags.Ephemeral });
             const tier = customId.split(':')[1];
             const result = sellArtifactsHelper(interaction.user, interaction.user.id, tier, interaction.guild?.id);
             return interaction.reply({ content: result.message, flags: MessageFlags.Ephemeral });
@@ -13952,6 +14001,8 @@ if (commandName === 'changelog') {
         // 👤 XỬ LÝ NÚT PHÁT SINH TỪ HỒ SƠ (/profile)
         // ==========================================
         if (customId === 'profile_sell_ring') {
+            const sellBanCheck = isMinigameBanned(interaction.user.id);
+            if (sellBanCheck) return interaction.reply({ content: '🚫 Bạn đang bị cấm minigame, không thể bán đồ!', flags: MessageFlags.Ephemeral });
             const userData = getUserData(interaction.user.id);
             if (!userData.inventory || !userData.inventory.nhan_cuoi) {
                 return interaction.reply({ content: '❌ Bạn không có nhẫn để bán!', flags: 64 });
@@ -13963,6 +14014,8 @@ if (commandName === 'changelog') {
             return interaction.reply({ content: '✅ Bạn đã bán nhẫn và thu lại **700,000 xu**!', flags: 64 });
         }
         if (customId === 'profile_sell_item') {
+            const sellBanCheck = isMinigameBanned(interaction.user.id);
+            if (sellBanCheck) return interaction.reply({ content: '🚫 Bạn đang bị cấm minigame, không thể bán đồ!', flags: MessageFlags.Ephemeral });
             const userData = getUserData(interaction.user.id);
             const inv = userData.inventory || {};
             
@@ -14047,24 +14100,38 @@ if (commandName === 'changelog') {
             return interaction.reply({ content: `✅ Bạn đã mua **🎣 Cần Câu** thành công! Cần câu hiện tại có **${userData.cancau_uses} lần** sử dụng.\nHãy dùng lệnh \`micaoca\` hoặc \`/caoca\` để bắt cá nhé!`, flags: MessageFlags.Ephemeral });
         }
 
-        if (customId === 'pet_adopt_dog' || customId === 'pet_adopt_cat') {
+        if (customId.startsWith('pet_adopt_')) {
             const userData = getUserData(interaction.user.id);
             if (userData.pet) return interaction.reply({ content: '❌ Bạn đã có thú cưng rồi!', flags: MessageFlags.Ephemeral });
-            if (userData.balance < 50000) return interaction.reply({ content: '❌ Bạn không đủ 50,000 xu để nhận nuôi thú cưng!', flags: MessageFlags.Ephemeral });
             
-            userData.balance -= 50000;
-            const isDog = customId === 'pet_adopt_dog';
+            const petType = customId.replace('pet_adopt_', '');
+            const price = 2000000;
+            
+            if (userData.balance < price) return interaction.reply({ content: `❌ Bạn không đủ **${price.toLocaleString()} xu** để mua thú cưng!`, flags: MessageFlags.Ephemeral });
+            
+            userData.balance -= price;
+            
+            const petMap = {
+                dog: { name: 'Cún', emoji: '🐶' },
+                cat: { name: 'Miu', emoji: '🐱' },
+                parrot: { name: 'Vẹt', emoji: '🦜' },
+                rabbit: { name: 'Thỏ', emoji: '🐰' }
+            };
+            const pInfo = petMap[petType] || { name: 'Thú cưng', emoji: '🐾' };
+            
             userData.pet = {
-                type: isDog ? 'dog' : 'cat',
-                name: isDog ? 'Cún' : 'Miu',
-                emoji: isDog ? '🐶' : '🐱',
+                type: petType,
+                name: pInfo.name,
+                emoji: pInfo.emoji,
                 level: 1,
                 xp: 0,
                 hunger: 50,
-                happiness: 50
+                happiness: 50,
+                lastDecay: Date.now(),
+                petDmWarnings: 0
             };
             saveEconomy();
-            return interaction.reply({ content: `✅ Chúc mừng! Bạn đã nhận nuôi một bé **${userData.pet.emoji} ${userData.pet.name}**! Dùng lệnh \`mipet\` để xem và chăm sóc nhé.`, flags: MessageFlags.Ephemeral });
+            return interaction.reply({ content: `✅ Chúc mừng! Bạn đã mua thành công một bé **${pInfo.emoji} ${pInfo.name}**! Dùng lệnh \`mipet\` để xem và chăm sóc nhé.`, flags: MessageFlags.Ephemeral });
         }
 
         if (customId === 'pet_feed' || customId === 'pet_play') {
@@ -14075,10 +14142,12 @@ if (commandName === 'changelog') {
             
             if (customId === 'pet_feed') {
                 if (pet.hunger >= 100) return interaction.reply({ content: '❌ Thú cưng của bạn đã no rồi!', flags: MessageFlags.Ephemeral });
-                if (userData.balance < 5000) return interaction.reply({ content: '❌ Bạn không đủ 5,000 xu để mua thức ăn!', flags: MessageFlags.Ephemeral });
-                userData.balance -= 5000;
-                pet.hunger = Math.min(100, pet.hunger + 30);
+                if (userData.balance < 10000) return interaction.reply({ content: '❌ Bạn không đủ **10,000 xu** để mua thức ăn!', flags: MessageFlags.Ephemeral });
+                userData.balance -= 10000;
+                pet.hunger = Math.min(100, pet.hunger + 10);
                 pet.xp += 10;
+                // Reset DM warning counter khi cho ăn
+                pet.petDmWarnings = 0;
             } else {
                 if (pet.happiness >= 100) return interaction.reply({ content: '❌ Thú cưng của bạn đã rất vui vẻ rồi!', flags: MessageFlags.Ephemeral });
                 
@@ -14090,8 +14159,10 @@ if (commandName === 'changelog') {
                 if (!userData.cooldowns) userData.cooldowns = {};
                 userData.cooldowns.pet_play = now + 60000; // 60s cooldown
 
-                pet.happiness = Math.min(100, pet.happiness + 25);
+                pet.happiness = Math.min(100, pet.happiness + 10);
                 pet.xp += 15;
+                // Reset DM warning counter khi chơi cùng
+                pet.petDmWarnings = 0;
             }
 
             let levelUpMsg = '';
@@ -14102,7 +14173,7 @@ if (commandName === 'changelog') {
             }
 
             saveEconomy();
-            return interaction.reply({ content: `✅ Bạn đã ${customId === 'pet_feed' ? 'cho thú cưng ăn ngon lành' : 'chơi đùa vui vẻ cùng thú cưng'}! (+XP)${levelUpMsg}`, flags: MessageFlags.Ephemeral });
+            return interaction.reply({ content: `✅ Bạn đã ${customId === 'pet_feed' ? 'cho thú cưng ăn ngon lành (-10,000 xu)' : 'chơi đùa vui vẻ cùng thú cưng'}! (+XP)${levelUpMsg}`, flags: MessageFlags.Ephemeral });
         }
         
         if (customId === 'buy_ring') {
