@@ -8436,6 +8436,8 @@ if (command === 'mibanminigame' || command === 'mibanmg') {
         const isMikhoSell = (command === 'mikho' && (argsList[1] === 'sell' || argsList[1] === 'bán' || argsList[1] === 'ban'));
 
         if (isDirectSell || isMikhoSell) {
+            const sellBanInfo = isMinigameBanned(userId);
+            if (sellBanInfo) return message.reply({ content: '🚫 Bạn đang bị cấm minigame, không thể bán đồ!', allowedMentions: { repliedUser: false } });
             const tierArg = (command === 'mibanca') ? 'ca' : (isDirectSell ? (argsList[1] || 'all') : (argsList[2] || 'all'));
             const result = sellArtifactsHelper(message.author, userId, tierArg, message.guild?.id);
             return message.reply({ content: result.message, allowedMentions: { repliedUser: false } });
@@ -13921,6 +13923,8 @@ if (commandName === 'changelog') {
         }
 
         if (customId === 'farm_sell_all') {
+            const sellBanCheck = isMinigameBanned(interaction.user.id);
+            if (sellBanCheck) return interaction.reply({ content: '🚫 Bạn đang bị cấm minigame, không thể bán đồ!', flags: MessageFlags.Ephemeral });
             const userData = getUserData(interaction.user.id);
             const farm = getFarmData(interaction.user.id);
             let totalSold = 0;
