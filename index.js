@@ -3457,7 +3457,7 @@ function buildMusicProgressBar(currentSec, totalSec, size = 14) {
 // HOÀN TOÀN KHÔNG DÙNG EMOJI - CHỈ DÙNG DISCORD MARKDOWN CHUẨN VÀ COMPONENTS V2
 // =====================================================================
 const PRIMARY_UPDATE_CHANNEL_ID = '1527814721053655092';
-const CURRENT_UPDATE_VERSION = '2026.09.06';
+const CURRENT_UPDATE_VERSION = '2026.09.16';
 const ANNOUNCED_UPDATES_FILE = path.join(__dirname, 'data', 'announced_updates.json');
 
 function readAnnouncedUpdates() {
@@ -3509,7 +3509,7 @@ function buildComponentsV2Announcement() {
         // 1. Tiêu đề thông báo
         {
             type: 10, // TextDisplay
-            content: `# ${E.fire} BẢN CẬP NHẬT HỆ THỐNG MIMI ECOSYSTEM ${E.starSpin}\n-# ${E.dotGreen} PHIÊN BẢN 2026.09.06 • CÂU NHANH • TÌM NHANH • KINH TẾ CÂN BẰNG\n\n> ${E.verify} **Kính gửi toàn thể Quản trị viên và cộng đồng người dùng Discord.**\n> ${E.arrowSmall} Đội ngũ phát triển vừa hoàn tất đợt nâng cấp toàn diện minigame, đồng bộ thời gian chờ theo số lượng và chuẩn hóa hạ tầng kết nối.`
+            content: `# ${E.fire} BẢN CẬP NHẬT HỆ THỐNG MIMI ECOSYSTEM ${E.starSpin}\n-# ${E.dotGreen} PHIÊN BẢN 2026.09.16 • ĐẠI TU THÚ CƯNG • LUẬT BLACKJACK MỚI • TỐI ƯU CƠ CHẾ CẤM\n\n> ${E.verify} **Kính gửi toàn thể Quản trị viên và cộng đồng người dùng Discord.**\n> ${E.arrowSmall} Đội ngũ phát triển vừa hoàn tất đợt nâng cấp toàn diện hệ thống thú cưng, cập nhật luật chơi Xì Lát thuần Việt và tinh chỉnh hệ thống phạt.`
         },
         // 2. Spector Separator Line
         {
@@ -3517,10 +3517,10 @@ function buildComponentsV2Announcement() {
             divider: true,
             spacing: 2
         },
-        // 3. Mục 1: LỆNH CÂU NHANH VÀ TÌM NHANH
+        // 3. Mục 1: ĐẠI TU HỆ THỐNG THÚ CƯNG
         {
             type: 10,
-            content: `### ${E.chamXanh} 1. TÍNH NĂNG CÂU NHANH VÀ TÌM NHANH HÀNG LOẠT\n> ${E.star} Trải nghiệm cày cuốc thần tốc và cơ chế thời gian hồi linh hoạt\n\`\`\`diff\n+ Thêm lệnh câu nhanh micaonhanh (hoặc /caonhanh) với số lần tùy chọn từ 1 đến 30.\n+ Thêm lệnh tìm đồ nhanh mitimnhanh (hoặc /timnhanh) khai quật thần tốc số lượng lớn.\n+ Cơ chế thời gian chờ chuẩn: Số lần thao tác = Số phút nghỉ (ví dụ: 10 lần = đợi 10 phút).\n+ Tự động tổng hợp chi tiết chiến lợi phẩm thu được và tổng giá trị xu ước tính.\n+ Tự động trừ độ bền cần câu và cất toàn bộ vật phẩm vào kho đồ an toàn.\n\`\`\``
+            content: `### ${E.chamXanh} 1. ĐẠI TU HỆ THỐNG THÚ CƯNG (PET SYSTEM)\n> ${E.star} Thú cưng chân thực hơn, nhiều lựa chọn hơn\n\`\`\`diff\n+ Mở rộng cửa hàng thú cưng: Bổ sung 🦜 Vẹt và 🐰 Thỏ, nâng tổng số lên 4 loại thú cưng.\n+ Cập nhật giá trị kinh tế: Giá nhận nuôi điều chỉnh thành 2.000.000 xu để tăng độ quý hiếm.\n+ Cơ chế sinh học chân thực: Thú cưng sẽ tự động giảm dần độ no và vui vẻ theo thời gian (giảm từ 100% về 0% trong 12 giờ).\n+ Hệ thống nhắc nhở tự động: Bot sẽ gửi tin nhắn trực tiếp (DM) khi chỉ số của thú cưng giảm xuống dưới 20%.\n+ Hình phạt bỏ bê: Nếu nhận đủ 3 lần cảnh báo mà không chăm sóc, người chơi sẽ bị cấm minigame 1 ngày!\n+ Điều chỉnh thức ăn: Phí cho ăn tăng lên 10.000 xu, phục hồi 10 điểm đói.\n\`\`\``
         },
         // 4. Spector Separator Line
         {
@@ -3528,10 +3528,10 @@ function buildComponentsV2Announcement() {
             divider: true,
             spacing: 1
         },
-        // 5. Mục 2: CÂN BẰNG KINH TẾ & ĐỘ HIẾM
+        // 5. Mục 2: CẬP NHẬT LUẬT BLACKJACK (XÌ DÁCH VN)
         {
             type: 10,
-            content: `### ${E.diamond} 2. ĐIỀU CHỈNH ĐỘ HIẾM VÀ CÂN BẰNG KINH TẾ\n> ${E.money} Bảo vệ giá trị vật phẩm hiếm và giữ cân bằng thị trường xu\n\`\`\`yaml\nTy Le Do Hiem Khi Tim Nhanh:\n  - Truyen Thuyet: Giam ty le xuat hien xuong 2% de giu gia tri do quy.\n  - Su Thi: Dieu chinh ty le xuong 10% nham on dinh kinh te server.\n  - Tim Don Le: Lenh tim le (mitimdo) van giu nguyen ty le goc (8% & 20%).\n  - An Toan Kinh Te: Tu dong kiem soat thu nhap va chong cheat xu 24/7.\n\`\`\``
+            content: `### ${E.diamond} 2. CẬP NHẬT LUẬT BLACKJACK THUẦN VIỆT\n> ${E.money} Bổ sung đầy đủ luật Xì Dách Việt Nam để tăng tính kịch tính\n\`\`\`yaml\nLuat Choi Moi:\n  - Xì Bàn: 2 lá Xì (AA) sẽ thắng x5 tiền cược.\n  - Xì Lát: 1 lá Xì (A) + 1 lá 10/J/Q/K sẽ thắng x4 tiền cược.\n  - Ngũ Linh: Rút đủ 5 lá bài mà tổng điểm <= 21 sẽ lập tức chiến thắng x3 tiền cược.\n  - Phạt Dừng Non: Dừng bài khi tổng điểm dưới 15 sẽ bị phạt thua x5 lần tiền cược!\n  - Chỉnh Sửa Trả Thưởng: Đã khắc phục lỗi hiển thị và trả thưởng sai tỷ lệ so với vốn.\n\`\`\``
         },
         // 6. Spector Separator Line
         {
@@ -3539,10 +3539,10 @@ function buildComponentsV2Announcement() {
             divider: true,
             spacing: 1
         },
-        // 7. Mục 3: CHUẨN HÓA MÁY CHỦ HỖ TRỢ
+        // 7. Mục 3: TỐI ƯU HỆ THỐNG CẤM (BAN SYSTEM)
         {
             type: 10,
-            content: `### ${E.shield} 3. CHUẨN HÓA MÁY CHỦ HỖ TRỢ CHÍNH THỨC\n> ${E.heartGlow} Kết nối cộng đồng nhanh chóng và tiện lợi\n\`\`\`fix\n* Dong bo duong dan may chu ho tro tren toan he thong ve: discord.gg/gBUHY3qph2\n* Cap nhat nut bam ho tro tai cac panel Ticket, Cham cong va Dashboard.\n* Tiep nhan gop y, giai dap thac mac va ho tro ky thuat 24/7.\n\`\`\``
+            content: `### ${E.shield} 3. TINH CHỈNH CƠ CHẾ CẤM & QUÀ TẶNG\n> ${E.heartGlow} Công bằng và linh hoạt hơn cho người chơi\n\`\`\`fix\n* Quyền Loi Khi Bi Cam: Nguoi dung bi cam (banminigame) hien van co the su dung cac lenh cham soc thu cung, cau ca, nong trai va xem thong tin ho so.\n* Chan Giao Dich: Nguoi bi cam tuyet doi khong the ban do (mibannongsan, mikho ban) de chong tau tan tai san.\n* Gioi Han Give: Lenh chieu co (migive) duoc gioi han nhan toi da (Level x 500.000 xu) moi ngay.\n* Chong Rua Tien: Chuyen tien qua 5.000.000 xu 1 lan se bi ban tu dong theo thang bac (1 den 30 ngay).\n\`\`\``
         },
         // 8. Spector Separator Line
         {
@@ -3553,7 +3553,7 @@ function buildComponentsV2Announcement() {
         // 9. Mục 4: BẢNG LỆNH MỚI
         {
             type: 10,
-            content: `### ${E.arrow} 4. HƯỚNG DẪN SỬ DỤNG NHANH\n${E.dotGreen} \`/caonhanh [so_lan]\` hoặc \`micaonhanh [số_lần]\` : Câu cá số lượng lớn (thời gian chờ = số lần/phút).\n${E.dotGreen} \`/timnhanh [so_lan]\` hoặc \`mitimnhanh [số_lần]\` : Tìm đồ cổ số lượng lớn (thời gian chờ = số lần/phút).\n${E.dotGreen} \`/cauca\` hoặc \`micaoca\` : Câu cá giải trí từng lượt.\n${E.dotGreen} \`/timdo\` hoặc \`mitimdo\` : Đào đồ cổ từng lượt theo tỷ lệ gốc.\n${E.dotGreen} \`mikho ban\` : Bán toàn bộ chiến lợi phẩm để thu về xu.`
+            content: `### ${E.arrow} 4. HƯỚNG DẪN SỬ DỤNG NHANH\n${E.dotGreen} \`mipet\` : Vào cửa hàng thú cưng hoặc xem tình trạng thú cưng hiện tại.\n${E.dotGreen} \`/blackjack\` hoặc \`mibj\` : Trải nghiệm luật chơi Xì Dách thuần Việt mới.\n${E.dotGreen} \`/profile\` hoặc \`mip\` : Xem hồ sơ với giao diện V2 tuyệt đẹp hoàn toàn mới.\n${E.dotGreen} Lệnh tương tác thú cưng và kiểm tra túi đồ giờ đây hoàn toàn khả dụng ngay cả khi đang bị cấm minigame.`
         },
         // 10. Spector Separator Line
         {
