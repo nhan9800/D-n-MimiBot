@@ -270,6 +270,12 @@ async function sendMinigameBanNotice(targetId, isBan, reason, authorUser, guildN
             .setTimestamp();
 
         await userObj.send({ embeds: [embed] }).catch(() => null);
+        
+        const logChannelId = '1549668765137117205';
+        const logChannel = await client.channels.fetch(logChannelId).catch(() => null);
+        if (logChannel && logChannel.isTextBased?.()) {
+            await logChannel.send({ embeds: [embed] }).catch(() => null);
+        }
     } catch (err) {
         console.error('Lỗi khi gửi DM báo ban/unban:', err.message);
     }
@@ -10875,11 +10881,13 @@ client.on('interactionCreate', async interaction => {
                                 client.application.owner.id === interaction.user.id ||
                                 client.application.owner.members?.has?.(interaction.user.id)
                             ));
-            const isAdmin = interaction.member?.permissions?.has(PermissionFlagsBits.Administrator) ||
-                            interaction.member?.permissions?.has(PermissionFlagsBits.ManageGuild);
+                            
+            if (interaction.guild?.id !== '1517068246493429852') {
+                return interaction.editReply({ content: '🚫 Lệnh này chỉ được phép sử dụng trong Máy Chủ Hỗ Trợ của bot!' });
+            }
 
-            if (!isOwner && !isAdmin) {
-                return interaction.editReply({ content: '🚫 Bạn cần có quyền Quản trị viên (Administrator) hoặc là Owner của bot để dùng lệnh này.' });
+            if (!isOwner) {
+                return interaction.editReply({ content: '🚫 Lệnh này chỉ dành riêng cho Owner của bot.' });
             }
 
             const targetUser = options.getUser('người_dùng');
@@ -10917,11 +10925,13 @@ client.on('interactionCreate', async interaction => {
                                 client.application.owner.id === interaction.user.id ||
                                 client.application.owner.members?.has?.(interaction.user.id)
                             ));
-            const isAdmin = interaction.member?.permissions?.has(PermissionFlagsBits.Administrator) ||
-                            interaction.member?.permissions?.has(PermissionFlagsBits.ManageGuild);
 
-            if (!isOwner && !isAdmin) {
-                return interaction.editReply({ content: '🚫 Bạn cần có quyền Quản trị viên (Administrator) hoặc là Owner của bot để dùng lệnh này.' });
+            if (interaction.guild?.id !== '1517068246493429852') {
+                return interaction.editReply({ content: '🚫 Lệnh này chỉ được phép sử dụng trong Máy Chủ Hỗ Trợ của bot!' });
+            }
+
+            if (!isOwner) {
+                return interaction.editReply({ content: '🚫 Lệnh này chỉ dành riêng cho Owner của bot.' });
             }
 
             const targetUser = options.getUser('người_dùng');
