@@ -688,6 +688,21 @@ async function sendEconomyOwnerAlert(userId, guildId, totalEarned, threshold, cu
     }
 }
 
+function addTransaction(userId, type, amount, desc) {
+    if (!economyData[userId]) return;
+    const user = economyData[userId];
+    if (!user.transactions) user.transactions = [];
+    user.transactions.unshift({
+        time: Date.now(),
+        type: type,
+        amount: Number(amount) || 0,
+        desc: desc
+    });
+    if (user.transactions.length > 20) {
+        user.transactions.pop();
+    }
+}
+
 function recordEconomyIncome(userId, guildId, amount, source) {
     if (!economyData[userId]) {
         economyData[userId] = { balance: 100, lastDaily: "" };
@@ -1198,6 +1213,7 @@ function sellArtifactsHelper(targetUser, userId, tier = 'all', guildId = null) {
     }
 
     userData.balance += total;
+    addTransaction(userId, 'in', total, `Bán vật phẩm (${tierLabel})`);
     recordEconomyIncome(userId, guildId, total, 'sell_items');
     saveEconomy();
 
@@ -5719,6 +5735,15 @@ client.once('ready', async () => {
 
     const commands = [
         new SlashCommandBuilder()
+            .setName('lichsugiaodich')
+            .setDescription('Xem lịch sử biến động số dư (Give, Bán đồ, v.v.)')
+            .addUserOption(o => o.setName('nguoi_dung').setDescription('Xem của người khác (Chỉ Admin)').setRequired(false)),
+        new SlashCommandBuilder()
+            .setName('checkclone')
+            .setDescription('Kiểm tra thông tin tài khoản (Chống clone/rửa tiền)')
+            .setDefaultMemberPermissions(PermissionFlagsBits.Administrator)
+            .addUserOption(o => o.setName('nguoi_dung').setDescription('Người dùng cần kiểm tra').setRequired(true)),
+        new SlashCommandBuilder()
             .setName('addrole')
             .setDescription('Thêm vai trò cho người dùng (chọn menu hoặc nhập tên)')
             .setDefaultMemberPermissions(PermissionFlagsBits.ManageRoles)
@@ -8171,6 +8196,7 @@ if (command === 'mibanminigame' || command === 'mibanmg') {
 
         if (totalSold > 0) {
             userData.balance += totalCoins;
+            addTransaction(userId, 'in', totalCoins, 'Bán nông sản');
             recordEconomyIncome(userId, message.guild?.id, totalCoins, 'farm_sell');
             saveEconomy();
             return message.reply(
@@ -8794,6 +8820,28 @@ if (command === 'mibanminigame' || command === 'mibanmg') {
         senderData.balance -= amount;
         receiverData.balance += amount;
         receiverData.dailyReceived += amount;
+        
+        addTransaction(userId, 'out', amount, `Chuyển cho ${targetMember.user.username} (${targetMember.id})`);
+        addTransaction(targetMember.id, 'in', amount, `Nhận từ ${message.author.username} (${userId})`);
+        
+        const senderAgeDays = (Date.now() - message.author.createdAt.getTime()) / (1000 * 60 * 60 * 24);
+        if (senderAgeDays < 30 && amount >= 50000) {
+            const adminChannel = client.channels.cache.get('1549668765137117205');
+            if (adminChannel && adminChannel.isTextBased?.()) {
+                const warnEmbed = new EmbedBuilder()
+                    .setTitle('🚨 BÁO ĐỘNG NGHI VẤN CLONE (RỬA TIỀN)')
+                    .setColor('#FF0000')
+                    .setDescription(`Phát hiện tài khoản mới tạo chuyển xu!`)
+                    .addFields(
+                        { name: 'Kẻ gửi (Nghi vấn clone)', value: `<@${userId}> (\`${userId}\`)\nTên: ${message.author.username}\nTuổi TK: ${Math.floor(senderAgeDays)} ngày\nNgày tạo: <t:${Math.floor(message.author.createdAt.getTime()/1000)}:d>` },
+                        { name: 'Người nhận', value: `<@${targetMember.id}> (\`${targetMember.id}\`)\nTên: ${targetMember.user.username}` },
+                        { name: 'Số tiền chuyển', value: `**${amount.toLocaleString()} xu**` },
+                        { name: 'Lệnh quản lý', value: `Dùng lệnh \`/checkclone\` để kiểm tra chi tiết giao dịch hoặc \`/banminigame\` nếu vi phạm.` }
+                    )
+                    .setTimestamp();
+                adminChannel.send({ embeds: [warnEmbed] }).catch(() => null);
+            }
+        }
         
         saveEconomy();
 
@@ -12144,6 +12192,66 @@ client.on('interactionCreate', async interaction => {
             }
         }
 
+        if (commandName === 'lichsugiaodich') {
+            let targetUser = interaction.options.getUser('nguoi_dung');
+            if (targetUser && targetUser.id !== interaction.user.id) {
+                const isAdmin = interaction.member?.permissions?.has(PermissionFlagsBits.Administrator) || interaction.user.id === OWNER_ID;
+                if (!isAdmin) return interaction.reply({ content: '🚫 Bạn chỉ có thể xem lịch sử của chính mình!', flags: MessageFlags.Ephemeral });
+            } else {
+                targetUser = interaction.user;
+            }
+
+            const uData = getUserData(targetUser.id);
+            if (!uData.transactions || uData.transactions.length === 0) {
+                return interaction.reply({ content: `📜 **${targetUser.username}** chưa có giao dịch nào được ghi nhận.`, flags: MessageFlags.Ephemeral });
+            }
+
+            let msg = `📜 **LỊCH SỬ GIAO DỊCH CỦA ${targetUser.username.toUpperCase()}**\n\n`;
+            uData.transactions.forEach((tx, i) => {
+                const icon = tx.type === 'in' ? '🟢' : '🔴';
+                const sign = tx.type === 'in' ? '+' : '-';
+                msg += `${i+1}. ${icon} \`${sign}${tx.amount.toLocaleString()} xu\` | ${tx.desc} *(<t:${Math.floor(tx.time/1000)}:R>)*\n`;
+            });
+            msg += `\n💰 **Số dư hiện tại:** \`${uData.balance.toLocaleString()} xu\``;
+            
+            return interaction.reply({ content: msg, flags: MessageFlags.Ephemeral });
+        }
+
+        if (commandName === 'checkclone') {
+            const targetUser = interaction.options.getUser('nguoi_dung');
+            const targetMember = await interaction.guild?.members.fetch(targetUser.id).catch(() => null);
+            
+            const createdAt = targetUser.createdAt.getTime();
+            const joinedAt = targetMember ? targetMember.joinedAt?.getTime() : null;
+            const ageDays = (Date.now() - createdAt) / (1000 * 60 * 60 * 24);
+            
+            const uData = getUserData(targetUser.id);
+            const totalGiveIn = (uData.transactions || []).filter(t => t.type === 'in' && t.desc.includes('Nhận từ')).reduce((sum, t) => sum + t.amount, 0);
+            const totalGiveOut = (uData.transactions || []).filter(t => t.type === 'out' && t.desc.includes('Chuyển cho')).reduce((sum, t) => sum + t.amount, 0);
+            
+            let cloneWarning = '';
+            if (ageDays < 30) cloneWarning = '⚠️ CẢNH BÁO: Tài khoản mới tạo dưới 30 ngày (Nguy cơ clone rất cao)!';
+            else if (ageDays < 90) cloneWarning = 'ℹ️ LƯU Ý: Tài khoản khá mới (dưới 90 ngày).';
+            else cloneWarning = '✅ Tài khoản đã tạo lâu năm.';
+
+            const embed = new EmbedBuilder()
+                .setTitle(`🔍 THÔNG TIN TÀI KHOẢN: ${targetUser.username}`)
+                .setColor(ageDays < 30 ? '#FF0000' : (ageDays < 90 ? '#F1C40F' : '#2ECC71'))
+                .setThumbnail(targetUser.displayAvatarURL())
+                .addFields(
+                    { name: '👤 ID / Username', value: `\`${targetUser.id}\` / ${targetUser.username}`, inline: true },
+                    { name: '🎂 Tuổi tài khoản', value: `${Math.floor(ageDays)} ngày`, inline: true },
+                    { name: '📅 Ngày tạo (Discord)', value: `<t:${Math.floor(createdAt/1000)}:D> (<t:${Math.floor(createdAt/1000)}:R>)` },
+                    { name: '🏠 Ngày tham gia máy chủ', value: joinedAt ? `<t:${Math.floor(joinedAt/1000)}:D> (<t:${Math.floor(joinedAt/1000)}:R>)` : 'Không xác định (chưa vào server)' },
+                    { name: '💰 Số dư hiện tại', value: `\`${uData.balance.toLocaleString()} xu\`` },
+                    { name: '💸 Giao dịch (20 GD gần nhất)', value: `📤 Đã chuyển: ${totalGiveOut.toLocaleString()} xu\n📥 Đã nhận: ${totalGiveIn.toLocaleString()} xu` },
+                    { name: '⚠️ Phân tích Clone', value: cloneWarning }
+                )
+                .setTimestamp();
+                
+            return interaction.reply({ embeds: [embed] });
+        }
+
         if (commandName === 'addrole') {
             const targetUser = interaction.options.getUser('nguoi_dung');
             let targetRole = interaction.options.getRole('vai_tro');
@@ -13954,6 +14062,7 @@ if (commandName === 'changelog') {
 
             if (totalSold > 0) {
                 userData.balance += totalCoins;
+                addTransaction(interaction.user.id, 'in', totalCoins, 'Bán nông sản');
                 recordEconomyIncome(interaction.user.id, interaction.guild?.id, totalCoins, 'farm_sell');
                 saveEconomy();
                 const payload = buildFarmPayload(interaction.user, userData);
