@@ -228,38 +228,46 @@ function isMinigameBanned(userId) {
 
 function formatBanMessage(banInfo) {
     let msg = `🚨 **BẠN ĐÃ BỊ CẤM THAM GIA MINIGAME & TÍNH NĂNG KINH TẾ!**\n📌 **Lý do:** ${banInfo.reason || 'Vi phạm quy định'}\n⏱️ **Thời điểm cấm:** <t:${Math.floor((banInfo.bannedAt || Date.now()) / 1000)}:f>`;
+    if (banInfo.banLevel) {
+        msg += `\n🔢 **Cấp độ vi phạm trong tháng:** Lần **${banInfo.banLevel}/10**`;
+    }
     if (banInfo.expiresAt) {
         msg += `\n⏳ **Hết hạn lúc:** <t:${Math.floor(banInfo.expiresAt / 1000)}:f> (Còn lại: <t:${Math.floor(banInfo.expiresAt / 1000)}:R>)`;
     } else {
-        msg += `\n⏳ **Hết hạn lúc:** ❌ Vĩnh viễn`;
+        msg += `\n⏳ **Hết hạn lúc:** ❌ Vĩnh viễn (Đã vi phạm đủ 10 lần trong tháng hoặc bị khóa vĩnh viễn)`;
     }
-    msg += `\n💌 *Vui lòng liên hệ Quản trị viên / Owner bot nếu có khiếu nại.*`;
+    msg += `\n💌 *Lưu ý: Lịch sử ban sẽ tự động làm mới về 0 vào ngày 1 hàng tháng.*`;
     return msg;
 }
 
-async function sendMinigameBanNotice(targetId, isBan, reason, authorUser, guildName, expiresAt = null) {
+async function sendMinigameBanNotice(targetId, isBan, reason, authorUser, guildName, expiresAt = null, banCount = null) {
     try {
         const userObj = await client.users.fetch(targetId).catch(() => null);
         if (!userObj) return;
 
         let desc = '';
         if (isBan) {
+            const countStr = banCount ? `\n🔢 **Lần vi phạm trong tháng:** Lần **${banCount}/10**` : '';
             desc = `Chào **${userObj.username}**, \n\nTài khoản của bạn đã bị **khóa quyền tham gia** các hoạt động kinh tế, minigame và giải trí trên hệ thống **MIMI BOT**.\n\n` +
                    `🏢 **Máy chủ:** ${guildName || 'Hệ thống Mimi'}\n` +
-                   `📌 **Lý do cấm:** \`${reason || 'Vi phạm quy định giải trí'}\`\n` +
-                   `👮 **Người thực hiện:** ${authorUser ? `${authorUser.username} (\`${authorUser.id}\`)` : 'Ban Quản Trị'}\n` +
+                   `📌 **Lý do cấm:** \`${reason || 'Vi phạm quy định giải trí'}\`` +
+                   countStr + `\n` +
+                   `👮 **Người thực hiện:** ${authorUser ? `${authorUser.username} (\`${authorUser.id}\`)` : 'Hệ thống Mimi'}\n` +
                    `⏱️ **Thời điểm khóa:** <t:${Math.floor(Date.now() / 1000)}:F>\n`;
             if (expiresAt) {
-                desc += `⏳ **Hết hạn lúc:** <t:${Math.floor(expiresAt / 1000)}:F> (Thời hạn còn lại: <t:${Math.floor(expiresAt / 1000)}:R>)\n\n`;
+                desc += `⏳ **Hết hạn lúc:** <t:${Math.floor(expiresAt / 1000)}:F> (Thời hạn: <t:${Math.floor(expiresAt / 1000)}:R>)\n\n`;
             } else {
-                desc += `⏳ **Hết hạn lúc:** ❌ Vĩnh viễn\n\n`;
+                desc += `⏳ **Hết hạn lúc:** ❌ **VĨNH VIỄN** ${banCount >= 10 ? '(Đã vi phạm 10 lần trong tháng)' : ''}\n\n`;
             }
-            desc += `⚠️ *Trong thời gian bị cấm, bạn sẽ không thể sử dụng các lệnh ví tiền (\`mic\`), daily (\`mid\`), nông trại (\`mifarm\`), minigame cá cược hay chuyển xu. Hãy liên hệ Quản trị viên máy chủ nếu bạn có thắc mắc.*`;
+            desc += `⚠️ *Hệ thống áp dụng cấm theo cấp bậc lũy tiến (Lần 1: 1 ngày, Lần 2: 2 ngày, Lần 3: 3 ngày... Lần 10: Vĩnh viễn). Lịch sử số lần ban sẽ tự động reset về 0 vào ngày 1 hàng tháng.*`;
         } else {
+            const uData = getUserData(targetId);
+            const curCount = uData?.banHistory?.count || 0;
             desc = `Chào **${userObj.username}**, \n\nTài khoản của bạn đã được **gỡ bỏ lệnh cấm** tính năng minigame & kinh tế trên hệ thống **MIMI BOT**.\n\n` +
                    `🏢 **Máy chủ:** ${guildName || 'Hệ thống Mimi'}\n` +
                    `👮 **Người thực hiện:** ${authorUser ? `${authorUser.username} (\`${authorUser.id}\`)` : 'Ban Quản Trị'}\n` +
-                   `⏱️ **Thời điểm:** <t:${Math.floor(Date.now() / 1000)}:F>\n\n` +
+                   `⏱️ **Thời điểm:** <t:${Math.floor(Date.now() / 1000)}:F>\n` +
+                   (curCount > 0 ? `📊 **Lịch sử vi phạm tháng này:** ${curCount}/10 lần (Nếu vi phạm lần sau sẽ tính tiếp cấp bậc +1).\n\n` : '\n') +
                    `🎉 *Bạn hiện đã có thể tiếp tục tham gia cày cuốc, chơi minigame, nông trại và các hoạt động giải trí bình thường!*`;
         }
 
@@ -279,6 +287,62 @@ async function sendMinigameBanNotice(targetId, isBan, reason, authorUser, guildN
     } catch (err) {
         console.error('Lỗi khi gửi DM báo ban/unban:', err.message);
     }
+}
+
+function applyMinigameBan(userId, reason, customDurationMs = null, authorUser = null, guildName = null) {
+    if (!userId) return null;
+    const uData = getUserData(userId);
+    const now = Date.now();
+    const nowVN = new Date(now + 7 * 3600 * 1000);
+    const monthKey = `${nowVN.getUTCFullYear()}-${String(nowVN.getUTCMonth() + 1).padStart(2, '0')}`;
+
+    if (!uData.banHistory || uData.banHistory.monthKey !== monthKey) {
+        uData.banHistory = {
+            monthKey: monthKey,
+            count: 0
+        };
+    }
+
+    // Tăng số lần ban trong tháng (kể cả ban tay hay auto-ban đều +1)
+    uData.banHistory.count = (uData.banHistory.count || 0) + 1;
+    const banCount = uData.banHistory.count;
+
+    let durationMs = null;
+    let isPermanent = false;
+
+    // 1 tháng bị ban 10 lần là ban vĩnh viễn
+    if (banCount >= 10) {
+        isPermanent = true;
+        durationMs = null;
+    } else if (customDurationMs !== null && customDurationMs !== undefined) {
+        durationMs = customDurationMs;
+    } else {
+        // Cấp bậc +1: Lần 1 = 1 ngày, Lần 2 = 2 ngày, Lần 3 = 3 ngày... lần n = n ngày
+        durationMs = banCount * 24 * 60 * 60 * 1000;
+    }
+
+    const expiresAt = (isPermanent || durationMs === null) ? null : now + durationMs;
+
+    uData.minigameBan = {
+        banned: true,
+        reason: reason || 'Vi phạm quy định giải trí',
+        bannedAt: now,
+        bannedBy: authorUser ? authorUser.id : client.user.id,
+        expiresAt: expiresAt,
+        banLevel: banCount,
+        isPermanent: isPermanent
+    };
+
+    saveEconomy();
+
+    sendMinigameBanNotice(userId, true, uData.minigameBan.reason, authorUser || client.user, guildName || 'Hệ thống Mimi', expiresAt, banCount).catch(() => null);
+
+    return {
+        banCount,
+        durationMs,
+        expiresAt,
+        isPermanent
+    };
 }
 
 const configPath = path.join(__dirname, 'config.json');
@@ -711,7 +775,7 @@ function recordEconomyIncome(userId, guildId, amount, source) {
 
     const todayKey = nowVN().toISOString().slice(0, 10);
     if (!user.dailyEarnings || user.dailyEarnings.dateKey !== todayKey) {
-        user.dailyEarnings = { dateKey: todayKey, totalEarned: 0, alertSent: false, sources: {} };
+        user.dailyEarnings = { dateKey: todayKey, totalEarned: 0, alertSent: false, sources: {}, autoBanned: false };
     }
 
     const numAmount = Number(amount) || 0;
@@ -723,6 +787,21 @@ function recordEconomyIncome(userId, guildId, amount, source) {
     if (user.dailyEarnings.totalEarned >= THRESHOLD && !user.dailyEarnings.alertSent) {
         user.dailyEarnings.alertSent = true;
         sendEconomyOwnerAlert(userId, guildId, user.dailyEarnings.totalEarned, THRESHOLD, user.balance, user.dailyEarnings.sources);
+    }
+
+    // 🚨 Tự động ban nếu 1 ngày kiếm quá 10.000.000 xu (Chống lạm phát & cày clone/tool)
+    const AUTO_BAN_THRESHOLD = 10_000_000;
+    if (user.dailyEarnings.totalEarned >= AUTO_BAN_THRESHOLD && !user.dailyEarnings.autoBanned && !isMinigameBanned(userId)) {
+        user.dailyEarnings.autoBanned = true;
+        const guildName = guildId ? (client.guilds.cache.get(guildId)?.name || 'Hệ thống Mimi') : 'Hệ thống Mimi';
+        applyMinigameBan(
+            userId,
+            `Kiếm quá 10,000,000 xu trong 1 ngày (Tổng thu nhập: ${user.dailyEarnings.totalEarned.toLocaleString()} xu)`,
+            null, // Cấp bậc tự động: lần 1 = 1 ngày, lần 2 = 2 ngày, ..., lần 10 = vĩnh viễn
+            client.user,
+            guildName
+        );
+        sendEconomyOwnerAlert(userId, guildId, user.dailyEarnings.totalEarned, AUTO_BAN_THRESHOLD, user.balance, user.dailyEarnings.sources);
     }
 
     saveEconomy();
@@ -1041,6 +1120,11 @@ async function bjEndGame(game, message, outcomeOverride = null) {
 
     if (payout > 0) {
         userData.balance += payout;
+        const profit = payout - game.totalBet;
+        if (profit > 0) {
+            recordEconomyIncome(game.userId, game.guildId, profit, 'blackjack_win');
+            addTransaction(game.userId, 'in', profit, 'Thắng xì dách (Blackjack)');
+        }
     }
     saveEconomy();
     resultText += `\nSố dư: **${userData.balance.toLocaleString()} xu**`;
@@ -2534,6 +2618,24 @@ function startMonthlyModReset() {
 
         saveConfig();
         console.log(`✅ [ModReset] Đã reset bộ đếm kỷ luật cho ${totalMembers} thành viên trên ${totalGuilds} server.`);
+
+        // 🗓️ Tự động reset lịch sử số lần ban minigame về 0 vào ngày 1 hàng tháng
+        let totalEcoReset = 0;
+        if (typeof economyData !== 'undefined' && economyData) {
+            const ecoMonthKey = `${nowVN.getUTCFullYear()}-${String(nowVN.getUTCMonth() + 1).padStart(2, '0')}`;
+            for (const uid in economyData) {
+                const u = economyData[uid];
+                if (u && u.banHistory) {
+                    u.banHistory.count = 0;
+                    u.banHistory.monthKey = ecoMonthKey;
+                    totalEcoReset++;
+                }
+            }
+            if (totalEcoReset > 0) {
+                saveEconomy();
+                console.log(`🗓️ [Economy Reset] Đã reset lịch sử ban minigame về 0 cho ${totalEcoReset} tài khoản vào ngày 1.`);
+            }
+        }
     }, 30000); // Kiểm tra mỗi 30 giây để không bỏ lỡ mốc 00:00 ngày 1
 }
 
@@ -3479,7 +3581,7 @@ function buildMusicProgressBar(currentSec, totalSec, size = 14) {
 // HOÀN TOÀN KHÔNG DÙNG EMOJI - CHỈ DÙNG DISCORD MARKDOWN CHUẨN VÀ COMPONENTS V2
 // =====================================================================
 const PRIMARY_UPDATE_CHANNEL_ID = '1527814721053655092';
-const CURRENT_UPDATE_VERSION = '2026.09.16';
+const CURRENT_UPDATE_VERSION = '2026.09.21';
 const ANNOUNCED_UPDATES_FILE = path.join(__dirname, 'data', 'announced_updates.json');
 
 function readAnnouncedUpdates() {
@@ -3531,7 +3633,7 @@ function buildComponentsV2Announcement() {
         // 1. Tiêu đề thông báo
         {
             type: 10, // TextDisplay
-            content: `# ${E.fire} BẢN CẬP NHẬT HỆ THỐNG MIMI ECOSYSTEM ${E.starSpin}\n-# ${E.dotGreen} PHIÊN BẢN 2026.09.16 • ĐẠI TU THÚ CƯNG • LUẬT BLACKJACK MỚI • TỐI ƯU CƠ CHẾ CẤM\n\n> ${E.verify} **Kính gửi toàn thể Quản trị viên và cộng đồng người dùng Discord.**\n> ${E.arrowSmall} Đội ngũ phát triển vừa hoàn tất đợt nâng cấp toàn diện hệ thống thú cưng, cập nhật luật chơi Xì Lát thuần Việt và tinh chỉnh hệ thống phạt.`
+            content: `# ${E.fire} BẢN CẬP NHẬT HỆ THỐNG MIMI ECOSYSTEM ${E.starSpin}\n-# ${E.dotGreen} PHIÊN BẢN 2026.09.21 • BAN CẤP BẬC +1 • CHỐNG LẠM PHÁT 10M/NGÀY • RESET THÁNG • GỠ BỎ PHẠT PET\n\n> ${E.verify} **Kính gửi toàn thể Quản trị viên và cộng đồng người dùng Discord.**\n> ${E.arrowSmall} Đội ngũ phát triển vừa hoàn tất nâng cấp bảo mật kinh tế: Áp dụng cơ chế cấm lũy tiến theo cấp bậc, chống cày lạm phát và tối ưu trải nghiệm nuôi thú cưng.`
         },
         // 2. Spector Separator Line
         {
@@ -3539,10 +3641,10 @@ function buildComponentsV2Announcement() {
             divider: true,
             spacing: 2
         },
-        // 3. Mục 1: ĐẠI TU HỆ THỐNG THÚ CƯNG
+        // 3. Mục 1: BAN MINIGAME CẤP BẬC LŨY TIẾN (+1)
         {
             type: 10,
-            content: `### ${E.chamXanh} 1. ĐẠI TU HỆ THỐNG THÚ CƯNG (PET SYSTEM)\n> ${E.star} Thú cưng chân thực hơn, nhiều lựa chọn hơn\n\`\`\`diff\n+ Mở rộng cửa hàng thú cưng: Bổ sung 🦜 Vẹt và 🐰 Thỏ, nâng tổng số lên 4 loại thú cưng.\n+ Cập nhật giá trị kinh tế: Giá nhận nuôi điều chỉnh thành 2.000.000 xu để tăng độ quý hiếm.\n+ Cơ chế sinh học chân thực: Thú cưng sẽ tự động giảm dần độ no và vui vẻ theo thời gian (giảm từ 100% về 0% trong 12 giờ).\n+ Hệ thống nhắc nhở tự động: Bot sẽ gửi tin nhắn trực tiếp (DM) khi chỉ số của thú cưng giảm xuống dưới 20%.\n+ Hình phạt bỏ bê: Nếu nhận đủ 3 lần cảnh báo mà không chăm sóc, người chơi sẽ bị cấm minigame 1 ngày!\n+ Điều chỉnh thức ăn: Phí cho ăn tăng lên 10.000 xu, phục hồi 10 điểm đói.\n\`\`\``
+            content: `### ${E.chamXanh} 1. TỰ ĐỘNG BAN MINIGAME THEO CẤP BẬC LŨY TIẾN (+1 NGÀY)\n> ${E.star} Cơ chế răn đe công bằng, thông minh và chặt chẽ\n\`\`\`diff\n+ Phạt leo thang cấp bậc: Lần 1 cấm 1 ngày, lần 2 cấm 2 ngày, lần 3 cấm 3 ngày... mỗi lần vi phạm thời gian phạt tăng thêm +1 ngày.\n+ Tính cả phạt thủ công: Khi Quản trị viên ban tay (/banminigame, mibanminigame), lượt ban vẫn được cộng vào lịch sử để tăng cấp bậc phạt cho lần kế tiếp (+1).\n+ Chế tài vi phạm 10 lần: Người chơi bị ban đủ 10 lần trong 1 tháng sẽ lập tức bị KHÓA VĨNH VIỄN tính năng minigame & kinh tế!\n+ Tự động làm mới chu kỳ: Lịch sử số lần vi phạm sẽ tự động reset về 0 vào đúng 00:00 ngày 1 hàng tháng.\n\`\`\``
         },
         // 4. Spector Separator Line
         {
@@ -3550,10 +3652,10 @@ function buildComponentsV2Announcement() {
             divider: true,
             spacing: 1
         },
-        // 5. Mục 2: CẬP NHẬT LUẬT BLACKJACK (XÌ DÁCH VN)
+        // 5. Mục 2: CHỐNG LẠM PHÁT & GIỚI HẠN THU NHẬP (10.000.000 XU/NGÀY)
         {
             type: 10,
-            content: `### ${E.diamond} 2. CẬP NHẬT LUẬT BLACKJACK THUẦN VIỆT\n> ${E.money} Bổ sung đầy đủ luật Xì Dách Việt Nam để tăng tính kịch tính\n\`\`\`yaml\nLuat Choi Moi:\n  - Xì Bàn: 2 lá Xì (AA) sẽ thắng x5 tiền cược.\n  - Xì Lát: 1 lá Xì (A) + 1 lá 10/J/Q/K sẽ thắng x4 tiền cược.\n  - Ngũ Linh: Rút đủ 5 lá bài mà tổng điểm <= 21 sẽ lập tức chiến thắng x3 tiền cược.\n  - Phạt Dừng Non: Dừng bài khi tổng điểm dưới 15 sẽ bị phạt thua x5 lần tiền cược!\n  - Chỉnh Sửa Trả Thưởng: Đã khắc phục lỗi hiển thị và trả thưởng sai tỷ lệ so với vốn.\n\`\`\``
+            content: `### ${E.diamond} 2. CHỐNG LẠM PHÁT & GIỚI HẠN THU NHẬP (10.000.000 XU/NGÀY)\n> ${E.money} Giữ vững giá trị tiền tệ và ngăn chặn triệt để cày clone / tool\n\`\`\`yaml\nChong Lam Phat:\n  - Giam Sat Thu Nhap: Hệ thống theo dõi chặt chẽ tổng thu nhập hàng ngày từ tất cả hoạt động (bán nông sản, cá, đồ cổ, thắng cược minigame, nhận chuyển xu).\n  - Tu Dong Khoa: Tài khoản kiếm vượt quá 10.000.000 xu trong 1 ngày sẽ bị TỰ ĐỘNG BAN minigame theo cấp bậc phạt hiện tại.\n  - Canh Bao Khan Cap: Tự động gửi cảnh báo khẩn cấp và bảng kê chi tiết nguồn tiền về kênh điều hành cho Quản trị viên.\n  - Sao Ke Minh Bach: Hỗ trợ lệnh /lichsugiaodich để người chơi và Quản trị viên tự kiểm tra nguồn gốc tiền tệ.\n\`\`\``
         },
         // 6. Spector Separator Line
         {
@@ -3561,10 +3663,10 @@ function buildComponentsV2Announcement() {
             divider: true,
             spacing: 1
         },
-        // 7. Mục 3: TỐI ƯU HỆ THỐNG CẤM (BAN SYSTEM)
+        // 7. Mục 3: GỠ BỎ HOÀN TOÀN HÌNH PHẠT PET
         {
             type: 10,
-            content: `### ${E.shield} 3. TINH CHỈNH CƠ CHẾ CẤM & QUÀ TẶNG\n> ${E.heartGlow} Công bằng và linh hoạt hơn cho người chơi\n\`\`\`fix\n* Quyền Loi Khi Bi Cam: Nguoi dung bi cam (banminigame) hien van co the su dung cac lenh cham soc thu cung, cau ca, nong trai va xem thong tin ho so.\n* Chan Giao Dich: Nguoi bi cam tuyet doi khong the ban do (mibannongsan, mikho ban) de chong tau tan tai san.\n* Gioi Han Give: Lenh chieu co (migive) duoc gioi han nhan toi da (Level x 500.000 xu) moi ngay.\n* Chong Rua Tien: Chuyen tien qua 5.000.000 xu 1 lan se bi ban tu dong theo thang bac (1 den 30 ngay).\n\`\`\``
+            content: `### ${E.shield} 3. GỠ BỎ HÌNH PHẠT CẤM MINIGAME KHI CẢNH BÁO PET\n> ${E.heartGlow} Trải nghiệm nuôi thú cưng vui vẻ, không lo áp lực cấm chơi\n\`\`\`fix\n* Huy Bo Auto-Ban Pet: Người chơi nhận cảnh báo đói hoặc buồn từ thú cưng (mipet) sẽ KHÔNG BÒ CẤM minigame nữa.\n* Nhac Nho Than Thien: Bot chỉ gửi tin nhắn riêng (DM) nhắc nhở nhẹ nhàng để bạn chăm sóc thú cưng khi rảnh rỗi.\n* Thoai Mai Vang Mat: Bạn có thể yên tâm học tập, làm việc mà không lo việc vắng mặt vài hôm bị khóa minigame.\n\`\`\``
         },
         // 8. Spector Separator Line
         {
@@ -3575,7 +3677,7 @@ function buildComponentsV2Announcement() {
         // 9. Mục 4: BẢNG LỆNH MỚI
         {
             type: 10,
-            content: `### ${E.arrow} 4. HƯỚNG DẪN SỬ DỤNG NHANH\n${E.dotGreen} \`mipet\` : Vào cửa hàng thú cưng hoặc xem tình trạng thú cưng hiện tại.\n${E.dotGreen} \`/blackjack\` hoặc \`mibj\` : Trải nghiệm luật chơi Xì Dách thuần Việt mới.\n${E.dotGreen} \`/profile\` hoặc \`mip\` : Xem hồ sơ với giao diện V2 tuyệt đẹp hoàn toàn mới.\n${E.dotGreen} Lệnh tương tác thú cưng và kiểm tra túi đồ giờ đây hoàn toàn khả dụng ngay cả khi đang bị cấm minigame.`
+            content: `### ${E.arrow} 4. HƯỚNG DẪN SỬ DỤNG NHANH\n${E.dotGreen} \`/lichsugiaodich\` : Xem sao kê 20 giao dịch dòng tiền gần nhất của bản thân.\n${E.dotGreen} \`/checkclone\` : Lệnh Quản trị viên kiểm tra tuổi tài khoản và phân tích lịch sử dòng tiền nghi vấn.\n${E.dotGreen} \`/banminigame\` : Khóa minigame người chơi (Để trống thời gian = tự động áp dụng số ngày theo cấp bậc).\n${E.dotGreen} \`mipet\` : Cho thú cưng ăn và chơi đùa giải trí mỗi ngày.`
         },
         // 10. Spector Separator Line
         {
@@ -5652,7 +5754,7 @@ client.once('ready', async () => {
                             `Hãy dùng lệnh \`mipet\` để cho ăn và chơi cùng nhé!`;
                         
                         if (pet.petDmWarnings >= 2) {
-                            warningText += `\n\n🚨 **Lưu ý:** Đây là lần nhắc nhở thứ **${pet.petDmWarnings}/3**. Nếu nhận đủ **3 lần** nhắc nhở mà không chăm sóc, bạn sẽ bị **cấm minigame 1 ngày**!`;
+                            warningText += `\n\n💡 **Nhắc nhở:** Hãy cho pet ăn (\`mipet\`) để pet luôn vui vẻ và nhận thêm nhiều may mắn nhé!`;
                         }
                         
                         await dmUser.send({ content: warningText }).catch(() => null);
@@ -5661,20 +5763,8 @@ client.once('ready', async () => {
                     // Bỏ qua nếu không gửi được DM
                 }
                 
-                // 🔒 Auto-ban minigame 1 ngày sau 3 lần cảnh báo
                 if (pet.petDmWarnings >= 3) {
-                    pet.petDmWarnings = 0; // Reset counter
-                    if (!uData.minigameBan || !uData.minigameBan.banned) {
-                        const banDuration = 24 * 60 * 60 * 1000; // 1 ngày
-                        uData.minigameBan = {
-                            banned: true,
-                            reason: 'Bỏ bê thú cưng quá lâu (3 lần cảnh báo không chăm sóc)',
-                            bannedAt: now,
-                            expiresAt: now + banDuration,
-                            bannedBy: client.user.id
-                        };
-                        sendMinigameBanNotice(userId, true, uData.minigameBan.reason, client.user, 'Hệ thống Mimi', uData.minigameBan.expiresAt).catch(() => null);
-                    }
+                    pet.petDmWarnings = 0; // Reset bộ đếm nhắc nhở
                 }
             }
         }
@@ -7850,11 +7940,13 @@ if (command === 'mibanminigame' || command === 'mibanmg') {
                             client.application.owner.id === message.author.id ||
                             client.application.owner.members?.has?.(message.author.id)
                         ));
-        const isAdmin = message.member?.permissions?.has(PermissionFlagsBits.Administrator) ||
-                        message.member?.permissions?.has(PermissionFlagsBits.ManageGuild);
 
-        if (!isOwner && !isAdmin) {
-            return message.reply({ content: '🚫 Lệnh này yêu cầu quyền Quản trị viên (Administrator) hoặc là Owner của bot.', allowedMentions: { repliedUser: false } });
+        if (message.guild?.id !== '1517068246493429852') {
+            return message.reply({ content: '🚫 Lệnh này chỉ được phép sử dụng trong Máy Chủ Hỗ Trợ của bot!', allowedMentions: { repliedUser: false } });
+        }
+
+        if (!isOwner) {
+            return message.reply({ content: '🚫 Lệnh này chỉ dành riêng cho Owner của bot.', allowedMentions: { repliedUser: false } });
         }
 
         if (args[1] === 'list' || args[1] === 'danhsach') {
@@ -7869,13 +7961,12 @@ if (command === 'mibanminigame' || command === 'mibanmg') {
                     bannedList.map(([uid, d], i) => {
                         let str = `**${i + 1}.** <@${uid}> (\`${uid}\`)
 > 📌 Lý do: ${d.minigameBan.reason || 'Vi phạm quy định'}
+> 🔢 Cấp bậc: Lần ${d.minigameBan.banLevel || 1}/10
 > ⏱️ Ngày cấm: <t:${Math.floor((d.minigameBan.bannedAt || Date.now()) / 1000)}:f>`;
                         if (d.minigameBan.expiresAt) {
-                            str += `
-> ⏳ Hết hạn: <t:${Math.floor(d.minigameBan.expiresAt / 1000)}:R>`;
+                            str += `\n> ⏳ Hết hạn: <t:${Math.floor(d.minigameBan.expiresAt / 1000)}:R>`;
                         } else {
-                            str += `
-> ⏳ Hết hạn: ❌ Vĩnh viễn`;
+                            str += `\n> ⏳ Hết hạn: ❌ Vĩnh viễn`;
                         }
                         return str;
                     }).join('\n\n')
@@ -7905,7 +7996,7 @@ if (command === 'mibanminigame' || command === 'mibanmg') {
 
         if (!targetId) {
             return message.reply({ 
-                content: `❌ Vui lòng tag người cần cấm minigame hoặc nhập User ID!\nCú pháp: \`${command} @User [thời_gian] [lý do]\` hoặc \`${command} [UserID] [thời_gian] [lý do]\`\nXem danh sách: \`${command} list\``, 
+                content: `❌ Vui lòng tag người cần cấm minigame hoặc nhập User ID!\nCú pháp: \`${command} @User [thời_gian] [lý do]\` hoặc \`${command} [UserID] [thời_gian] [lý do]\`\n(Để trống thời gian = tự động tính theo cấp bậc: Lần 1 = 1 ngày, Lần 2 = 2 ngày...)\nXem danh sách: \`${command} list\``, 
                 allowedMentions: { repliedUser: false } 
             });
         }
@@ -7918,23 +8009,21 @@ if (command === 'mibanminigame' || command === 'mibanmg') {
                 reasonParts.shift();
             }
         }
-        const reason = reasonParts.join(' ') || 'Vi phạm quy định giải trí';
+        const reason = reasonParts.join(' ') || 'Vi phạm quy định giải trí (Ban thủ công)';
 
-        const uData = getUserData(targetId);
-        const expiresAt = durationMs ? Date.now() + durationMs : null;
-        uData.minigameBan = {
-            banned: true,
-            reason,
-            bannedAt: Date.now(),
-            bannedBy: message.author.id,
-            expiresAt
-        };
-        flushEconomy();
+        const banResult = applyMinigameBan(targetId, reason, durationMs, message.author, message.guild?.name);
 
-        await sendMinigameBanNotice(targetId, true, reason, message.author, message.guild?.name, expiresAt);
+        let timeNotice = '';
+        if (banResult.isPermanent) {
+            timeNotice = '❌ **VĨNH VIỄN** (Đã đủ 10 lần vi phạm trong tháng)';
+        } else if (durationMs) {
+            timeNotice = `trong một khoảng thời gian (Lần ${banResult.banCount}/10)`;
+        } else {
+            timeNotice = `trong **${banResult.banCount} ngày** (Cấp bậc: Lần ${banResult.banCount}/10)`;
+        }
 
         return message.reply({
-            content: `✅ Đã **CẤM** người dùng **${targetUsername}** (\`${targetId}\`) tham gia tất cả minigame ${durationMs ? 'trong một khoảng thời gian' : 'vĩnh viễn'}!\n📌 **Lý do:** ${reason}\n💌 *Đã gửi tin nhắn riêng (DM) thông báo tới người dùng.*`,
+            content: `✅ Đã **CẤM** người dùng **${targetUsername}** (\`${targetId}\`) tham gia minigame ${timeNotice}!\n📌 **Lý do:** ${reason}\n🔢 **Lần ban thứ:** ${banResult.banCount}/10 trong tháng này.\n💌 *Đã gửi DM và ghi log vào kênh quản trị.*`,
             allowedMentions: { repliedUser: false }
         });
     }
@@ -7945,11 +8034,13 @@ if (command === 'mibanminigame' || command === 'mibanmg') {
                             client.application.owner.id === message.author.id ||
                             client.application.owner.members?.has?.(message.author.id)
                         ));
-        const isAdmin = message.member?.permissions?.has(PermissionFlagsBits.Administrator) ||
-                        message.member?.permissions?.has(PermissionFlagsBits.ManageGuild);
 
-        if (!isOwner && !isAdmin) {
-            return message.reply({ content: '🚫 Lệnh này yêu cầu quyền Quản trị viên (Administrator) hoặc là Owner của bot.', allowedMentions: { repliedUser: false } });
+        if (message.guild?.id !== '1517068246493429852') {
+            return message.reply({ content: '🚫 Lệnh này chỉ được phép sử dụng trong Máy Chủ Hỗ Trợ của bot!', allowedMentions: { repliedUser: false } });
+        }
+
+        if (!isOwner) {
+            return message.reply({ content: '🚫 Lệnh này chỉ dành riêng cho Owner của bot.', allowedMentions: { repliedUser: false } });
         }
 
         let targetId = null;
@@ -7984,8 +8075,9 @@ if (command === 'mibanminigame' || command === 'mibanmg') {
 
         await sendMinigameBanNotice(targetId, false, '', message.author, message.guild?.name);
 
+        const curCount = uData?.banHistory?.count || 0;
         return message.reply({
-            content: `✅ Đã **GỠ CẤM** minigame cho người dùng **${targetUsername}** (\`${targetId}\`). Người này hiện có thể chơi lại bình thường!\n📬 *Đã gửi tin nhắn riêng (DM) thông báo tới người dùng.*`,
+            content: `✅ Đã **GỠ CẤM** minigame cho người dùng **${targetUsername}** (\`${targetId}\`). Người này hiện có thể chơi lại bình thường!\n📊 **Lịch sử tháng này:** ${curCount}/10 lần (Nếu tái phạm sẽ tính tiếp cấp bậc +1).\n📬 *Đã gửi DM và ghi log vào kênh quản trị.*`,
             allowedMentions: { repliedUser: false }
         });
     }
@@ -8754,6 +8846,8 @@ if (command === 'mibanminigame' || command === 'mibanmg') {
         if (sideInput === result) {
             const winAmount = bet;
             userData.balance += winAmount;
+            recordEconomyIncome(userId, message.guild?.id, winAmount, 'coinflip_win');
+            addTransaction(userId, 'in', winAmount, 'Thắng tung đồng xu');
             saveEconomy();
             return message.reply({ content: `🪙 Kết quả: **${resultText}**\n🎉 Đúng rồi! Bạn thắng **+${winAmount.toLocaleString()} xu**! Số dư: **${userData.balance.toLocaleString()} xu**`, allowedMentions: { repliedUser: false } });
         } else {
@@ -8785,23 +8879,16 @@ if (command === 'mibanminigame' || command === 'mibanmg') {
         }
 
         if (amount > 5000000) {
-            const banDurations = [1, 3, 5, 7, 30];
-            senderData.giveBanLevel = (senderData.giveBanLevel || 0);
-            const banDays = banDurations[Math.min(senderData.giveBanLevel, banDurations.length - 1)];
-            const expiresAt = Date.now() + banDays * 24 * 60 * 60 * 1000;
+            const banResult = applyMinigameBan(
+                userId,
+                `Chuyển quá giới hạn 5,000,000 xu một lần`,
+                null, // Theo cấp bậc: Lần n = n ngày, 10 lần = vĩnh viễn
+                client.user,
+                message.guild?.name
+            );
             
-            senderData.minigameBan = {
-                banned: true,
-                reason: `Chuyển quá giới hạn 5,000,000 xu (Cấp độ phạt: ${senderData.giveBanLevel + 1})`,
-                bannedAt: Date.now(),
-                bannedBy: client.user.id,
-                expiresAt
-            };
-            senderData.giveBanLevel++;
-            saveEconomy();
-            
-            sendMinigameBanNotice(userId, true, senderData.minigameBan.reason, client.user, message.guild?.name, expiresAt).catch(() => null);
-            return message.reply({ content: `🚨 **CẢNH BÁO:** Bạn đã bị cấm minigame/kinh tế ${banDays} ngày do vi phạm giới hạn chuyển xu!`, allowedMentions: { repliedUser: false } });
+            const timeNotice = banResult.isPermanent ? '❌ **VĨNH VIỄN** (Do vi phạm 10 lần trong tháng)' : `**${banResult.banCount} ngày** (Cấp độ phạt: Lần ${banResult.banCount}/10)`;
+            return message.reply({ content: `🚨 **CẢNH BÁO:** Bạn đã bị cấm minigame/kinh tế ${timeNotice} do vi phạm giới hạn chuyển xu!`, allowedMentions: { repliedUser: false } });
         }
 
         const receiverData = getUserData(targetMember.id);
@@ -8820,6 +8907,7 @@ if (command === 'mibanminigame' || command === 'mibanmg') {
         senderData.balance -= amount;
         receiverData.balance += amount;
         receiverData.dailyReceived += amount;
+        recordEconomyIncome(targetMember.id, message.guild?.id, amount, 'migive_nhan');
         
         addTransaction(userId, 'out', amount, `Chuyển cho ${targetMember.user.username} (${targetMember.id})`);
         addTransaction(targetMember.id, 'in', amount, `Nhận từ ${message.author.username} (${userId})`);
@@ -8949,10 +9037,13 @@ if (command === 'mibanminigame' || command === 'mibanmg') {
 
         if (win) {
             userData.balance += bet;
+            recordEconomyIncome(userId, message.guild?.id, bet, 'xucxac_win');
+            addTransaction(userId, 'in', bet, 'Thắng xúc xắc');
             saveEconomy();
             return message.reply({ content: `${diceEmojis[d1]}${diceEmojis[d2]} Tổng: **${total}** — Bạn đặt **${choice}** → **ĐÚNG!** +**${bet.toLocaleString()} xu** 🎉\nSố dư: **${userData.balance.toLocaleString()} xu**`, allowedMentions: { repliedUser: false } });
         } else {
             userData.balance -= bet;
+            addTransaction(userId, 'out', bet, 'Thua xúc xắc');
             saveEconomy();
             return message.reply({ content: `${diceEmojis[d1]}${diceEmojis[d2]} Tổng: **${total}** — Bạn đặt **${choice}** → **SAI!** -**${bet.toLocaleString()} xu** 💸\nSố dư: **${userData.balance.toLocaleString()} xu**`, allowedMentions: { repliedUser: false } });
         }
@@ -8984,10 +9075,13 @@ if (command === 'mibanminigame' || command === 'mibanmg') {
 
         if (pick === result) {
             userData.balance += bet;
+            recordEconomyIncome(userId, message.guild?.id, bet, 'taixiu_win');
+            addTransaction(userId, 'in', bet, 'Thắng tài xỉu');
             saveEconomy();
             return message.reply({ content: `${diceEmojis[roll]} Xúc xắc ra **${roll}** — ${resultLabel} → **ĐÚNG!** +**${bet.toLocaleString()} xu** 🎉\nSố dư: **${userData.balance.toLocaleString()} xu**`, allowedMentions: { repliedUser: false } });
         } else {
             userData.balance -= bet;
+            addTransaction(userId, 'out', bet, 'Thua tài xỉu');
             saveEconomy();
             return message.reply({ content: `${diceEmojis[roll]} Xúc xắc ra **${roll}** — ${resultLabel} → **SAI!** -**${bet.toLocaleString()} xu** 💸\nSố dư: **${userData.balance.toLocaleString()} xu**`, allowedMentions: { repliedUser: false } });
         }
@@ -9015,10 +9109,13 @@ if (command === 'mibanminigame' || command === 'mibanmg') {
         if (guess === answer) {
             const prize = bet * 5;
             userData.balance += prize;
+            recordEconomyIncome(userId, message.guild?.id, prize, 'doanso_win');
+            addTransaction(userId, 'in', prize, 'Thắng đoán số');
             saveEconomy();
             return message.reply({ content: `🎯 Con số bí ẩn là **${answer}** — Bạn đoán **${guess}** → **CHÍNH XÁC!** +**${prize.toLocaleString()} xu** (x5) 🎉\nSố dư: **${userData.balance.toLocaleString()} xu**`, allowedMentions: { repliedUser: false } });
         } else {
             userData.balance -= bet;
+            addTransaction(userId, 'out', bet, 'Thua đoán số');
             saveEconomy();
             return message.reply({ content: `🎯 Con số bí ẩn là **${answer}** — Bạn đoán **${guess}** → **SAI!** -**${bet.toLocaleString()} xu** 💸\nSố dư: **${userData.balance.toLocaleString()} xu**`, allowedMentions: { repliedUser: false } });
         }
@@ -9065,10 +9162,13 @@ if (command === 'mibanminigame' || command === 'mibanmg') {
             if (matches > 0) {
                 const winAmount = bet * matches;
                 userData.balance += winAmount;
+                recordEconomyIncome(userId, message.guild?.id, winAmount, 'baucua_win');
+                addTransaction(userId, 'in', winAmount, 'Thắng bầu cua');
                 saveEconomy();
                 return message.reply({ content: `🎲 Kết quả: ${diceText}\n🎉 Bạn đặt **${symbols[choice]}** → trúng **${matches}** viên! +**${winAmount.toLocaleString()} xu** (x${matches})\nSố dư: **${userData.balance.toLocaleString()} xu**`, allowedMentions: { repliedUser: false } });
             } else {
                 userData.balance -= bet;
+                addTransaction(userId, 'out', bet, 'Thua bầu cua');
                 saveEconomy();
                 return message.reply({ content: `🎲 Kết quả: ${diceText}\n💸 Bạn đặt **${symbols[choice]}** → không trúng viên nào! Mất **-${bet.toLocaleString()} xu**\nSố dư: **${userData.balance.toLocaleString()} xu**`, allowedMentions: { repliedUser: false } });
             }
@@ -9150,6 +9250,12 @@ if (command === 'mibanminigame' || command === 'mibanmg') {
 
             const net = totalWin - totalLose;
             freshUserData.balance += net;
+            if (net > 0) {
+                recordEconomyIncome(userId, message.guild?.id, net, 'baucua_win');
+                addTransaction(userId, 'in', net, 'Thắng bầu cua');
+            } else if (net < 0) {
+                addTransaction(userId, 'out', Math.abs(net), 'Thua bầu cua');
+            }
             saveEconomy();
 
             const resultEmbed = new EmbedBuilder()
@@ -9200,12 +9306,15 @@ if (command === 'mibanminigame' || command === 'mibanmg') {
 
         if (outcome === 'win') {
             userData.balance += bet;
+            recordEconomyIncome(userId, message.guild?.id, bet, 'keobuagiay_win');
+            addTransaction(userId, 'in', bet, 'Thắng kéo búa giấy');
             saveEconomy();
             return message.reply({ content: `${resultLine}\n🎉 Bạn thắng! +**${bet.toLocaleString()} xu**\nSố dư: **${userData.balance.toLocaleString()} xu**`, allowedMentions: { repliedUser: false } });
         } else if (outcome === 'draw') {
             return message.reply({ content: `${resultLine}\n🤝 Hòa! Không mất/nhận xu.\nSố dư: **${userData.balance.toLocaleString()} xu**`, allowedMentions: { repliedUser: false } });
         } else {
             userData.balance -= bet;
+            addTransaction(userId, 'out', bet, 'Thua kéo búa giấy');
             saveEconomy();
             return message.reply({ content: `${resultLine}\n💸 Bạn thua! -**${bet.toLocaleString()} xu**\nSố dư: **${userData.balance.toLocaleString()} xu**`, allowedMentions: { repliedUser: false } });
         }
@@ -9239,16 +9348,23 @@ if (command === 'mibanminigame' || command === 'mibanmg') {
 
         if (isTriple) {
             const winAmount = bet * 10;
-            userData.balance += (winAmount - bet);
+            const netWin = winAmount - bet;
+            userData.balance += netWin;
+            recordEconomyIncome(userId, message.guild?.id, netWin, 'slot_win');
+            addTransaction(userId, 'in', netWin, 'Thắng nổ hũ Slot (x10)');
             saveEconomy();
             return message.reply({ content: `🎰 | ${spinText} |\n🎉 **NỔ HŨ 3 KÝ HIỆU!** +**${winAmount.toLocaleString()} xu** (x10)\nSố dư: **${userData.balance.toLocaleString()} xu**`, allowedMentions: { repliedUser: false } });
         } else if (isDouble) {
             const winAmount = bet * 3;
-            userData.balance += (winAmount - bet);
+            const netWin = winAmount - bet;
+            userData.balance += netWin;
+            recordEconomyIncome(userId, message.guild?.id, netWin, 'slot_win');
+            addTransaction(userId, 'in', netWin, 'Thắng cặp đôi Slot (x3)');
             saveEconomy();
             return message.reply({ content: `🎰 | ${spinText} |\n🎉 Trúng cặp đôi — +**${winAmount.toLocaleString()} xu** (x3).\nSố dư: **${userData.balance.toLocaleString()} xu**`, allowedMentions: { repliedUser: false } });
         } else {
             userData.balance -= bet;
+            addTransaction(userId, 'out', bet, 'Thua quay hũ Slot');
             saveEconomy();
             return message.reply({ content: `🎰 | ${spinText} |\n💸 Không trúng gì cả! Mất **-${bet.toLocaleString()} xu**\nSố dư: **${userData.balance.toLocaleString()} xu**`, allowedMentions: { repliedUser: false } });
         }
@@ -9284,10 +9400,13 @@ if (command === 'mibanminigame' || command === 'mibanmg') {
 
         if (choice === result) {
             userData.balance += bet;
+            recordEconomyIncome(userId, message.guild?.id, bet, 'xocdia_win');
+            addTransaction(userId, 'in', bet, 'Thắng xóc đĩa');
             saveEconomy();
             return message.reply({ content: `🥣 Đĩa lắc ra: ${discsText}\n${resultLabel} → **ĐÚNG!** +**${bet.toLocaleString()} xu** 🎉\nSố dư: **${userData.balance.toLocaleString()} xu**`, allowedMentions: { repliedUser: false } });
         } else {
             userData.balance -= bet;
+            addTransaction(userId, 'out', bet, 'Thua xóc đĩa');
             saveEconomy();
             return message.reply({ content: `🥣 Đĩa lắc ra: ${discsText}\n${resultLabel} → **SAI!** -**${bet.toLocaleString()} xu** 💸\nSố dư: **${userData.balance.toLocaleString()} xu**`, allowedMentions: { repliedUser: false } });
         }
@@ -10947,22 +11066,21 @@ client.on('interactionCreate', async interaction => {
                     return interaction.editReply({ content: '❌ Thời gian không hợp lệ. Ví dụ: `10m`, `1h`, `1d`' });
                 }
             }
-            const reason = options.getString('lý_do') || 'Vi phạm quy định giải trí';
-            const expiresAt = durationMs ? Date.now() + durationMs : null;
-            const uData = getUserData(targetUser.id);
-            uData.minigameBan = {
-                banned: true,
-                reason,
-                bannedAt: Date.now(),
-                bannedBy: interaction.user.id,
-                expiresAt
-            };
-            flushEconomy();
+            const reason = options.getString('lý_do') || 'Vi phạm quy định giải trí (Ban thủ công)';
+            
+            const banResult = applyMinigameBan(targetUser.id, reason, durationMs, interaction.user, interaction.guild?.name);
 
-            await sendMinigameBanNotice(targetUser.id, true, reason, interaction.user, interaction.guild?.name, expiresAt);
+            let timeNotice = '';
+            if (banResult.isPermanent) {
+                timeNotice = '❌ **VĨNH VIỄN** (Đã đủ 10 lần vi phạm trong tháng)';
+            } else if (durationMs) {
+                timeNotice = `trong **${timeStr}** (Lần ${banResult.banCount}/10)`;
+            } else {
+                timeNotice = `trong **${banResult.banCount} ngày** (Cấp bậc: Lần ${banResult.banCount}/10)`;
+            }
 
             return interaction.editReply({
-                content: `✅ Đã **CẤM** người dùng **${targetUser.username}** (\`${targetUser.id}\`) tham gia tất cả minigame ${durationMs ? 'trong một khoảng thời gian' : 'vĩnh viễn'}!\n📌 **Lý do:** ${reason}\n💌 *Đã gửi tin nhắn riêng (DM) thông báo tới người dùng.*`
+                content: `✅ Đã **CẤM** người dùng **${targetUser.username}** (\`${targetUser.id}\`) tham gia minigame ${timeNotice}!\n📌 **Lý do:** ${reason}\n🔢 **Lần ban thứ:** ${banResult.banCount}/10 trong tháng này.\n💌 *Đã gửi DM và ghi log vào kênh theo dõi.*`
             });
         }
 
@@ -10991,8 +11109,9 @@ client.on('interactionCreate', async interaction => {
 
             await sendMinigameBanNotice(targetUser.id, false, '', interaction.user, interaction.guild?.name);
 
+            const curCount = uData?.banHistory?.count || 0;
             return interaction.editReply({
-                content: `✅ Đã **GỠ CẤM** minigame cho người dùng **${targetUser.username}** (\`${targetUser.id}\`). Người này hiện có thể chơi lại bình thường!\n📬 *Đã gửi tin nhắn riêng (DM) thông báo tới người dùng.*`
+                content: `✅ Đã **GỠ CẤM** minigame cho người dùng **${targetUser.username}** (\`${targetUser.id}\`). Người này hiện có thể chơi lại bình thường!\n📊 **Lịch sử tháng này:** ${curCount}/10 lần (Nếu tái phạm sẽ tính tiếp cấp bậc +1).\n📬 *Đã gửi DM và ghi log vào kênh theo dõi.*`
             });
         }
 
