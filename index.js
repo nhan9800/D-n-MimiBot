@@ -1218,14 +1218,22 @@ async function bjEndGame(game, message, outcomeOverride = null) {
 function parseBetGlobal(rawArg, balance) {
     const MAX_BET = 250_000;
     if (!rawArg) return { bet: 0, error: `❌ Thiếu số tiền cược!\nCược tối đa: **${MAX_BET.toLocaleString()} xu/lần** (Dùng \`all\` để cược tối đa)` };
-    const str = String(rawArg).toLowerCase().trim();
+    let str = String(rawArg).toLowerCase().trim().replace(/,/g, '');
     if (str === 'all') {
         const bet = Math.min(balance, MAX_BET);
         if (bet <= 0) return { bet: 0, error: '❌ Bạn không có xu để đặt cược!' };
         return { bet, error: null };
     }
-    if (!/^\d+$/.test(str)) return { bet: 0, error: '❌ Số tiền cược không hợp lệ! Chỉ nhập số nguyên (Ví dụ: `50000`) hoặc `all`.' };
-    const bet = parseInt(str, 10);
+    let multiplier = 1;
+    if (str.endsWith('k')) {
+        multiplier = 1000;
+        str = str.slice(0, -1);
+    } else if (str.endsWith('m')) {
+        multiplier = 1000000;
+        str = str.slice(0, -1);
+    }
+    if (!/^\d+(\.\d+)?$/.test(str)) return { bet: 0, error: '❌ Số tiền cược không hợp lệ! Nhập số (Ví dụ: `50000` hoặc `50k`) hoặc `all`.' };
+    const bet = Math.floor(parseFloat(str) * multiplier);
     if (isNaN(bet) || bet <= 0) return { bet: 0, error: '❌ Số tiền cược không hợp lệ!' };
     if (bet > MAX_BET) return { bet: 0, error: `❌ Cược tối đa mỗi lần là **${MAX_BET.toLocaleString()} xu**! Dùng \`all\` để cược tối đa.` };
     if (bet > balance) return { bet: 0, error: `❌ Bạn không đủ xu! Số dư hiện có: **${balance.toLocaleString()} xu**.` };
@@ -1233,88 +1241,146 @@ function parseBetGlobal(rawArg, balance) {
 }
 
 // ==========================================
-// ⛏️ TRÒ CHƠI ĐÀO KIM CƯƠNG (DIAMOND MINING)
+// ⛏️ TRÒ CHƠI ĐÀO KIM CƯƠNG (MINES - CHUẨN OWO BOT)
 // ==========================================
 const diamondMineGames = new Map();
-const MINE_MULTIPLIERS = [1.0, 1.35, 1.95, 2.9, 4.5, 7.5, 13.5, 28.0];
 
-function createMineGame(userId, guildId, bet) {
-    // 9 ô: 7 kim cương, 2 quả bom
-    const tiles = Array(7).fill('diamond').concat(Array(2).fill('bomb'));
+function calculateMinesMultiplier(k, M) {
+    if (k <= 0) return 0;
+    const D = 9 - M;
+    if (k > D) return 0;
+    let prob = 1.0;
+    for (let i = 0; i < k; i++) {
+        prob *= (D - i) / (9 - i);
+    }
+    return (1.0 / prob) * 0.94;
+}
+
+function createMineGame(userId, guildId, bet, minesCount = 1) {
+    const clampedMines = Math.max(1, Math.min(8, minesCount));
+    const diamondsTotal = 9 - clampedMines;
+    const tiles = Array(diamondsTotal).fill('diamond').concat(Array(clampedMines).fill('bomb'));
     for (let i = tiles.length - 1; i > 0; i--) {
         const j = Math.floor(Math.random() * (i + 1));
         [tiles[i], tiles[j]] = [tiles[j], tiles[i]];
     }
+
+    const nextMult = calculateMinesMultiplier(1, clampedMines);
     return {
+        id: `${userId}_${Date.now()}`,
         userId,
         guildId,
         bet,
-        grid: tiles.map(type => ({ type, revealed: false })),
+        minesCount: clampedMines,
+        diamondsTotal,
         diamondsFound: 0,
+        grid: tiles.map(type => ({ type, clicked: false })),
         currentMultiplier: 1.0,
+        currentCashOut: 0,
+        nextMultiplier: nextMult,
+        nextCashOut: Math.round(bet * nextMult),
+        isGameOver: false,
+        touchedMineIdx: -1,
         startTime: Date.now(),
         message: null,
         timeoutHandle: null
     };
 }
 
-function buildMineGridRows(game, isGameOver = false) {
+function buildMineEmbed(game, status = 'playing') {
+    const embed = new EmbedBuilder().setColor(0x2B2D31);
+
+    const betStr = game.bet.toLocaleString();
+    const minesStr = String(game.minesCount);
+    const cashOutStr = game.diamondsFound > 0 ? `${game.currentCashOut.toLocaleString()} (${game.currentMultiplier.toFixed(2)}x)` : '0 (0.00x)';
+    const nextStr = game.nextCashOut > 0 ? `${game.nextCashOut.toLocaleString()} (${game.nextMultiplier.toFixed(2)}x)` : '-';
+
+    let desc = '';
+    if (status === 'touched_mine') {
+        desc = `💥 <@${game.userId}> **touched a mine!**\n\n` +
+               `Bet: \`${betStr}\`   Mines: \`${minesStr}\`\n` +
+               `~~Cash Out: \`${cashOutStr}\`~~\n` +
+               `~~Next: \`${nextStr}\`~~\n` +
+               `───────────────────────────`;
+    } else if (status === 'cashed_out') {
+        desc = `💰 <@${game.userId}> **cashed out!**\n\n` +
+               `Bet: \`${betStr}\`   Mines: \`${minesStr}\`\n` +
+               `Cash Out: \`${game.currentCashOut.toLocaleString()} (${game.currentMultiplier.toFixed(2)}x)\`\n` +
+               `───────────────────────────`;
+    } else if (status === 'cleared') {
+        desc = `🎉 <@${game.userId}> **cleared the board!**\n\n` +
+               `Bet: \`${betStr}\`   Mines: \`${minesStr}\`\n` +
+               `Cash Out: \`${game.currentCashOut.toLocaleString()} (${game.currentMultiplier.toFixed(2)}x)\`\n` +
+               `───────────────────────────`;
+    } else {
+        // playing
+        desc = `⛏️ <@${game.userId}>'s **mines**\n\n` +
+               `Bet: \`${betStr}\`   Mines: \`${minesStr}\`\n` +
+               `Cash Out: \`${game.diamondsFound > 0 ? cashOutStr : '-'}\`\n` +
+               `Next: \`${nextStr}\`\n` +
+               `───────────────────────────`;
+    }
+
+    embed.setDescription(desc);
+    return embed;
+}
+
+function buildMineGridRows(game) {
     const rows = [];
+    const isGameOver = game.isGameOver;
+
     for (let r = 0; r < 3; r++) {
         const row = new ActionRowBuilder();
         for (let c = 0; c < 3; c++) {
             const idx = r * 3 + c;
             const tile = game.grid[idx];
-            const btn = new ButtonBuilder().setCustomId(`mine_tile_${idx}`);
-            if (tile.revealed || isGameOver) {
-                btn.setDisabled(true);
-                if (tile.type === 'bomb') {
-                    btn.setEmoji('💣').setStyle(ButtonStyle.Danger);
+            const btn = new ButtonBuilder().setCustomId(`mine_tile_${game.id}_${idx}`);
+
+            if (!isGameOver) {
+                if (tile.clicked) {
+                    btn.setEmoji('💎')
+                        .setStyle(ButtonStyle.Success)
+                        .setDisabled(true);
                 } else {
-                    btn.setEmoji('💎').setStyle(ButtonStyle.Success);
+                    btn.setLabel('\u200b')
+                        .setStyle(ButtonStyle.Secondary)
+                        .setDisabled(false);
                 }
             } else {
-                btn.setLabel(`Ô ${idx + 1}`).setEmoji('🟫').setStyle(ButtonStyle.Secondary);
+                btn.setDisabled(true);
+                if (tile.clicked) {
+                    if (tile.type === 'bomb') {
+                        btn.setEmoji('💥')
+                            .setStyle(ButtonStyle.Danger);
+                    } else {
+                        btn.setEmoji('💎')
+                            .setStyle(ButtonStyle.Success);
+                    }
+                } else {
+                    if (tile.type === 'bomb') {
+                        btn.setEmoji('💣')
+                            .setStyle(ButtonStyle.Secondary);
+                    } else {
+                        btn.setEmoji('💎')
+                            .setStyle(ButtonStyle.Secondary);
+                    }
+                }
             }
             row.addComponents(btn);
         }
         rows.push(row);
     }
-    if (!isGameOver) {
-        const currentWin = Math.floor(game.bet * game.currentMultiplier);
-        const canCashout = game.diamondsFound > 0;
-        const controlRow = new ActionRowBuilder().addComponents(
-            new ButtonBuilder()
-                .setCustomId('mine_cashout')
-                .setLabel(`💰 Rút Tiền (+${currentWin.toLocaleString()} Xu — x${game.currentMultiplier.toFixed(2)})`)
-                .setStyle(ButtonStyle.Success)
-                .setDisabled(!canCashout),
-            new ButtonBuilder()
-                .setCustomId('mine_cancel')
-                .setLabel('❌ Hủy Bỏ (Hoàn cược)')
-                .setStyle(ButtonStyle.Secondary)
-                .setDisabled(canCashout)
-        );
-        rows.push(controlRow);
-    }
-    return rows;
-}
 
-function buildMineEmbed(game, statusText, statusColor = 0x00FFA3) {
-    const currentWin = Math.floor(game.bet * game.currentMultiplier);
-    return new EmbedBuilder()
-        .setColor(statusColor)
-        .setTitle('⛏️ HẦM MỎ KIM CƯƠNG — DIAMOND MINING')
-        .setDescription(
-            `👤 **Thợ mỏ:** <@${game.userId}>\n` +
-            `💰 **Tiền cược:** \`${game.bet.toLocaleString()} xu\`\n` +
-            `💎 **Kim cương đã đào:** \`${game.diamondsFound}/7\` (Hệ số: **x${game.currentMultiplier.toFixed(2)}**)\n` +
-            `💵 **Tiền thưởng hiện tại:** \`+${currentWin.toLocaleString()} xu\`\n\n` +
-            `> ${statusText}\n\n` +
-            `-# ⚠️ Lưu ý: Trong 9 ô có **2 quả Bom 💣** ẩn nấp. Chạm phải bom sẽ mất toàn bộ tiền cược!`
-        )
-        .setFooter({ text: 'MIMI BOT Gaming • Đào kim cương' })
-        .setTimestamp();
+    // Nút Cash Out giống 100% hình OwO
+    const cashOutBtn = new ButtonBuilder()
+        .setCustomId(`mine_cashout_${game.id}`)
+        .setLabel('Cash Out')
+        .setEmoji('💵')
+        .setStyle(ButtonStyle.Success)
+        .setDisabled(isGameOver || game.diamondsFound === 0);
+
+    rows.push(new ActionRowBuilder().addComponents(cashOutBtn));
+    return rows;
 }
 
 // ==========================================
@@ -6555,8 +6621,15 @@ client.once('ready', async () => {
 
         new SlashCommandBuilder()
             .setName('daokimcuong')
-            .setDescription('Trò chơi Đào Kim Cương: Dò tìm đá quý trong hầm mỏ hoặc cược xu săn kho báu')
-            .addStringOption(o => o.setName('tiền_cược').setDescription('Số tiền cược (hoặc all). Bỏ trống để đào miễn phí lấy khoáng sản').setRequired(false)),
+            .setDescription('Trò chơi Đào Kim Cương (Mines kiểu OwO): Dò tìm 3x3 né bom săn thưởng lớn')
+            .addStringOption(o => o.setName('tiền_cược').setDescription('Số tiền cược (VD: 50000, 50k hoặc all). Bỏ trống để đào khoáng sản miễn phí').setRequired(false))
+            .addIntegerOption(o => o.setName('số_bom').setDescription('Số lượng bom ẩn trong 9 ô (1 đến 8 quả, mặc định: 1)').setMinValue(1).setMaxValue(8).setRequired(false)),
+
+        new SlashCommandBuilder()
+            .setName('mines')
+            .setDescription('Trò chơi Đào Kim Cương Mines (Chuẩn phong cách OwO)')
+            .addStringOption(o => o.setName('tiền_cược').setDescription('Số tiền cược (VD: 50000, 50k hoặc all)').setRequired(true))
+            .addIntegerOption(o => o.setName('số_bom').setDescription('Số lượng bom ẩn trong 9 ô (1 đến 8 quả, mặc định: 1)').setMinValue(1).setMaxValue(8).setRequired(false)),
 
         new SlashCommandBuilder()
             .setName('caothap')
@@ -8441,7 +8514,7 @@ if (command === 'mibanminigame' || command === 'mibanmg') {
         'misl', 'mislot', `${serverPrefix}sl`,
         'mixd', 'mixocdia', `${serverPrefix}xd`, `${serverPrefix}xocdia`,
         'mibj', 'miblackjack',
-        'midao', 'midaokimcuong', `${serverPrefix}dao`, `${serverPrefix}daokimcuong`,
+        'midao', 'midaokimcuong', 'mimines', 'mimine', `${serverPrefix}dao`, `${serverPrefix}daokimcuong`, `${serverPrefix}mines`, `${serverPrefix}mine`,
         'micaothap', 'mict', `${serverPrefix}caothap`, `${serverPrefix}ct`
     ]);
 
@@ -9810,9 +9883,9 @@ if (command === 'mibanminigame' || command === 'mibanmg') {
     }
 
     // ==========================================
-    // ⛏️ LỆNH ĐÀO KIM CƯƠNG: midao | midaokimcuong
+    // ⛏️ LỆNH ĐÀO KIM CƯƠNG: midao | midaokimcuong | mimines | mimine
     // ==========================================
-    if (command === 'midao' || command === 'midaokimcuong') {
+    if (command === 'midao' || command === 'midaokimcuong' || command === 'mimines' || command === 'mimine') {
         const banInfo = isMinigameBanned(userId);
         if (banInfo) {
             return message.reply({ 
@@ -9829,7 +9902,7 @@ if (command === 'mibanminigame' || command === 'mibanmg') {
             const cooldown = 60 * 1000; // 60 giây
             if (userData.lastDaoKhoangSan && now - userData.lastDaoKhoangSan < cooldown) {
                 const leftSec = Math.ceil((cooldown - (now - userData.lastDaoKhoangSan)) / 1000);
-                return message.reply(`⏳ Thể lực của bạn đang hồi phục! Hãy chờ **${leftSec} giây** nữa để đào khoáng sản tiếp nhé.\n💡 *Mẹo: Muốn cược xu săn mỏ kim cương 3x3, hãy gõ \`${command} [tiền_cược/all]\`!*`);
+                return message.reply(`⏳ Thể lực của bạn đang hồi phục! Hãy chờ **${leftSec} giây** nữa để đào khoáng sản tiếp nhé.\n💡 *Mẹo: Muốn cược xu săn mỏ kim cương 3x3 chuẩn OwO, hãy gõ \`${command} [tiền_cược/all] [số_bom]\`!*`);
             }
             userData.lastDaoKhoangSan = now;
             if (!userData.inventory) userData.inventory = {};
@@ -9865,7 +9938,7 @@ if (command === 'mibanminigame' || command === 'mibanmg') {
                     `• **Phẩm cấp:** \`${chosen.rarity}\`\n` +
                     `• **Giá trị ước tính:** \`${chosen.priceRange}\`\n\n` +
                     `📦 Đã cất vào kho đồ! Dùng \`mikho\` (hoặc \`mikho bán\`) để bán lấy xu.\n` +
-                    `🎲 *Thử vận may cược xu tại hầm mỏ 3x3: \`${command} 50000\` hoặc \`${command} all\`!*`
+                    `🎲 *Thử vận may cược xu tại hầm mỏ 3x3 chuẩn OwO: \`${command} 50000 1\` hoặc \`${command} all\`!*`
                 )
                 .setThumbnail(message.author.displayAvatarURL())
                 .setFooter({ text: 'Cooldown khai thác: 60s' })
@@ -9874,22 +9947,32 @@ if (command === 'mibanminigame' || command === 'mibanmg') {
             return message.reply({ embeds: [mineFreeEmbed] });
         }
 
-        // CHẾ ĐỘ CƯỢC XU ĐÀO KIM CƯƠNG TRÊN BÀN 3x3
+        // CHẾ ĐỘ CƯỢC XU ĐÀO KIM CƯƠNG TRÊN BÀN 3x3 (CHUẨN OWO BOT)
         if (diamondMineGames.has(userId)) {
-            return message.reply({ content: '❌ Bạn đang có 1 ván Đào Kim Cương chưa hoàn tất! Hãy tiếp tục đào hoặc bấm Rút Tiền ở tin nhắn cũ.', allowedMentions: { repliedUser: false } });
+            return message.reply({ content: '❌ Bạn đang có 1 ván Đào Kim Cương chưa hoàn tất! Hãy tiếp tục đào hoặc bấm Cash Out ở tin nhắn cũ.', allowedMentions: { repliedUser: false } });
         }
 
-        const { bet, error } = parseBet(args[1], userData.balance);
-        if (error) return message.reply({ content: error + `\nCú pháp: \`${command} [số_tiền/all]\``, allowedMentions: { repliedUser: false } });
+        const { bet, error } = parseBetGlobal(args[1], userData.balance);
+        if (error) return message.reply({ content: error + `\nCú pháp: \`${command} [số_tiền/all] [số_bom (1-8)]\``, allowedMentions: { repliedUser: false } });
+
+        let minesCount = 1;
+        if (args[2]) {
+            const parsedM = parseInt(args[2], 10);
+            if (!isNaN(parsedM) && parsedM >= 1 && parsedM <= 8) {
+                minesCount = parsedM;
+            } else {
+                return message.reply({ content: '❌ Số lượng bom phải từ 1 đến 8 quả!', allowedMentions: { repliedUser: false } });
+            }
+        }
 
         userData.balance -= bet;
         saveEconomy();
 
-        const game = createMineGame(userId, message.guild.id, bet);
+        const game = createMineGame(userId, message.guild.id, bet, minesCount);
         diamondMineGames.set(userId, game);
 
-        const rows = buildMineGridRows(game, false);
-        const embed = buildMineEmbed(game, 'Hãy chọn 1 ô `🟫` bên dưới để bắt đầu đào kim cương!');
+        const rows = buildMineGridRows(game);
+        const embed = buildMineEmbed(game, 'playing');
 
         const sent = await message.reply({ embeds: [embed], components: rows, allowedMentions: { repliedUser: false } }).catch(err => {
             userData.balance += bet;
@@ -9904,12 +9987,23 @@ if (command === 'mibanminigame' || command === 'mibanmg') {
         game.timeoutHandle = setTimeout(async () => {
             if (diamondMineGames.get(userId) === game) {
                 diamondMineGames.delete(userId);
-                const autoWin = Math.floor(game.bet * game.currentMultiplier);
-                const uData = getUserData(userId);
-                uData.balance += autoWin;
-                saveEconomy();
-                const timeoutEmbed = buildMineEmbed(game, `⏰ Hết thời gian thao tác! Bot đã tự động chốt tiền thưởng **+${autoWin.toLocaleString()} xu** cho bạn.`, 0x2ECC71);
-                await sent.edit({ embeds: [timeoutEmbed], components: buildMineGridRows(game, true) }).catch(() => null);
+                game.isGameOver = true;
+                if (game.diamondsFound > 0) {
+                    const autoWin = game.currentCashOut;
+                    const uData = getUserData(userId);
+                    uData.balance += autoWin;
+                    saveEconomy();
+                    const timeoutEmbed = buildMineEmbed(game, 'cashed_out');
+                    await sent.edit({ embeds: [timeoutEmbed], components: buildMineGridRows(game) }).catch(() => null);
+                } else {
+                    const uData = getUserData(userId);
+                    uData.balance += game.bet; // hoàn cược
+                    saveEconomy();
+                    const cancelEmbed = new EmbedBuilder()
+                        .setColor(0x2B2D31)
+                        .setDescription(`⏰ <@${game.userId}> **hết thời gian thao tác!** Đã hủy ván và hoàn trả \`${game.bet.toLocaleString()} xu\``);
+                    await sent.edit({ embeds: [cancelEmbed], components: buildMineGridRows(game) }).catch(() => null);
+                }
             }
         }, 60_000);
 
@@ -10459,7 +10553,7 @@ if (command === 'mibanminigame' || command === 'mibanmg') {
         'mibannongsan','mibns','mishop','mis',
         'mitimdo','mikho','mibuybg','mibg',
         'micaoca','mipet','mibanca',
-        'midao','midaokimcuong','micaothap','mict','miaddemoji',
+        'midao','midaokimcuong','mimines','mimine','micaothap','mict','miaddemoji',
         // Prefix động của server
         `${serverPrefix}daily`,`${serverPrefix}d`,`${serverPrefix}profile`,`${serverPrefix}p`,
         `${serverPrefix}coinflip`,`${serverPrefix}cf`,`${serverPrefix}sl`,
@@ -10470,7 +10564,7 @@ if (command === 'mibanminigame' || command === 'mibanmg') {
         `${serverPrefix}play`,`${serverPrefix}pl`,
         `${serverPrefix}xocdia`,`${serverPrefix}xd`,
         `${serverPrefix}farm`,`${serverPrefix}shop`,`${serverPrefix}tuoi`,`${serverPrefix}th`,
-        `${serverPrefix}dao`,`${serverPrefix}daokimcuong`,`${serverPrefix}caothap`,`${serverPrefix}ct`,`${serverPrefix}addemoji`,
+        `${serverPrefix}dao`,`${serverPrefix}daokimcuong`,`${serverPrefix}mines`,`${serverPrefix}mine`,`${serverPrefix}caothap`,`${serverPrefix}ct`,`${serverPrefix}addemoji`,
     ];
     if (!allowedPrefixes.includes(rawCommand)) {
         if (isMinigameBanned(userId)) return;
@@ -11758,9 +11852,9 @@ client.on('interactionCreate', async interaction => {
         }
 
         // ==========================================
-        // ⛏️ LỆNH SLASH /daokimcuong
+        // ⛏️ LỆNH SLASH /daokimcuong & /mines (CHUẨN PHONG CÁCH OWO)
         // ==========================================
-        if (commandName === 'daokimcuong') {
+        if (commandName === 'daokimcuong' || commandName === 'mines') {
             const banInfo = isMinigameBanned(user.id);
             if (banInfo) {
                 return interaction.reply({ 
@@ -11769,7 +11863,8 @@ client.on('interactionCreate', async interaction => {
                 });
             }
 
-            const rawBet = options.getString('tiền_cược');
+            const rawBet = options.getString('tiền_cược') || options.getString('bet');
+            const minesOpt = options.getInteger('số_bom') || options.getInteger('mines') || 1;
             const userData = getUserData(user.id);
 
             // Không nhập cược -> Đào khoáng sản miễn phí
@@ -11779,7 +11874,7 @@ client.on('interactionCreate', async interaction => {
                 if (userData.lastDaoKhoangSan && now - userData.lastDaoKhoangSan < cooldown) {
                     const leftSec = Math.ceil((cooldown - (now - userData.lastDaoKhoangSan)) / 1000);
                     return interaction.reply({ 
-                        content: `⏳ Thể lực của bạn đang hồi phục! Hãy chờ **${leftSec} giây** nữa để đào khoáng sản tiếp nhé.\n💡 *Mẹo: Muốn cược xu săn mỏ kim cương 3x3, hãy dùng \`/daokimcuong tiền_cược: 50000\` hoặc \`/daokimcuong tiền_cược: all\`!*`,
+                        content: `⏳ Thể lực của bạn đang hồi phục! Hãy chờ **${leftSec} giây** nữa để đào khoáng sản tiếp nhé.\n💡 *Mẹo: Muốn cược xu săn mỏ kim cương 3x3 chuẩn OwO, hãy dùng \`/daokimcuong tiền_cược: 50000 số_bom: 1\`!*`,
                         flags: MessageFlags.Ephemeral 
                     });
                 }
@@ -11817,7 +11912,7 @@ client.on('interactionCreate', async interaction => {
                         `• **Phẩm cấp:** \`${chosen.rarity}\`\n` +
                         `• **Giá trị ước tính:** \`${chosen.priceRange}\`\n\n` +
                         `📦 Đã cất vào kho đồ! Dùng \`mikho\` (hoặc \`mikho bán\`) để bán lấy xu.\n` +
-                        `🎲 *Thử vận may cược xu tại hầm mỏ 3x3: \`/daokimcuong tiền_cược: 50000\` hoặc \`/daokimcuong tiền_cược: all\`!*`
+                        `🎲 *Thử vận may cược xu tại hầm mỏ 3x3: \`/daokimcuong tiền_cược: 50000 số_bom: 1\`!*`
                     )
                     .setThumbnail(user.displayAvatarURL())
                     .setFooter({ text: 'Cooldown khai thác: 60s' })
@@ -11827,20 +11922,21 @@ client.on('interactionCreate', async interaction => {
             }
 
             if (diamondMineGames.has(user.id)) {
-                return interaction.reply({ content: '❌ Bạn đang có 1 ván Đào Kim Cương chưa hoàn tất! Hãy tiếp tục đào hoặc bấm Rút Tiền ở tin nhắn cũ.', flags: MessageFlags.Ephemeral });
+                return interaction.reply({ content: '❌ Bạn đang có 1 ván Đào Kim Cương chưa hoàn tất! Hãy tiếp tục đào hoặc bấm Cash Out ở tin nhắn cũ.', flags: MessageFlags.Ephemeral });
             }
 
             const { bet, error } = parseBetGlobal(rawBet, userData.balance);
             if (error) return interaction.reply({ content: error, flags: MessageFlags.Ephemeral });
 
+            const clampedMines = Math.max(1, Math.min(8, minesOpt));
             userData.balance -= bet;
             saveEconomy();
 
-            const game = createMineGame(user.id, guild.id, bet);
+            const game = createMineGame(user.id, guild.id, bet, clampedMines);
             diamondMineGames.set(user.id, game);
 
-            const rows = buildMineGridRows(game, false);
-            const embed = buildMineEmbed(game, 'Hãy chọn 1 ô `🟫` bên dưới để bắt đầu đào kim cương!');
+            const rows = buildMineGridRows(game);
+            const embed = buildMineEmbed(game, 'playing');
 
             const sent = await interaction.reply({ embeds: [embed], components: rows, fetchReply: true });
             game.message = sent;
@@ -11848,12 +11944,23 @@ client.on('interactionCreate', async interaction => {
             game.timeoutHandle = setTimeout(async () => {
                 if (diamondMineGames.get(user.id) === game) {
                     diamondMineGames.delete(user.id);
-                    const autoWin = Math.floor(game.bet * game.currentMultiplier);
-                    const uData = getUserData(user.id);
-                    uData.balance += autoWin;
-                    saveEconomy();
-                    const timeoutEmbed = buildMineEmbed(game, `⏰ Hết thời gian thao tác! Bot đã tự động chốt tiền thưởng **+${autoWin.toLocaleString()} xu** cho bạn.`, 0x2ECC71);
-                    await sent.edit({ embeds: [timeoutEmbed], components: buildMineGridRows(game, true) }).catch(() => null);
+                    game.isGameOver = true;
+                    if (game.diamondsFound > 0) {
+                        const autoWin = game.currentCashOut;
+                        const uData = getUserData(user.id);
+                        uData.balance += autoWin;
+                        saveEconomy();
+                        const timeoutEmbed = buildMineEmbed(game, 'cashed_out');
+                        await sent.edit({ embeds: [timeoutEmbed], components: buildMineGridRows(game) }).catch(() => null);
+                    } else {
+                        const uData = getUserData(user.id);
+                        uData.balance += game.bet; // hoàn cược
+                        saveEconomy();
+                        const cancelEmbed = new EmbedBuilder()
+                            .setColor(0x2B2D31)
+                            .setDescription(`⏰ <@${game.userId}> **hết thời gian thao tác!** Đã hủy ván và hoàn trả \`${game.bet.toLocaleString()} xu\``);
+                        await sent.edit({ embeds: [cancelEmbed], components: buildMineGridRows(game) }).catch(() => null);
+                    }
                 }
             }, 60_000);
 
@@ -15583,11 +15690,11 @@ if (commandName === 'changelog') {
         }
 
         // ==========================================
-        // ⛏️ XỬ LÝ NÚT MINIGAME ĐÀO KIM CƯƠNG
+        // ⛏️ XỬ LÝ NÚT MINIGAME ĐÀO KIM CƯƠNG (CHUẨN OWO BOT)
         // ==========================================
-        if (customId.startsWith('mine_tile_') || customId === 'mine_cashout' || customId === 'mine_cancel') {
+        if (customId.startsWith('mine_tile_') || customId.startsWith('mine_cashout_')) {
             const game = diamondMineGames.get(user.id);
-            if (!game) {
+            if (!game || !customId.includes(game.id)) {
                 return interaction.reply({ content: '❌ Ván đào kim cương này đã kết thúc hoặc không phải của bạn!', flags: MessageFlags.Ephemeral });
             }
 
@@ -15597,69 +15704,69 @@ if (commandName === 'changelog') {
                 return interaction.reply({ content: `🚫 **BẠN ĐÃ BỊ CẤM CHƠI MINIGAME!**\n📝 **Lý do:** ${banInfo.reason || 'Vi phạm quy định'}`, flags: MessageFlags.Ephemeral });
             }
 
-            if (game.timeoutHandle) clearTimeout(game.timeoutHandle);
-
-            // Nút Hủy Bỏ (khi chưa đào ô nào)
-            if (customId === 'mine_cancel') {
-                if (game.diamondsFound > 0) {
-                    return interaction.reply({ content: '❌ Bạn đã bắt đầu đào rồi, không thể hủy bỏ! Hãy tiếp tục đào hoặc bấm Rút Tiền.', flags: MessageFlags.Ephemeral });
-                }
-                diamondMineGames.delete(user.id);
-                const userData = getUserData(user.id);
-                userData.balance += game.bet; // Hoàn tiền
-                saveEconomy();
-                const cancelEmbed = buildMineEmbed(game, `❌ **Ván chơi đã bị hủy bỏ!** Đã hoàn trả **+${game.bet.toLocaleString()} xu** vào ví.`, 0x95A5A6);
-                return interaction.update({ embeds: [cancelEmbed], components: [] }).catch(() => null);
+            if (game.isGameOver) {
+                return interaction.deferUpdate().catch(() => null);
             }
 
-            // Nút Rút Tiền (Cashout)
-            if (customId === 'mine_cashout') {
+            if (game.timeoutHandle) clearTimeout(game.timeoutHandle);
+
+            // Nút Rút Tiền (Cash Out)
+            if (customId.startsWith('mine_cashout_')) {
                 if (game.diamondsFound === 0) {
                     return interaction.reply({ content: '❌ Bạn chưa đào được viên kim cương nào để rút tiền!', flags: MessageFlags.Ephemeral });
                 }
+                game.isGameOver = true;
                 diamondMineGames.delete(user.id);
-                const winAmount = Math.floor(game.bet * game.currentMultiplier);
+
+                const winAmount = game.currentCashOut;
                 const profit = winAmount - game.bet;
                 const userData = getUserData(user.id);
                 userData.balance += winAmount;
                 if (profit > 0) {
                     recordEconomyIncome(user.id, guild.id, profit, 'diamond_mine_win');
-                    addTransaction(user.id, 'in', profit, 'Thắng đào kim cương');
+                    addTransaction(user.id, 'in', profit, 'Thắng đào kim cương (Cash Out)');
                 }
                 saveEconomy();
 
-                const cashoutEmbed = buildMineEmbed(game, `🎉 **RÚT TIỀN THÀNH CÔNG!**\nBạn đã an toàn rút lui và nhận **+${winAmount.toLocaleString()} xu** (x${game.currentMultiplier.toFixed(2)})!\n💰 Số dư mới: **${userData.balance.toLocaleString()} xu**`, 0x2ECC71);
-                return interaction.update({ embeds: [cashoutEmbed], components: buildMineGridRows(game, true) }).catch(() => null);
+                const cashoutEmbed = buildMineEmbed(game, 'cashed_out');
+                return interaction.update({ embeds: [cashoutEmbed], components: buildMineGridRows(game) }).catch(() => null);
             }
 
             // Bấm vào 1 ô đất để đào
             if (customId.startsWith('mine_tile_')) {
-                const idx = parseInt(customId.replace('mine_tile_', ''), 10);
+                const parts = customId.split('_');
+                const idx = parseInt(parts[parts.length - 1], 10);
                 const tile = game.grid[idx];
-                if (tile.revealed) {
-                    return interaction.reply({ content: '⚠️ Ô này đã được đào rồi!', flags: MessageFlags.Ephemeral });
+                if (!tile || tile.clicked) {
+                    return interaction.deferUpdate().catch(() => null);
                 }
 
-                tile.revealed = true;
+                tile.clicked = true;
 
-                // TRÚNG BOM 💣
+                // TRÚNG BOM 💥
                 if (tile.type === 'bomb') {
+                    game.isGameOver = true;
+                    game.touchedMineIdx = idx;
                     diamondMineGames.delete(user.id);
+
                     recordEconomyExpense(user.id, guild.id, game.bet, 'diamond_mine_loss');
                     addTransaction(user.id, 'out', game.bet, 'Thua đào kim cương (trúng bom)');
 
-                    const bombEmbed = buildMineEmbed(game, `💥 **BÙÙÙM! TRÚNG BOM NỔ TUNG!**\nBạn đã vô tình cuốc trúng thuốc nổ trong hầm mỏ! Mất toàn bộ **${game.bet.toLocaleString()} xu** cược.`, 0xE74C3C);
-                    return interaction.update({ embeds: [bombEmbed], components: buildMineGridRows(game, true) }).catch(() => null);
+                    const bombEmbed = buildMineEmbed(game, 'touched_mine');
+                    return interaction.update({ embeds: [bombEmbed], components: buildMineGridRows(game) }).catch(() => null);
                 }
 
                 // TRÚNG KIM CƯƠNG 💎
                 game.diamondsFound++;
-                game.currentMultiplier = MINE_MULTIPLIERS[game.diamondsFound] || (game.currentMultiplier * 1.8);
+                game.currentMultiplier = calculateMinesMultiplier(game.diamondsFound, game.minesCount);
+                game.currentCashOut = Math.round(game.bet * game.currentMultiplier);
 
-                // NẾU ĐÀO ĐƯỢC CẢ 7 KIM CƯƠNG -> THẮNG JACKPOT!
-                if (game.diamondsFound >= 7) {
+                // NẾU ĐÀO ĐƯỢC TẤT CẢ KIM CƯƠNG -> CLEAR BÀN / JACKPOT!
+                if (game.diamondsFound >= game.diamondsTotal) {
+                    game.isGameOver = true;
                     diamondMineGames.delete(user.id);
-                    const winAmount = Math.floor(game.bet * game.currentMultiplier);
+
+                    const winAmount = game.currentCashOut;
                     const profit = winAmount - game.bet;
                     const userData = getUserData(user.id);
                     userData.balance += winAmount;
@@ -15667,27 +15774,29 @@ if (commandName === 'changelog') {
                     addTransaction(user.id, 'in', profit, 'Thắng JACKPOT đào kim cương');
                     saveEconomy();
 
-                    const jackpotEmbed = buildMineEmbed(game, `👑 **JACKPOT HOÀNG GIA! BẠN ĐÃ ĐÀO SẠCH 7/7 KIM CƯƠNG!**\nThu về tiền thưởng tối đa: **+${winAmount.toLocaleString()} xu** (x${game.currentMultiplier.toFixed(2)})!\n💰 Số dư mới: **${userData.balance.toLocaleString()} xu**`, 0xF1C40F);
-                    return interaction.update({ embeds: [jackpotEmbed], components: buildMineGridRows(game, true) }).catch(() => null);
+                    const jackpotEmbed = buildMineEmbed(game, 'cleared');
+                    return interaction.update({ embeds: [jackpotEmbed], components: buildMineGridRows(game) }).catch(() => null);
                 }
 
                 // Tiếp tục đào
-                const nextWin = Math.floor(game.bet * game.currentMultiplier);
-                const nextEmbed = buildMineEmbed(game, `✨ **TUYỆT VỜI!** Bạn đã tìm thấy **1 viên Kim Cương 💎**!\nHệ số tăng lên **x${game.currentMultiplier.toFixed(2)}** (Tiền thưởng nếu rút ngay: **+${nextWin.toLocaleString()} xu**).\nBạn có thể tiếp tục đào hoặc bấm **Rút Tiền** ngay!`, 0x00FFA3);
+                game.nextMultiplier = calculateMinesMultiplier(game.diamondsFound + 1, game.minesCount);
+                game.nextCashOut = Math.round(game.bet * game.nextMultiplier);
 
                 game.timeoutHandle = setTimeout(async () => {
                     if (diamondMineGames.get(user.id) === game) {
                         diamondMineGames.delete(user.id);
-                        const autoWin = Math.floor(game.bet * game.currentMultiplier);
+                        game.isGameOver = true;
+                        const autoWin = game.currentCashOut;
                         const uData = getUserData(user.id);
                         uData.balance += autoWin;
                         saveEconomy();
-                        const timeEmbed = buildMineEmbed(game, `⏰ Hết thời gian! Bot đã tự động chốt rút tiền **+${autoWin.toLocaleString()} xu** cho bạn.`, 0x2ECC71);
-                        await interaction.message.edit({ embeds: [timeEmbed], components: buildMineGridRows(game, true) }).catch(() => null);
+                        const timeEmbed = buildMineEmbed(game, 'cashed_out');
+                        await interaction.message.edit({ embeds: [timeEmbed], components: buildMineGridRows(game) }).catch(() => null);
                     }
                 }, 60_000);
 
-                return interaction.update({ embeds: [nextEmbed], components: buildMineGridRows(game, false) }).catch(() => null);
+                const nextEmbed = buildMineEmbed(game, 'playing');
+                return interaction.update({ embeds: [nextEmbed], components: buildMineGridRows(game) }).catch(() => null);
             }
         }
 
