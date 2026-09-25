@@ -3862,7 +3862,7 @@ function buildMusicProgressBar(currentSec, totalSec, size = 14) {
 // HOÀN TOÀN KHÔNG DÙNG EMOJI - CHỈ DÙNG DISCORD MARKDOWN CHUẨN VÀ COMPONENTS V2
 // =====================================================================
 const PRIMARY_UPDATE_CHANNEL_ID = '1527814721053655092';
-const CURRENT_UPDATE_VERSION = '2026.09.21';
+const CURRENT_UPDATE_VERSION = '2026.09.25';
 const ANNOUNCED_UPDATES_FILE = path.join(__dirname, 'data', 'announced_updates.json');
 
 function readAnnouncedUpdates() {
@@ -3914,7 +3914,7 @@ function buildComponentsV2Announcement() {
         // 1. Tiêu đề thông báo
         {
             type: 10, // TextDisplay
-            content: `# ${E.fire} BẢN CẬP NHẬT HỆ THỐNG MIMI ECOSYSTEM ${E.starSpin}\n-# ${E.dotGreen} PHIÊN BẢN 2026.09.21 • BAN CẤP BẬC +1 • CHỐNG LẠM PHÁT 10M/NGÀY • RESET THÁNG • GỠ BỎ PHẠT PET\n\n> ${E.verify} **Kính gửi toàn thể Quản trị viên và cộng đồng người dùng Discord.**\n> ${E.arrowSmall} Đội ngũ phát triển vừa hoàn tất nâng cấp bảo mật kinh tế: Áp dụng cơ chế cấm lũy tiến theo cấp bậc, chống cày lạm phát và tối ưu trải nghiệm nuôi thú cưng.`
+            content: `# ${E.fire} BẢN CẬP NHẬT HỆ THỐNG MIMI ECOSYSTEM ${E.starSpin}\n-# ${E.dotGreen} PHIÊN BẢN 2026.09.25 • VÁ LỖI ADDEMOJI • AUTOCOMPLETE EMOJI SERVER • ĐÀO KIM CƯƠNG 3X3 • CAO THẤP HI-LO\n\n> ${E.verify} **Kính gửi toàn thể Quản trị viên và cộng đồng người dùng Discord.**\n> ${E.arrowSmall} Đội ngũ phát triển vừa hoàn tất đợt nâng cấp toàn diện: Sửa lỗi thêm biểu cảm, tối ưu hóa nhận diện emoji cho Reaction Role và ra mắt 2 minigame siêu hấp dẫn Đào Kim Cương & Bài Cao Thấp!`
         },
         // 2. Spector Separator Line
         {
@@ -3922,10 +3922,10 @@ function buildComponentsV2Announcement() {
             divider: true,
             spacing: 2
         },
-        // 3. Mục 1: BAN MINIGAME CẤP BẬC LŨY TIẾN (+1)
+        // 3. Mục 1: VÁ LỖI LỆNH THÊM BIỂU CẢM
         {
             type: 10,
-            content: `### ${E.chamXanh} 1. TỰ ĐỘNG BAN MINIGAME THEO CẤP BẬC LŨY TIẾN (+1 NGÀY)\n> ${E.star} Cơ chế răn đe công bằng, thông minh và chặt chẽ\n\`\`\`diff\n+ Phạt leo thang cấp bậc: Lần 1 cấm 1 ngày, lần 2 cấm 2 ngày, lần 3 cấm 3 ngày... mỗi lần vi phạm thời gian phạt tăng thêm +1 ngày.\n+ Tính cả phạt thủ công: Khi Quản trị viên ban tay (/banminigame, mibanminigame), lượt ban vẫn được cộng vào lịch sử để tăng cấp bậc phạt cho lần kế tiếp (+1).\n+ Chế tài vi phạm 10 lần: Người chơi bị ban đủ 10 lần trong 1 tháng sẽ lập tức bị KHÓA VĨNH VIỄN tính năng minigame & kinh tế!\n+ Tự động làm mới chu kỳ: Lịch sử số lần vi phạm sẽ tự động reset về 0 vào đúng 00:00 ngày 1 hàng tháng.\n\`\`\``
+            content: `### ${E.chamXanh} 1. VÁ LỖI LỆNH THÊM BIỂU CẢM VÀ TỐI ƯU HÓA (/addemoji & miaddemoji)\n> ${E.tickGreen} Khắc phục triệt để lỗi báo Admin và mở rộng đa dạng nguồn ảnh\n\`\`\`diff\n+ Khắc phục triệt để lỗi console: Sửa lỗi xung đột tham số khiến lệnh báo lỗi liên hệ Admin.\n+ Tải ảnh trực tiếp: Bổ sung tùy chọn đính kèm file ảnh (PNG, JPG, GIF, WebP) ngay trong Discord.\n+ Nhận diện đa nguồn: Hỗ trợ link ảnh trực tiếp từ emoji.gg, discadia, copy tag emoji server khác (<:tên:id>) hoặc ID số.\n+ Bổ sung lệnh prefix: Hỗ trợ cú pháp gõ nhanh "miaddemoji <nguồn/ảnh> [tên]" cực kỳ thuận tiện.\n\`\`\``
         },
         // 4. Spector Separator Line
         {
@@ -3933,10 +3933,10 @@ function buildComponentsV2Announcement() {
             divider: true,
             spacing: 1
         },
-        // 5. Mục 2: CHỐNG LẠM PHÁT & GIỚI HẠN THU NHẬP (10.000.000 XU/NGÀY)
+        // 5. Mục 2: NHẬN DIỆN EMOJI CHO REACTION ROLE
         {
             type: 10,
-            content: `### ${E.diamond} 2. CHỐNG LẠM PHÁT & GIỚI HẠN THU NHẬP (10.000.000 XU/NGÀY)\n> ${E.money} Giữ vững giá trị tiền tệ và ngăn chặn triệt để cày clone / tool\n\`\`\`yaml\nChong Lam Phat:\n  - Giam Sat Thu Nhap: Hệ thống theo dõi chặt chẽ tổng thu nhập hàng ngày từ tất cả hoạt động (bán nông sản, cá, đồ cổ, thắng cược minigame, nhận chuyển xu).\n  - Tu Dong Khoa: Tài khoản kiếm vượt quá 10.000.000 xu trong 1 ngày sẽ bị TỰ ĐỘNG BAN minigame theo cấp bậc phạt hiện tại.\n  - Canh Bao Khan Cap: Tự động gửi cảnh báo khẩn cấp và bảng kê chi tiết nguồn tiền về kênh điều hành cho Quản trị viên.\n  - Sao Ke Minh Bach: Hỗ trợ lệnh /lichsugiaodich để người chơi và Quản trị viên tự kiểm tra nguồn gốc tiền tệ.\n\`\`\``
+            content: `### ${E.diamond} 2. NHẬN DIỆN EMOJI MÁY CHỦ TOÀN DIỆN CHO PICK ROLES\n> ${E.starSpin} Hệ thống chọn vai trò bằng biểu cảm thông minh và chính xác tuyệt đối\n\`\`\`yaml\nNhan Dien Bieu Cam:\n  - Tu Dong Goi Y (Autocomplete): Tự động hiển thị danh sách emoji server kèm ảnh động/tĩnh khi gõ lệnh.\n  - Bo Giai Ma Thong Minh: Nhận diện chuẩn xác mọi định dạng: :tên_emoji:, tên không dấu, tag Discord hoặc Unicode.\n  - Dong Bo Cache: Tự động nạp danh sách emoji ngay cả khi bot vừa khởi động lại mà không lo lỗi Unknown Emoji.\n  - Ho Tro Go Nhanh: /reactionrole-remove tự động gợi ý đúng các emoji đang gắn trên bảng để gỡ chỉ trong 1 click.\n\`\`\``
         },
         // 6. Spector Separator Line
         {
@@ -3944,10 +3944,10 @@ function buildComponentsV2Announcement() {
             divider: true,
             spacing: 1
         },
-        // 7. Mục 3: GỠ BỎ HOÀN TOÀN HÌNH PHẠT PET
+        // 7. Mục 3: RA MẮT MINIGAME ĐÀO KIM CƯƠNG
         {
             type: 10,
-            content: `### ${E.shield} 3. GỠ BỎ HÌNH PHẠT CẤM MINIGAME KHI CẢNH BÁO PET\n> ${E.heartGlow} Trải nghiệm nuôi thú cưng vui vẻ, không lo áp lực cấm chơi\n\`\`\`fix\n* Huy Bo Auto-Ban Pet: Người chơi nhận cảnh báo đói hoặc buồn từ thú cưng (mipet) sẽ KHÔNG BÒ CẤM minigame nữa.\n* Nhac Nho Than Thien: Bot chỉ gửi tin nhắn riêng (DM) nhắc nhở nhẹ nhàng để bạn chăm sóc thú cưng khi rảnh rỗi.\n* Thoai Mai Vang Mat: Bạn có thể yên tâm học tập, làm việc mà không lo việc vắng mặt vài hôm bị khóa minigame.\n\`\`\``
+            content: `### ${E.fire} 3. RA MẮT TRÒ CHƠI ĐÀO KIM CƯƠNG (midao & /daokimcuong)\n> ${E.money} Khám phá ma trận kho báu 3x3 kịch tính cùng hệ số nhân thưởng tới x28.5\n\`\`\`fix\n* San Mo Kim Cuong: Ma trận 9 ô ẩn chứa 7 viên Kim Cương sáng chói và 2 Quả Bom nổ chậm.\n* Nhan Thuong Leo Thang: Càng lật trúng nhiều kim cương, hệ số thưởng càng nhân dồn cao ngất ngưởng.\n* Rut Tien An Toan: Bấm nút Rút Tiền bất kỳ lúc nào để bảo toàn số xu chiến thắng vào ví.\n* Dao Khoang San Mien Phi: Gõ "midao" (không cược xu) để đào Kim Cương, Hồng Ngọc, Quặng Vàng tích lũy vào kho đồ mikho.\n\`\`\``
         },
         // 8. Spector Separator Line
         {
@@ -3955,12 +3955,23 @@ function buildComponentsV2Announcement() {
             divider: true,
             spacing: 1
         },
-        // 9. Mục 4: BẢNG LỆNH MỚI
+        // 9. Mục 4: RA MẮT CASINO CAO THẤP HI-LO
         {
             type: 10,
-            content: `### ${E.arrow} 4. HƯỚNG DẪN SỬ DỤNG NHANH\n${E.dotGreen} \`/lichsugiaodich\` : Xem sao kê 20 giao dịch dòng tiền gần nhất của bản thân.\n${E.dotGreen} \`/checkclone\` : Lệnh Quản trị viên kiểm tra tuổi tài khoản và phân tích lịch sử dòng tiền nghi vấn.\n${E.dotGreen} \`/banminigame\` : Khóa minigame người chơi (Để trống thời gian = tự động áp dụng số ngày theo cấp bậc).\n${E.dotGreen} \`mipet\` : Cho thú cưng ăn và chơi đùa giải trí mỗi ngày.`
+            content: `### ${E.arrow} 4. RA MẮT CASINO CAO THẤP HI-LO (micaothap & /caothap)\n> ${E.verify} Trò chơi dự đoán 52 lá bài kịch tính và thử thách trí tuệ\n\`\`\`yaml\nLuat Choi Cao Thap:\n  - Rut Bai 52 La: Bot rút lá bài khởi điểm, người chơi dự đoán lá bài kế tiếp sẽ Cao Hơn hay Thấp Hơn.\n  - Nhan Don He So: Đoán đúng liên tiếp sẽ nhân dồn hệ số tiền thưởng cực lớn.\n  - Chu Dong Rut Tien: Cho phép bấm nút Rút Tiền bất cứ khi nào bạn muốn dừng lại an toàn.\n  - Giao Dien Thoi Gian Thuc: Thiết kế nút bấm tương tác trực quan, chống spam và hỗ trợ cược all mượt mà.\n\`\`\``
         },
         // 10. Spector Separator Line
+        {
+            type: 14,
+            divider: true,
+            spacing: 1
+        },
+        // 11. Hướng dẫn nhanh
+        {
+            type: 10,
+            content: `### ${E.arrowSmall} 5. HƯỚNG DẪN SỬ DỤNG NHANH\n${E.dotGreen} \`/addemoji\` hoặc \`miaddemoji\` : Thêm emoji tùy chỉnh vào server bằng ảnh hoặc link cực nhanh.\n${E.dotGreen} \`/reactionrole-add\` : Gắn vai trò bằng biểu cảm có hỗ trợ Autocomplete danh sách emoji server.\n${E.dotGreen} \`midao [số/all]\` : Khám phá ma trận 3x3 đào kim cương săn jackpot hoặc đào khoáng sản miễn phí.\n${E.dotGreen} \`micaothap [số/all]\` : Thử tài dự đoán bài Cao Thấp casino 52 lá với nút bấm tương tác realtime.`
+        },
+        // 12. Spector Separator Line
         {
             type: 14,
             divider: true,
