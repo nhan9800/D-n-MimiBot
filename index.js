@@ -564,12 +564,93 @@ function removeAccentsAndSpaces(str) {
 // - Emoji tùy chỉnh server (<:name:id> hoặc <a:name:id>): dùng ID làm key
 // Key này khớp với cách discord.js định danh reaction.emoji.id || reaction.emoji.name
 function resolveEmojiKey(input) {
+    if (!input || typeof input !== 'string') return { key: input, display: input, isCustom: false };
     const customMatch = input.match(/^<a?:(\w+):(\d+)>$/);
     if (customMatch) {
         return { key: customMatch[2], display: input, isCustom: true };
     }
     return { key: input, display: input, isCustom: false };
 }
+
+// Hàm phân giải Emoji toàn diện trong Server (hỗ trợ <:name:id>, <a:name:id>, ID, :name:, name hoặc Unicode)
+async function resolveServerEmoji(guild, input) {
+    if (!input || typeof input !== 'string') return null;
+    const str = input.trim();
+
+    // Đảm bảo cache emoji của server được fetch đầy đủ
+    if (guild && guild.emojis && guild.emojis.cache.size === 0) {
+        await guild.emojis.fetch().catch(() => null);
+    }
+
+    // 1. Dạng custom emoji chuẩn Discord: <:name:id> hoặc <a:name:id>
+    const fullMatch = str.match(/^<(a?):(\w+):(\d+)>$/);
+    if (fullMatch) {
+        const isAnimated = fullMatch[1] === 'a';
+        const name = fullMatch[2];
+        const id = fullMatch[3];
+        const emojiObj = (guild && guild.emojis.cache.get(id)) || guild.client.emojis.cache.get(id) || null;
+        return {
+            key: id,
+            id: id,
+            name: name,
+            display: str,
+            reactTarget: emojiObj || id,
+            isCustom: true,
+            emojiObj: emojiObj
+        };
+    }
+
+    // 2. Dạng ID thuần số: 123456789012345678
+    if (/^\d{17,20}$/.test(str)) {
+        let emojiObj = (guild && guild.emojis.cache.get(str)) || guild.client.emojis.cache.get(str);
+        if (!emojiObj && guild) {
+            emojiObj = await guild.emojis.fetch(str).catch(() => null);
+        }
+        if (emojiObj) {
+            return {
+                key: emojiObj.id,
+                id: emojiObj.id,
+                name: emojiObj.name,
+                display: `<${emojiObj.animated ? 'a' : ''}:${emojiObj.name}:${emojiObj.id}>`,
+                reactTarget: emojiObj,
+                isCustom: true,
+                emojiObj: emojiObj
+            };
+        }
+    }
+
+    // 3. Dạng tên emoji: :tên_emoji: hoặc tên_emoji (không phân biệt hoa thường)
+    const cleanName = str.replace(/^:/, '').replace(/:$/, '').trim().toLowerCase();
+    if (cleanName && guild && guild.emojis) {
+        let found = guild.emojis.cache.find(e => e.name.toLowerCase() === cleanName);
+        if (!found) {
+            found = guild.client.emojis.cache.find(e => e.name.toLowerCase() === cleanName);
+        }
+        if (found) {
+            return {
+                key: found.id,
+                id: found.id,
+                name: found.name,
+                display: `<${found.animated ? 'a' : ''}:${found.name}:${found.id}>`,
+                reactTarget: found,
+                isCustom: true,
+                emojiObj: found
+            };
+        }
+    }
+
+    // 4. Dạng Unicode Emoji thông thường (😀, 🎮, ⭐, v.v.)
+    return {
+        key: str,
+        id: null,
+        name: str,
+        display: str,
+        reactTarget: str,
+        isCustom: false,
+        emojiObj: null
+    };
+}
+
 
 // Vẽ lại embed của bảng Reaction Role dựa trên danh sách emoji -> vai trò hiện tại
 async function updateReactionRoleEmbed(message, panelData) {
@@ -1133,6 +1214,183 @@ async function bjEndGame(game, message, outcomeOverride = null) {
     return message.edit({ embeds: [embed], components: [] }).catch(() => null);
 }
 
+// Hàm kiểm tra và phân giải số tiền cược hợp lệ (dùng chung toàn bot)
+function parseBetGlobal(rawArg, balance) {
+    const MAX_BET = 250_000;
+    if (!rawArg) return { bet: 0, error: `❌ Thiếu số tiền cược!\nCược tối đa: **${MAX_BET.toLocaleString()} xu/lần** (Dùng \`all\` để cược tối đa)` };
+    const str = String(rawArg).toLowerCase().trim();
+    if (str === 'all') {
+        const bet = Math.min(balance, MAX_BET);
+        if (bet <= 0) return { bet: 0, error: '❌ Bạn không có xu để đặt cược!' };
+        return { bet, error: null };
+    }
+    if (!/^\d+$/.test(str)) return { bet: 0, error: '❌ Số tiền cược không hợp lệ! Chỉ nhập số nguyên (Ví dụ: `50000`) hoặc `all`.' };
+    const bet = parseInt(str, 10);
+    if (isNaN(bet) || bet <= 0) return { bet: 0, error: '❌ Số tiền cược không hợp lệ!' };
+    if (bet > MAX_BET) return { bet: 0, error: `❌ Cược tối đa mỗi lần là **${MAX_BET.toLocaleString()} xu**! Dùng \`all\` để cược tối đa.` };
+    if (bet > balance) return { bet: 0, error: `❌ Bạn không đủ xu! Số dư hiện có: **${balance.toLocaleString()} xu**.` };
+    return { bet, error: null };
+}
+
+// ==========================================
+// ⛏️ TRÒ CHƠI ĐÀO KIM CƯƠNG (DIAMOND MINING)
+// ==========================================
+const diamondMineGames = new Map();
+const MINE_MULTIPLIERS = [1.0, 1.35, 1.95, 2.9, 4.5, 7.5, 13.5, 28.0];
+
+function createMineGame(userId, guildId, bet) {
+    // 9 ô: 7 kim cương, 2 quả bom
+    const tiles = Array(7).fill('diamond').concat(Array(2).fill('bomb'));
+    for (let i = tiles.length - 1; i > 0; i--) {
+        const j = Math.floor(Math.random() * (i + 1));
+        [tiles[i], tiles[j]] = [tiles[j], tiles[i]];
+    }
+    return {
+        userId,
+        guildId,
+        bet,
+        grid: tiles.map(type => ({ type, revealed: false })),
+        diamondsFound: 0,
+        currentMultiplier: 1.0,
+        startTime: Date.now(),
+        message: null,
+        timeoutHandle: null
+    };
+}
+
+function buildMineGridRows(game, isGameOver = false) {
+    const rows = [];
+    for (let r = 0; r < 3; r++) {
+        const row = new ActionRowBuilder();
+        for (let c = 0; c < 3; c++) {
+            const idx = r * 3 + c;
+            const tile = game.grid[idx];
+            const btn = new ButtonBuilder().setCustomId(`mine_tile_${idx}`);
+            if (tile.revealed || isGameOver) {
+                btn.setDisabled(true);
+                if (tile.type === 'bomb') {
+                    btn.setEmoji('💣').setStyle(ButtonStyle.Danger);
+                } else {
+                    btn.setEmoji('💎').setStyle(ButtonStyle.Success);
+                }
+            } else {
+                btn.setLabel(`Ô ${idx + 1}`).setEmoji('🟫').setStyle(ButtonStyle.Secondary);
+            }
+            row.addComponents(btn);
+        }
+        rows.push(row);
+    }
+    if (!isGameOver) {
+        const currentWin = Math.floor(game.bet * game.currentMultiplier);
+        const canCashout = game.diamondsFound > 0;
+        const controlRow = new ActionRowBuilder().addComponents(
+            new ButtonBuilder()
+                .setCustomId('mine_cashout')
+                .setLabel(`💰 Rút Tiền (+${currentWin.toLocaleString()} Xu — x${game.currentMultiplier.toFixed(2)})`)
+                .setStyle(ButtonStyle.Success)
+                .setDisabled(!canCashout),
+            new ButtonBuilder()
+                .setCustomId('mine_cancel')
+                .setLabel('❌ Hủy Bỏ (Hoàn cược)')
+                .setStyle(ButtonStyle.Secondary)
+                .setDisabled(canCashout)
+        );
+        rows.push(controlRow);
+    }
+    return rows;
+}
+
+function buildMineEmbed(game, statusText, statusColor = 0x00FFA3) {
+    const currentWin = Math.floor(game.bet * game.currentMultiplier);
+    return new EmbedBuilder()
+        .setColor(statusColor)
+        .setTitle('⛏️ HẦM MỎ KIM CƯƠNG — DIAMOND MINING')
+        .setDescription(
+            `👤 **Thợ mỏ:** <@${game.userId}>\n` +
+            `💰 **Tiền cược:** \`${game.bet.toLocaleString()} xu\`\n` +
+            `💎 **Kim cương đã đào:** \`${game.diamondsFound}/7\` (Hệ số: **x${game.currentMultiplier.toFixed(2)}**)\n` +
+            `💵 **Tiền thưởng hiện tại:** \`+${currentWin.toLocaleString()} xu\`\n\n` +
+            `> ${statusText}\n\n` +
+            `-# ⚠️ Lưu ý: Trong 9 ô có **2 quả Bom 💣** ẩn nấp. Chạm phải bom sẽ mất toàn bộ tiền cược!`
+        )
+        .setFooter({ text: 'MIMI BOT Gaming • Đào kim cương' })
+        .setTimestamp();
+}
+
+// ==========================================
+// 🎴 TRÒ CHƠI CAO THẤP (HIGH-LOW / HI-LO)
+// ==========================================
+const highLowGames = new Map();
+const HILO_MULTIPLIERS = [1.0, 1.4, 2.1, 3.2, 5.0, 8.0, 14.0, 25.0, 50.0];
+
+function hiloCreateDeck() {
+    const suits = ['♠', '♥', '♦', '♣'];
+    const ranks = [
+        { r: '2', v: 2 }, { r: '3', v: 3 }, { r: '4', v: 4 }, { r: '5', v: 5 },
+        { r: '6', v: 6 }, { r: '7', v: 7 }, { r: '8', v: 8 }, { r: '9', v: 9 },
+        { r: '10', v: 10 }, { r: 'J', v: 11 }, { r: 'Q', v: 12 }, { r: 'K', v: 13 },
+        { r: 'A', v: 14 }
+    ];
+    const deck = [];
+    for (const s of suits) {
+        for (const rk of ranks) {
+            deck.push({ r: rk.r, s, v: rk.v, label: `${rk.r} ${s}` });
+        }
+    }
+    for (let i = deck.length - 1; i > 0; i--) {
+        const j = Math.floor(Math.random() * (i + 1));
+        [deck[i], deck[j]] = [deck[j], deck[i]];
+    }
+    return deck;
+}
+
+function hiloDraw(deck) {
+    if (deck.length === 0) deck.push(...hiloCreateDeck());
+    return deck.pop();
+}
+
+function buildHiLoControls(game, isGameOver = false) {
+    if (isGameOver) return [];
+    const currentWin = Math.floor(game.bet * game.currentMultiplier);
+    return [
+        new ActionRowBuilder().addComponents(
+            new ButtonBuilder()
+                .setCustomId('hilo_higher')
+                .setLabel('🔺 Cao Hơn')
+                .setStyle(ButtonStyle.Primary),
+            new ButtonBuilder()
+                .setCustomId('hilo_lower')
+                .setLabel('🔻 Thấp Hơn')
+                .setStyle(ButtonStyle.Danger),
+            new ButtonBuilder()
+                .setCustomId('hilo_cashout')
+                .setLabel(`💰 Rút Tiền (+${currentWin.toLocaleString()} Xu)`)
+                .setStyle(ButtonStyle.Success)
+                .setDisabled(game.streak === 0)
+        )
+    ];
+}
+
+function buildHiLoEmbed(game, statusText, statusColor = 0x5865F2) {
+    const currentWin = Math.floor(game.bet * game.currentMultiplier);
+    const cardHistory = game.history.slice(-6).map(c => `\`[ ${c} ]\``).join(' ➔ ');
+    return new EmbedBuilder()
+        .setColor(statusColor)
+        .setTitle('🎴 SÒNG BÀI CAO THẤP — HI-LO CASINO')
+        .setDescription(
+            `👤 **Người chơi:** <@${game.userId}>\n` +
+            `💰 **Tiền cược:** \`${game.bet.toLocaleString()} xu\`\n` +
+            `🃏 **Lá bài hiện tại:** \`[ ${game.currentCard.label} ]\` (Điểm: **${game.currentCard.v}**)\n` +
+            `🔥 **Chuỗi đoán đúng:** \`${game.streak}\` ván (Hệ số: **x${game.currentMultiplier.toFixed(2)}**)\n` +
+            `💵 **Tiền thưởng hiện tại:** \`+${currentWin.toLocaleString()} xu\`\n\n` +
+            `📜 **Lịch sử lá bài:** ${cardHistory}\n\n` +
+            `> ${statusText}\n\n` +
+            `-# Quy tắc: Điểm bài 2 < 3 < ... < 10 < J < Q < K < A (Át cao nhất = 14). Bằng điểm = Hòa giữ nguyên cược!`
+        )
+        .setFooter({ text: 'MIMI BOT Gaming • Đoán Cao / Thấp' })
+        .setTimestamp();
+}
+
 // Cập nhật embed đếm ngược giveaway
 async function updateGiveawayEmbed(channel, msgId, gData, ended = false) {
     const msg = await channel.messages.fetch(msgId).catch(() => null);
@@ -1228,14 +1486,17 @@ function sellArtifactsHelper(targetUser, userId, tier = 'all', guildId = null) {
     } else if (normTier === 'truyenthuyet' || normTier === 'truyền thuyết' || normTier === 'tt' || normTier === '4') {
         sellTypes = ['do_co_4', 'ca_thanthoai', 'ca_truyenthuyet'];
         tierLabel = 'Truyền Thuyết & Thần Thoại';
-    } else if (normTier === "ca" || normTier === "c�" || normTier === "fish") {
+    } else if (normTier === "ca" || normTier === "cá" || normTier === "fish") {
         sellTypes = ["ca_thuong", "ca_kha", "ca_hiem", "ca_cuchiem", "ca_thanthoai", "ca_truyenthuyet"];
-        tierLabel = "T?t C? C�";
-    } else if (normTier === "doco" || normTier === "d? c?") {
+        tierLabel = "Tất Cả Cá";
+    } else if (normTier === "doco" || normTier === "đồ cổ") {
         sellTypes = ["do_co_4", "do_co_3", "do_co_2", "do_co", "ve_chai"];
-        tierLabel = "T?t C? �? C?";
+        tierLabel = "Tất Cả Đồ Cổ";
+    } else if (normTier === "khoangsan" || normTier === "quang" || normTier === "kimcuong") {
+        sellTypes = ["kim_cuong", "hong_ngoc", "quang_vang", "quang_sat", "da_cuoi"];
+        tierLabel = "Khoáng Sản & Kim Cương";
     } else {
-        sellTypes = ['do_co_4', 'do_co_3', 'do_co_2', 'do_co', 've_chai', 'ca_thuong', 'ca_kha', 'ca_hiem', 'ca_cuchiem', 'ca_thanthoai', 'ca_truyenthuyet'];
+        sellTypes = ['do_co_4', 'do_co_3', 'do_co_2', 'do_co', 've_chai', 'ca_thuong', 'ca_kha', 'ca_hiem', 'ca_cuchiem', 'ca_thanthoai', 'ca_truyenthuyet', 'kim_cuong', 'hong_ngoc', 'quang_vang', 'quang_sat', 'da_cuoi'];
         tierLabel = 'Tất cả phẩm cấp';
     }
 
@@ -1270,6 +1531,26 @@ function sellArtifactsHelper(targetUser, userId, tier = 'all', guildId = null) {
     if (sellTypes.includes('ve_chai') && inv.ve_chai) {
         let t = 0; for (let i = 0; i < inv.ve_chai; i++) t += Math.floor(Math.random() * 2001) + 1000;
         total += t; soldMsg.push(`📦 **${inv.ve_chai}x** Đồ Cũ (Ve chai) → \`+${t.toLocaleString()} xu\``); delete inv.ve_chai;
+    }
+    if (sellTypes.includes('kim_cuong') && inv.kim_cuong) {
+        let t = 0; for (let i = 0; i < inv.kim_cuong; i++) t += Math.floor(Math.random() * 25001) + 25000;
+        total += t; soldMsg.push(`💎 **${inv.kim_cuong}x** Kim Cương Thô → \`+${t.toLocaleString()} xu\``); delete inv.kim_cuong;
+    }
+    if (sellTypes.includes('hong_ngoc') && inv.hong_ngoc) {
+        let t = 0; for (let i = 0; i < inv.hong_ngoc; i++) t += Math.floor(Math.random() * 15001) + 15000;
+        total += t; soldMsg.push(`🔴 **${inv.hong_ngoc}x** Hồng Ngọc Cổ → \`+${t.toLocaleString()} xu\``); delete inv.hong_ngoc;
+    }
+    if (sellTypes.includes('quang_vang') && inv.quang_vang) {
+        let t = 0; for (let i = 0; i < inv.quang_vang; i++) t += Math.floor(Math.random() * 10001) + 8000;
+        total += t; soldMsg.push(`🪙 **${inv.quang_vang}x** Quặng Vàng → \`+${t.toLocaleString()} xu\``); delete inv.quang_vang;
+    }
+    if (sellTypes.includes('quang_sat') && inv.quang_sat) {
+        let t = 0; for (let i = 0; i < inv.quang_sat; i++) t += Math.floor(Math.random() * 4001) + 3000;
+        total += t; soldMsg.push(`🪨 **${inv.quang_sat}x** Quặng Sắt → \`+${t.toLocaleString()} xu\``); delete inv.quang_sat;
+    }
+    if (sellTypes.includes('da_cuoi') && inv.da_cuoi) {
+        let t = 0; for (let i = 0; i < inv.da_cuoi; i++) t += Math.floor(Math.random() * 1501) + 1000;
+        total += t; soldMsg.push(`🪨 **${inv.da_cuoi}x** Đá Cuội/Thạch Anh → \`+${t.toLocaleString()} xu\``); delete inv.da_cuoi;
     }
     if (sellTypes.includes('ca_truyenthuyet') && inv.ca_truyenthuyet) {
         let t = inv.ca_truyenthuyet * 200000;
@@ -6082,7 +6363,7 @@ client.once('ready', async () => {
             .setDescription('Gắn 1 Emoji vào 1 Vai trò trên bảng Reaction Role đã tạo')
             .setDefaultMemberPermissions(PermissionFlagsBits.ManageRoles)
             .addStringOption(option => option.setName('id_tin_nhắn').setDescription('ID tin nhắn của bảng chọn vai trò').setRequired(true))
-            .addStringOption(option => option.setName('emoji').setDescription('Emoji dùng để thả (VD: 🎮 hoặc emoji server <:tên:id>)').setRequired(true))
+            .addStringOption(option => option.setName('emoji').setDescription('Emoji dùng để thả (VD: 🎮 hoặc emoji server <:tên:id>)').setRequired(true).setAutocomplete(true))
             .addRoleOption(option => option.setName('vai_trò').setDescription('Vai trò sẽ được cấp khi thả Emoji này').setRequired(true))
             .addStringOption(option => option.setName('mô_tả').setDescription('Mô tả ngắn cho vai trò này (hiện trong bảng)')),
 
@@ -6091,7 +6372,7 @@ client.once('ready', async () => {
             .setDescription('Gỡ 1 Emoji khỏi bảng chọn vai trò (Không xóa cả bảng)')
             .setDefaultMemberPermissions(PermissionFlagsBits.ManageRoles)
             .addStringOption(option => option.setName('id_tin_nhắn').setDescription('ID tin nhắn của bảng chọn vai trò').setRequired(true))
-            .addStringOption(option => option.setName('emoji').setDescription('Emoji cần gỡ khỏi bảng').setRequired(true)),
+            .addStringOption(option => option.setName('emoji').setDescription('Emoji cần gỡ khỏi bảng').setRequired(true).setAutocomplete(true)),
 
         new SlashCommandBuilder()
             .setName('reactionrole-reset')
@@ -6257,8 +6538,19 @@ client.once('ready', async () => {
             .setName('addemoji')
             .setDescription('Thêm emoji tùy chỉnh vào server (Hỗ trợ: emoji Discord, link từ emoji.gg/discadia)')
             .setDefaultMemberPermissions(PermissionFlagsBits.ManageEmojisAndStickers)
-            .addStringOption(o => o.setName('nguồn').setDescription('Paste emoji Discord (<:tên:id>) HOẶC dán link ảnh từ emoji.gg/discadia').setRequired(true))
-            .addStringOption(o => o.setName('tên').setDescription('Tên đặt cho emoji (VD: mimi_crown, neon_shield)').setRequired(false)),
+            .addStringOption(o => o.setName('nguồn').setDescription('Paste emoji Discord (<:tên:id>), ID, hoặc link ảnh từ emoji.gg/discadia').setRequired(false))
+            .addStringOption(o => o.setName('tên').setDescription('Tên đặt cho emoji (VD: mimi_crown, neon_shield)').setRequired(false))
+            .addAttachmentOption(o => o.setName('ảnh').setDescription('Tải file ảnh/gif trực tiếp để tạo emoji').setRequired(false)),
+
+        new SlashCommandBuilder()
+            .setName('daokimcuong')
+            .setDescription('Trò chơi Đào Kim Cương: Dò tìm đá quý trong hầm mỏ hoặc cược xu săn kho báu')
+            .addStringOption(o => o.setName('tiền_cược').setDescription('Số tiền cược (hoặc all). Bỏ trống để đào miễn phí lấy khoáng sản').setRequired(false)),
+
+        new SlashCommandBuilder()
+            .setName('caothap')
+            .setDescription('Trò chơi Cao Thấp (Hi-Lo): Dự đoán lá bài tiếp theo cao hơn hay thấp hơn')
+            .addStringOption(o => o.setName('tiền_cược').setDescription('Số tiền cược (hoặc all)').setRequired(true)),
 
         new SlashCommandBuilder()
             .setName('sendembed')
@@ -8137,7 +8429,9 @@ if (command === 'mibanminigame' || command === 'mibanmg') {
         'mikbg', 'mikeobuagiay',
         'misl', 'mislot', `${serverPrefix}sl`,
         'mixd', 'mixocdia', `${serverPrefix}xd`, `${serverPrefix}xocdia`,
-        'mibj', 'miblackjack'
+        'mibj', 'miblackjack',
+        'midao', 'midaokimcuong', `${serverPrefix}dao`, `${serverPrefix}daokimcuong`,
+        'micaothap', 'mict', `${serverPrefix}caothap`, `${serverPrefix}ct`
     ]);
 
     if (MINIGAME_COMMANDS.has(command) || MINIGAME_COMMANDS.has(rawCommand)) {
@@ -8600,6 +8894,20 @@ if (command === 'mibanminigame' || command === 'mibanmg') {
         embed.addFields({
             name: `🎣 Cá Câu Được (${fishCount} con)`,
             value: fishStr || '*Chưa có con cá nào! Dùng `micaoca` để câu cá.*',
+            inline: false
+        });
+
+        let mineralCount = 0;
+        let mineralStr = '';
+        if (inv.kim_cuong) { mineralStr += `• 💎 **Kim Cương Thô:** \`${inv.kim_cuong}\` viên *(~25k-50k/viên)*\n`; mineralCount += inv.kim_cuong; }
+        if (inv.hong_ngoc) { mineralStr += `• 🔴 **Hồng Ngọc Cổ:** \`${inv.hong_ngoc}\` viên *(~15k-30k/viên)*\n`; mineralCount += inv.hong_ngoc; }
+        if (inv.quang_vang) { mineralStr += `• 🪙 **Quặng Vàng:** \`${inv.quang_vang}\` khối *(~8k-18k/khối)*\n`; mineralCount += inv.quang_vang; }
+        if (inv.quang_sat) { mineralStr += `• 🪨 **Quặng Sắt:** \`${inv.quang_sat}\` khối *(~3k-7k/khối)*\n`; mineralCount += inv.quang_sat; }
+        if (inv.da_cuoi) { mineralStr += `• 🪨 **Đá Cuội/Thạch Anh:** \`${inv.da_cuoi}\` cục *(~1k-2.5k/cục)*\n`; mineralCount += inv.da_cuoi; }
+
+        embed.addFields({
+            name: `⛏️ Khoáng Sản & Kim Cương (${mineralCount} món)`,
+            value: mineralStr || '*Chưa có khoáng sản nào! Dùng `midao` để đi khai thác.*',
             inline: false
         });
 
@@ -9490,6 +9798,243 @@ if (command === 'mibanminigame' || command === 'mibanmg') {
         return;
     }
 
+    // ==========================================
+    // ⛏️ LỆNH ĐÀO KIM CƯƠNG: midao | midaokimcuong
+    // ==========================================
+    if (command === 'midao' || command === 'midaokimcuong') {
+        const banInfo = isMinigameBanned(userId);
+        if (banInfo) {
+            return message.reply({ 
+                content: `🚫 **BẠN ĐÃ BỊ CẤM CHƠI MINIGAME!**\n📝 **Lý do:** ${banInfo.reason || 'Vi phạm quy định'}`, 
+                allowedMentions: { repliedUser: false } 
+            });
+        }
+
+        const userData = getUserData(userId);
+
+        // NẾU KHÔNG NHẬP TIỀN CƯỢC -> CHẾ ĐỘ ĐÀO KHOÁNG SẢN MIỄN PHÍ VÀO KHO ĐỒ
+        if (!args[1]) {
+            const now = Date.now();
+            const cooldown = 60 * 1000; // 60 giây
+            if (userData.lastDaoKhoangSan && now - userData.lastDaoKhoangSan < cooldown) {
+                const leftSec = Math.ceil((cooldown - (now - userData.lastDaoKhoangSan)) / 1000);
+                return message.reply(`⏳ Thể lực của bạn đang hồi phục! Hãy chờ **${leftSec} giây** nữa để đào khoáng sản tiếp nhé.\n💡 *Mẹo: Muốn cược xu săn mỏ kim cương 3x3, hãy gõ \`${command} [tiền_cược/all]\`!*`);
+            }
+            userData.lastDaoKhoangSan = now;
+            if (!userData.inventory) userData.inventory = {};
+
+            const MINERAL_POOLS = [
+                { key: 'kim_cuong', name: 'Kim Cương Thô 💎', rarity: 'Huyền Thoại', color: 0x00FFA3, rate: 0.12, priceRange: '25,000 - 50,000 xu' },
+                { key: 'hong_ngoc', name: 'Hồng Ngọc Cổ 🔴', rarity: 'Sử Thi', color: 0xE74C3C, rate: 0.20, priceRange: '15,000 - 30,000 xu' },
+                { key: 'quang_vang', name: 'Quặng Vàng 🪙', rarity: 'Hiếm', color: 0xF1C40F, rate: 0.28, priceRange: '8,000 - 18,000 xu' },
+                { key: 'quang_sat', name: 'Quặng Sắt 🪨', rarity: 'Thường', color: 0x95A5A6, rate: 0.25, priceRange: '3,000 - 7,000 xu' },
+                { key: 'da_cuoi', name: 'Đá Cuội / Thạch Anh 🪨', rarity: 'Phổ Thông', color: 0x7F8C8D, rate: 0.15, priceRange: '1,000 - 2,500 xu' }
+            ];
+
+            const rand = Math.random();
+            let cumRate = 0;
+            let chosen = MINERAL_POOLS[MINERAL_POOLS.length - 1];
+            for (const m of MINERAL_POOLS) {
+                cumRate += m.rate;
+                if (rand <= cumRate) {
+                    chosen = m;
+                    break;
+                }
+            }
+
+            userData.inventory[chosen.key] = (userData.inventory[chosen.key] || 0) + 1;
+            saveEconomy();
+
+            const mineFreeEmbed = new EmbedBuilder()
+                .setColor(chosen.color)
+                .setTitle('⛏️ KHAI THÁC KHOÁNG SẢN THÀNH CÔNG!')
+                .setDescription(
+                    `🎉 **${message.author.username}** đã vác cuốc vào hang sâu và khai thác được:\n\n` +
+                    `✨ **${chosen.name}**\n` +
+                    `• **Phẩm cấp:** \`${chosen.rarity}\`\n` +
+                    `• **Giá trị ước tính:** \`${chosen.priceRange}\`\n\n` +
+                    `📦 Đã cất vào kho đồ! Dùng \`mikho\` (hoặc \`mikho bán\`) để bán lấy xu.\n` +
+                    `🎲 *Thử vận may cược xu tại hầm mỏ 3x3: \`${command} 50000\` hoặc \`${command} all\`!*`
+                )
+                .setThumbnail(message.author.displayAvatarURL())
+                .setFooter({ text: 'Cooldown khai thác: 60s' })
+                .setTimestamp();
+
+            return message.reply({ embeds: [mineFreeEmbed] });
+        }
+
+        // CHẾ ĐỘ CƯỢC XU ĐÀO KIM CƯƠNG TRÊN BÀN 3x3
+        if (diamondMineGames.has(userId)) {
+            return message.reply({ content: '❌ Bạn đang có 1 ván Đào Kim Cương chưa hoàn tất! Hãy tiếp tục đào hoặc bấm Rút Tiền ở tin nhắn cũ.', allowedMentions: { repliedUser: false } });
+        }
+
+        const { bet, error } = parseBet(args[1], userData.balance);
+        if (error) return message.reply({ content: error + `\nCú pháp: \`${command} [số_tiền/all]\``, allowedMentions: { repliedUser: false } });
+
+        userData.balance -= bet;
+        saveEconomy();
+
+        const game = createMineGame(userId, message.guild.id, bet);
+        diamondMineGames.set(userId, game);
+
+        const rows = buildMineGridRows(game, false);
+        const embed = buildMineEmbed(game, 'Hãy chọn 1 ô `🟫` bên dưới để bắt đầu đào kim cương!');
+
+        const sent = await message.reply({ embeds: [embed], components: rows, allowedMentions: { repliedUser: false } }).catch(err => {
+            userData.balance += bet;
+            saveEconomy();
+            diamondMineGames.delete(userId);
+            return null;
+        });
+
+        if (!sent) return;
+        game.message = sent;
+
+        game.timeoutHandle = setTimeout(async () => {
+            if (diamondMineGames.get(userId) === game) {
+                diamondMineGames.delete(userId);
+                const autoWin = Math.floor(game.bet * game.currentMultiplier);
+                const uData = getUserData(userId);
+                uData.balance += autoWin;
+                saveEconomy();
+                const timeoutEmbed = buildMineEmbed(game, `⏰ Hết thời gian thao tác! Bot đã tự động chốt tiền thưởng **+${autoWin.toLocaleString()} xu** cho bạn.`, 0x2ECC71);
+                await sent.edit({ embeds: [timeoutEmbed], components: buildMineGridRows(game, true) }).catch(() => null);
+            }
+        }, 60_000);
+
+        return;
+    }
+
+    // ==========================================
+    // 🎴 LỆNH CAO THẤP (HI-LO): micaothap | mict
+    // ==========================================
+    if (command === 'micaothap' || command === 'mict') {
+        const banInfo = isMinigameBanned(userId);
+        if (banInfo) {
+            return message.reply({ 
+                content: `🚫 **BẠN ĐÃ BỊ CẤM CHƠI MINIGAME!**\n📝 **Lý do:** ${banInfo.reason || 'Vi phạm quy định'}`, 
+                allowedMentions: { repliedUser: false } 
+            });
+        }
+
+        const userData = getUserData(userId);
+        if (highLowGames.has(userId)) {
+            return message.reply({ content: '❌ Bạn đang có 1 ván bài Cao Thấp chưa xong! Hãy bấm nút ở tin nhắn cũ để tiếp tục.', allowedMentions: { repliedUser: false } });
+        }
+
+        const { bet, error } = parseBet(args[1], userData.balance);
+        if (error) return message.reply({ content: error + `\nCú pháp: \`${command} [số_tiền/all]\``, allowedMentions: { repliedUser: false } });
+
+        userData.balance -= bet;
+        saveEconomy();
+
+        const deck = hiloCreateDeck();
+        const startCard = hiloDraw(deck);
+
+        const game = {
+            userId,
+            guildId: message.guild.id,
+            bet,
+            deck,
+            currentCard: startCard,
+            streak: 0,
+            currentMultiplier: 1.0,
+            history: [startCard.label],
+            message: null,
+            timeoutHandle: null
+        };
+        highLowGames.set(userId, game);
+
+        const embed = buildHiLoEmbed(game, 'Lá bài khởi đầu đã lật! Hãy dự đoán lá tiếp theo **Cao Hơn** hay **Thấp Hơn**.');
+        const rows = buildHiLoControls(game, false);
+
+        const sent = await message.reply({ embeds: [embed], components: rows, allowedMentions: { repliedUser: false } }).catch(err => {
+            userData.balance += bet;
+            saveEconomy();
+            highLowGames.delete(userId);
+            return null;
+        });
+
+        if (!sent) return;
+        game.message = sent;
+
+        game.timeoutHandle = setTimeout(async () => {
+            if (highLowGames.get(userId) === game) {
+                highLowGames.delete(userId);
+                const autoWin = Math.floor(game.bet * game.currentMultiplier);
+                const uData = getUserData(userId);
+                uData.balance += autoWin;
+                saveEconomy();
+                const timeoutEmbed = buildHiLoEmbed(game, `⏰ Hết thời gian thao tác! Bot đã tự động chốt tiền thưởng **+${autoWin.toLocaleString()} xu** cho bạn.`, 0x2ECC71);
+                await sent.edit({ embeds: [timeoutEmbed], components: [] }).catch(() => null);
+            }
+        }, 60_000);
+
+        return;
+    }
+
+    // ==========================================
+    // 😄 LỆNH miaddemoji — Thêm emoji bằng prefix
+    // ==========================================
+    if (command === 'miaddemoji') {
+        const me = message.guild.members.me;
+        if (!me.permissions.has(PermissionFlagsBits.ManageGuildExpressions) && 
+            !me.permissions.has(PermissionFlagsBits.ManageEmojisAndStickers)) {
+            return message.reply('❌ Bot thiếu quyền **Manage Emojis and Stickers** trên máy chủ này!');
+        }
+        if (!message.member.permissions.has(PermissionFlagsBits.ManageEmojisAndStickers) && 
+            !message.member.permissions.has(PermissionFlagsBits.ManageGuildExpressions)) {
+            return message.reply('❌ Bạn không có quyền thêm Emoji vào máy chủ!');
+        }
+
+        const rawSource = args[1];
+        const customName = args[2];
+        const attachment = message.attachments.first();
+
+        if (!rawSource && !attachment) {
+            return message.reply('❌ Cú pháp: `miaddemoji <emoji_mẫu/link_ảnh> [tên]` hoặc đính kèm ảnh!');
+        }
+
+        let emojiURL = '';
+        let defaultName = 'mimi_emoji';
+
+        if (attachment) {
+            emojiURL = attachment.url;
+            defaultName = attachment.name ? attachment.name.split('.')[0] : 'mimi_emoji';
+        } else {
+            const match = rawSource.match(/^<(a?):(\w+):(\d+)>$/);
+            if (match) {
+                const animated = match[1] === 'a';
+                defaultName = match[2];
+                const emojiId = match[3];
+                const ext = animated ? 'gif' : 'png';
+                emojiURL = `https://cdn.discordapp.com/emojis/${emojiId}.${ext}?size=256&quality=lossless`;
+            } else if (/^\d{17,20}$/.test(rawSource)) {
+                const found = client.emojis.cache.get(rawSource);
+                const ext = (found && found.animated) ? 'gif' : 'png';
+                defaultName = found ? found.name : 'emoji_' + rawSource.slice(-4);
+                emojiURL = `https://cdn.discordapp.com/emojis/${rawSource}.${ext}?size=256&quality=lossless`;
+            } else if (/^https?:\/\/.+/i.test(rawSource)) {
+                emojiURL = rawSource;
+                const urlParts = rawSource.split('/');
+                const lastPart = urlParts[urlParts.length - 1].split('?')[0];
+                if (lastPart) defaultName = lastPart.split('.')[0] || 'mimi_emoji';
+            } else {
+                return message.reply('❌ Nguồn không hợp lệ! Hãy paste emoji dạng `<:tên:id>`, dán link ảnh hoặc đính kèm file.');
+            }
+        }
+
+        const cleanName = (customName || defaultName).replace(/[^a-zA-Z0-9_]/g, '_').slice(0, 32);
+        const finalName = cleanName.length >= 2 ? cleanName : `emoji_${cleanName}`;
+
+        try {
+            const newEmoji = await message.guild.emojis.create({ attachment: emojiURL, name: finalName });
+            return message.reply(`🎉 Đã thêm emoji **${newEmoji}** (\`:${newEmoji.name}:\`) vào server thành công!`);
+        } catch (err) {
+            return message.reply(`❌ Không thể thêm emoji: ${err.message}`);
+        }
+    }
+
     if (command === 'misay' || command === 'mis') {
         const hasPermission = message.member.permissions.has(PermissionFlagsBits.ManageGuild) || message.member.permissions.has(PermissionFlagsBits.ManageMessages);
 
@@ -9903,6 +10448,7 @@ if (command === 'mibanminigame' || command === 'mibanmg') {
         'mibannongsan','mibns','mishop','mis',
         'mitimdo','mikho','mibuybg','mibg',
         'micaoca','mipet','mibanca',
+        'midao','midaokimcuong','micaothap','mict','miaddemoji',
         // Prefix động của server
         `${serverPrefix}daily`,`${serverPrefix}d`,`${serverPrefix}profile`,`${serverPrefix}p`,
         `${serverPrefix}coinflip`,`${serverPrefix}cf`,`${serverPrefix}sl`,
@@ -9913,6 +10459,7 @@ if (command === 'mibanminigame' || command === 'mibanmg') {
         `${serverPrefix}play`,`${serverPrefix}pl`,
         `${serverPrefix}xocdia`,`${serverPrefix}xd`,
         `${serverPrefix}farm`,`${serverPrefix}shop`,`${serverPrefix}tuoi`,`${serverPrefix}th`,
+        `${serverPrefix}dao`,`${serverPrefix}daokimcuong`,`${serverPrefix}caothap`,`${serverPrefix}ct`,`${serverPrefix}addemoji`,
     ];
     if (!allowedPrefixes.includes(rawCommand)) {
         if (isMinigameBanned(userId)) return;
@@ -9959,6 +10506,44 @@ client.on('interactionCreate', async interaction => {
         return;
     }
     const gConfig = getGuildConfig(guild.id);
+
+    // 🔍 Xử lý Autocomplete cho Slash Command (Gợi ý emoji server trong reactionrole-add & reactionrole-remove)
+    if (interaction.isAutocomplete()) {
+        const { commandName } = interaction;
+        if (commandName === 'reactionrole-add' || commandName === 'reactionrole-remove') {
+            const focusedOption = interaction.options.getFocused(true);
+            if (focusedOption.name === 'emoji') {
+                if (!guild) return interaction.respond([]).catch(() => null);
+                const msgId = interaction.options.getString('id_tin_nhắn');
+                const panelData = (msgId && gConfig.reactionRoles) ? gConfig.reactionRoles[msgId.trim()] : null;
+
+                // Nếu là lệnh gỡ và đã có id_tin_nhắn, ưu tiên gợi ý các emoji đang gắn trên bảng đó
+                if (commandName === 'reactionrole-remove' && panelData && panelData.roles) {
+                    const query = (focusedOption.value || '').toLowerCase();
+                    const choices = Object.entries(panelData.roles)
+                        .filter(([k, v]) => !query || (v.display && v.display.toLowerCase().includes(query)) || k.toLowerCase().includes(query))
+                        .slice(0, 25)
+                        .map(([k, v]) => ({
+                            name: `${v.display || k} (Đang gắn vai trò)`,
+                            value: v.display || k
+                        }));
+                    if (choices.length > 0) return interaction.respond(choices).catch(() => null);
+                }
+
+                if (guild.emojis.cache.size === 0) await guild.emojis.fetch().catch(() => null);
+                const query = (focusedOption.value || '').toLowerCase().replace(/^:/, '').replace(/:$/, '');
+                const choices = [...guild.emojis.cache.values()]
+                    .filter(e => !query || e.name.toLowerCase().includes(query))
+                    .slice(0, 25)
+                    .map(e => ({
+                        name: `:${e.name}: (${e.animated ? 'GIF' : 'Tĩnh'})`,
+                        value: `<${e.animated ? 'a' : ''}:${e.name}:${e.id}>`
+                    }));
+                return interaction.respond(choices).catch(() => null);
+            }
+        }
+        return;
+    }
 
     // 🎵 MIMI BOT 100% MIỄN PHÍ TRỌN ĐỜI - KHÔNG GIỚI HẠN SLASH COMMANDS
 
@@ -11162,6 +11747,172 @@ client.on('interactionCreate', async interaction => {
         }
 
         // ==========================================
+        // ⛏️ LỆNH SLASH /daokimcuong
+        // ==========================================
+        if (commandName === 'daokimcuong') {
+            const banInfo = isMinigameBanned(user.id);
+            if (banInfo) {
+                return interaction.reply({ 
+                    content: `🚫 **BẠN ĐÃ BỊ CẤM CHƠI MINIGAME!**\n📝 **Lý do:** ${banInfo.reason || 'Vi phạm quy định'}`, 
+                    flags: MessageFlags.Ephemeral 
+                });
+            }
+
+            const rawBet = options.getString('tiền_cược');
+            const userData = getUserData(user.id);
+
+            // Không nhập cược -> Đào khoáng sản miễn phí
+            if (!rawBet) {
+                const now = Date.now();
+                const cooldown = 60 * 1000;
+                if (userData.lastDaoKhoangSan && now - userData.lastDaoKhoangSan < cooldown) {
+                    const leftSec = Math.ceil((cooldown - (now - userData.lastDaoKhoangSan)) / 1000);
+                    return interaction.reply({ 
+                        content: `⏳ Thể lực của bạn đang hồi phục! Hãy chờ **${leftSec} giây** nữa để đào khoáng sản tiếp nhé.\n💡 *Mẹo: Muốn cược xu săn mỏ kim cương 3x3, hãy dùng \`/daokimcuong tiền_cược: 50000\` hoặc \`/daokimcuong tiền_cược: all\`!*`,
+                        flags: MessageFlags.Ephemeral 
+                    });
+                }
+                userData.lastDaoKhoangSan = now;
+                if (!userData.inventory) userData.inventory = {};
+
+                const MINERAL_POOLS = [
+                    { key: 'kim_cuong', name: 'Kim Cương Thô 💎', rarity: 'Huyền Thoại', color: 0x00FFA3, rate: 0.12, priceRange: '25,000 - 50,000 xu' },
+                    { key: 'hong_ngoc', name: 'Hồng Ngọc Cổ 🔴', rarity: 'Sử Thi', color: 0xE74C3C, rate: 0.20, priceRange: '15,000 - 30,000 xu' },
+                    { key: 'quang_vang', name: 'Quặng Vàng 🪙', rarity: 'Hiếm', color: 0xF1C40F, rate: 0.28, priceRange: '8,000 - 18,000 xu' },
+                    { key: 'quang_sat', name: 'Quặng Sắt 🪨', rarity: 'Thường', color: 0x95A5A6, rate: 0.25, priceRange: '3,000 - 7,000 xu' },
+                    { key: 'da_cuoi', name: 'Đá Cuội / Thạch Anh 🪨', rarity: 'Phổ Thông', color: 0x7F8C8D, rate: 0.15, priceRange: '1,000 - 2,500 xu' }
+                ];
+
+                const rand = Math.random();
+                let cumRate = 0;
+                let chosen = MINERAL_POOLS[MINERAL_POOLS.length - 1];
+                for (const m of MINERAL_POOLS) {
+                    cumRate += m.rate;
+                    if (rand <= cumRate) {
+                        chosen = m;
+                        break;
+                    }
+                }
+
+                userData.inventory[chosen.key] = (userData.inventory[chosen.key] || 0) + 1;
+                saveEconomy();
+
+                const mineFreeEmbed = new EmbedBuilder()
+                    .setColor(chosen.color)
+                    .setTitle('⛏️ KHAI THÁC KHOÁNG SẢN THÀNH CÔNG!')
+                    .setDescription(
+                        `🎉 **${user.username}** đã vác cuốc vào hang sâu và khai thác được:\n\n` +
+                        `✨ **${chosen.name}**\n` +
+                        `• **Phẩm cấp:** \`${chosen.rarity}\`\n` +
+                        `• **Giá trị ước tính:** \`${chosen.priceRange}\`\n\n` +
+                        `📦 Đã cất vào kho đồ! Dùng \`mikho\` (hoặc \`mikho bán\`) để bán lấy xu.\n` +
+                        `🎲 *Thử vận may cược xu tại hầm mỏ 3x3: \`/daokimcuong tiền_cược: 50000\` hoặc \`/daokimcuong tiền_cược: all\`!*`
+                    )
+                    .setThumbnail(user.displayAvatarURL())
+                    .setFooter({ text: 'Cooldown khai thác: 60s' })
+                    .setTimestamp();
+
+                return interaction.reply({ embeds: [mineFreeEmbed] });
+            }
+
+            if (diamondMineGames.has(user.id)) {
+                return interaction.reply({ content: '❌ Bạn đang có 1 ván Đào Kim Cương chưa hoàn tất! Hãy tiếp tục đào hoặc bấm Rút Tiền ở tin nhắn cũ.', flags: MessageFlags.Ephemeral });
+            }
+
+            const { bet, error } = parseBetGlobal(rawBet, userData.balance);
+            if (error) return interaction.reply({ content: error, flags: MessageFlags.Ephemeral });
+
+            userData.balance -= bet;
+            saveEconomy();
+
+            const game = createMineGame(user.id, guild.id, bet);
+            diamondMineGames.set(user.id, game);
+
+            const rows = buildMineGridRows(game, false);
+            const embed = buildMineEmbed(game, 'Hãy chọn 1 ô `🟫` bên dưới để bắt đầu đào kim cương!');
+
+            const sent = await interaction.reply({ embeds: [embed], components: rows, fetchReply: true });
+            game.message = sent;
+
+            game.timeoutHandle = setTimeout(async () => {
+                if (diamondMineGames.get(user.id) === game) {
+                    diamondMineGames.delete(user.id);
+                    const autoWin = Math.floor(game.bet * game.currentMultiplier);
+                    const uData = getUserData(user.id);
+                    uData.balance += autoWin;
+                    saveEconomy();
+                    const timeoutEmbed = buildMineEmbed(game, `⏰ Hết thời gian thao tác! Bot đã tự động chốt tiền thưởng **+${autoWin.toLocaleString()} xu** cho bạn.`, 0x2ECC71);
+                    await sent.edit({ embeds: [timeoutEmbed], components: buildMineGridRows(game, true) }).catch(() => null);
+                }
+            }, 60_000);
+
+            return;
+        }
+
+        // ==========================================
+        // 🎴 LỆNH SLASH /caothap
+        // ==========================================
+        if (commandName === 'caothap') {
+            const banInfo = isMinigameBanned(user.id);
+            if (banInfo) {
+                return interaction.reply({ 
+                    content: `🚫 **BẠN ĐÃ BỊ CẤM CHƠI MINIGAME!**\n📝 **Lý do:** ${banInfo.reason || 'Vi phạm quy định'}`, 
+                    flags: MessageFlags.Ephemeral 
+                });
+            }
+
+            const rawBet = options.getString('tiền_cược');
+            const userData = getUserData(user.id);
+
+            if (highLowGames.has(user.id)) {
+                return interaction.reply({ content: '❌ Bạn đang có 1 ván bài Cao Thấp chưa xong! Hãy bấm nút ở tin nhắn cũ để tiếp tục.', flags: MessageFlags.Ephemeral });
+            }
+
+            const { bet, error } = parseBetGlobal(rawBet, userData.balance);
+            if (error) return interaction.reply({ content: error, flags: MessageFlags.Ephemeral });
+
+            userData.balance -= bet;
+            saveEconomy();
+
+            const deck = hiloCreateDeck();
+            const startCard = hiloDraw(deck);
+
+            const game = {
+                userId: user.id,
+                guildId: guild.id,
+                bet,
+                deck,
+                currentCard: startCard,
+                streak: 0,
+                currentMultiplier: 1.0,
+                history: [startCard.label],
+                message: null,
+                timeoutHandle: null
+            };
+            highLowGames.set(user.id, game);
+
+            const embed = buildHiLoEmbed(game, 'Lá bài khởi đầu đã lật! Hãy dự đoán lá tiếp theo **Cao Hơn** hay **Thấp Hơn**.');
+            const rows = buildHiLoControls(game, false);
+
+            const sent = await interaction.reply({ embeds: [embed], components: rows, fetchReply: true });
+            game.message = sent;
+
+            game.timeoutHandle = setTimeout(async () => {
+                if (highLowGames.get(user.id) === game) {
+                    highLowGames.delete(user.id);
+                    const autoWin = Math.floor(game.bet * game.currentMultiplier);
+                    const uData = getUserData(user.id);
+                    uData.balance += autoWin;
+                    saveEconomy();
+                    const timeoutEmbed = buildHiLoEmbed(game, `⏰ Hết thời gian thao tác! Bot đã tự động chốt tiền thưởng **+${autoWin.toLocaleString()} xu** cho bạn.`, 0x2ECC71);
+                    await sent.edit({ embeds: [timeoutEmbed], components: [] }).catch(() => null);
+                }
+            }, 60_000);
+
+            return;
+        }
+
+        // ==========================================
         // 📝 LỆNH /sendembed — Tạo và gửi embed tùy chỉnh
         // ==========================================
         if (commandName === 'sendembed') {
@@ -11256,35 +12007,83 @@ client.on('interactionCreate', async interaction => {
         // ==========================================
         // 😄 LỆNH /addemoji — Thêm emoji từ server khác
         // ==========================================
+        // 😄 LỆNH /addemoji — Thêm emoji tùy chỉnh vào server
+        // ==========================================
         if (commandName === 'addemoji') {
             await interaction.deferReply({ flags: MessageFlags.Ephemeral });
 
-            const emojiInput = options.getString('emoji').trim();
+            // Kiểm tra quyền bot
+            const me = guild.members.me;
+            if (!me.permissions.has(PermissionFlagsBits.ManageGuildExpressions) && 
+                !me.permissions.has(PermissionFlagsBits.ManageEmojisAndStickers)) {
+                return interaction.editReply({ content: '❌ Bot thiếu quyền **Manage Emojis and Stickers** (Quản lý Biểu tượng cảm xúc) trên máy chủ này để thêm emoji!' });
+            }
+
+            const rawSource = options.getString('nguồn') || options.getString('emoji');
+            const attachment = options.getAttachment('ảnh');
             const customName = options.getString('tên');
 
-            // Parse <:name:id> hoặc <a:name:id>
-            const match = emojiInput.match(/^<(a?):(\w+):(\d+)>$/);
-            if (!match) {
-                return interaction.editReply({ content: '❌ Định dạng không hợp lệ! Hãy paste emoji dạng `<:tên:id>` hoặc `<a:tên:id>`.' });
+            if (!rawSource && !attachment) {
+                return interaction.editReply({ content: '❌ Vui lòng nhập link ảnh, paste emoji mẫu dạng `<:tên:id>` hoặc đính kèm file ảnh tại mục `ảnh`!' });
             }
 
-            const animated = match[1] === 'a';
-            const originalName = match[2];
-            const emojiId = match[3];
-            const finalName = customName ? customName.replace(/[^a-zA-Z0-9_]/g, '_') : originalName;
-            const ext = animated ? 'gif' : 'png';
-            const emojiURL = `https://cdn.discordapp.com/emojis/${emojiId}.${ext}?size=128&quality=lossless`;
+            let emojiURL = '';
+            let defaultName = 'mimi_emoji';
 
-            const newEmoji = await guild.emojis.create({ attachment: emojiURL, name: finalName }).catch(err => {
-                console.error('❌ [addemoji]', err.message);
-                return null;
-            });
-
-            if (!newEmoji) {
-                return interaction.editReply({ content: '❌ Không thể thêm emoji! Có thể server đã đầy slot emoji hoặc Bot thiếu quyền **Manage Emojis**.' });
+            if (attachment) {
+                emojiURL = attachment.url;
+                defaultName = attachment.name ? attachment.name.split('.')[0] : 'mimi_emoji';
+            } else {
+                const input = rawSource.trim();
+                // 1. Kiểm tra <:name:id> hoặc <a:name:id>
+                const match = input.match(/^<(a?):(\w+):(\d+)>$/);
+                if (match) {
+                    const animated = match[1] === 'a';
+                    defaultName = match[2];
+                    const emojiId = match[3];
+                    const ext = animated ? 'gif' : 'png';
+                    emojiURL = `https://cdn.discordapp.com/emojis/${emojiId}.${ext}?size=256&quality=lossless`;
+                } 
+                // 2. Kiểm tra nếu chỉ nhập ID số của emoji
+                else if (/^\d{17,20}$/.test(input)) {
+                    const found = client.emojis.cache.get(input);
+                    const ext = (found && found.animated) ? 'gif' : 'png';
+                    defaultName = found ? found.name : 'emoji_' + input.slice(-4);
+                    emojiURL = `https://cdn.discordapp.com/emojis/${input}.${ext}?size=256&quality=lossless`;
+                }
+                // 3. Kiểm tra nếu là link HTTP / HTTPS (emoji.gg, discadia, cdn...)
+                else if (/^https?:\/\/.+/i.test(input)) {
+                    emojiURL = input;
+                    const urlParts = input.split('/');
+                    const lastPart = urlParts[urlParts.length - 1].split('?')[0];
+                    if (lastPart) {
+                        defaultName = lastPart.split('.')[0] || 'mimi_emoji';
+                    }
+                } else {
+                    return interaction.editReply({ 
+                        content: '❌ Định dạng nguồn không hợp lệ!\n• Paste emoji Discord: `<:tên:id>` hoặc `<a:tên:id>`\n• Hoặc dán link ảnh trực tiếp (`.png`, `.jpg`, `.gif`) từ emoji.gg, discadia\n• Hoặc đính kèm file ảnh tại mục `ảnh`.' 
+                    });
+                }
             }
 
-            return interaction.editReply({ content: `✅ Đã thêm emoji **${newEmoji}** (\`${finalName}\`) vào server thành công!` });
+            const cleanName = (customName || defaultName).replace(/[^a-zA-Z0-9_]/g, '_').slice(0, 32);
+            const finalName = cleanName.length >= 2 ? cleanName : `emoji_${cleanName}`;
+
+            try {
+                const newEmoji = await guild.emojis.create({ attachment: emojiURL, name: finalName });
+                return interaction.editReply({ 
+                    content: `🎉 **ĐÃ THÊM EMOJI THÀNH CÔNG!**\n\n• Biểu tượng: ${newEmoji}\n• Tên emoji: \`:${newEmoji.name}:\`\n• Dạng copy: \`<${newEmoji.animated ? 'a' : ''}:${newEmoji.name}:${newEmoji.id}>\`` 
+                });
+            } catch (err) {
+                console.error('❌ [addemoji]', err);
+                if (err.code === 30008) {
+                    return interaction.editReply({ content: '❌ Máy chủ đã đạt giới hạn tối đa số lượng Emoji! Vui lòng xóa bớt emoji cũ hoặc nâng cấp Boost server.' });
+                }
+                if (err.code === 50035 || err.message?.includes('File cannot be larger')) {
+                    return interaction.editReply({ content: '❌ Kích thước file ảnh emoji quá lớn (vượt quá 256KB theo quy định Discord)!' });
+                }
+                return interaction.editReply({ content: `❌ Không thể thêm emoji: **${err.message || 'Lỗi không xác định'}**. Hãy đảm bảo link ảnh còn hoạt động và server còn chỗ trống emoji.` });
+            }
         }
 
         // ==========================================
@@ -12118,19 +12917,22 @@ client.on('interactionCreate', async interaction => {
                 return interaction.editReply({ content: '❌ Không tìm thấy tin nhắn bảng (Có thể đã bị xóa thủ công).' });
             }
 
-            const { key, isCustom } = resolveEmojiKey(emojiInput);
-
-            if (panelData.roles[key]) {
-                return interaction.editReply({ content: '⚠️ Emoji này đã được gắn vai trò khác rồi. Hãy `/reactionrole-remove` trước nếu muốn đổi.' });
+            const resolved = await resolveServerEmoji(guild, emojiInput);
+            if (!resolved) {
+                return interaction.editReply({ content: '❌ Emoji không hợp lệ! Vui lòng chọn từ gợi ý, paste emoji server (`<:tên:id>`), gõ tên (`:tên:`) hoặc emoji Unicode (🎮).' });
             }
 
-            let reactTarget = emojiInput;
-            if (isCustom) {
-                const customEmoji = guild.emojis.cache.get(key);
-                if (!customEmoji) {
-                    return interaction.editReply({ content: '❌ Không tìm thấy Emoji tùy chỉnh này trong server (Emoji có thể thuộc server khác mà Bot không truy cập được).' });
+            const { key, display, reactTarget, isCustom, emojiObj } = resolved;
+
+            if (panelData.roles[key]) {
+                return interaction.editReply({ content: `⚠️ Emoji ${display} đã được gắn vai trò khác rồi. Hãy \`/reactionrole-remove\` trước nếu muốn đổi.` });
+            }
+
+            if (isCustom && !emojiObj) {
+                const clientEmoji = client.emojis.cache.get(key);
+                if (!clientEmoji) {
+                    return interaction.editReply({ content: '❌ Không tìm thấy Emoji tùy chỉnh này trong server và Bot không có quyền truy cập emoji này.' });
                 }
-                reactTarget = customEmoji;
             }
 
             const reacted = await targetMessage.react(reactTarget).catch(err => {
@@ -12138,15 +12940,15 @@ client.on('interactionCreate', async interaction => {
                 return null;
             });
             if (!reacted) {
-                return interaction.editReply({ content: '❌ Bot không thể thả Emoji này lên tin nhắn (Emoji không hợp lệ hoặc Bot thiếu quyền).' });
+                return interaction.editReply({ content: `❌ Bot không thể thả Emoji ${display} lên tin nhắn! Vui lòng kiểm tra quyền "Add Reactions" và "Use External Emojis" của bot tại kênh này.` });
             }
 
-            panelData.roles[key] = { roleId: role.id, display: emojiInput, description: desc };
+            panelData.roles[key] = { roleId: role.id, display: display, description: desc };
             saveConfig();
 
             await updateReactionRoleEmbed(targetMessage, panelData);
 
-            return interaction.editReply({ content: `✅ Đã gắn ${emojiInput} ➜ ${role} thành công vào bảng!` });
+            return interaction.editReply({ content: `✅ Đã gắn ${display} ➜ ${role} thành công vào bảng!` });
         }
 
         if (commandName === 'reactionrole-remove') {
@@ -12160,9 +12962,12 @@ client.on('interactionCreate', async interaction => {
                 return interaction.editReply({ content: '❌ Không tìm thấy bảng Reaction Role với ID tin nhắn này.' });
             }
 
-            const { key } = resolveEmojiKey(emojiInput);
+            const resolved = await resolveServerEmoji(guild, emojiInput);
+            const key = resolved ? resolved.key : emojiInput;
+            const display = resolved ? resolved.display : emojiInput;
+
             if (!panelData.roles[key]) {
-                return interaction.editReply({ content: '⚠️ Emoji này chưa được gắn vào vai trò nào trong bảng.' });
+                return interaction.editReply({ content: `⚠️ Emoji ${display} chưa được gắn vào vai trò nào trong bảng.` });
             }
 
             delete panelData.roles[key];
@@ -12176,7 +12981,7 @@ client.on('interactionCreate', async interaction => {
                 await updateReactionRoleEmbed(targetMessage, panelData);
             }
 
-            return interaction.editReply({ content: `✅ Đã gỡ Emoji ${emojiInput} khỏi bảng thành công!` });
+            return interaction.editReply({ content: `✅ Đã gỡ Emoji ${display} khỏi bảng thành công!` });
         }
 
         if (commandName === 'reactionrole-reset') {
@@ -13728,8 +14533,8 @@ if (commandName === 'changelog') {
                 desc: 'Tạo bảng để thành viên tự chọn vai trò bằng cách thả Emoji. Hệ thống này độc lập hoàn toàn với `/setup`.',
                 fields: [
                     { name: '`/reactionrole-create [kênh] [tiêu_đề] [nội_dung]`', value: 'Tạo bảng chọn vai trò mới tại kênh chỉ định. Bot trả về **ID tin nhắn** để dùng cho các bước tiếp theo.' },
-                    { name: '`/reactionrole-add [id_tin_nhắn] [emoji] [vai_trò] [mô_tả]`', value: 'Gắn 1 Emoji vào 1 Vai trò trên bảng. Bot tự thả Emoji lên tin nhắn và cập nhật danh sách hiển thị.\n• Hỗ trợ cả Emoji Unicode (😀) và Emoji tùy chỉnh server (`<:tên:id>`).' },
-                    { name: '`/reactionrole-remove [id_tin_nhắn] [emoji]`', value: 'Gỡ 1 Emoji khỏi bảng. Bot tự gỡ reaction và cập nhật lại danh sách — không xóa cả bảng.' },
+                    { name: '`/reactionrole-add [id_tin_nhắn] [emoji] [vai_trò] [mô_tả]`', value: 'Gắn 1 Emoji vào 1 Vai trò trên bảng. Bot tự thả Emoji lên tin nhắn và cập nhật danh sách hiển thị.\n• Hỗ trợ Autocomplete tự động gợi ý danh sách Emoji server.\n• Nhận diện linh hoạt: gõ `:tên:`, tên không dấu hai chấm, Emoji Unicode (😀) hoặc tag `<:tên:id>`.' },
+                    { name: '`/reactionrole-remove [id_tin_nhắn] [emoji]`', value: 'Gỡ 1 Emoji khỏi bảng. Hỗ trợ Autocomplete tự động liệt kê các Emoji đang gắn trên bảng để gỡ cực nhanh.' },
                     { name: '`/reactionrole-reset`', value: 'Xóa **toàn bộ** bảng và dữ liệu Reaction Role trên server. Không ảnh hưởng các tính năng khác.' },
                 ]
             },
@@ -13798,7 +14603,7 @@ if (commandName === 'changelog') {
                 desc: 'Các lệnh quản lý thành viên, tin nhắn và emoji. Mỗi lệnh yêu cầu quyền tương ứng.',
                 fields: [
                     { name: '🖼️ `/avatar [@người]`', value: 'Xem ảnh đại diện (kích thước gốc) của bản thân hoặc bất kỳ thành viên nào trong server. Có link tải ảnh.' },
-                    { name: '😄 `/addemoji [emoji] [tên]`', value: 'Thêm emoji từ server khác vào server này. Paste emoji tùy chỉnh dạng `<:tên:id>` hoặc `<a:tên:id>`. Bot có thể nhận emoji từ mọi server nó tham gia.\nYêu cầu quyền **Manage Emojis**.' },
+                    { name: '✨ `/addemoji [nguồn/ảnh] [tên]` · `miaddemoji`', value: 'Thêm emoji tùy chỉnh vào server cực nhanh.\n• Hỗ trợ: dán link ảnh trực tiếp (từ emoji.gg, discadia, CDN), copy emoji server khác `<:tên:id>`, hoặc tải tệp ảnh trực tiếp.\nYêu cầu quyền **Manage Emojis and Stickers**.' },
                     { name: '🗑️ `/clear [số_lượng]`', value: 'Xóa hàng loạt tin nhắn gần nhất trong kênh hiện tại (1-100 tin).\n⚠️ Chỉ xóa được tin nhắn trong **14 ngày** gần đây.\nYêu cầu quyền **Manage Messages**.' },
                     { name: '👢 `/kick [@thành_viên] [lý_do]`', value: 'Kick thành viên khỏi server. Họ có thể tham gia lại nếu có link invite.\nYêu cầu quyền **Kick Members**.' },
                     { name: '🔨 `/ban [@thành_viên] [lý_do] [xóa_tin_nhắn]`', value: 'Ban vĩnh viễn thành viên khỏi server. Tùy chọn xóa tin nhắn 0-7 ngày gần đây.\nYêu cầu quyền **Ban Members**.' },
@@ -13845,6 +14650,8 @@ if (commandName === 'changelog') {
                     { name: '🥣 `mixd` / `mixocdia [số/all] [chan/le]`', value: 'Xóc Đĩa — lắc 4 đĩa, đặt Chẵn hoặc Lẻ số mặt Đỏ.' },
                     { name: '🃏 `mibj` / `miblackjack [số/all]`', value: 'Blackjack (Xì dách 21 điểm) đấu trí với Bot bằng nút bấm.' },
                     { name: '🎯 `mig3` / `midoanso [số/all] [1-10]`', value: 'Đoán đúng số bí ẩn từ 1-10 → thắng **x5** tiền cược!' },
+                    { name: '💎 `midao` / `/daokimcuong [số/all]`', value: 'Đào Kim Cương — Ma trận 3x3 chứa 7 Kim Cương & 2 Quả Bom. Ăn càng nhiều ô thưởng càng nhân dồn (tới x28.5), bấm Rút Tiền an toàn bất cứ lúc nào! Nếu không cược tiền: đào khoáng sản (Kim Cương, Hồng Ngọc, Quặng Vàng...) tích lũy vào kho đồ `mikho`.' },
+                    { name: '📈 `micaothap` / `mict` / `/caothap [số/all]`', value: 'Game Cao Thấp (Hi-Lo) — Rút bài 52 lá, dự đoán lá tiếp theo Cao hơn hay Thấp hơn lá hiện tại. Chuỗi thắng nhân dồn tiền thưởng, có thể bấm Rút Tiền bất kỳ lúc nào.' },
                     { name: '🏆 `mitop` / `mit`', value: 'Xem bảng xếp hạng **Top 10 đại gia nhiều xu nhất** toàn hệ thống.' },
                     { name: '🛠️ `/resetbalance` (Chỉ Owner)', value: '`add [số]` — Thêm xu | `max` — Về tối đa | `resetuser [@tag]` — Reset 1 người | `resetall` — Xóa toàn bộ' },
                     { name: '🔧 `/setprefix [tiền_tố]` (Admin)', value: 'Thay tiền tố lệnh prefix cả server (mặc định: `mi`). VD: `/setprefix m` → `mdaily`, `mcash`, `mtop`...' }
@@ -14762,6 +15569,214 @@ if (commandName === 'changelog') {
                 await interaction.deferUpdate().catch(() => null);
                 return bjEndGame(game, interaction.message, val > 21 ? 'lose' : null);
             }
+        }
+
+        // ==========================================
+        // ⛏️ XỬ LÝ NÚT MINIGAME ĐÀO KIM CƯƠNG
+        // ==========================================
+        if (customId.startsWith('mine_tile_') || customId === 'mine_cashout' || customId === 'mine_cancel') {
+            const game = diamondMineGames.get(user.id);
+            if (!game) {
+                return interaction.reply({ content: '❌ Ván đào kim cương này đã kết thúc hoặc không phải của bạn!', flags: MessageFlags.Ephemeral });
+            }
+
+            const banInfo = isMinigameBanned(user.id);
+            if (banInfo) {
+                diamondMineGames.delete(user.id);
+                return interaction.reply({ content: `🚫 **BẠN ĐÃ BỊ CẤM CHƠI MINIGAME!**\n📝 **Lý do:** ${banInfo.reason || 'Vi phạm quy định'}`, flags: MessageFlags.Ephemeral });
+            }
+
+            if (game.timeoutHandle) clearTimeout(game.timeoutHandle);
+
+            // Nút Hủy Bỏ (khi chưa đào ô nào)
+            if (customId === 'mine_cancel') {
+                if (game.diamondsFound > 0) {
+                    return interaction.reply({ content: '❌ Bạn đã bắt đầu đào rồi, không thể hủy bỏ! Hãy tiếp tục đào hoặc bấm Rút Tiền.', flags: MessageFlags.Ephemeral });
+                }
+                diamondMineGames.delete(user.id);
+                const userData = getUserData(user.id);
+                userData.balance += game.bet; // Hoàn tiền
+                saveEconomy();
+                const cancelEmbed = buildMineEmbed(game, `❌ **Ván chơi đã bị hủy bỏ!** Đã hoàn trả **+${game.bet.toLocaleString()} xu** vào ví.`, 0x95A5A6);
+                return interaction.update({ embeds: [cancelEmbed], components: [] }).catch(() => null);
+            }
+
+            // Nút Rút Tiền (Cashout)
+            if (customId === 'mine_cashout') {
+                if (game.diamondsFound === 0) {
+                    return interaction.reply({ content: '❌ Bạn chưa đào được viên kim cương nào để rút tiền!', flags: MessageFlags.Ephemeral });
+                }
+                diamondMineGames.delete(user.id);
+                const winAmount = Math.floor(game.bet * game.currentMultiplier);
+                const profit = winAmount - game.bet;
+                const userData = getUserData(user.id);
+                userData.balance += winAmount;
+                if (profit > 0) {
+                    recordEconomyIncome(user.id, guild.id, profit, 'diamond_mine_win');
+                    addTransaction(user.id, 'in', profit, 'Thắng đào kim cương');
+                }
+                saveEconomy();
+
+                const cashoutEmbed = buildMineEmbed(game, `🎉 **RÚT TIỀN THÀNH CÔNG!**\nBạn đã an toàn rút lui và nhận **+${winAmount.toLocaleString()} xu** (x${game.currentMultiplier.toFixed(2)})!\n💰 Số dư mới: **${userData.balance.toLocaleString()} xu**`, 0x2ECC71);
+                return interaction.update({ embeds: [cashoutEmbed], components: buildMineGridRows(game, true) }).catch(() => null);
+            }
+
+            // Bấm vào 1 ô đất để đào
+            if (customId.startsWith('mine_tile_')) {
+                const idx = parseInt(customId.replace('mine_tile_', ''), 10);
+                const tile = game.grid[idx];
+                if (tile.revealed) {
+                    return interaction.reply({ content: '⚠️ Ô này đã được đào rồi!', flags: MessageFlags.Ephemeral });
+                }
+
+                tile.revealed = true;
+
+                // TRÚNG BOM 💣
+                if (tile.type === 'bomb') {
+                    diamondMineGames.delete(user.id);
+                    recordEconomyExpense(user.id, guild.id, game.bet, 'diamond_mine_loss');
+                    addTransaction(user.id, 'out', game.bet, 'Thua đào kim cương (trúng bom)');
+
+                    const bombEmbed = buildMineEmbed(game, `💥 **BÙÙÙM! TRÚNG BOM NỔ TUNG!**\nBạn đã vô tình cuốc trúng thuốc nổ trong hầm mỏ! Mất toàn bộ **${game.bet.toLocaleString()} xu** cược.`, 0xE74C3C);
+                    return interaction.update({ embeds: [bombEmbed], components: buildMineGridRows(game, true) }).catch(() => null);
+                }
+
+                // TRÚNG KIM CƯƠNG 💎
+                game.diamondsFound++;
+                game.currentMultiplier = MINE_MULTIPLIERS[game.diamondsFound] || (game.currentMultiplier * 1.8);
+
+                // NẾU ĐÀO ĐƯỢC CẢ 7 KIM CƯƠNG -> THẮNG JACKPOT!
+                if (game.diamondsFound >= 7) {
+                    diamondMineGames.delete(user.id);
+                    const winAmount = Math.floor(game.bet * game.currentMultiplier);
+                    const profit = winAmount - game.bet;
+                    const userData = getUserData(user.id);
+                    userData.balance += winAmount;
+                    recordEconomyIncome(user.id, guild.id, profit, 'diamond_mine_jackpot');
+                    addTransaction(user.id, 'in', profit, 'Thắng JACKPOT đào kim cương');
+                    saveEconomy();
+
+                    const jackpotEmbed = buildMineEmbed(game, `👑 **JACKPOT HOÀNG GIA! BẠN ĐÃ ĐÀO SẠCH 7/7 KIM CƯƠNG!**\nThu về tiền thưởng tối đa: **+${winAmount.toLocaleString()} xu** (x${game.currentMultiplier.toFixed(2)})!\n💰 Số dư mới: **${userData.balance.toLocaleString()} xu**`, 0xF1C40F);
+                    return interaction.update({ embeds: [jackpotEmbed], components: buildMineGridRows(game, true) }).catch(() => null);
+                }
+
+                // Tiếp tục đào
+                const nextWin = Math.floor(game.bet * game.currentMultiplier);
+                const nextEmbed = buildMineEmbed(game, `✨ **TUYỆT VỜI!** Bạn đã tìm thấy **1 viên Kim Cương 💎**!\nHệ số tăng lên **x${game.currentMultiplier.toFixed(2)}** (Tiền thưởng nếu rút ngay: **+${nextWin.toLocaleString()} xu**).\nBạn có thể tiếp tục đào hoặc bấm **Rút Tiền** ngay!`, 0x00FFA3);
+
+                game.timeoutHandle = setTimeout(async () => {
+                    if (diamondMineGames.get(user.id) === game) {
+                        diamondMineGames.delete(user.id);
+                        const autoWin = Math.floor(game.bet * game.currentMultiplier);
+                        const uData = getUserData(user.id);
+                        uData.balance += autoWin;
+                        saveEconomy();
+                        const timeEmbed = buildMineEmbed(game, `⏰ Hết thời gian! Bot đã tự động chốt rút tiền **+${autoWin.toLocaleString()} xu** cho bạn.`, 0x2ECC71);
+                        await interaction.message.edit({ embeds: [timeEmbed], components: buildMineGridRows(game, true) }).catch(() => null);
+                    }
+                }, 60_000);
+
+                return interaction.update({ embeds: [nextEmbed], components: buildMineGridRows(game, false) }).catch(() => null);
+            }
+        }
+
+        // ==========================================
+        // 🎴 XỬ LÝ NÚT MINIGAME CAO THẤP (HI-LO)
+        // ==========================================
+        if (customId === 'hilo_higher' || customId === 'hilo_lower' || customId === 'hilo_cashout') {
+            const game = highLowGames.get(user.id);
+            if (!game) {
+                return interaction.reply({ content: '❌ Ván bài Cao Thấp này đã kết thúc hoặc không phải của bạn!', flags: MessageFlags.Ephemeral });
+            }
+
+            const banInfo = isMinigameBanned(user.id);
+            if (banInfo) {
+                highLowGames.delete(user.id);
+                return interaction.reply({ content: `🚫 **BẠN ĐÃ BỊ CẤM CHƠI MINIGAME!**\n📝 **Lý do:** ${banInfo.reason || 'Vi phạm quy định'}`, flags: MessageFlags.Ephemeral });
+            }
+
+            if (game.timeoutHandle) clearTimeout(game.timeoutHandle);
+
+            // Nút Rút Tiền (Cashout)
+            if (customId === 'hilo_cashout') {
+                if (game.streak === 0) {
+                    return interaction.reply({ content: '❌ Bạn cần đoán đúng ít nhất 1 lần để có thể rút tiền!', flags: MessageFlags.Ephemeral });
+                }
+                highLowGames.delete(user.id);
+                const winAmount = Math.floor(game.bet * game.currentMultiplier);
+                const profit = winAmount - game.bet;
+                const userData = getUserData(user.id);
+                userData.balance += winAmount;
+                if (profit > 0) {
+                    recordEconomyIncome(user.id, guild.id, profit, 'hilo_win');
+                    addTransaction(user.id, 'in', profit, 'Thắng Cao Thấp (Hi-Lo)');
+                }
+                saveEconomy();
+
+                const cashoutEmbed = buildHiLoEmbed(game, `🎉 **RÚT TIỀN THÀNH CÔNG!**\nBạn đã chốt thưởng với chuỗi **${game.streak} lần đoán đúng** và thu về **+${winAmount.toLocaleString()} xu** (x${game.currentMultiplier.toFixed(2)})!\n💰 Số dư mới: **${userData.balance.toLocaleString()} xu**`, 0x2ECC71);
+                return interaction.update({ embeds: [cashoutEmbed], components: [] }).catch(() => null);
+            }
+
+            // Đoán Cao Hơn hoặc Thấp Hơn
+            const choice = customId === 'hilo_higher' ? 'higher' : 'lower';
+            const nextCard = hiloDraw(game.deck);
+            const prevCard = game.currentCard;
+            game.history.push(nextCard.label);
+
+            // Trường hợp BẰNG ĐIỂM (TIE)
+            if (nextCard.v === prevCard.v) {
+                game.currentCard = nextCard;
+                const tieEmbed = buildHiLoEmbed(game, `🤝 **HÒA! BẰNG ĐIỂM (${nextCard.label})!**\nCả 2 lá đều có giá trị **${nextCard.v}**. Giữ nguyên hệ số và bạn được đoán tiếp!`, 0xF1C40F);
+                game.timeoutHandle = setTimeout(async () => {
+                    if (highLowGames.get(user.id) === game) {
+                        highLowGames.delete(user.id);
+                        const autoWin = Math.floor(game.bet * game.currentMultiplier);
+                        const uData = getUserData(user.id);
+                        uData.balance += autoWin;
+                        saveEconomy();
+                        const timeEmbed = buildHiLoEmbed(game, `⏰ Hết thời gian! Bot đã tự động chốt rút tiền **+${autoWin.toLocaleString()} xu** cho bạn.`, 0x2ECC71);
+                        await interaction.message.edit({ embeds: [timeEmbed], components: [] }).catch(() => null);
+                    }
+                }, 60_000);
+                return interaction.update({ embeds: [tieEmbed], components: buildHiLoControls(game) }).catch(() => null);
+            }
+
+            const isWin = (choice === 'higher' && nextCard.v > prevCard.v) ||
+                          (choice === 'lower' && nextCard.v < prevCard.v);
+
+            // ĐOÁN SAI -> THUA CUỘC
+            if (!isWin) {
+                highLowGames.delete(user.id);
+                recordEconomyExpense(user.id, guild.id, game.bet, 'hilo_loss');
+                addTransaction(user.id, 'out', game.bet, 'Thua Cao Thấp (Hi-Lo)');
+
+                const choiceText = choice === 'higher' ? 'Cao Hơn 🔺' : 'Thấp Hơn 🔻';
+                game.currentCard = nextCard;
+                const loseEmbed = buildHiLoEmbed(game, `💀 **RẤT TIẾC! ĐOÁN SAI!**\nBạn chọn **${choiceText}**, nhưng lá bài rút ra là **[ ${nextCard.label} ]** (${nextCard.v} điểm so với ${prevCard.v} điểm)!\nMất toàn bộ **${game.bet.toLocaleString()} xu** cược.`, 0xE74C3C);
+                return interaction.update({ embeds: [loseEmbed], components: [] }).catch(() => null);
+            }
+
+            // ĐOÁN ĐÚNG -> TĂNG STREAK & HỆ SỐ
+            game.streak++;
+            game.currentCard = nextCard;
+            game.currentMultiplier = HILO_MULTIPLIERS[Math.min(game.streak, HILO_MULTIPLIERS.length - 1)];
+
+            const nextWin = Math.floor(game.bet * game.currentMultiplier);
+            const winEmbed = buildHiLoEmbed(game, `🎯 **CHÍNH XÁC! LÁ TIẾP THEO LÀ [ ${nextCard.label} ]!**\nChuỗi đoán đúng tăng lên **${game.streak} ván** (Hệ số: **x${game.currentMultiplier.toFixed(2)}**).\nTiền thưởng hiện tại: **+${nextWin.toLocaleString()} xu**!\nBạn muốn đoán tiếp hay **Rút Tiền**?`, 0x57F287);
+
+            game.timeoutHandle = setTimeout(async () => {
+                if (highLowGames.get(user.id) === game) {
+                    highLowGames.delete(user.id);
+                    const autoWin = Math.floor(game.bet * game.currentMultiplier);
+                    const uData = getUserData(user.id);
+                    uData.balance += autoWin;
+                    saveEconomy();
+                    const timeEmbed = buildHiLoEmbed(game, `⏰ Hết thời gian! Bot đã tự động chốt rút tiền **+${autoWin.toLocaleString()} xu** cho bạn.`, 0x2ECC71);
+                    await interaction.message.edit({ embeds: [timeEmbed], components: [] }).catch(() => null);
+                }
+            }, 60_000);
+
+            return interaction.update({ embeds: [winEmbed], components: buildHiLoControls(game) }).catch(() => null);
         }
 
         // Nút End sớm Giveaway (chỉ admin)
