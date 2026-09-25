@@ -1292,33 +1292,38 @@ function buildMineEmbed(game, status = 'playing') {
 
     const betStr = game.bet.toLocaleString();
     const minesStr = String(game.minesCount);
-    const cashOutStr = game.diamondsFound > 0 ? `${game.currentCashOut.toLocaleString()} (${game.currentMultiplier.toFixed(2)}x)` : '0 (0.00x)';
-    const nextStr = game.nextCashOut > 0 ? `${game.nextCashOut.toLocaleString()} (${game.nextMultiplier.toFixed(2)}x)` : '-';
+    const cashOutValStr = game.diamondsFound > 0 ? game.currentCashOut.toLocaleString() : '0';
+    const cashOutMultStr = `(${((game.currentMultiplier || 1) + 1e-9).toFixed(2)}x)`;
+    const nextValStr = game.nextCashOut > 0 ? game.nextCashOut.toLocaleString() : '-';
+    const nextMultStr = game.nextMultiplier > 0 ? `(${((game.nextMultiplier || 1) + 1e-9).toFixed(2)}x)` : '';
 
     let desc = '';
     if (status === 'touched_mine') {
         desc = `💥 <@${game.userId}> **touched a mine!**\n\n` +
                `Bet: \`${betStr}\`   Mines: \`${minesStr}\`\n` +
-               `~~Cash Out: \`${cashOutStr}\`~~\n` +
-               `~~Next: \`${nextStr}\`~~\n` +
-               `───────────────────────────`;
+               `~~Cash Out: \`${cashOutValStr}\` \`${cashOutMultStr}\`~~\n` +
+               `~~Next: \`${nextValStr}\` \`${nextMultStr}\`~~\n\n` +
+               `***`;
     } else if (status === 'cashed_out') {
         desc = `💰 <@${game.userId}> **cashed out!**\n\n` +
                `Bet: \`${betStr}\`   Mines: \`${minesStr}\`\n` +
-               `Cash Out: \`${game.currentCashOut.toLocaleString()} (${game.currentMultiplier.toFixed(2)}x)\`\n` +
-               `───────────────────────────`;
+               `Cash Out: \`${game.currentCashOut.toLocaleString()}\` \`${cashOutMultStr}\`\n\n` +
+               `***`;
     } else if (status === 'cleared') {
         desc = `🎉 <@${game.userId}> **cleared the board!**\n\n` +
                `Bet: \`${betStr}\`   Mines: \`${minesStr}\`\n` +
-               `Cash Out: \`${game.currentCashOut.toLocaleString()} (${game.currentMultiplier.toFixed(2)}x)\`\n` +
-               `───────────────────────────`;
+               `Cash Out: \`${game.currentCashOut.toLocaleString()}\` \`${cashOutMultStr}\`\n\n` +
+               `***`;
     } else {
         // playing
+        const cashOutLine = game.diamondsFound > 0
+            ? `Cash Out: \`${cashOutValStr}\` \`${cashOutMultStr}\``
+            : `Cash Out: \`-\``;
         desc = `⛏️ <@${game.userId}>'s **mines**\n\n` +
                `Bet: \`${betStr}\`   Mines: \`${minesStr}\`\n` +
-               `Cash Out: \`${game.diamondsFound > 0 ? cashOutStr : '-'}\`\n` +
-               `Next: \`${nextStr}\`\n` +
-               `───────────────────────────`;
+               `${cashOutLine}\n` +
+               `Next: \`${nextValStr}\` \`${nextMultStr}\`\n\n` +
+               `***`;
     }
 
     embed.setDescription(desc);
@@ -9896,8 +9901,14 @@ if (command === 'mibanminigame' || command === 'mibanmg') {
 
         const userData = getUserData(userId);
 
-        // NẾU KHÔNG NHẬP TIỀN CƯỢC -> CHẾ ĐỘ ĐÀO KHOÁNG SẢN MIỄN PHÍ VÀO KHO ĐỒ
+        // NẾU KHÔNG NHẬP TIỀN CƯỢC -> CHẾ ĐỘ ĐÀO KHOÁNG SẢN MIỄN PHÍ VÀO KHO ĐỒ (Chỉ khi gõ lệnh midao)
         if (!args[1]) {
+            if (command !== 'midao') {
+                return message.reply({
+                    content: `❌ Bạn chưa nhập số tiền cược!\n💡 **Cách chơi Đào Kim Cương (Mines 3x3 chuẩn OwO):**\nCú pháp: \`${command} [số_tiền/all] [số_bom (1-8)]\`\nVí dụ: \`${command} 50k 1\` hoặc \`${command} 50000 3\``,
+                    allowedMentions: { repliedUser: false }
+                });
+            }
             const now = Date.now();
             const cooldown = 60 * 1000; // 60 giây
             if (userData.lastDaoKhoangSan && now - userData.lastDaoKhoangSan < cooldown) {
