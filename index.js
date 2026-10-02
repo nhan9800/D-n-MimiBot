@@ -1302,18 +1302,18 @@ function buildMineEmbed(game, status = 'playing') {
         desc = `💥 <@${game.userId}> **touched a mine!**\n\n` +
                `Bet: \`${betStr}\`   Mines: \`${minesStr}\`\n` +
                `~~Cash Out: \`${cashOutValStr}\` \`${cashOutMultStr}\`~~\n` +
-               `~~Next: \`${nextValStr}\` \`${nextMultStr}\`~~\n\n` +
-               `***`;
+               `~~Next: \`${nextValStr}\` \`${nextMultStr}\`~~\n` +
+               `───────────────────────────`;
     } else if (status === 'cashed_out') {
         desc = `💰 <@${game.userId}> **cashed out!**\n\n` +
                `Bet: \`${betStr}\`   Mines: \`${minesStr}\`\n` +
-               `Cash Out: \`${game.currentCashOut.toLocaleString()}\` \`${cashOutMultStr}\`\n\n` +
-               `***`;
+               `Cash Out: \`${game.currentCashOut.toLocaleString()}\` \`${cashOutMultStr}\`\n` +
+               `───────────────────────────`;
     } else if (status === 'cleared') {
         desc = `🎉 <@${game.userId}> **cleared the board!**\n\n` +
                `Bet: \`${betStr}\`   Mines: \`${minesStr}\`\n` +
-               `Cash Out: \`${game.currentCashOut.toLocaleString()}\` \`${cashOutMultStr}\`\n\n` +
-               `***`;
+               `Cash Out: \`${game.currentCashOut.toLocaleString()}\` \`${cashOutMultStr}\`\n` +
+               `───────────────────────────`;
     } else {
         // playing
         const cashOutLine = game.diamondsFound > 0
@@ -1322,8 +1322,8 @@ function buildMineEmbed(game, status = 'playing') {
         desc = `⛏️ <@${game.userId}>'s **mines**\n\n` +
                `Bet: \`${betStr}\`   Mines: \`${minesStr}\`\n` +
                `${cashOutLine}\n` +
-               `Next: \`${nextValStr}\` \`${nextMultStr}\`\n\n` +
-               `***`;
+               `Next: \`${nextValStr}\` \`${nextMultStr}\`\n` +
+               `───────────────────────────`;
     }
 
     embed.setDescription(desc);
@@ -5137,6 +5137,23 @@ async function sekCurrentTrack(guildId, targetSec) {
     return { ok: true };
 }
 
+// 🧹 Dọn dẹp file tạm fragment mồ côi do yt-dlp để lại (tránh lỗi No such file or directory: '--Frag*')
+function cleanupOrphanedMusicFragments() {
+    try {
+        const rootDir = __dirname;
+        const files = fs.readdirSync(rootDir);
+        for (const file of files) {
+            if (file.startsWith('--Frag') || file.startsWith('-Frag') || file.endsWith('.part')) {
+                const fullPath = path.join(rootDir, file);
+                try {
+                    fs.unlinkSync(fullPath);
+                    console.log(`🧹 [Music] Đã dọn file tạm fragment mồ côi: ${file}`);
+                } catch {}
+            }
+        }
+    } catch {}
+}
+
 //   • seekSec  — bắt đầu phát từ giây này (khôi phục phiên / lệnh /sek). >0 -> đi qua ffmpeg.
 //   • effectKey — khóa hiệu ứng trong AUDIO_EFFECTS ('none' = không lọc). khác 'none' -> đi qua ffmpeg.
 //   • replayCurrent — phát LẠI mq.current thay vì lấy bài kế (dùng cho seek / đổi hiệu ứng giữa bài).
@@ -5260,6 +5277,8 @@ async function playNextTrack(guildId, opts = {}) {
     try {
         // Gọi yt-dlp dưới dạng tiến trình con, xuất thẳng audio (webm/opus) ra stdout,
         // discord.js/voice sẽ tự demux Opus từ webm mà KHÔNG cần cài thêm ffmpeg riêng.
+        // Tuyệt đối không dùng concurrentFragments khi xuất pipe ra stdout ('-') để tránh
+        // lỗi tạo file tạm '--Frag*' bị No such file or directory trên stream HLS/DASH dài.
         const ytdlOpts = {
             output: '-',
             format: 'bestaudio/best',
@@ -5268,8 +5287,10 @@ async function playNextTrack(guildId, opts = {}) {
             noCheckCertificates: true,
             quiet: true,
             noPart: true,
-            concurrentFragments: 4,
-            socketTimeout: 8,
+            socketTimeout: 30,
+            retries: 10,
+            fragmentRetries: 10,
+            skipUnavailableFragments: true,
             bufferSize: '1024K',
             forceIpv4: true
         };
@@ -5296,10 +5317,12 @@ async function playNextTrack(guildId, opts = {}) {
             const rawErr = stderrBuffer || err.message || '';
             console.error(`❌ [Music] yt-dlp lỗi khi phát "${next.title}" ở server ${guildId}:`, rawErr);
 
-            const isRetryable = /403|forbidden|Requested format is not available|Sign in to confirm you|bot|confirm you’re not a bot|needs_auth|login/i.test(rawErr);
+            cleanupOrphanedMusicFragments();
+
+            const isRetryable = /403|forbidden|Requested format is not available|Sign in to confirm you|bot|confirm you’re not a bot|needs_auth|login|Unable to download|No such file|Frag|timeout|IncompleteRead|HTTP Error 5|Connection reset|timed out|network/i.test(rawErr);
             const nextAttempt = clientAttempt + 1;
             if (isRetryable && nextAttempt < YT_DOWNLOAD_CLIENT_FALLBACKS.length) {
-                console.warn(`🔁 [Music] 403 với client #${clientAttempt} — thử lại "${next.title}" bằng bộ client #${nextAttempt}.`);
+                console.warn(`🔁 [Music] Thử lại client #${nextAttempt} cho "${next.title}".`);
                 playNextTrack(guildId, {
                     replayCurrent: true,
                     seekSec,
@@ -5309,10 +5332,10 @@ async function playNextTrack(guildId, opts = {}) {
                 return;
             }
 
-            // 🛡️ BẢO HIỂM 403: NẾU YOUTUBE 403 HẾT CÁC CLIENT -> TỰ ĐỘNG PHÁT TỪ SOUNDCLOUD
-            if (isRetryable && !next.scFallbackAttempted) {
+            // 🛡️ BẢO HIỂM 403 / LỖI TẢI: NẾU YOUTUBE LỖI/CHẶN BÀI NÀY -> TỰ ĐỘNG PHÁT TỪ SOUNDCLOUD
+            if (!next.scFallbackAttempted) {
                 next.scFallbackAttempted = true;
-                console.warn(`🔄 [Music] YouTube 403 toàn bộ client -> Tự động tìm nguồn phát SoundCloud cho "${next.title}"...`);
+                console.warn(`🔄 [Music] Nguồn YouTube gặp sự cố ("${next.title}") -> Tự động tìm nguồn phát SoundCloud...`);
                 try {
                     const scTrack = await searchSoundcloud(next.title);
                     if (scTrack && scTrack.url) {
@@ -5320,7 +5343,7 @@ async function playNextTrack(guildId, opts = {}) {
                         next.url = scTrack.url;
                         next.source = 'SoundCloud';
                         if (mq.textChannel) {
-                            mq.textChannel.send({ embeds: [buildMusicNoticeContainer('🔄 Tự Động Chuyển Nguồn Nhạc', `YouTube đang chặn kết nối IP (403). MIMI đã tự động chuyển sang phát từ **SoundCloud** mượt mà cho bài **${next.title}**!`, 0x00D2D3)] }).catch(() => null);
+                            mq.textChannel.send({ embeds: [buildMusicNoticeContainer('🔄 Tự Động Chuyển Nguồn Nhạc', `YouTube gặp sự cố tải file. MIMI đã tự động chuyển sang phát từ **SoundCloud** mượt mà cho bài **${next.title}**!`, 0x00D2D3)] }).catch(() => null);
                         }
                         return playNextTrack(guildId, {
                             replayCurrent: true,
@@ -6050,6 +6073,7 @@ async function postUpdateAnnouncement() {
 // -----------------------------------------------------------------
 client.once('ready', async () => {
     antiRaid.initAntiRaid(client);
+    cleanupOrphanedMusicFragments();
 
     // Auto unban interval
     setInterval(() => {
@@ -8819,6 +8843,62 @@ if (command === 'mibanminigame' || command === 'mibanmg') {
         return;
     }
 
+// ==========================================
+// 🌄 HỆ THỐNG LƯU TRỮ VÀ XỬ LÝ ẢNH NỀN PROFILE (VĨNH VIỄN & CHỐNG HẾT HẠN)
+// ==========================================
+const BG_DIR = path.join(__dirname, 'data', 'backgrounds');
+if (!fs.existsSync(BG_DIR)) {
+    try { fs.mkdirSync(BG_DIR, { recursive: true }); } catch {}
+}
+
+function getUserBackgroundPath(uId) {
+    if (!fs.existsSync(BG_DIR)) return null;
+    for (const ext of ['png', 'jpg', 'jpeg', 'gif', 'webp']) {
+        const p = path.join(BG_DIR, `${uId}.${ext}`);
+        if (fs.existsSync(p)) return { filePath: p, ext };
+    }
+    return null;
+}
+
+async function saveUserBackground(uId, url) {
+    try {
+        if (!fs.existsSync(BG_DIR)) fs.mkdirSync(BG_DIR, { recursive: true });
+        const controller = new AbortController();
+        const timeout = setTimeout(() => controller.abort(), 15000);
+        const res = await fetch(url, {
+            signal: controller.signal,
+            headers: {
+                'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36'
+            }
+        });
+        clearTimeout(timeout);
+        if (!res.ok) throw new Error(`Máy chủ trả về HTTP ${res.status}`);
+        const contentType = (res.headers.get('content-type') || '').toLowerCase();
+        const buffer = Buffer.from(await res.arrayBuffer());
+        if (buffer.length < 100) throw new Error('File ảnh rỗng hoặc không tải được!');
+        if (buffer.length > 8 * 1024 * 1024) throw new Error('Dung lượng ảnh vượt quá 8MB!');
+
+        let ext = 'png';
+        if (contentType.includes('jpeg') || contentType.includes('jpg')) ext = 'jpg';
+        else if (contentType.includes('gif')) ext = 'gif';
+        else if (contentType.includes('webp')) ext = 'webp';
+
+        // Xoá các định dạng cũ của user nếu có
+        ['png', 'jpg', 'jpeg', 'gif', 'webp'].forEach(e => {
+            const oldP = path.join(BG_DIR, `${uId}.${e}`);
+            if (fs.existsSync(oldP)) {
+                try { fs.unlinkSync(oldP); } catch {}
+            }
+        });
+
+        const savePath = path.join(BG_DIR, `${uId}.${ext}`);
+        fs.writeFileSync(savePath, buffer);
+        return { success: true, filePath: savePath, ext };
+    } catch (err) {
+        return { success: false, error: err.message || 'Lỗi không xác định khi tải ảnh' };
+    }
+}
+
     // 2. Lệnh xem hồ sơ: miprofile hoặc mip
     if (command === 'miprofile' || command === 'mip') {
         const userData = getUserData(userId);
@@ -8843,6 +8923,26 @@ if (command === 'mibanminigame' || command === 'mibanmg') {
             try { btnShop.setEmoji(PROFILE_EMOJI.diamond); } catch {}
 
         const row = new ActionRowBuilder().addComponents(btnSell, btnShop);
+
+        // Kiểm tra ảnh nền Profile
+        let bgAttachment = null;
+        let bgInfo = getUserBackgroundPath(userId);
+
+        // Nếu chưa lưu local nhưng user có URL cũ trong userData.bgUrl -> thử tải và cache về máy
+        if (!bgInfo && userData.bgUrl && userData.bgUrl.startsWith('http')) {
+            const cached = await saveUserBackground(userId, userData.bgUrl);
+            if (cached.success) {
+                bgInfo = { filePath: cached.filePath, ext: cached.ext };
+                userData.bgUrl = 'local';
+                saveEconomy();
+            } else {
+                // Link cũ đã chết / hết hạn -> xoá để không bao giờ hiện khung ảnh vỡ nữa
+                userData.bgUrl = null;
+                saveEconomy();
+            }
+        }
+
+        const hasBg = !!bgInfo || (userData.bgUrl && userData.bgUrl !== 'broken');
 
         const profileContainer = new ContainerBuilder()
             .setAccentColor(0x5865F2)
@@ -8886,7 +8986,7 @@ if (command === 'mibanminigame' || command === 'mibanmg') {
                     `### ${PROFILE_EMOJI.heart} Thông tin cá nhân\n` +
                     `> ${PROFILE_EMOJI.heart} **Tình trạng:** ${userData.spouseId ? `Đã kết hôn với <@${userData.spouseId}>` : 'Độc thân'}\n` +
                     `> ${PROFILE_EMOJI.ring} **Nhẫn cưới:** ${userData.inventory?.nhan_cuoi ? `${PROFILE_EMOJI.check} Có trang bị` : '❌ Không có'}\n` +
-                    `> ${PROFILE_EMOJI.image} **Ảnh nền:** ${userData.bgUrl ? `${PROFILE_EMOJI.check} Đã trang bị` : '❌ Chưa trang bị'}`
+                    `> ${PROFILE_EMOJI.image} **Ảnh nền:** ${hasBg ? `${PROFILE_EMOJI.check} Đã trang bị` : '❌ Chưa trang bị'}`
                 )
             )
             .addSeparatorComponents(
@@ -8901,20 +9001,22 @@ if (command === 'mibanminigame' || command === 'mibanmg') {
                 )
             );
         
-        // Hiển thị ảnh Background nếu đã trang bị và link hợp lệ
-        if (userData.bgUrl && userData.bgUrl.match(/\.(jpeg|jpg|gif|png|webp)(\?.*)?$/i)) {
+        // Hiển thị ảnh Background đính kèm trực tiếp (Native Attachment) — không bao giờ lỗi/hết hạn
+        if (bgInfo) {
+            const fileName = `profile_bg_${userId}.${bgInfo.ext}`;
+            bgAttachment = new AttachmentBuilder(bgInfo.filePath, { name: fileName });
             profileContainer
                 .addSeparatorComponents(
                     new SeparatorBuilder().setSpacing(SeparatorSpacingSize.Small).setDivider(true)
                 )
                 .addMediaGalleryComponents(
                     new MediaGalleryBuilder().addItems(
-                        new MediaGalleryItemBuilder().setURL(userData.bgUrl)
+                        new MediaGalleryItemBuilder().setURL(`attachment://${fileName}`)
                     )
                 );
-        } else if (userData.bgUrl) {
+        } else if (userData.bgUrl && userData.bgUrl !== 'local') {
             profileContainer.addTextDisplayComponents(
-                new TextDisplayBuilder().setContent(`> ⚠️ *Ảnh nền bị lỗi. Dùng \`mibg clear\` để xoá hoặc đặt lại ảnh có đuôi .png/.jpg!*`)
+                new TextDisplayBuilder().setContent(`> ⚠️ *Ảnh nền trước đây đã hết hạn hoặc không khả dụng. Bạn hãy dùng lệnh \`mibg\` đính kèm ảnh mới để cài đặt lại nhé!*`)
             );
         }
         
@@ -8924,10 +9026,16 @@ if (command === 'mibanminigame' || command === 'mibanmg') {
             )
             .addActionRowComponents(row);
 
-        return message.reply({
-            components: [profileContainer], flags: MessageFlags.IsComponentsV2,
+        const replyPayload = {
+            components: [profileContainer],
+            flags: MessageFlags.IsComponentsV2,
             allowedMentions: { repliedUser: false }
-        });
+        };
+        if (bgAttachment) {
+            replyPayload.files = [bgAttachment];
+        }
+
+        return message.reply(replyPayload);
     }
 
     // ==========================================
@@ -9051,18 +9159,43 @@ if (command === 'mibanminigame' || command === 'mibanmg') {
         }
         
         if (args[1] === 'clear' || args[1] === 'xoa') {
+            ['png', 'jpg', 'jpeg', 'gif', 'webp'].forEach(e => {
+                const oldP = path.join(BG_DIR, `${userId}.${e}`);
+                if (fs.existsSync(oldP)) { try { fs.unlinkSync(oldP); } catch {} }
+            });
             userData.bgUrl = null;
             saveEconomy();
             return message.reply('✅ Đã xóa Ảnh Bìa Profile! Ảnh bìa của bạn đã trở về mặc định.');
         }
 
-        const url = args[1];
-        if (!url || !url.startsWith('http') || !url.match(/\.(jpeg|jpg|gif|png|webp)(\?.*)?$/i)) {
-            return message.reply('❌ Vui lòng cung cấp link ảnh trực tiếp hợp lệ (đuôi .png, .jpg, .gif, .webp)!\nVí dụ: \`mibg https://i.imgur.com/abc.png\`\nHoặc gõ \`mibg clear\` để xóa nền bị lỗi.');
+        const attachment = message.attachments.find(a => 
+            a.contentType?.startsWith('image/') || 
+            /\.(jpeg|jpg|gif|png|webp)(\?.*)?$/i.test(a.name || a.url)
+        );
+        const targetUrl = attachment ? attachment.url : args[1];
+
+        if (!targetUrl || !targetUrl.startsWith('http')) {
+            return message.reply('❌ Vui lòng đính kèm file ảnh hoặc cung cấp link ảnh trực tiếp hợp lệ (đuôi .png, .jpg, .gif, .webp)!\n💡 **Cách dùng:**\n• Gửi ảnh từ máy tính/điện thoại kèm chữ `mibg`\n• Hoặc gõ: `mibg <link_ảnh>`\n• Gõ `mibg clear` để xóa nền.');
         }
-        userData.bgUrl = url;
+
+        const waitMsg = await message.reply('⏳ Đang tải và lưu trữ ảnh nền của bạn lên máy chủ Mimi...').catch(() => null);
+        const saveRes = await saveUserBackground(userId, targetUrl);
+
+        if (!saveRes.success) {
+            const errReply = `❌ Không thể lưu ảnh nền này: **${saveRes.error}**\n💡 Vui lòng thử lại bằng cách gửi trực tiếp file ảnh từ máy của bạn kèm chữ \`mibg\`.`;
+            if (waitMsg) return waitMsg.edit(errReply);
+            return message.reply(errReply);
+        }
+
+        userData.bgUrl = 'local';
         saveEconomy();
-        return message.reply('✅ Đã cập nhật Ảnh Bìa Profile thành công! Dùng `miprofile` để xem.');
+
+        const previewAttachment = new AttachmentBuilder(saveRes.filePath, { name: `preview_${userId}.${saveRes.ext}` });
+        const successText = '✅ Đã lưu trữ và cài đặt **Ảnh Bìa Profile** thành công! Hình ảnh đã được lưu vĩnh viễn trên máy chủ Mimi Bot.\nDùng lệnh `miprofile` để xem thẻ hồ sơ của bạn!';
+        if (waitMsg) {
+            await waitMsg.delete().catch(() => null);
+        }
+        return message.reply({ content: successText, files: [previewAttachment] });
     }
     
     // ==========================================
@@ -15703,7 +15836,7 @@ if (commandName === 'changelog') {
         // ==========================================
         // ⛏️ XỬ LÝ NÚT MINIGAME ĐÀO KIM CƯƠNG (CHUẨN OWO BOT)
         // ==========================================
-        if (customId.startsWith('mine_tile_') || customId.startsWith('mine_cashout_')) {
+        if (customId && (customId.startsWith('mine_tile_') || customId.startsWith('mine_cashout_'))) {
             const game = diamondMineGames.get(user.id);
             if (!game || !customId.includes(game.id)) {
                 return interaction.reply({ content: '❌ Ván đào kim cương này đã kết thúc hoặc không phải của bạn!', flags: MessageFlags.Ephemeral });
@@ -15720,6 +15853,7 @@ if (commandName === 'changelog') {
             }
 
             if (game.timeoutHandle) clearTimeout(game.timeoutHandle);
+            const currentGuildId = guild ? guild.id : (game ? game.guildId : null);
 
             // Nút Rút Tiền (Cash Out)
             if (customId.startsWith('mine_cashout_')) {
@@ -15733,8 +15867,8 @@ if (commandName === 'changelog') {
                 const profit = winAmount - game.bet;
                 const userData = getUserData(user.id);
                 userData.balance += winAmount;
-                if (profit > 0) {
-                    recordEconomyIncome(user.id, guild.id, profit, 'diamond_mine_win');
+                if (profit > 0 && currentGuildId) {
+                    recordEconomyIncome(user.id, currentGuildId, profit, 'diamond_mine_win');
                     addTransaction(user.id, 'in', profit, 'Thắng đào kim cương (Cash Out)');
                 }
                 saveEconomy();
@@ -15760,8 +15894,10 @@ if (commandName === 'changelog') {
                     game.touchedMineIdx = idx;
                     diamondMineGames.delete(user.id);
 
-                    recordEconomyExpense(user.id, guild.id, game.bet, 'diamond_mine_loss');
-                    addTransaction(user.id, 'out', game.bet, 'Thua đào kim cương (trúng bom)');
+                    if (currentGuildId) {
+                        recordEconomyExpense(user.id, currentGuildId, game.bet, 'diamond_mine_loss');
+                        addTransaction(user.id, 'out', game.bet, 'Thua đào kim cương (trúng bom)');
+                    }
 
                     const bombEmbed = buildMineEmbed(game, 'touched_mine');
                     return interaction.update({ embeds: [bombEmbed], components: buildMineGridRows(game) }).catch(() => null);
@@ -15781,8 +15917,10 @@ if (commandName === 'changelog') {
                     const profit = winAmount - game.bet;
                     const userData = getUserData(user.id);
                     userData.balance += winAmount;
-                    recordEconomyIncome(user.id, guild.id, profit, 'diamond_mine_jackpot');
-                    addTransaction(user.id, 'in', profit, 'Thắng JACKPOT đào kim cương');
+                    if (currentGuildId) {
+                        recordEconomyIncome(user.id, currentGuildId, profit, 'diamond_mine_jackpot');
+                        addTransaction(user.id, 'in', profit, 'Thắng JACKPOT đào kim cương');
+                    }
                     saveEconomy();
 
                     const jackpotEmbed = buildMineEmbed(game, 'cleared');
