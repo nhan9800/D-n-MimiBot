@@ -8913,7 +8913,8 @@ async function saveUserBackground(uId, url) {
         const progressBar = '▰'.repeat(filled) + '▱'.repeat(barLen - filled);
         
         // Tính toán thêm thông tin
-        const petInfo = userData.pet ? `${userData.pet.type === 'dog' ? '🐶' : '🐱'} **${userData.pet.name}** (Level ${userData.pet.level || 1})` : '❌ Chưa nuôi';
+        const petEmoji = userData.pet ? (userData.pet.emoji || (userData.pet.type === 'dog' ? '🐶' : (userData.pet.type === 'cat' ? '🐱' : (userData.pet.type === 'parrot' ? '🦜' : '🐰')))) : '';
+        const petInfo = userData.pet ? `${petEmoji} **${userData.pet.name}** (Level ${userData.pet.level || 1})` : '❌ Chưa nuôi';
         const canCauInfo = userData.cancau_uses ? `**${userData.cancau_uses}** lượt` : '❌ Chưa mua';
         const cuocInfo = userData.cuoc_uses ? `**${userData.cuoc_uses}** lượt` : '❌ Chưa mua';
 
@@ -9252,6 +9253,111 @@ async function saveUserBackground(uId, url) {
         return message.reply({ embeds: [res.embed] });
     }
 
+// ==========================================
+// 🐾 HỆ THỐNG QUẢN LÝ & CẬP NHẬT TRẠNG THÁI THÚ CƯNG (PET SYSTEM V2)
+// ==========================================
+function applyPetDecayRealtime(pet) {
+    if (!pet) return false;
+    const now = Date.now();
+    if (!pet.lastDecay) pet.lastDecay = now;
+    const elapsed = now - pet.lastDecay;
+    const DECAY_INTERVAL_MS = 10 * 60 * 1000;
+    if (elapsed >= DECAY_INTERVAL_MS) {
+        const missedTicks = Math.floor(elapsed / DECAY_INTERVAL_MS);
+        const totalDecay = Math.round((100 / (12 * 6)) * missedTicks);
+        if (totalDecay > 0) {
+            pet.hunger = Math.max(0, pet.hunger - totalDecay);
+            pet.happiness = Math.max(0, pet.happiness - totalDecay);
+            pet.lastDecay = now;
+            return true;
+        }
+    }
+    return false;
+}
+
+function makePetProgressBar(value, max = 100, length = 10) {
+    const safeMax = max > 0 ? max : 100;
+    const pct = Math.max(0, Math.min(1, (Number(value) || 0) / safeMax));
+    const filled = Math.round(pct * length);
+    return '▰'.repeat(filled) + '▱'.repeat(length - filled);
+}
+
+function getPetMood(pet) {
+    if (pet.hunger >= 80 && pet.happiness >= 80) {
+        return { text: '🌟 Cực kỳ hạnh phúc & Sung mãn', color: 0x00FFA3, desc: 'Bé đang rất no và vui vẻ! Đang mang lại vận may cho chủ nhân!' };
+    }
+    if (pet.hunger >= 50 && pet.happiness >= 50) {
+        return { text: '😊 Khỏe mạnh & Vui tươi', color: 0x2ECC71, desc: 'Bé đang cảm thấy rất thoải mái và yêu quý bạn.' };
+    }
+    if (pet.hunger >= 20 && pet.happiness >= 20) {
+        return { text: '🥺 Hơi đói & Cần quan tâm', color: 0xF39C12, desc: 'Bé bắt đầu đói bụng rồi, hãy cho bé ăn và chơi cùng nhé!' };
+    }
+    return { text: '🚨 Đói lả & Kiệt sức', color: 0xE74C3C, desc: 'Bé đang rất đói và buồn! Cần được cho ăn và chăm sóc khẩn cấp!' };
+}
+
+function buildPetEmbed(user, pet, notice = '') {
+    const hungerBar = makePetProgressBar(pet.hunger, 100, 10);
+    const happyBar = makePetProgressBar(pet.happiness, 100, 10);
+    const xpNeeded = pet.level * 100;
+    const xpBar = makePetProgressBar(pet.xp, xpNeeded, 10);
+    const mood = getPetMood(pet);
+
+    const hungerLabel = pet.hunger >= 80 ? '🟢 No nê' : (pet.hunger >= 50 ? '🟡 Vừa bụng' : (pet.hunger >= 20 ? '🟠 Hơi đói' : '🔴 Rất đói'));
+    const happyLabel = pet.happiness >= 80 ? '🟢 Phấn khích' : (pet.happiness >= 50 ? '🟡 Vui vẻ' : (pet.happiness >= 20 ? '🟠 Hơi buồn' : '🔴 Buồn chán'));
+
+    const desc = (notice ? `${notice}\n\n` : '') +
+        `**${pet.emoji || '🐾'} Tên thú cưng:** \`${pet.name}\`\n` +
+        `**⭐ Cấp độ:** \`Level ${pet.level}\`\n` +
+        `**📈 Tiến trình XP:** \`${pet.xp} / ${xpNeeded} XP\`\n` +
+        `> ${xpBar} **${Math.round((pet.xp / xpNeeded) * 100)}%**\n\n` +
+        `**🎭 Tâm trạng hiện tại:** **${mood.text}**\n` +
+        `*${mood.desc}*`;
+
+    const embed = new EmbedBuilder()
+        .setColor(mood.color)
+        .setTitle(`🐾 HỒ SƠ THÚ CƯNG — ${user.username.toUpperCase()}`)
+        .setDescription(desc)
+        .addFields(
+            { name: '🍖 Độ No', value: `> ${hungerBar}\n> **${pet.hunger}/100** (${hungerLabel})`, inline: true },
+            { name: '🎾 Vui Vẻ', value: `> ${happyBar}\n> **${pet.happiness}/100** (${happyLabel})`, inline: true }
+        )
+        .setThumbnail(user.displayAvatarURL({ extension: 'png', size: 256 }))
+        .setFooter({ text: 'Bấm nút bên dưới để chăm sóc — Chỉ số và thanh trạng thái sẽ tự động nhảy số tức thì!' })
+        .setTimestamp();
+
+    return embed;
+}
+
+function buildPetComponents(ownerId, pet, userData) {
+    const isHungry = pet.hunger < 100;
+    const now = Date.now();
+    const isTired = userData.cooldowns?.pet_play && now < userData.cooldowns.pet_play;
+    const timeLeft = isTired ? Math.ceil((userData.cooldowns.pet_play - now) / 1000) : 0;
+
+    const row = new ActionRowBuilder().addComponents(
+        new ButtonBuilder()
+            .setCustomId(`pet_feed:${ownerId}`)
+            .setLabel('🍖 Cho Ăn (10k xu)')
+            .setStyle(ButtonStyle.Success)
+            .setDisabled(!isHungry),
+        new ButtonBuilder()
+            .setCustomId(`pet_play:${ownerId}`)
+            .setLabel(isTired ? `🎾 Chơi Cùng (${timeLeft}s)` : '🎾 Chơi Cùng')
+            .setStyle(ButtonStyle.Primary)
+            .setDisabled(pet.happiness >= 100 || isTired),
+        new ButtonBuilder()
+            .setCustomId(`pet_rename:${ownerId}`)
+            .setLabel('✏️ Đổi Tên')
+            .setStyle(ButtonStyle.Secondary),
+        new ButtonBuilder()
+            .setCustomId(`pet_refresh:${ownerId}`)
+            .setLabel('🔄 Làm Mới')
+            .setStyle(ButtonStyle.Secondary)
+    );
+
+    return [row];
+}
+
     // 🐾 LỆNH NUÔI THÚ: mipet | minuoithu
     if (command === 'mipet' || command === 'minuoithu') {
         const userData = getUserData(userId);
@@ -9259,60 +9365,30 @@ async function saveUserBackground(uId, url) {
             const adoptEmbed = new EmbedBuilder()
                 .setColor('#E67E22')
                 .setTitle('🐾 SHOP THÚ CƯNG')
-                .setDescription('Bạn chưa có thú cưng nào! Hãy chọn mua một bé thú cưng để làm bạn nhé.\\n\\n' +
-                                '🐶 **Chó Cún** - `2,000,000 xu`\\n' +
-                                '🐱 **Mèo Miu** - `2,000,000 xu`\\n' +
-                                '🦜 **Vẹt** - `2,000,000 xu`\\n' +
-                                '🐰 **Thỏ** - `2,000,000 xu`')
+                .setDescription('Bạn chưa có thú cưng nào! Hãy chọn mua một bé thú cưng để làm bạn và nhận nhiều may mắn nhé:\n\n' +
+                                '🐶 **Chó Cún** — `2,000,000 xu` *(Trung thành, nhanh nhẹn)*\n' +
+                                '🐱 **Mèo Miu** — `2,000,000 xu` *(Đáng yêu, may mắn)*\n' +
+                                '🦜 **Vẹt** — `2,000,000 xu` *(Thông minh, vui nhộn)*\n' +
+                                '🐰 **Thỏ Trắng** — `2,000,000 xu` *(Hiền lành, nhanh nhẹn)*')
                 .setThumbnail(message.author.displayAvatarURL());
             
             const row = new ActionRowBuilder().addComponents(
-                new ButtonBuilder().setCustomId('pet_adopt_dog').setLabel('🐶 Chó').setStyle(ButtonStyle.Primary),
-                new ButtonBuilder().setCustomId('pet_adopt_cat').setLabel('🐱 Mèo').setStyle(ButtonStyle.Primary),
-                new ButtonBuilder().setCustomId('pet_adopt_parrot').setLabel('🦜 Vẹt').setStyle(ButtonStyle.Primary),
-                new ButtonBuilder().setCustomId('pet_adopt_rabbit').setLabel('🐰 Thỏ').setStyle(ButtonStyle.Primary)
+                new ButtonBuilder().setCustomId('pet_adopt_dog').setLabel('🐶 Nhận Nuôi Chó').setStyle(ButtonStyle.Primary),
+                new ButtonBuilder().setCustomId('pet_adopt_cat').setLabel('🐱 Nhận Nuôi Mèo').setStyle(ButtonStyle.Primary),
+                new ButtonBuilder().setCustomId('pet_adopt_parrot').setLabel('🦜 Nhận Nuôi Vẹt').setStyle(ButtonStyle.Primary),
+                new ButtonBuilder().setCustomId('pet_adopt_rabbit').setLabel('🐰 Nhận Nuôi Thỏ').setStyle(ButtonStyle.Primary)
             );
             return message.reply({ embeds: [adoptEmbed], components: [row] });
         }
 
         const pet = userData.pet;
-        
-        // Tính toán decay real-time khi xem
-        const now = Date.now();
-        if (!pet.lastDecay) pet.lastDecay = now;
-        const elapsed = now - pet.lastDecay;
-        const DECAY_INTERVAL_MS = 10 * 60 * 1000;
-        if (elapsed >= DECAY_INTERVAL_MS) {
-            const missedTicks = Math.floor(elapsed / DECAY_INTERVAL_MS);
-            const totalDecay = Math.round((100 / (12 * 6)) * missedTicks);
-            if (totalDecay > 0) {
-                pet.hunger = Math.max(0, pet.hunger - totalDecay);
-                pet.happiness = Math.max(0, pet.happiness - totalDecay);
-                pet.lastDecay = now;
-                saveEconomy();
-            }
-        }
-        
-        const hungerStatus = pet.hunger >= 80 ? '🟢 Căng bụng' : (pet.hunger >= 40 ? '🟡 Hơi đói' : (pet.hunger >= 20 ? '🟠 Khá đói' : '🔴 Rất đói'));
-        const happyStatus = pet.happiness >= 80 ? '🟢 Vui vẻ' : (pet.happiness >= 40 ? '🟡 Bình thường' : (pet.happiness >= 20 ? '🟠 Hơi buồn' : '🔴 Buồn chán'));
+        const changed = applyPetDecayRealtime(pet);
+        if (changed) saveEconomy();
 
-        const petEmbed = new EmbedBuilder()
-            .setColor('#2ECC71')
-            .setTitle(`🐾 THÚ CƯNG CỦA ${message.author.username.toUpperCase()}`)
-            .setDescription(`**${pet.emoji} Tên:** ${pet.name}\n**⭐ Cấp độ:** ${pet.level}\n**📈 XP:** ${pet.xp}/${pet.level * 100}`)
-            .addFields(
-                { name: '🍖 Độ No', value: `**${pet.hunger}/100** (${hungerStatus})`, inline: true },
-                { name: '🎾 Vui Vẻ', value: `**${pet.happiness}/100** (${happyStatus})`, inline: true }
-            )
-            .setFooter({ text: 'Hãy chăm sóc thú cưng thường xuyên để bé mau lớn nhé!' })
-            .setThumbnail(message.author.displayAvatarURL());
-        
-        const row = new ActionRowBuilder().addComponents(
-            new ButtonBuilder().setCustomId('pet_feed').setLabel('🍖 Cho Ăn (10k xu)').setStyle(ButtonStyle.Success).setDisabled(pet.hunger >= 100),
-            new ButtonBuilder().setCustomId('pet_play').setLabel('🎾 Chơi Cùng').setStyle(ButtonStyle.Primary).setDisabled(pet.happiness >= 100)
-        );
+        const petEmbed = buildPetEmbed(message.author, pet);
+        const components = buildPetComponents(userId, pet, userData);
 
-        return message.reply({ embeds: [petEmbed], components: [row] });
+        return message.reply({ embeds: [petEmbed], components: components });
     }
 
     // 3. Lệnh tung đồng xu: micf | micoinflip | giới hạn 250,000 xu / lần, hỗ trợ 'all'
@@ -15436,55 +15512,124 @@ if (commandName === 'changelog') {
                 emoji: pInfo.emoji,
                 level: 1,
                 xp: 0,
-                hunger: 50,
-                happiness: 50,
+                hunger: 60,
+                happiness: 60,
                 lastDecay: Date.now(),
                 petDmWarnings: 0
             };
             saveEconomy();
-            return interaction.reply({ content: `✅ Chúc mừng! Bạn đã mua thành công một bé **${pInfo.emoji} ${pInfo.name}**! Dùng lệnh \`mipet\` để xem và chăm sóc nhé.`, flags: MessageFlags.Ephemeral });
+
+            const notice = `🎉 Chúc mừng bạn đã nhận nuôi thành công bé **${pInfo.emoji} ${pInfo.name}**! Hãy chăm sóc bé chu đáo nhé!`;
+            return interaction.update({
+                embeds: [buildPetEmbed(interaction.user, userData.pet, notice)],
+                components: buildPetComponents(interaction.user.id, userData.pet, userData)
+            }).catch(() => {
+                return interaction.reply({ content: `✅ Chúc mừng! Bạn đã nhận nuôi thành công bé **${pInfo.emoji} ${pInfo.name}**! Dùng lệnh \`mipet\` để xem và chăm sóc nhé.`, flags: MessageFlags.Ephemeral });
+            });
         }
 
-        if (customId === 'pet_feed' || customId === 'pet_play') {
+        // ==========================================
+        // 🐾 XỬ LÝ NÚT CHĂM SÓC THÚ CƯNG TỰ ĐỘNG CẬP NHẬT TRẠNG THÁI REAL-TIME
+        // ==========================================
+        if (customId && (customId.startsWith('pet_feed') || customId.startsWith('pet_play') || customId.startsWith('pet_refresh') || customId.startsWith('pet_rename'))) {
+            const ownerId = customId.includes(':') ? customId.split(':')[1] : null;
+            if (ownerId && interaction.user.id !== ownerId) {
+                return interaction.reply({ content: '❌ Đây không phải thú cưng của bạn! Hãy dùng lệnh `mipet` để xem và chăm sóc thú cưng của riêng bạn nhé.', flags: MessageFlags.Ephemeral });
+            }
+
             const userData = getUserData(interaction.user.id);
-            if (!userData.pet) return interaction.reply({ content: '❌ Bạn chưa có thú cưng!', flags: MessageFlags.Ephemeral });
-            
+            if (!userData.pet) return interaction.reply({ content: '❌ Bạn chưa có thú cưng! Hãy dùng `mipet` để nhận nuôi bé nhé.', flags: MessageFlags.Ephemeral });
+
             const pet = userData.pet;
-            
-            if (customId === 'pet_feed') {
-                if (pet.hunger >= 100) return interaction.reply({ content: '❌ Thú cưng của bạn đã no rồi!', flags: MessageFlags.Ephemeral });
-                if (userData.balance < 10000) return interaction.reply({ content: '❌ Bạn không đủ **10,000 xu** để mua thức ăn!', flags: MessageFlags.Ephemeral });
+            applyPetDecayRealtime(pet);
+
+            // Nút Đổi Tên Thú Cưng (Hiện Modal)
+            if (customId.startsWith('pet_rename')) {
+                const modal = new ModalBuilder()
+                    .setCustomId(`pet_modal_rename:${interaction.user.id}`)
+                    .setTitle('✏️ Đổi Tên Thú Cưng');
+                const nameInput = new TextInputBuilder()
+                    .setCustomId('pet_name_input')
+                    .setLabel('Tên mới cho bé thú cưng (tối đa 20 ký tự)')
+                    .setStyle(TextInputStyle.Short)
+                    .setMinLength(1)
+                    .setMaxLength(20)
+                    .setValue(pet.name || '')
+                    .setRequired(true);
+                modal.addComponents(new ActionRowBuilder().addComponents(nameInput));
+                return interaction.showModal(modal);
+            }
+
+            // Nút Làm Mới Trạng Thái Real-Time
+            if (customId.startsWith('pet_refresh')) {
+                saveEconomy();
+                const noticeMsg = `🔄 *Đã đồng bộ và làm mới trạng thái thú cưng theo thời gian thực!*`;
+                return interaction.update({
+                    embeds: [buildPetEmbed(interaction.user, pet, noticeMsg)],
+                    components: buildPetComponents(interaction.user.id, pet, userData)
+                }).catch(() => null);
+            }
+
+            // Nút Cho Ăn (Tự động cập nhật giao diện)
+            if (customId.startsWith('pet_feed')) {
+                if (pet.hunger >= 100) {
+                    return interaction.reply({ content: `❌ **${pet.name}** đã no căng bụng rồi (100/100), không thể ăn thêm!`, flags: MessageFlags.Ephemeral });
+                }
+                if (userData.balance < 10000) {
+                    return interaction.reply({ content: '❌ Bạn không đủ **10,000 xu** trong ví để mua thức ăn cho bé!', flags: MessageFlags.Ephemeral });
+                }
                 userData.balance -= 10000;
-                pet.hunger = Math.min(100, pet.hunger + 10);
-                pet.xp += 10;
-                // Reset DM warning counter khi cho ăn
+                pet.hunger = Math.min(100, pet.hunger + 15);
+                pet.xp += 15;
                 pet.petDmWarnings = 0;
-            } else {
-                if (pet.happiness >= 100) return interaction.reply({ content: '❌ Thú cưng của bạn đã rất vui vẻ rồi!', flags: MessageFlags.Ephemeral });
-                
+
+                let levelUpMsg = '';
+                while (pet.xp >= pet.level * 100) {
+                    pet.xp -= pet.level * 100;
+                    pet.level += 1;
+                    levelUpMsg += `\n🎉 **${pet.emoji || '🐾'} ${pet.name} ĐÃ LÊN CẤP ${pet.level}!** 🌟`;
+                }
+
+                saveEconomy();
+                const noticeMsg = `🍖 **${interaction.user.username}** vừa cho **${pet.name}** ăn no nê (-10,000 xu)! *(+15 Độ no, +15 XP)*${levelUpMsg}`;
+                return interaction.update({
+                    embeds: [buildPetEmbed(interaction.user, pet, noticeMsg)],
+                    components: buildPetComponents(interaction.user.id, pet, userData)
+                }).catch(() => null);
+            }
+
+            // Nút Chơi Cùng (Tự động cập nhật giao diện)
+            if (customId.startsWith('pet_play')) {
+                if (pet.happiness >= 100) {
+                    return interaction.reply({ content: `❌ **${pet.name}** đang cực kỳ vui vẻ rồi (100/100)!`, flags: MessageFlags.Ephemeral });
+                }
+
                 const now = Date.now();
                 if (userData.cooldowns && userData.cooldowns.pet_play && now < userData.cooldowns.pet_play) {
                     const timeLeft = Math.ceil((userData.cooldowns.pet_play - now) / 1000);
-                    return interaction.reply({ content: `⏳ Thú cưng đang mệt, vui lòng chờ **${timeLeft}s** nữa để chơi tiếp!`, flags: MessageFlags.Ephemeral });
+                    return interaction.reply({ content: `⏳ **${pet.name}** đang nghỉ mệt một chút, vui lòng chờ **${timeLeft}s** nữa để chơi tiếp nhé!`, flags: MessageFlags.Ephemeral });
                 }
                 if (!userData.cooldowns) userData.cooldowns = {};
                 userData.cooldowns.pet_play = now + 60000; // 60s cooldown
 
-                pet.happiness = Math.min(100, pet.happiness + 10);
-                pet.xp += 15;
-                // Reset DM warning counter khi chơi cùng
+                pet.happiness = Math.min(100, pet.happiness + 15);
+                pet.xp += 20;
                 pet.petDmWarnings = 0;
-            }
 
-            let levelUpMsg = '';
-            if (pet.xp >= pet.level * 100) {
-                pet.xp -= pet.level * 100;
-                pet.level += 1;
-                levelUpMsg = `\n🎉 **Thú cưng đã LÊN CẤP ${pet.level}!**`;
-            }
+                let levelUpMsg = '';
+                while (pet.xp >= pet.level * 100) {
+                    pet.xp -= pet.level * 100;
+                    pet.level += 1;
+                    levelUpMsg += `\n🎉 **${pet.emoji || '🐾'} ${pet.name} ĐÃ LÊN CẤP ${pet.level}!** 🌟`;
+                }
 
-            saveEconomy();
-            return interaction.reply({ content: `✅ Bạn đã ${customId === 'pet_feed' ? 'cho thú cưng ăn ngon lành (-10,000 xu)' : 'chơi đùa vui vẻ cùng thú cưng'}! (+XP)${levelUpMsg}`, flags: MessageFlags.Ephemeral });
+                saveEconomy();
+                const noticeMsg = `🎾 **${interaction.user.username}** vừa chơi đùa vui vẻ cùng **${pet.name}**! *(+15 Vui vẻ, +20 XP)*${levelUpMsg}`;
+                return interaction.update({
+                    embeds: [buildPetEmbed(interaction.user, pet, noticeMsg)],
+                    components: buildPetComponents(interaction.user.id, pet, userData)
+                }).catch(() => null);
+            }
         }
         
         if (customId === 'buy_ring') {
@@ -16658,7 +16803,34 @@ if (commandName === 'changelog') {
         return;
     }
 
-        if (interaction.isModalSubmit() && interaction.customId === 'afk_modal') {
+        // 🐾 Xử lý Modal Đổi Tên Thú Cưng
+    if (interaction.isModalSubmit() && interaction.customId.startsWith('pet_modal_rename:')) {
+        const ownerId = interaction.customId.split(':')[1];
+        if (interaction.user.id !== ownerId) {
+            return interaction.reply({ content: '❌ Bạn không có quyền đổi tên thú cưng này!', flags: MessageFlags.Ephemeral });
+        }
+        const userData = getUserData(interaction.user.id);
+        if (!userData.pet) return interaction.reply({ content: '❌ Bạn chưa có thú cưng!', flags: MessageFlags.Ephemeral });
+
+        const newName = interaction.fields.getTextInputValue('pet_name_input')?.trim();
+        if (!newName) return interaction.reply({ content: '❌ Tên không được để trống!', flags: MessageFlags.Ephemeral });
+
+        userData.pet.name = newName;
+        saveEconomy();
+
+        const notice = `✏️ **${interaction.user.username}** đã đổi tên thú cưng thành **${newName}**!`;
+        try {
+            await interaction.update({
+                embeds: [buildPetEmbed(interaction.user, userData.pet, notice)],
+                components: buildPetComponents(interaction.user.id, userData.pet, userData)
+            });
+        } catch {
+            return interaction.reply({ content: `✅ Đã đổi tên thú cưng thành **${newName}**!`, flags: MessageFlags.Ephemeral });
+        }
+        return;
+    }
+
+    if (interaction.isModalSubmit() && interaction.customId === 'afk_modal') {
         const reason = interaction.fields.getTextInputValue('afk_reason') || 'Không có lý do';
         const userData = getUserData(interaction.user.id);
         userData.afk = {
