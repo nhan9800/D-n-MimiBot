@@ -55,9 +55,9 @@ function buildPetEmbed(user, pet, notice = '') {
         .setFooter({ text: 'Bấm nút bên dưới để chăm sóc — Chỉ số và thanh trạng thái sẽ tự động nhảy số tức thì!' }).setTimestamp();
 }
 
-function buildPetComponents(ownerId, pet, userData) {
-    const isTired = Boolean(userData.cooldowns?.pet_play && Date.now() < userData.cooldowns.pet_play);
-    const timeLeft = isTired ? Math.ceil((userData.cooldowns.pet_play - Date.now()) / 1000) : 0;
+function buildPetComponents(ownerId, pet, userData, now = Date.now()) {
+    const isTired = Boolean(userData.cooldowns?.pet_play && now < userData.cooldowns.pet_play);
+    const timeLeft = isTired ? Math.ceil((userData.cooldowns.pet_play - now) / 1000) : 0;
     return [new ActionRowBuilder().addComponents(
         new ButtonBuilder().setCustomId(`pet_feed:${ownerId}`).setLabel('🍖 Cho Ăn (10k xu)').setStyle(ButtonStyle.Success).setDisabled(pet.hunger >= 100),
         new ButtonBuilder().setCustomId(`pet_play:${ownerId}`).setLabel(isTired ? `🎾 Chơi Cùng (${timeLeft}s)` : '🎾 Chơi Cùng').setStyle(ButtonStyle.Primary).setDisabled(pet.happiness >= 100 || isTired),
@@ -66,4 +66,73 @@ function buildPetComponents(ownerId, pet, userData) {
     )];
 }
 
-module.exports = { applyPetDecayRealtime, makePetProgressBar, getPetMood, buildPetEmbed, buildPetComponents };
+// Mỗi thẻ chỉ có một lần ghi đang chạy. Đọc dữ liệu mới lúc ghi để đồng hồ
+// không ghi đè tên/chỉ số vừa đổi; dừng ngay khi hết cooldown hoặc tin bị xoá.
+function createPetPanelUpdater({ getUserData, now = Date.now, schedule = setTimeout, cancel = clearTimeout }) {
+    const panels = new Map();
+    function stop(state) {
+        state.stopped = true;
+        if (state.timer) cancel(state.timer);
+        state.timer = null;
+        if (panels.get(state.message.id) === state) panels.delete(state.message.id);
+    }
+    function remaining(state) {
+        return Math.max(0, (getUserData(state.user.id)?.cooldowns?.pet_play || 0) - now());
+    }
+    function arm(state) {
+        if (state.stopped || state.pending) return;
+        if (state.timer) cancel(state.timer);
+        const left = remaining(state);
+        if (!left) { stop(state); return; }
+        state.timer = schedule(() => {
+            state.timer = null;
+            return write(state).catch(() => null);
+        }, Math.min(1000, left));
+        state.timer?.unref?.();
+    }
+    function getState(message, user, notice) {
+        let state = panels.get(message.id);
+        if (!state) {
+            state = { message, user, notice, tail: Promise.resolve(), pending: 0, timer: null, stopped: false };
+            panels.set(message.id, state);
+        }
+        state.message = message;
+        state.user = user;
+        state.notice = notice;
+        if (state.timer) cancel(state.timer);
+        state.timer = null;
+        return state;
+    }
+    function write(state) {
+        state.pending++;
+        const result = state.tail.then(async () => {
+            if (state.stopped) return;
+            const data = getUserData(state.user.id);
+            if (!data?.pet) { stop(state); return; }
+            return state.message.edit({
+                embeds: [buildPetEmbed(state.user, data.pet, state.notice)],
+                components: buildPetComponents(state.user.id, data.pet, data, now())
+            });
+        });
+        state.tail = result.catch(() => stop(state));
+        return result.finally(() => {
+            state.pending--;
+            arm(state);
+        });
+    }
+    return {
+        watch(message, user, notice = '') {
+            if (!message?.id || typeof message.edit !== 'function') return;
+            arm(getState(message, user, notice));
+        },
+        async update(interaction, notice = '') {
+            // Xác nhận ngay, kể cả khi Discord đang giới hạn tốc độ sửa tin.
+            await interaction.deferUpdate();
+            return write(getState(interaction.message, interaction.user, notice));
+        },
+        stopAll() { for (const state of panels.values()) stop(state); },
+        get size() { return panels.size; }
+    };
+}
+
+module.exports = { applyPetDecayRealtime, makePetProgressBar, getPetMood, buildPetEmbed, buildPetComponents, createPetPanelUpdater };

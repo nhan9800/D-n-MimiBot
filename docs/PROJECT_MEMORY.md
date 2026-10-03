@@ -8,12 +8,19 @@ Checkpoint 03/10/2026, Asia/Saigon. Đọc cùng WORKSPACE.md và AGENTS.md khi 
 - Chỉ dẫn mới nhất: **để phần hosting website/dọn ổ đĩa lại sau, tiếp tục sửa tính năng bot còn dang dở**.
 - Bot đúng repo `D-n-MimiBot/`, version 1.4.0. Website nằm riêng trong `Website-Mini-Bot/`; Mimi Shield ngoài phạm vi.
 
-## Đang làm: sửa menu nhạc
+## Cập nhật mipet theo yêu cầu mới — 03/10/2026
+
+- User muốn nút Chơi Cùng tự đếm giây, không cần Làm Mới.
+- `petUi.js`: createPetPanelUpdater sửa thẻ mỗi khoảng1giây trong cooldown60giây, đọc số giây theo deadline thật, hết cooldown tự mở nút trừ khi happiness100. Một hàng ghi/timer mỗi message; ngừng khi hết thời gian, mất pet hoặc edit lỗi. Timer không đổi economy/XP. Discord có thể giãn nhịp khi rate limit/mạng chậm.
+- `index.js`: mipet mới mở trong cooldown cũng chạy đồng hồ. Play/feed/refresh/adopt/rename dùng chung hàng ghi; deferUpdate ngay trước edit để không hết hạn tương tác. Không cần module/dependency mới, petUi đã có whitelist/fingerprint.
+- 5test countdown giả lập thời gian và cập nhật test handler thật:60→59→58→hết hạn, happiness100, mở lại mipet, tên/chỉ số mới, V2, xoá tin/lỗi edit, edit chậm không chồng. Fullsuite184/184,cú pháp65JS,npm audit0,diff check đạt. Log `C:/Users/ivano/Downloads/MimiBot-backups/bot-pet-countdown-tests-2026-10-03.log`.
+- Đang chuẩn bị commit/push/deploy. Chưa xác nhận countdown qua Discord client thật. Thẻ cũ trước restart cần mở mipet mới hoặc Làm Mới một lần để gắn timer; từ đó không cần Làm Mới mỗi giây.
+## Đã hoàn tất: sửa và triển khai menu nhạc
 
 - `index.js`: dùng chung quyền owner/DJ/quản trị khi xoá bài, lưu phiên ngay sau xoá để restart không khôi phục bài đã xoá, kiểm tra cùng voice khi dùng menu hiệu ứng.
 - `tests/music-select-interactions.test.js`: 5 kiểm thử chạy handler thật trong VM, kiểm owner/DJ/admin, người không có quyền/khác voice, menu cũ và queue dịch chuyển, persistence cả khi xoá bài cuối, hiệu ứng giữ vị trí phát. Không login hoặc ghi runtime thật.
 - Đã kiểm tra ngày 03/10: **179/179 test đạt**, cú pháp **64 JS đạt**, npm audit **0 lỗ hổng**, diff check đạt. Log ngoài Git: `C:/Users/ivano/Downloads/MimiBot-backups/bot-music-select-tests-2026-10-03.log`.
-- **Chưa push/deploy bản sửa menu nhạc tại thời điểm ghi này**. Bước tiếp theo: commit/push main, chờ CI, restart VibeHost theo quyền user đã cấp, xác minh health trả đúng commit và Discord ready. Sau đó cập nhật mục này bằng kết quả thật.
+- **Đã push/deploy commit `1b1ddd20411129529086f5979cbc8368402b603c` lên main/VibeHost ngày03/10 lúc19:35.** CI [37123310166](https://github.com/nhan9800/D-n-MimiBot/actions/runs/37123310166) success. Console xác nhận pull7173401→1b1ddd2; health/live version1.4.0/commit1b1ddd2/buildSourcegit/emoji172/172; health/ready HTTP200,Discordtrue. Receipt `music-fix-deploy-verification.json`, ảnh `hosting-music-fix.png` trong backup bot-runtime-2026-10-03. Đăng ký slash REST đúng92/92 tên lệnh, không thiếu/thừa; receipt `slash-registry-verification.json` cùng thư mục.
 
 ## Bot đã triển khai trước bản sửa menu
 
@@ -51,7 +58,7 @@ Checkpoint 03/10/2026, Asia/Saigon. Đọc cùng WORKSPACE.md và AGENTS.md khi 
 
 ## Bước tiếp tục sau lượt này
 
-1. Hoàn tất commit/push/deploy bản sửa menu nhạc và ghi commit/health mới.
+1. Bản sửa menu nhạc đã deploy1b1ddd2; không cần restart lại. Kiểm tra trạng thái mới trước tác vụ tiếp theo.
 2. Kiểm receipts/process đồng bộ guild trước khi thao tác; không upload song song. Khi xong verify tổng emoji, refresh guide và xoá credential tạm.
 3. Rà tiếp menu album/yêu thích: hiện chọn bằng index, có nguy cơ chọn sai bài nếu danh sách đổi trong lúc popup còn mở; chưa sửa ở lượt menu quyền/persistence này.
 4. Cần kiểm audio/voice/client thực tế khi có phiên sử dụng. Không khẳng định toàn bộ tính năng đã E2E.

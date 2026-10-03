@@ -33,7 +33,8 @@ const { colors, buildBaseEmbed, generateProgressBar } = require('./uiBuilder');
 const { normalizePayload, readMessageEmbed, extractActionRows, installDiscordUi, preserveUi } = require('./discordUi');
 const { buildMusicDashboard, buildHelpOverview, buildHelpPage } = require('./communityPanels');
 const { buildProfilePayload, buildRankPayload } = require('./profileCard');
-const { applyPetDecayRealtime, buildPetEmbed, buildPetComponents } = require('./petUi');
+const { applyPetDecayRealtime, buildPetEmbed, buildPetComponents, createPetPanelUpdater } = require('./petUi');
+const petPanels = createPetPanelUpdater({ getUserData });
 const { createMusicPanelWriter } = require('./musicPanelUpdater');
 const { startInternalApi } = require('./internalApi');
 const { COMMUNITY_EMOJI, provisionCommunityEmojis, installGuildEmojis, getEmojiCoverage, emojiForKey } = require('./communityEmojis');
@@ -8771,7 +8772,9 @@ async function saveUserBackground(uId, url) {
         const petEmbed = buildPetEmbed(message.author, pet);
         const components = buildPetComponents(userId, pet, userData);
 
-        return message.reply({ embeds: [petEmbed], components: components });
+        const petMessage = await message.reply({ embeds: [petEmbed], components: components });
+        petPanels.watch(petMessage, message.author);
+        return petMessage;
     }
 
     // 3. Lệnh tung đồng xu: micf | micoinflip | giới hạn 250,000 xu / lần, hỗ trợ 'all'
@@ -14825,11 +14828,9 @@ if (commandName === 'changelog') {
             saveEconomy();
 
             const notice = `🎉 Chúc mừng bạn đã nhận nuôi thành công bé **${pInfo.emoji} ${pInfo.name}**! Hãy chăm sóc bé chu đáo nhé!`;
-            return interaction.update({
-                embeds: [buildPetEmbed(interaction.user, userData.pet, notice)],
-                components: buildPetComponents(interaction.user.id, userData.pet, userData)
-            }).catch(() => {
-                return interaction.reply({ content: `✅ Chúc mừng! Bạn đã nhận nuôi thành công bé **${pInfo.emoji} ${pInfo.name}**! Dùng lệnh \`mipet\` để xem và chăm sóc nhé.`, flags: MessageFlags.Ephemeral });
+            return petPanels.update(interaction, notice).catch(() => {
+                const respond = interaction.deferred ? 'followUp' : 'reply';
+                return interaction[respond]({ content: `✅ Chúc mừng! Bạn đã nhận nuôi thành công bé **${pInfo.emoji} ${pInfo.name}**! Dùng lệnh \`mipet\` để xem và chăm sóc nhé.`, flags: MessageFlags.Ephemeral });
             });
         }
 
@@ -14869,10 +14870,7 @@ if (commandName === 'changelog') {
             if (customId.startsWith('pet_refresh')) {
                 saveEconomy();
                 const noticeMsg = `🔄 *Đã đồng bộ và làm mới trạng thái thú cưng theo thời gian thực!*`;
-                return interaction.update({
-                    embeds: [buildPetEmbed(interaction.user, pet, noticeMsg)],
-                    components: buildPetComponents(interaction.user.id, pet, userData)
-                }).catch(() => null);
+                return petPanels.update(interaction, noticeMsg).catch(() => null);
             }
 
             // Nút Cho Ăn (Tự động cập nhật giao diện)
@@ -14897,10 +14895,7 @@ if (commandName === 'changelog') {
 
                 saveEconomy();
                 const noticeMsg = `🍖 **${interaction.user.username}** vừa cho **${pet.name}** ăn no nê (-10,000 xu)! *(+15 Độ no, +15 XP)*${levelUpMsg}`;
-                return interaction.update({
-                    embeds: [buildPetEmbed(interaction.user, pet, noticeMsg)],
-                    components: buildPetComponents(interaction.user.id, pet, userData)
-                }).catch(() => null);
+                return petPanels.update(interaction, noticeMsg).catch(() => null);
             }
 
             // Nút Chơi Cùng (Tự động cập nhật giao diện)
@@ -14930,10 +14925,7 @@ if (commandName === 'changelog') {
 
                 saveEconomy();
                 const noticeMsg = `🎾 **${interaction.user.username}** vừa chơi đùa vui vẻ cùng **${pet.name}**! *(+15 Vui vẻ, +20 XP)*${levelUpMsg}`;
-                return interaction.update({
-                    embeds: [buildPetEmbed(interaction.user, pet, noticeMsg)],
-                    components: buildPetComponents(interaction.user.id, pet, userData)
-                }).catch(() => null);
+                return petPanels.update(interaction, noticeMsg).catch(() => null);
             }
         }
         
@@ -16136,12 +16128,10 @@ if (commandName === 'changelog') {
 
         const notice = `✏️ **${interaction.user.username}** đã đổi tên thú cưng thành **${newName}**!`;
         try {
-            await interaction.update({
-                embeds: [buildPetEmbed(interaction.user, userData.pet, notice)],
-                components: buildPetComponents(interaction.user.id, userData.pet, userData)
-            });
+            await petPanels.update(interaction, notice);
         } catch {
-            return interaction.reply({ content: `✅ Đã đổi tên thú cưng thành **${newName}**!`, flags: MessageFlags.Ephemeral });
+            const respond = interaction.deferred ? 'followUp' : 'reply';
+            return interaction[respond]({ content: `✅ Đã đổi tên thú cưng thành **${newName}**!`, flags: MessageFlags.Ephemeral });
         }
         return;
     }

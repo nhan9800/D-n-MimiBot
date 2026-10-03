@@ -18,8 +18,10 @@ function fixture({ balance = 50000, hunger = 60, happiness = 60, xp = 0, level =
     const userData = { balance, cooldowns: { ...cooldowns }, pet: { type: 'dog', emoji: '🐶', name: 'Cún', hunger, happiness, xp, level, lastDecay, petDmWarnings: 1 } };
     const replies = []; const updates = []; const modals = []; const errors = [];
     let handler; let saves = 0;
+    const petPanels = petUi.createPetPanelUpdater({ getUserData: () => userData,
+        schedule: () => ({ unref() {} }), cancel() {} });
     vm.runInNewContext(source.slice(start, end), {
-        ...discord, ...petUi,
+        ...discord, ...petUi, petPanels,
         client: { on(event, callback) { if (event === 'interactionCreate') handler = callback; } },
         getGuildConfig: () => ({}), getUserData: () => userData, saveEconomy: () => { saves++; },
         buttonCooldowns: new Map(), setTimeout: () => ({ unref() {} }), clearTimeout() {},
@@ -29,10 +31,12 @@ function fixture({ balance = 50000, hunger = 60, happiness = 60, xp = 0, level =
     function interaction(customId, { modal = false, name = 'Bông' } = {}) {
         return {
             customId, user, guild: { id: 'guild-test' }, member: {}, channel: {},
+            message: { id: 'pet-message', async edit(payload) { updates.push(payload); } },
             isRepliable: () => true, isAutocomplete: () => false, isChatInputCommand: () => false,
             isButton: () => !modal, isStringSelectMenu: () => false, isModalSubmit: () => modal,
             fields: { getTextInputValue: () => name },
             async reply(payload) { replies.push(payload); this.replied = true; },
+            async deferUpdate() { this.deferred = true; },
             async update(payload) { updates.push(payload); this.replied = true; },
             async editReply(payload) { replies.push(payload); },
             async showModal(payload) { modals.push(payload); this.replied = true; }
