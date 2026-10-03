@@ -13986,11 +13986,11 @@ if (commandName === 'changelog') {
             return interaction.reply(buildOwnershipRejectPayload('Sai kênh thoại', 'Bạn cần **ở cùng kênh thoại với bot** để xoá bài khỏi hàng đợi.'));
         }
 
-        // 🔒 Panel ownership: chỉ người mở panel mới được xoá bài khỏi hàng đợi
-        if (mq.ownerId && user.id !== mq.ownerId) {
+        // Dùng cùng quyền DJ/quản trị/owner như các nút điều khiển nhạc.
+        if (!canControlMusic(guild.id, member, mq)) {
             return interaction.reply(buildOwnershipRejectPayload(
-                'Panel này không phải của bạn',
-                `Hàng đợi này do <@${mq.ownerId}> quản lý.\n> Chỉ **người mở panel** mới được xoá bài.`
+                'Bạn không có quyền',
+                'Chỉ **DJ**, quản trị viên hoặc người mở panel mới được xoá bài khỏi hàng đợi.'
             ));
         }
 
@@ -14015,6 +14015,7 @@ if (commandName === 'changelog') {
         }
 
         const removed = mq.queue.splice(idx, 1)[0];
+        persistSession(guild.id);
 
         // Cập nhật lại số lượng hàng đợi hiển thị trên tin nhắn "Đang phát" (nếu có)
         if (mq.nowPlayingMessage && mq.current) {
@@ -14038,6 +14039,10 @@ if (commandName === 'changelog') {
         const mq = musicQueues.get(guild.id);
         if (!mq || !mq.current) {
             return interaction.update({ embeds: [buildMusicNoticeContainer('Không có bài đang phát', 'Bài đã kết thúc hoặc bot đã rời kênh.', 0x99AAB5)] }).catch(() => null);
+        }
+        const voiceChannel = member.voice?.channel;
+        if (!voiceChannel || voiceChannel.id !== mq.voiceChannelId) {
+            return interaction.reply(buildOwnershipRejectPayload('Sai kênh thoại', 'Bạn cần **ở cùng kênh thoại với bot** để đổi hiệu ứng.'));
         }
         // Quyền: giống các nút điều khiển (DJ/owner/admin)
         if (!canControlMusic(guild.id, member, mq)) {

@@ -1,53 +1,58 @@
 # Bộ nhớ dự án Mimi
 
-## Cập nhật mới nhất — ưu tiên mục này khi tiếp tục
+Checkpoint 03/10/2026, Asia/Saigon. Đọc cùng WORKSPACE.md và AGENTS.md khi tiếp tục. Kết quả lịch sử không thay thế xác minh mới; không lưu bí mật hoặc dữ liệu runtime.
 
-- **03/10/2026: user bổ sung dọn ổ hosting website.** Ảnh Disk Usage cho thấy tổng 2.024 MB: thư mục ẩn 773,14 MB; Other Usage 699,48 MB; `website-mini-bot/` 546,93 MB; `tmp/` 3,85 MB; logs 0,28 MB. Chưa biết thư mục ẩn nào lớn, chưa xóa gì trên Nhân Hòa. Bước tiếp theo: nhận ảnh cây thư mục chi tiết ở phía dưới trang Disk Usage để chọn đúng cache/backup có thể dọn. Giữ website, `.env.local`, dữ liệu đánh giá và môi trường Node đang chạy.
-- cPanel bị browser security policy chặn. User đã mở trong trình duyệt của họ và cung cấp ảnh; không dùng native, trình duyệt khác hoặc CLI để vòng qua chặn. Việc dọn và triển khai website vẫn cần user thao tác tại cPanel.
-- Emoji ứng dụng đã có **172/172 key**, receipt `application-result.json`. Đồng bộ guild đã tạo **50 emoji mới**, chưa có `emoji-result.json`; tiến trình Node PID 20664 vẫn tồn tại lúc kiểm tra mới nhất. Không chạy thêm sync song song; kiểm tiến trình và receipts trước khi tiếp tục. Chưa xác định thời điểm hoàn tất upload guild.
-- Đã refresh và verify **4/4 panel** giữ custom ID; snapshot/receipt trong `C:/Users/ivano/Downloads/MimiBot-backups/custom-emoji-2026-10-03/`. Hai guide chưa cập nhật lần này.
-- Bot mới nhất **174/174 test**, **63 JS syntax**, diff check đạt. Quét 295 file chuẩn bị Git không tìm thấy credential thực hoặc mẫu token. Chưa commit/push/restart. Lệnh ghi checkpoint và `git add` trước đó bị hủy; kiểm index trước khi tiếp tục.
-- Đã sao lưu 9 mục runtime bot bằng VibeHost Files: archive trên host `/home/container/archive-2026-10-03T120925Z.tar.gz`, 65.158 bytes, đã tải và kiểm 12 entry. Bản local ở `C:/Users/ivano/Downloads/MimiBot-backups/bot-runtime-2026-10-03/`. SHA256 `C846A43D50C4BC0D46CEEF3492009B0FA2ACFD47A8756B3BC8ED3A6F87C69758`. Backup chứa dữ liệu riêng tư, không commit hoặc công khai.
-- Workflow bot mặc định chỉ kiểm tra cho cơ chế startup Git pull. SFTP chỉ bật khi repository variable `MIMI_DEPLOY_METHOD=sftp`; vẫn yêu cầu đủ secrets và host-key pin. CI xanh không chứng minh đã triển khai.
+## Yêu cầu và ưu tiên hiện tại
 
-Checkpoint **03/10/2026, Asia/Saigon**. Bộ nhớ trên đĩa giúp tiếp tục sau compact, không ngăn compact. Không lưu bí mật/runtime. Đối chiếu thực tế trước thao tác.
+- User yêu cầu nâng cấp bot cộng đồng, toàn bộ UI dùng custom emoji, cấu hình server chính `1517068246493429852`, cập nhật GitHub và hosting. Không hỏi lại những bước đã được cho phép. Không broadcast hoặc DM tự động.
+- Chỉ dẫn mới nhất: **để phần hosting website/dọn ổ đĩa lại sau, tiếp tục sửa tính năng bot còn dang dở**.
+- Bot đúng repo `D-n-MimiBot/`, version 1.4.0. Website nằm riêng trong `Website-Mini-Bot/`; Mimi Shield ngoài phạm vi.
 
-## Điểm tiếp tục
+## Đang làm: sửa menu nhạc
 
-- User yêu cầu nâng cấp toàn bộ bot/UI, **100% custom emoji**, cài server chính `1517068246493429852`, cập nhật GitHub/hosting/website. Đã yêu cầu tiếp tục; không hỏi lại scope. Không broadcast/DM tự động.
-- Bot repo `D-n-MimiBot/`, local **1.4.0**, HEAD/remote `0dbf780`, nhiều thay đổi chưa commit, giữ toàn bộ. Website `Website-Mini-Bot/` **2.5.0**, sạch, nhánh `codex/website-2-5-refresh`, commit `87a1d3141394933fe809ef2ac8c549b2d57ff7c9`, [draft PR #1](https://github.com/nhan9800/Website-Mini-Bot/pull/1) đã push/attach, chưa merge/deploy.
-- Hosting pre-deploy đọc 03/10: bot VibeHost Mimi Music `9d9f7a18` `/health/live` **1.2.0 / aae1815**, source Git `0dbf780`. Website `/api/version` **9d72b6c/run81**, build03/09. Cần đọc lại sau triển khai.
-- Bot mới nhất **172/172 test đạt**, Node22.23.3, log ngoài Git `C:/Users/ivano/Downloads/MimiBot-backups/bot-final-tests-2026-10-03.log`. Audit0 vulnerabilities. Cú pháp61 JS đạt trước script mới, cần check cuối. Chưa commit/push/restart bot.
-- Emoji local **172 semantic keys /170 PNG**:169 Twemoji v17.0.3 CC-BY4.0,1 emoji.gg announce DΛR CC-BY4.0. Hash/PNG/nguồn/giấy phép offline đạt. UI mặc định không Unicode fallback; thiếu dùng chữ. Field Discord không hỗ trợ custom dùng plaintext. Giữ reactionrole/code/UI tự thiết kế.
-- REST inspect đúng bot `1516603522584416376`: app14 emoji, guild27 (20 static), premiumtier3,230 slot trống, kế hoạch thêm **159** guildPNG, không xóa/đổi emoji cũ. Receipt `C:/Users/ivano/Downloads/MimiBot-backups/custom-emoji-2026-10-03/emoji-before.json`. **Chưa apply** tại checkpoint. Script sync-home-emojis giữ snapshot đầu tiên khi resume.
-- Credential tạm **vẫn tồn tại ngoài Git** `C:/Users/ivano/Downloads/config.json`,76960bytes,tạo03/10 02:09:03. Chỉ đọc token trong script, không in nội dung. Xóa đúng file tạm sau REST hoàn tất.
-- Website đã đạt24/24test,lint/typecheck/build,audit0,11routeHTTP200/version2.5/keyguard. Receipt `C:/Users/ivano/Downloads/MimiBot-backups/website-2.5.0-smoke.json`. Browser policy từ chối localhost; chưa renderQA/OAuth/audio/Lighthouse.
-- **User đã đăng nhập Nhân Hòa**, thấy đúng HOST058175/domainmimibot.id.vn. Bấm Đăng nhập Hosting mở `https://103.124.95.230:2083`; **browser security policy từ chối**. Không thử đường vòng/alternatebrowser. Đã hỏi user thủ công backup `.env.local`, `data/`, `.next/mimi_feedback_store.json` và báo Applicationroot/Node/cron. Website chờ các điều kiện này, không publish artifact trước migration.
+- `index.js`: dùng chung quyền owner/DJ/quản trị khi xoá bài, lưu phiên ngay sau xoá để restart không khôi phục bài đã xoá, kiểm tra cùng voice khi dùng menu hiệu ứng.
+- `tests/music-select-interactions.test.js`: 5 kiểm thử chạy handler thật trong VM, kiểm owner/DJ/admin, người không có quyền/khác voice, menu cũ và queue dịch chuyển, persistence cả khi xoá bài cuối, hiệu ứng giữ vị trí phát. Không login hoặc ghi runtime thật.
+- Đã kiểm tra ngày 03/10: **179/179 test đạt**, cú pháp **64 JS đạt**, npm audit **0 lỗ hổng**, diff check đạt. Log ngoài Git: `C:/Users/ivano/Downloads/MimiBot-backups/bot-music-select-tests-2026-10-03.log`.
+- **Chưa push/deploy bản sửa menu nhạc tại thời điểm ghi này**. Bước tiếp theo: commit/push main, chờ CI, restart VibeHost theo quyền user đã cấp, xác minh health trả đúng commit và Discord ready. Sau đó cập nhật mục này bằng kết quả thật.
 
-## Bước tiếp theo
+## Bot đã triển khai trước bản sửa menu
 
-1. Chạy sync-home-emojis apply đúng config/guild; theo dõi receipts. Provision app đủ trước restart. Hydrate app mapping khi patch4panel/2guide giữ IDs. Guide giữtext<=4000, không list186tags trong một card.
-2. Checksyntax/diff bot; sao lưu runtimeVibeHost; commit/push source rồi cập nhật main/restart thực. VibeHostNode24/AutoPullON; remoteTranNhan09082003 redirectnhan9800 cùngrepo. Consoleinput là stdinbot, không shell.
-3. Health phải1.4/commitmới/buildSourceđúng/coverage172/172. GitHubSFTPsecrets thiếuhost/user/knownhosts; không hạSSHpin hoặc báoCIdeploy thànhcông. Đường deploy hiệncó startupGitpull+restartmanual.
-4. Website cần NodePassenger>=22.12/backupfeedback/migrationsafe trước artifact. Không bootstrap-host.sh --yes hoặc cron cũ trước migration. Sau user hoàn tấtđiềukiện, mergePR/CIbuildartifact/pull/restart/kiểmversion vàbrowserproduction.
-5. Xóa credential tạm, cập nhật memory/WORKSPACE bằng kết quả thật. Không coi testoffline là Discordclient/audioE2E.
+- GitHub main và hosting đã chạy `71734011b44c287ebda57e6fc5e7e1fa461f9ca9`, version 1.4.0. CI [37122286042](https://github.com/nhan9800/D-n-MimiBot/actions/runs/37122286042) thành công.
+- Đã sửa lỗi live `applyPetDecayRealtime is not defined` và `recordEconomyExpense is not defined` trong bản đó. Helper pet dùng scope module; mine/HiLo ghi transaction thay hàm không tồn tại. 174 test của đợt trước đạt; actual mine handler VM xác minh một giao dịch thua/lưu/cập nhật panel, không ReferenceError.
+- VibeHost server `9d9f7a18`, startup Git pull main. Console xác nhận pull, dependency cài xong, ffmpeg/yt-dlp tự tải thành công. Node24, npm12 có chặn native install script, opusscript fallback hiện có.
+- Health `http://hcm3.vibehost.vn:20019/health/live`: 1.4.0,7173401,buildSource git,emojiCoverage172/172. `/health/ready`: HTTP200,Discord true. Bằng chứng ngoài Git: `C:/Users/ivano/Downloads/MimiBot-backups/bot-runtime-2026-10-03/deploy-verification.json` và `hosting-1.4.0.png`.
+- Chưa kiểm voice/audio, modal/nút bằng tài khoản thành viên Discord thật. Không gọi kiểm thử offline là end-to-end.
+- Workflow mặc định **Validate Bot and Optional SFTP Deploy** chỉ validate. SFTP chỉ chạy khi `MIMI_DEPLOY_METHOD=sftp`, cần đủ secret và host-key pin. Không coi CI xanh là deploy xong. Console input VibeHost là stdin bot, không shell.
 
-## Thay đổi bot đang có
+## Emoji và server chính
 
-- ComponentsV2/mint,nhạc/help/hồsơ/cấpđộ riêng,modalLabel,queuepanel chốngtrùng/kếtquảcũ,portalmiễnphíhealththật. Modulemới vào whitelist.
-- communityEmojis172keys semantic distinct1/2/3,left/back,RPS,sword/shield,suits; normalizeSection/accessory/options; appfailure không dùngIDgiả. Provisionbackground3lầnkhôngchặnready/API.
-- petUi.js đưahelperdecay/progress/mood/embed/buttons ra scopechung,sửalỗilive applyPetDecayRealtime is not defined.
-- discordUi wrapvoice/stage,status trướcstripglyph,truncatekhôngcắttag/mention/surrogate; modal/slashfieldplaintext.
-- buildInfo fingerprint21runtimefiles,artifact chỉtinhashđúng hoặc cleanGitHEAD; healthcóbuildSource/emojiCoverage. Tránh staleignoredmetadata.
-- Startupkhôngtựbroadcast/xóatin. Scriptthôngbáogửi chỉchếđộtườngminh,chưagửi.
-- sources.json/SOURCES.md/license/download-checknguồnhashđầyđủ. Assetcũbackup `C:/Users/ivano/Downloads/MimiBot-backups/emoji-assets-before-complete-2026-10-03/`.
+- App bot `1516603522584416376` đã đủ **172/172 custom emoji**. UI mặc định thiếu emoji dùng chữ, field không hỗ trợ custom dùng plaintext, giữ reaction role/nội dung tự thiết kế.
+- Catalog 172 key/170 PNG: 169 Twemoji v17.0.3 CC-BY4.0,1 emoji.gg announce DΛR CC-BY4.0. Có nguồn/hash/license; không cần tải lại.
+- Đồng bộ emoji guild đang chạy process Node **PID20664**: đã thêm50, tổng guild **77** (REST xác minh 19:31 ngày03/10). Chưa có `emoji-result.json`. Không chạy sync trùng. Chưa biết thời điểm kết thúc; không tự suy đoán thời gian rate limit.
+- Receipts: `C:/Users/ivano/Downloads/MimiBot-backups/custom-emoji-2026-10-03/`: application-result.json,guild-created.json,emoji-before.json. Lệnh đang chạy `scripts/sync-home-emojis.js apply` với config tạm và thư mục này.
+- 4/4 panel đã refresh và verify giữ IDs: verify,ticket,voice,attendance. Snapshot `panels-before.json`, receipt `panels-verification.json` cùng thư mục.
+- **2/2 guide đã refresh và REST verify ngày03/10 19:31**, giữ nguyên message IDs. Guide3 custom tags, emoji guide34 custom tags, mô tả số guild hiện tại77. Receipt `guides-refresh-verification.json`, backup `guides-before-refresh.json`. Khi upload guild xong, refresh emoji guide để cập nhật số lượng.
+- Server chính đã cấu hình ngày02/10: tên Mimi • Cộng đồng & Hỗ trợ;7category38channel11role.24kênh làm mới,7thêm,3voice thống kê trống xoá; giữ lịch sử/ID chức năng.239/239config kiểm chứng. Không rerun full setup/reset/xoá kênh. Chi tiết HOME-SERVER.md.
+- Backup cấu hình server: `C:/Users/ivano/Downloads/MimiBot-backups/home-guild-1517068246493429852-2026-10-02/`.
 
-## Server chính — lịch sử đã xong02/10
+## Dữ liệu và credential tạm
 
-Tên **Mimi • Cộng đồng & Hỗ trợ**,7categories38channels11roles27emoji lúc cấu hình. Làm mới24kênh/thêm7/xóa3voicestatstrống,giữID/lịchsửchức năng. GiữFounder/bot,bỏAdministratorQuảntrị thường,khôngmởnộibộchoManager.239/239config,4/4panel,12/12guideđạt. Receipt `C:/Users/ivano/Downloads/MimiBot-backups/home-guild-1517068246493429852-2026-10-02/`,chi tiết [HOME-SERVER.md](HOME-SERVER.md). Không rerun apply/setup/reset/guildkhác. Chưabấmbutton/modal/audio bằngthànhviên.
+- File credential tải tạm `C:/Users/ivano/Downloads/config.json` vẫn tồn tại ngoài Git, dùng REST đã được phép. Không in nội dung. **Xoá đúng file này sau khi tất cả REST/sync hoàn tất**; không xoá config runtime của bot.
+- Đã backup9mục runtime VibeHost vào `/home/container/archive-2026-10-03T120925Z.tar.gz`,65158bytes/12entry; bản local `C:/Users/ivano/Downloads/MimiBot-backups/bot-runtime-2026-10-03/`. SHA256 `C846A43D50C4BC0D46CEEF3492009B0FA2ACFD47A8756B3BC8ED3A6F87C69758`. Có credential/dữ liệu riêng, không commit/công khai.
+- Không deploy ghi đè .env/config/economy/music/reminders/tickets/data. New runtime module phải vào whitelist và buildInfo fingerprint. Mọi test không import index.js.
 
-## Định tuyến/khôi phục
+## Website và dọn ổ: user hoãn
 
-Workspace `C:/Users/ivano/Downloads/D-n-MimiBot-main/` nhiều repo,khôngGit. BotD-n-MimiBot,websiteWebsite-Mini-Bot; BotAntiRaid/MimiShield ngoài scope. Bảnlặpbackup cóthểkhôiphục `C:/Users/ivano/Downloads/MimiBot-backups/D-n-MimiBot-main-2026-10-02/`,khôngxóa.
+- Website2.5.0 đã push nhánh `codex/website-2-5-refresh`, commit `87a1d3141394933fe809ef2ac8c549b2d57ff7c9`, draft [PR#1](https://github.com/nhan9800/Website-Mini-Bot/pull/1) đã attach. Chưa merge/deploy. Production lịch sử `9d72b6c/run81`, cần kiểm tra lại khi tiếp tục.
+- 24test,lint/typecheck/build,audit0,11route HTTP200/version/keyguard đã đạt. Chưa browser render QA/OAuth/audio/Lighthouse; browser chặn localhost.
+- Nhân Hòa service HOST058175; cPanel `103.124.95.230:2083` bị browser security policy chặn. Không dùng browser khác/native/CLI để vòng qua chặn.
+- Screenshot quota2024MB/2048: thư mụcẩn773.14MB,OtherUsage699.48MB,website-mini-bot546.93MB,tmp3.85MB,logs0.28MB. Chưa có cây thư mục chi tiết, chưa xoá gì. User đã yêu cầu để lại sau.
+- Khi tiếp tục: backup .env.local,data,MIMI_FEEDBACK_STORE và legacy .next/mimi_feedback_store.json; kiểm NodePassenger>=22.12/Applicationroot/cron. Không chạy bootstrap-host.sh --yes/cron cũ trước migration. Dùng artifact CI tránh host build gần hết quota.
 
-Đọc WORKSPACE+botAGENTS+file này khiresume,giữchangeschưacommit. Cập nhật sau mốc/trước bàn giao/compact. Kết quả cũ không thay xác minh mới; chỉ dẫn mới user ưu tiên.
+## Bước tiếp tục sau lượt này
+
+1. Hoàn tất commit/push/deploy bản sửa menu nhạc và ghi commit/health mới.
+2. Kiểm receipts/process đồng bộ guild trước khi thao tác; không upload song song. Khi xong verify tổng emoji, refresh guide và xoá credential tạm.
+3. Rà tiếp menu album/yêu thích: hiện chọn bằng index, có nguy cơ chọn sai bài nếu danh sách đổi trong lúc popup còn mở; chưa sửa ở lượt menu quyền/persistence này.
+4. Cần kiểm audio/voice/client thực tế khi có phiên sử dụng. Không khẳng định toàn bộ tính năng đã E2E.
+5. Website/dọn ổ giữ trạng thái hoãn theo user.
