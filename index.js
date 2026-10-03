@@ -12,6 +12,10 @@ const SeparatorSpacingSize = { Small: 1, Medium: 1, Large: 2 };
 const fs = require('fs');
 const path = require('path');
 
+// Đọc .env ở local; biến môi trường hosting được Node ưu tiên giữ nguyên.
+const envPath = path.join(__dirname, '.env');
+if (fs.existsSync(envPath)) process.loadEnvFile(envPath);
+
 // [CI/CD] Lắng nghe tín hiệu Restart từ GitHub Actions để tự động cập nhật
 const triggerFile = path.join(__dirname, 'restart.trigger');
 fs.watchFile(triggerFile, { interval: 2000 }, (curr, prev) => {
@@ -26,7 +30,16 @@ const crypto = require('crypto');
 const { PassThrough, Readable, pipeline: streamPipeline } = require('stream');
 const { spawn } = require('child_process');
 const { colors, buildBaseEmbed, generateProgressBar } = require('./uiBuilder');
+const { normalizePayload, readMessageEmbed, extractActionRows, installDiscordUi, preserveUi } = require('./discordUi');
+const { buildMusicDashboard, buildHelpOverview, buildHelpPage } = require('./communityPanels');
+const { buildProfilePayload, buildRankPayload } = require('./profileCard');
+const { applyPetDecayRealtime, buildPetEmbed, buildPetComponents } = require('./petUi');
+const { createMusicPanelWriter } = require('./musicPanelUpdater');
 const { startInternalApi } = require('./internalApi');
+const { COMMUNITY_EMOJI, provisionCommunityEmojis, installGuildEmojis, getEmojiCoverage, emojiForKey } = require('./communityEmojis');
+const { importEmojiImage, downloadPublicImage } = require('./emojiImport');
+const { validateMusicUrl } = require('./musicSources');
+const { parseDuration, setLongTimeout, clearLongTimeout } = require('./reminderUtils');
 const { MusicStore, MAX_ALBUMS_PER_USER, MAX_TRACKS_PER_ALBUM } = require('./musicStore');
 const { createDashboardKey, resolveDashboardSecret, DEFAULT_TTL_MS: DASHBOARD_KEY_TTL_MS } = require('./dashboardAuth');
 const licenseStore = require('./licenseStore');
@@ -83,12 +96,16 @@ function formatTimeVN(dateOrMs) {
 // -----------------------------------------------------------------
 // 👑 HẰNG SỐ ĐẶC BIỆT
 // -----------------------------------------------------------------
-const OWNER_ID = '1143387904064888942';  // ID duy nhất có quyền quản lý xu đặc biệt
+const OWNER_ID = /^\d{17,20}$/.test(process.env.MIMI_OWNER_ID || '') ? process.env.MIMI_OWNER_ID : '1143387904064888942';  // ID duy nhất có quyền quản lý xu đặc biệt
+function isBotOwner(userId) {
+    const owner = client.application?.owner;
+    return userId === OWNER_ID || owner?.id === userId || Boolean(owner?.members?.has?.(userId));
+}
 
 // 🎉 Biến lưu Sự Kiện Liên Server đang hoạt động
 let activeSystemEvent = null;
 const MAX_BALANCE = 999_999_999_999;    // Giới hạn xu tối đa (dùng khi Owner bật chế độ Test)
-const HOME_GUILD_ID = '1517068246493429852'; // Server hỗ trợ
+const HOME_GUILD_ID = /^\d{17,20}$/.test(process.env.MIMI_HOME_GUILD_ID || '') ? process.env.MIMI_HOME_GUILD_ID : '1517068246493429852'; // Server hỗ trợ
 const SUPPORT_LINK = process.env.DISCORD_SUPPORT_URL || 'https://discord.gg/gBUHY3qph2';
 
 // -----------------------------------------------------------------
@@ -102,20 +119,21 @@ function loadReminders() {
         if (fs.existsSync(remindersPath)) {
             const data = fs.readFileSync(remindersPath, 'utf8');
             reminders = JSON.parse(data);
-            if (!Array.isArray(reminders)) reminders = [];
+            if (!Array.isArray(reminders)) throw new Error('Kho nhắc nhở phải là danh sách.');
         } else {
             reminders = [];
             fs.writeFileSync(remindersPath, JSON.stringify(reminders, null, 2));
         }
     } catch (e) {
-        console.error('❌ Lỗi tải reminders.json:', e);
-        reminders = [];
+        throw new Error('Không đọc được reminders.json. Hãy sửa hoặc khôi phục bản sao lưu trước khi khởi động bot; file hiện tại được giữ nguyên.');
     }
 }
 
 function saveReminders() {
     try {
-        fs.writeFileSync(remindersPath, JSON.stringify(reminders, null, 2));
+        const temporary = remindersPath + '.tmp';
+        fs.writeFileSync(temporary, JSON.stringify(reminders, null, 2));
+        fs.renameSync(temporary, remindersPath);
     } catch (e) {
         console.error('❌ Lỗi lưu reminders.json:', e);
     }
@@ -125,47 +143,15 @@ loadReminders();
 
 const activeReminderTimeouts = new Map();
 
-function parseDuration(str) {
-    if (!str) return 0;
-    const s = str.trim();
-    if (/^\d+$/.test(s)) {
-        return parseInt(s, 10) * 60 * 1000;
-    }
-    const regex = /(\d+)\s*(d|ngày|ngay|h|giờ|gio|g|m|phút|phut|p|s|giây|giay)?/gi;
-    let totalMs = 0;
-    let match;
-    let found = false;
-
-    while ((match = regex.exec(s)) !== null) {
-        if (!match[1]) continue;
-        found = true;
-        const val = parseInt(match[1], 10);
-        const unit = (match[2] || 'm').toLowerCase();
-        if (unit.startsWith('d') || unit.startsWith('ng')) {
-            totalMs += val * 24 * 60 * 60 * 1000;
-        } else if (unit.startsWith('h') || unit.startsWith('g') || unit.startsWith('gi')) {
-            totalMs += val * 60 * 60 * 1000;
-        } else if (unit.startsWith('m') || unit.startsWith('p')) {
-            totalMs += val * 60 * 1000;
-        } else if (unit.startsWith('s')) {
-            totalMs += val * 1000;
-        } else {
-            totalMs += val * 60 * 1000;
-        }
-    }
-    return found ? totalMs : 0;
-}
 
 function scheduleReminder(rem) {
     if (activeReminderTimeouts.has(rem.id)) {
-        clearTimeout(activeReminderTimeouts.get(rem.id));
+        clearLongTimeout(activeReminderTimeouts.get(rem.id));
         activeReminderTimeouts.delete(rem.id);
     }
 
-    const now = Date.now();
-    const delay = Math.max(0, rem.remindAt - now);
-
-    const timer = setTimeout(async () => {
+    if (!Number.isFinite(Number(rem.remindAt))) return;
+    const timer = setLongTimeout(async () => {
         activeReminderTimeouts.delete(rem.id);
         reminders = reminders.filter(r => r.id !== rem.id);
         saveReminders();
@@ -186,7 +172,7 @@ function scheduleReminder(rem) {
                 .setTimestamp();
 
             if (channel) {
-                await channel.send({ content: `<@${rem.userId}> ⏰ **Bạn có một nhắc nhở!**`, embeds: [remindEmbed] }).catch(async () => {
+                await channel.send({ content: `<@${rem.userId}> ⏰ **Bạn có một nhắc nhở!**`, embeds: [remindEmbed], allowedMentions: { parse: [], users: [rem.userId] } }).catch(async () => {
                     if (user) await user.send({ embeds: [remindEmbed] }).catch(() => null);
                 });
             } else if (user) {
@@ -195,7 +181,7 @@ function scheduleReminder(rem) {
         } catch (err) {
             console.error(`❌ [Reminder] Lỗi gửi nhắc nhở ${rem.id}:`, err.message);
         }
-    }, delay);
+    }, Number(rem.remindAt));
 
     activeReminderTimeouts.set(rem.id, timer);
 }
@@ -351,16 +337,24 @@ let config = {};
 try {
     if (fs.existsSync(configPath)) {
         config = require(configPath);
+        if (!config || typeof config !== 'object' || Array.isArray(config)) throw new Error('Cấu hình phải là object.');
+        if (config.guilds !== undefined && (!config.guilds || typeof config.guilds !== 'object' || Array.isArray(config.guilds))) throw new Error('Cấu hình guild phải là object.');
     } else {
         config = { token: "", clientId: "", guilds: {}, lastUpdateAnnounced: "" };
         fs.writeFileSync(configPath, JSON.stringify(config, null, 2));
     }
 } catch (e) {
-    console.error("❌ Không thể đọc file config.json, khởi tạo object trống.");
-    config = { token: "", clientId: "", guilds: {} };
+    console.error("❌ Không thể đọc file config.json; giữ nguyên file và dừng khởi động.");
+    throw new Error('Không đọc được config.json. Hãy khôi phục bản sao lưu trước khi khởi động; không ghi đè dữ liệu cũ.');
 }
 
 if (!config.guilds) config.guilds = {};
+const botToken = String(process.env.DISCORD_TOKEN || config.token || '').trim();
+const botClientId = String(process.env.DISCORD_CLIENT_ID || config.clientId || '').trim();
+if (!botToken) {
+    console.error('❌ Chưa cấu hình DISCORD_TOKEN trong .env/panel hoặc token trong config.json.');
+    process.exit(1);
+}
 
 const ticketTimeouts = new Map();
 const buttonCooldowns = new Map();
@@ -379,6 +373,8 @@ const client = new Client({
     ],
     partials: [Partials.Message, Partials.Channel, Partials.Reaction, Partials.User]
 });
+// Áp dụng giao diện cộng đồng cho mọi đường gửi, kể cả các tính năng cũ.
+installDiscordUi(require('discord.js'), client);
 
 // Nếu Client (là 1 EventEmitter) tự phát ra sự kiện 'error' mà KHÔNG có ai lắng nghe,
 // Node.js sẽ throw ngay lập tức (hành vi đặc biệt riêng của sự kiện 'error' trong EventEmitter).
@@ -658,7 +654,8 @@ async function updateReactionRoleEmbed(message, panelData) {
         `${r.display} ➜ <@&${r.roleId}>${r.description ? ` — *${r.description}*` : ''}`
     );
 
-    const baseEmbed = message.embeds[0] ? EmbedBuilder.from(message.embeds[0]) : new EmbedBuilder().setColor('#5865F2');
+    const previous = readMessageEmbed(message);
+    const baseEmbed = previous ? EmbedBuilder.from(previous) : new EmbedBuilder().setColor('#5865F2');
     const headDesc = panelData.baseDescription || '';
     const listText = lines.length > 0 ? lines.join('\n') : '*(Chưa có vai trò nào được gắn)*';
 
@@ -768,8 +765,10 @@ let economyData = {};
 if (fs.existsSync(economyPath)) {
     try {
         economyData = JSON.parse(fs.readFileSync(economyPath, 'utf-8'));
+        if (!economyData || typeof economyData !== 'object' || Array.isArray(economyData)) throw new Error('Kho kinh tế phải là object.');
     } catch (e) {
-        economyData = {};
+        console.error('❌ Không đọc được economy.json. Dừng bot để giữ nguyên dữ liệu; hãy khôi phục bản sao lưu.');
+        process.exit(1);
     }
 }
 
@@ -994,8 +993,10 @@ let createdChannels = [];
 if (fs.existsSync(channelsPath)) {
     try {
         createdChannels = JSON.parse(fs.readFileSync(channelsPath, 'utf-8'));
+        if (!Array.isArray(createdChannels)) throw new Error('Kho kênh phải là danh sách.');
     } catch (e) {
-        createdChannels = [];
+        console.error('❌ Không đọc được created_channels.json. Dừng bot để giữ nguyên dữ liệu; hãy khôi phục bản sao lưu.');
+        process.exit(1);
     }
 }
 
@@ -1030,9 +1031,6 @@ async function syncChannels() {
             const channel = client.channels.cache.get(entry.channelId) || await client.channels.fetch(entry.channelId).catch(() => null);
             if (channel) {
                 activeList.push(entry);
-                if (channel.isTextBased()) {
-                    await channel.send({ content: "🤖 Bot đã khởi động lại và sẵn sàng hỗ trợ!" }).catch(() => null);
-                }
             } else {
                 console.log(`🧹 Dọn rác DB: Kênh ${entry.channelId} đã bị người dùng xóa thủ công.`);
             }
@@ -1077,7 +1075,8 @@ function bjDraw(deck) {
 }
 
 function bjCardLabel(card) {
-    return `\`${card.r}${card.s}\``;
+    // Chỉ hạng bài là mã; chất bài nằm ngoài để giao diện thay bằng emoji ứng dụng.
+    return `\`${card.r}\`${card.s}`;
 }
 
 function bjHandValue(hand) {
@@ -1963,7 +1962,7 @@ async function closeAndArchiveTicket(channel, guild, userWhoClosed, gConfig, cre
     process.nextTick(async () => {
         if (messageArray.length > 0) {
             messageArray.forEach(msg => {
-                if (msg.author.bot && msg.embeds.length > 0) return; 
+                if (msg.author.bot && (msg.embeds.length > 0 || msg.components.length > 0)) return;
                 logChatText += `[${formatTimeVN(msg.createdAt)}] ${msg.author.tag}: ${msg.content}\n`;
             });
         } else {
@@ -3137,7 +3136,7 @@ try { ytDlpExec = require('yt-dlp-exec'); } catch {
 // -----------------------------------------------------------------
 let googleTTS = null;
 try {
-    googleTTS = require('google-tts-api');
+    googleTTS = require('./googleTts');
 } catch {
     console.warn('⚠️ [TTS] Chưa cài google-tts-api — tính năng đọc tin nhắn sẽ không hoạt động.');
 }
@@ -3281,6 +3280,17 @@ setInterval(() => ensureYtDlpBinary().catch(() => null), 6 * 60 * 60 * 1000).unr
 
 // guildId -> { connection, player, voiceChannelId, textChannel, queue, current, currentResource, currentProcess, volume, loop, nowPlayingMessage, idleTimeout }
 const musicQueues = new Map();
+const writeMusicPanel = createMusicPanelWriter({ getQueue: guildId => musicQueues.get(guildId), buildPayload: buildMusicPayload });
+function refreshMusicPanel(mq) {
+    if (!mq) return Promise.resolve(null);
+    return writeMusicPanel(mq.guildId || mq.textChannel?.guild?.id);
+}
+async function refreshMusicInteraction(interaction, mq) {
+    // Bảng chính đi qua cùng hàng ghi với timer để không ghi chồng REST.
+    if (interaction.message?.id !== mq.nowPlayingMessage?.id) return interaction.update(buildMusicPayload(mq));
+    await interaction.deferUpdate();
+    return refreshMusicPanel(mq);
+}
 const broadcastDrafts = new Map();
 
 // guildId -> { connection, player, voiceChannelId, queue, speaking, idleTimeout }
@@ -3376,7 +3386,7 @@ async function searchSoundcloud(query) {
 function getYtCommonOpts() {
     const opts = {
         noWarnings: true,
-        noCheckCertificates: true,
+        noCheckCertificates: false,
         preferFreeFormats: true,
         extractorArgs: YT_EXTRACTOR_ARGS
     };
@@ -3480,17 +3490,11 @@ async function searchYoutube(query) {
 }
 
 // =====================================================================
-// 🌐 MỞ RỘNG NGUỒN NHẠC — ngoài YouTube: SoundCloud, Bandcamp, Twitch, Vimeo,
-// link audio trực tiếp (.mp3/.m4a...) và Spotify (qua oEmbed công khai -> tìm YouTube).
-// yt-dlp hỗ trợ sẵn hàng nghìn site nên hầu hết link chỉ cần đưa thẳng cho yt-dlp.
+// 🌐 NGUỒN NHẠC — YouTube, SoundCloud và các nhà cung cấp trong musicSources.js.
+// Spotify dùng oEmbed công khai để tìm bản phát trên YouTube.
 // =====================================================================
 
-const GENERIC_URL_REGEX = /^https?:\/\/\S+$/i;
 const SPOTIFY_URL_REGEX = /^https?:\/\/(open\.)?spotify\.com\//i;
-// Các host yt-dlp phát trực tiếp được (không phải YouTube, không phải Spotify).
-const DIRECT_YTDLP_HOST_REGEX = /(soundcloud\.com|bandcamp\.com|twitch\.tv|clips\.twitch\.tv|vimeo\.com|dailymotion\.com|mixcloud\.com|audius\.co)/i;
-// Đuôi file audio/video phát trực tiếp qua link tĩnh.
-const DIRECT_MEDIA_EXT_REGEX = /\.(mp3|m4a|aac|ogg|opus|wav|flac|webm|mp4|mov)(\?.*)?$/i;
 
 // GET 1 URL và parse JSON (dùng cho Spotify oEmbed). Trả null nếu lỗi. KHÔNG gửi token/dữ liệu nhạy cảm.
 function httpGetJson(fullUrl) {
@@ -3526,7 +3530,7 @@ async function resolveSpotifyQuery(spotifyUrl) {
 
 // Phát 1 URL nguồn khác YouTube trực tiếp qua yt-dlp (SoundCloud/Bandcamp/Twitch/Vimeo/link tĩnh...).
 async function resolveDirectUrl(url) {
-    const info = await ytDlpExec(url, {
+    const info = await ytDlpExec(validateMusicUrl(url), {
         dumpSingleJson: true,
         noPlaylist: true,      // link set/album -> chỉ lấy bài đầu để tránh nhồi hàng đợi ngoài ý muốn
         skipDownload: true,
@@ -3547,38 +3551,29 @@ async function resolveDirectUrl(url) {
 
 // 🎯 Bộ giải mã nguồn TỔNG QUÁT: nhận query (từ khóa hoặc URL bất kỳ) -> trả 1 track phát được.
 // Ưu tiên: YouTube (logic cũ, chống 403) -> Spotify (oEmbed -> tìm YouTube) -> nguồn yt-dlp khác -> tìm YouTube.
-async function resolveTrack(query) {
-    const q = String(query || '').trim();
+async function resolveTrack(query, preferredSource = 'auto') {
+    let q = String(query || '').trim();
     if (!q) return null;
-
-    // 1) Link YouTube -> dùng đường tối ưu sẵn có (chống 403, lọc video bị chặn)
+    if (/^sc:\s*/i.test(q)) { q = q.replace(/^sc:\s*/i, ''); preferredSource = 'soundcloud'; }
+    if (/^yt:\s*/i.test(q)) { q = q.replace(/^yt:\s*/i, ''); preferredSource = 'youtube'; }
+    if (!q) return null;
+    if (/^https?:\/\//i.test(q)) q = validateMusicUrl(q);
     if (YT_URL_REGEX.test(q)) return searchYoutube(q);
-
-    // 2) Link Spotify -> lấy tên bài (oEmbed công khai) rồi tìm trên YouTube để phát
     if (SPOTIFY_URL_REGEX.test(q)) {
         const term = await resolveSpotifyQuery(q);
-        if (!term) {
-            const err = new Error('Không đọc được thông tin bài hát từ link Spotify này.');
-            err.code = 'SPOTIFY_RESOLVE_FAILED';
-            throw err;
-        }
+        if (!term) throw new Error('Không đọc được thông tin bài hát từ link Spotify này.');
         const track = await searchYoutube(term);
         if (track) track.sourceNote = `Spotify → YouTube: ${term}`;
         return track;
     }
-
-    // 3) URL nguồn khác yt-dlp hỗ trợ (SoundCloud/Bandcamp/Twitch/Vimeo...) hoặc link media trực tiếp
-    if (GENERIC_URL_REGEX.test(q) && (DIRECT_YTDLP_HOST_REGEX.test(q) || DIRECT_MEDIA_EXT_REGEX.test(q))) {
-        return resolveDirectUrl(q);
-    }
-
-    // 4) URL lạ khác -> vẫn thử đưa cho yt-dlp (nó hỗ trợ rất nhiều site); lỗi thì coi như không có
-    if (GENERIC_URL_REGEX.test(q)) {
-        try { return await resolveDirectUrl(q); } catch { return null; }
-    }
-
-    // 5) Không phải URL -> tìm kiếm bằng từ khóa trên YouTube
-    return searchYoutube(q);
+    if (/^https?:\/\//i.test(q)) return resolveDirectUrl(q);
+    if (preferredSource === 'soundcloud') return searchSoundcloud(q);
+    if (preferredSource === 'youtube') return searchYoutube(q);
+    try {
+        const track = await searchYoutube(q);
+        if (track) return track;
+    } catch { /* Thử nguồn dự phòng cho chế độ tự động. */ }
+    return searchSoundcloud(q);
 }
 
 // Trích ID video (11 ký tự) từ 1 URL YouTube; null nếu không phải link YouTube nhận dạng được.
@@ -3752,10 +3747,8 @@ const MUSIC_FALLBACK_THUMB = 'https://i.imgur.com/OaJ8Yqp.png';
 // =====================================================================
 // 🎨 GIAO DIỆN NHẠC CAO CẤP — bộ emoji nút bấm + thanh tiến trình dạng con trượt
 // ---------------------------------------------------------------------
-// MUSIC_EMOJI: mỗi nút điều khiển đọc emoji từ đây. MẶC ĐỊNH là emoji unicode (chạy được
-// ngay, mọi máy). Khi bot khởi động, provisionAppEmojis() sẽ TỰ tạo emoji ứng dụng riêng
-// cho bot (dùng được ở mọi server, không cần quyền Manage Emojis từng server) rồi GHI ĐÈ
-// các khóa dưới đây bằng chuỗi "<:tên:id>". Nếu tạo lỗi -> vẫn giữ unicode, không hỏng UI.
+// MUSIC_EMOJI giữ key tương thích với builder cũ. Bộ chuẩn hóa dùng emoji ứng dụng
+// chung ở mọi server; khi chưa cấp được biểu cảm thì giữ chữ và thao tác.
 // =====================================================================
 const MUSIC_EMOJI = {
     play:       '▶️',
@@ -3784,8 +3777,7 @@ const MUSIC_EMOJI = {
 };
 
 // =====================================================================
-// PROFILE_EMOJI: Emoji trang trí cho thẻ Hồ Sơ. Mặc định là unicode,
-// sẽ được ghi đè bằng Application Emoji khi provisionAppEmojis() chạy.
+// PROFILE_EMOJI giữ key trang trí thẻ cũ; biểu cảm thực do provisioning ghi lại.
 // =====================================================================
 const PROFILE_EMOJI = {
     user:     '👤',
@@ -3813,8 +3805,7 @@ const PROFILE_EMOJI = {
 
 
 
-// Gán emoji cho nút một cách AN TOÀN: chấp nhận cả unicode ('▶️') lẫn custom ('<:tên:id>').
-// discord.js tự phân giải cả hai. Bọc try/catch để 1 emoji hỏng không làm sập cả panel.
+// Bọc lỗi để một biểu cảm hỏng không làm sập cả panel; transport chuẩn hóa về bộ Mimi.
 function applyBtnEmoji(button, key) {
     const e = MUSIC_EMOJI[key];
     if (!e) return button;
@@ -3827,94 +3818,40 @@ function applyBtnEmoji(button, key) {
 //   - Nếu trên HOST có thư mục assets/emojis/<key>.(png|gif|webp) thì upload làm Application Emoji,
 //     rồi ghi đè MUSIC_EMOJI[key] = '<:tên:id>' (hoặc '<a:tên:id>' cho gif động).
 //   - Emoji đã tồn tại (theo tên) thì DÙNG LẠI, không tạo trùng.
-//   - Không có ảnh -> giữ nguyên emoji unicode mặc định (giao diện vẫn đẹp).
+//   - Emoji chưa được cấp -> giữ chữ, báo coverage và thử lại hữu hạn ở nền.
 // Toàn bộ bọc try/catch: thất bại 1 emoji không được làm sập bot lúc khởi động.
 async function provisionAppEmojis() {
-    const dir = path.join(__dirname, 'assets', 'emojis');
-    let files;
-    try {
-        files = fs.readdirSync(dir);
-    } catch {
-        console.log('🎨 [Emoji] Không có assets/emojis — dùng emoji unicode mặc định.');
-        return;
-    }
-
-    // Map "key" (theo MUSIC_EMOJI) -> tên emoji hợp lệ trên Discord (2-32 ký tự, [a-z0-9_]).
-    const emojiName = (key) => `mimi_${key}`.toLowerCase().replace(/[^a-z0-9_]/g, '').slice(0, 32);
-
-    let appEmojis;
-    try {
-        // Nạp danh sách Application Emoji hiện có để tránh tạo trùng.
-        appEmojis = await client.application.emojis.fetch();
-    } catch (e) {
-        console.error('🎨 [Emoji] Không tải được danh sách Application Emoji:', e?.message);
-        return;
-    }
-    const byName = new Map();
-    for (const em of appEmojis.values()) byName.set(em.name, em);
-
-    let created = 0, reused = 0;
-    for (const key of Object.keys(MUSIC_EMOJI)) {
-        // Tìm file ảnh khớp key (ưu tiên gif động, rồi png/webp).
-        const match = files.find(f => {
-            const base = f.replace(/\.(png|gif|webp)$/i, '');
-            return base === key && /\.(png|gif|webp)$/i.test(f);
-        });
-        if (!match) continue;
-
-        const name = emojiName(key);
-        try {
-            let em = byName.get(name);
-            if (em) {
-                reused++;
-            } else {
-                const attachment = fs.readFileSync(path.join(dir, match));
-                em = await client.application.emojis.create({ attachment, name });
-                created++;
-            }
-            const animated = /\.gif$/i.test(match) || em.animated;
-            MUSIC_EMOJI[key] = `<${animated ? 'a' : ''}:${em.name}:${em.id}>`;
-        } catch (e) {
-            console.error(`🎨 [Emoji] Bỏ qua "${key}" (${match}):`, e?.message);
-        }
-    }
-    // Provision PROFILE_EMOJI too
-    for (const key of Object.keys(PROFILE_EMOJI)) {
-        const match = files.find(f => {
-            const base = f.replace(/\.(png|gif|webp)$/i, '');
-            return base === key && /\.(png|gif|webp)$/i.test(f);
-        });
-        if (!match) continue;
-
-        const name = emojiName(key);
-        try {
-            let em = byName.get(name);
-            if (em) {
-                reused++;
-            } else {
-                const attachment = fs.readFileSync(path.join(dir, match));
-                em = await client.application.emojis.create({ attachment, name });
-                created++;
-            }
-            const animated = /\.gif$/i.test(match) || em.animated;
-            PROFILE_EMOJI[key] = `<${animated ? 'a' : ''}:${em.name}:${em.id}>`;
-        } catch (e) {
-            console.error(`🎨 [Emoji] Bỏ qua profile "${key}" (${match}):`, e?.message);
-        }
-    }
-
-    console.log(`🎨 [Emoji] Application Emoji: tạo mới ${created}, dùng lại ${reused}.`);
+    return provisionCommunityEmojis(client, {
+        assetDir: path.join(__dirname, 'assets', 'emojis'),
+        maps: [MUSIC_EMOJI, PROFILE_EMOJI],
+        logger: console
+    });
 }
 
-// Thanh tiến trình dạng CON TRƯỢT (giống player nhạc cao cấp): ▬▬▬🔘▬▬▬ với núm ở đúng vị trí.
-function buildMusicProgressBar(currentSec, totalSec, size = 14) {
-    if (!(totalSec > 0)) totalSec = 1;
-    const ratio = Math.max(0, Math.min(1, currentSec / totalSec));
-    const pos = Math.round(ratio * (size - 1)); // vị trí núm trượt (0..size-1)
-    let bar = '';
-    for (let i = 0; i < size; i++) bar += i === pos ? '🔘' : '▬';
-    return bar;
+let appEmojiProvisioning = null;
+function startAppEmojiProvisioning() {
+    // Chạy nền để rate-limit/lỗi Discord không chặn API và đăng ký lệnh lúc startup.
+    if (appEmojiProvisioning) return appEmojiProvisioning;
+    appEmojiProvisioning = (async () => {
+        const retryDelays = [30_000, 120_000];
+        for (let attempt = 0; attempt <= retryDelays.length; attempt++) {
+            try { await provisionAppEmojis(); }
+            catch { console.warn('🎨 Chưa thể nạp trọn bộ emoji ứng dụng; Mimi tiếp tục bằng chữ.'); }
+            const coverage = getEmojiCoverage();
+            console.info(`🎨 Emoji ứng dụng: ${coverage.available}/${coverage.required} biểu cảm sẵn sàng (lượt ${attempt + 1}/3).`);
+            if (coverage.complete) return coverage;
+            if (attempt < retryDelays.length) await new Promise(resolve => {
+                const timer = setTimeout(resolve, retryDelays[attempt]);
+                timer.unref?.();
+            });
+        }
+        const coverage = getEmojiCoverage();
+        console.warn(`🎨 Bộ emoji chưa đủ; dùng chữ ở ${coverage.missing.length} mục: ${coverage.missing.join(', ')}.`);
+        return coverage;
+    })();
+    return appEmojiProvisioning;
 }
+
 
 // =====================================================================
 // 🎚️ 8 HIỆU ỨNG ÂM THANH — bộ lọc ffmpeg (dùng khi phát qua đường ffmpeg)
@@ -3930,10 +3867,10 @@ function buildMusicProgressBar(currentSec, totalSec, size = 14) {
 // =====================================================================
 // =====================================================================
 // DISCORD COMPONENTS V2 NATIVE CONTAINER (TYPE 17) + SPECTOR SEPARATORS (TYPE 14) + TEXTDISPLAY (TYPE 10)
-// HOÀN TOÀN KHÔNG DÙNG EMOJI - CHỈ DÙNG DISCORD MARKDOWN CHUẨN VÀ COMPONENTS V2
+// Bảng cập nhật dùng emoji cộng đồng và bố cục Components V2 hiện hành.
 // =====================================================================
 const PRIMARY_UPDATE_CHANNEL_ID = '1527814721053655092';
-const CURRENT_UPDATE_VERSION = '2026.09.25';
+const CURRENT_UPDATE_VERSION = '2026.10.02-1.4.0';
 const ANNOUNCED_UPDATES_FILE = path.join(__dirname, 'data', 'announced_updates.json');
 
 function readAnnouncedUpdates() {
@@ -3955,157 +3892,36 @@ function saveAnnouncedUpdates(data) {
     }
 }
 
-// BỘ CUSTOM EMOJI TRANG TRÍ THÔNG BÁO (Đã add trực tiếp vào Server chính 1517068246493429852 & Application Emojis)
-const ANNOUNCE_EMOJIS = {
-    fire: '<a:tsm_fire:1545057696527552623>',
-    starSpin: '<a:starxoay:1545057795404070913>',
-    tickGreen: '<a:tickgreen:1545057805998891108>',
-    dotYellow: '<a:dotyellow:1545057812181155883>',
-    chamXanh: '<a:chamxanh:1545057822461526046>',
-    diamond: '<:mimi_diamond:1545057827049967636>',
-    arrow: '<a:mimi_arrow2:1545057835866398750>',
-    arrowSmall: '<:muiten:1545057896901902457>',
-    verify: '<:verifybadge:1545057877599719545>',
-    money: '<:mimi_money:1545057842321690624>',
-    heartGlow: '<:heart_glow:1545057849841815643>',
-    dotGreen: '<:dotgreen:1545057885669687336>',
-    shield: '<:cr_baohanh:1545057857794478262>'
-};
-
+// BỘ BIỂU CẢM TRANG TRÍ THÔNG BÁO DÙNG CHUNG CHO CỘNG ĐỒNG
 function buildComponentsV2Announcement() {
-    const inviteMusicUrl = 'https://discord.com/oauth2/authorize?client_id=1516603522584416376&permissions=8&integration_type=0&scope=bot';
-    const inviteShieldUrl = 'https://discord.com/oauth2/authorize?client_id=1539527939723497473&permissions=8&integration_type=0&scope=bot';
-    const pricingUrl = 'https://mimibot.id.vn/pricing';
-    const websiteUrl = 'https://mimibot.id.vn';
-    const supportServerUrl = 'https://discord.gg/gBUHY3qph2';
-
-    const E = ANNOUNCE_EMOJIS;
-
-    const innerComponents = [
-        // 1. Tiêu đề thông báo
-        {
-            type: 10, // TextDisplay
-            content: `# ${E.fire} BẢN CẬP NHẬT HỆ THỐNG MIMI ECOSYSTEM ${E.starSpin}\n-# ${E.dotGreen} PHIÊN BẢN 2026.09.25 • VÁ LỖI ADDEMOJI • AUTOCOMPLETE EMOJI SERVER • ĐÀO KIM CƯƠNG 3X3 • CAO THẤP HI-LO\n\n> ${E.verify} **Kính gửi toàn thể Quản trị viên và cộng đồng người dùng Discord.**\n> ${E.arrowSmall} Đội ngũ phát triển vừa hoàn tất đợt nâng cấp toàn diện: Sửa lỗi thêm biểu cảm, tối ưu hóa nhận diện emoji cho Reaction Role và ra mắt 2 minigame siêu hấp dẫn Đào Kim Cương & Bài Cao Thấp!`
-        },
-        // 2. Spector Separator Line
-        {
-            type: 14, // Separator
-            divider: true,
-            spacing: 2
-        },
-        // 3. Mục 1: VÁ LỖI LỆNH THÊM BIỂU CẢM
-        {
-            type: 10,
-            content: `### ${E.chamXanh} 1. VÁ LỖI LỆNH THÊM BIỂU CẢM VÀ TỐI ƯU HÓA (/addemoji & miaddemoji)\n> ${E.tickGreen} Khắc phục triệt để lỗi báo Admin và mở rộng đa dạng nguồn ảnh\n\`\`\`diff\n+ Khắc phục triệt để lỗi console: Sửa lỗi xung đột tham số khiến lệnh báo lỗi liên hệ Admin.\n+ Tải ảnh trực tiếp: Bổ sung tùy chọn đính kèm file ảnh (PNG, JPG, GIF, WebP) ngay trong Discord.\n+ Nhận diện đa nguồn: Hỗ trợ link ảnh trực tiếp từ emoji.gg, discadia, copy tag emoji server khác (<:tên:id>) hoặc ID số.\n+ Bổ sung lệnh prefix: Hỗ trợ cú pháp gõ nhanh "miaddemoji <nguồn/ảnh> [tên]" cực kỳ thuận tiện.\n\`\`\``
-        },
-        // 4. Spector Separator Line
-        {
-            type: 14,
-            divider: true,
-            spacing: 1
-        },
-        // 5. Mục 2: NHẬN DIỆN EMOJI CHO REACTION ROLE
-        {
-            type: 10,
-            content: `### ${E.diamond} 2. NHẬN DIỆN EMOJI MÁY CHỦ TOÀN DIỆN CHO PICK ROLES\n> ${E.starSpin} Hệ thống chọn vai trò bằng biểu cảm thông minh và chính xác tuyệt đối\n\`\`\`yaml\nNhan Dien Bieu Cam:\n  - Tu Dong Goi Y (Autocomplete): Tự động hiển thị danh sách emoji server kèm ảnh động/tĩnh khi gõ lệnh.\n  - Bo Giai Ma Thong Minh: Nhận diện chuẩn xác mọi định dạng: :tên_emoji:, tên không dấu, tag Discord hoặc Unicode.\n  - Dong Bo Cache: Tự động nạp danh sách emoji ngay cả khi bot vừa khởi động lại mà không lo lỗi Unknown Emoji.\n  - Ho Tro Go Nhanh: /reactionrole-remove tự động gợi ý đúng các emoji đang gắn trên bảng để gỡ chỉ trong 1 click.\n\`\`\``
-        },
-        // 6. Spector Separator Line
-        {
-            type: 14,
-            divider: true,
-            spacing: 1
-        },
-        // 7. Mục 3: RA MẮT MINIGAME ĐÀO KIM CƯƠNG
-        {
-            type: 10,
-            content: `### ${E.fire} 3. RA MẮT TRÒ CHƠI ĐÀO KIM CƯƠNG (midao & /daokimcuong)\n> ${E.money} Khám phá ma trận kho báu 3x3 kịch tính cùng hệ số nhân thưởng tới x28.5\n\`\`\`fix\n* San Mo Kim Cuong: Ma trận 9 ô ẩn chứa 7 viên Kim Cương sáng chói và 2 Quả Bom nổ chậm.\n* Nhan Thuong Leo Thang: Càng lật trúng nhiều kim cương, hệ số thưởng càng nhân dồn cao ngất ngưởng.\n* Rut Tien An Toan: Bấm nút Rút Tiền bất kỳ lúc nào để bảo toàn số xu chiến thắng vào ví.\n* Dao Khoang San Mien Phi: Gõ "midao" (không cược xu) để đào Kim Cương, Hồng Ngọc, Quặng Vàng tích lũy vào kho đồ mikho.\n\`\`\``
-        },
-        // 8. Spector Separator Line
-        {
-            type: 14,
-            divider: true,
-            spacing: 1
-        },
-        // 9. Mục 4: RA MẮT CASINO CAO THẤP HI-LO
-        {
-            type: 10,
-            content: `### ${E.arrow} 4. RA MẮT CASINO CAO THẤP HI-LO (micaothap & /caothap)\n> ${E.verify} Trò chơi dự đoán 52 lá bài kịch tính và thử thách trí tuệ\n\`\`\`yaml\nLuat Choi Cao Thap:\n  - Rut Bai 52 La: Bot rút lá bài khởi điểm, người chơi dự đoán lá bài kế tiếp sẽ Cao Hơn hay Thấp Hơn.\n  - Nhan Don He So: Đoán đúng liên tiếp sẽ nhân dồn hệ số tiền thưởng cực lớn.\n  - Chu Dong Rut Tien: Cho phép bấm nút Rút Tiền bất cứ khi nào bạn muốn dừng lại an toàn.\n  - Giao Dien Thoi Gian Thuc: Thiết kế nút bấm tương tác trực quan, chống spam và hỗ trợ cược all mượt mà.\n\`\`\``
-        },
-        // 10. Spector Separator Line
-        {
-            type: 14,
-            divider: true,
-            spacing: 1
-        },
-        // 11. Hướng dẫn nhanh
-        {
-            type: 10,
-            content: `### ${E.arrowSmall} 5. HƯỚNG DẪN SỬ DỤNG NHANH\n${E.dotGreen} \`/addemoji\` hoặc \`miaddemoji\` : Thêm emoji tùy chỉnh vào server bằng ảnh hoặc link cực nhanh.\n${E.dotGreen} \`/reactionrole-add\` : Gắn vai trò bằng biểu cảm có hỗ trợ Autocomplete danh sách emoji server.\n${E.dotGreen} \`midao [số/all]\` : Khám phá ma trận 3x3 đào kim cương săn jackpot hoặc đào khoáng sản miễn phí.\n${E.dotGreen} \`micaothap [số/all]\` : Thử tài dự đoán bài Cao Thấp casino 52 lá với nút bấm tương tác realtime.`
-        },
-        // 12. Spector Separator Line
-        {
-            type: 14,
-            divider: true,
-            spacing: 2
-        },
-        // 11. Hàng nút 1 (Gắn application emojis của bot)
-        {
-            type: 1, // ActionRow
-            components: [
-                {
-                    type: 2, // Button
-                    style: 5, // Link
-                    label: 'Mời MIMI BOT (Miễn Phí)',
-                    url: inviteMusicUrl,
-                    emoji: { id: '1545057795404070913', name: 'starxoay', animated: true }
-                },
-                {
-                    type: 2,
-                    style: 5,
-                    label: 'Mời MIMI SHIELD (Anti-Raid)',
-                    url: inviteShieldUrl,
-                    emoji: { id: '1545057857794478262', name: 'cr_baohanh' }
-                }
-            ]
-        },
-        // 12. Hàng nút 2 (Gắn application emojis của bot)
-        {
-            type: 1,
-            components: [
-                {
-                    type: 2,
-                    style: 5,
-                    label: 'Trang Chủ',
-                    url: websiteUrl,
-                    emoji: { id: '1545057827049967636', name: 'mimi_diamond' }
-                },
-                {
-                    type: 2,
-                    style: 5,
-                    label: 'Bảng Giá & Kích Hoạt',
-                    url: pricingUrl,
-                    emoji: { id: '1545057842321690624', name: 'mimi_money' }
-                },
-                {
-                    type: 2,
-                    style: 5,
-                    label: 'Máy Chủ Hỗ Trợ',
-                    url: supportServerUrl,
-                    emoji: { id: '1545057849841815643', name: 'heart_glow' }
-                }
-            ]
-        }
-    ];
-
+    const E = COMMUNITY_EMOJI;
     return {
-        flags: 32768, // IS_COMPONENTS_V2 (1 << 15)
-        components: [
-            {
-                type: 17, // Container component
-                accent_color: 0x00FFA3, // Neon Mint
-                components: innerComponents
-            }
-        ]
+        flags: MessageFlags.IsComponentsV2,
+        allowedMentions: { parse: [] },
+        components: [{
+            type: 17, accent_color: 0x2DD4BF,
+            components: [
+                { type: 10, content: `# ${E.sparkle} Mimi • Cập nhật cộng đồng
+-# Phiên bản 1.4.0 • ${CURRENT_UPDATE_VERSION}` },
+                { type: 14, divider: true, spacing: 1 },
+                { type: 10, content: `### ${E.music} 1. Diện mạo Mimi mới
+Thẻ thông tin chuyển sang tông mint, nhận diện từng nhóm tính năng, dữ liệu chia mục rõ và các nút nằm cuối bảng. Bảng nhạc, sổ tay hướng dẫn, hồ sơ và cấp độ có bố cục mới riêng.` },
+                { type: 14, divider: true, spacing: 1 },
+                { type: 10, content: `### ${E.check} 2. Biểu mẫu dễ hiểu hơn
+AFK, đặt tên thú cưng, ticket, phòng thoại và soạn thông báo dùng nhãn trường mới kèm hướng dẫn. Mẫu thông báo và bảng ticket do quản trị viên tự thiết kế giữ nội dung, màu và nút đã chọn.` },
+                { type: 14, divider: true, spacing: 1 },
+                { type: 10, content: `### ${E.shield} 3. Bảng nhạc cập nhật ổn định
+Gom các lần sửa bảng, bỏ nội dung không đổi khi tạm dừng và chặn kết quả cũ ghi đè phiên mới. Lỗi mạng tạm thời không tạo thêm bảng nhạc; chỉ khôi phục khi tin nhắn đã bị xóa.` },
+                { type: 14, divider: true, spacing: 1 },
+                { type: 10, content: `### ${E.game} 4. Cổng cộng đồng và tối ưu emoji
+Trang giới thiệu đi kèm bot chuyển sang Mimi miễn phí và đọc trạng thái thật. Bộ xử lý emoji tái sử dụng danh mục đã biên dịch để giảm công việc lặp khi dựng các bảng tương tác.` },
+                { type: 1, components: [
+                    { type: 2, style: 5, label: 'Website Mimi', url: WEB_BASE_URL, emoji: { name: '🌐' } },
+                    { type: 2, style: 5, label: 'Máy chủ hỗ trợ', url: SUPPORT_LINK, emoji: { name: '💗' } }
+                ] },
+                { type: 10, content: '-# Mimi • Bot cộng đồng miễn phí' }
+            ]
+        }]
     };
 }
 
@@ -4308,7 +4124,7 @@ async function doBroadcastUpdate(force = false) {
 
     // 2. Tự nhận diện kênh ở các server khác và thông báo liên server (chống trùng lặp tuyệt đối)
     for (const guild of client.guilds.cache.values()) {
-        if (guild.id === '1517068246493429852') continue; // Đã gửi qua kênh chính của support server
+        if (guild.id === HOME_GUILD_ID) continue; // Đã gửi qua kênh chính của server hỗ trợ
 
         // Chống lặp tin: kiểm tra cả trong config lẫn file lịch sử
         if (!force) {
@@ -4470,100 +4286,14 @@ function parseTimeToSeconds(input) {
     return null;
 }
 
-// Hàng nút điều khiển nhạc (Components V2 — KHÔNG dùng emoji cho gọn/đẹp theo yêu cầu).
-// customId nhúng ownerId của người mở panel để phần xử lý nút biết ai được phép thao tác.
-function buildMusicRows(mq) {
-    const isPaused = mq.player.state.status === voiceLib.AudioPlayerStatus.Paused;
-    const loopStyle = mq.loop === 'off' ? ButtonStyle.Secondary : ButtonStyle.Success;
-    const loopEmojiKey = mq.loop === 'off' ? 'loopOff' : mq.loop === 'track' ? 'loopTrack' : 'loopQueue';
-
-    return [
-        // Hàng 1 (5 nút icon): Trở lại bài trước | Phát/Tạm dừng (xanh) | Bỏ qua | Lặp | Xáo trộn
-        new ActionRowBuilder().addComponents(
-            applyBtnEmoji(new ButtonBuilder().setCustomId('music_restart').setStyle(ButtonStyle.Secondary), 'restart'),
-            applyBtnEmoji(new ButtonBuilder().setCustomId('music_pauseresume').setStyle(ButtonStyle.Success), isPaused ? 'play' : 'pause'),
-            applyBtnEmoji(new ButtonBuilder().setCustomId('music_skip').setStyle(ButtonStyle.Secondary), 'skip'),
-            applyBtnEmoji(new ButtonBuilder().setCustomId('music_loop').setStyle(loopStyle), loopEmojiKey),
-            applyBtnEmoji(new ButtonBuilder().setCustomId('music_shuffle').setStyle(ButtonStyle.Secondary).setDisabled(mq.queue.length < 2), 'shuffle')
-        ),
-        // Hàng 2 (5 nút icon): -10s | +10s | Giảm âm | Tăng âm | Yêu thích
-        new ActionRowBuilder().addComponents(
-            applyBtnEmoji(new ButtonBuilder().setCustomId('music_seekback').setStyle(ButtonStyle.Secondary), 'seekback'),
-            applyBtnEmoji(new ButtonBuilder().setCustomId('music_seekfwd').setStyle(ButtonStyle.Secondary), 'seekfwd'),
-            applyBtnEmoji(new ButtonBuilder().setCustomId('music_voldown').setStyle(ButtonStyle.Secondary).setDisabled(mq.volume <= 0), 'voldown'),
-            applyBtnEmoji(new ButtonBuilder().setCustomId('music_volup').setStyle(ButtonStyle.Secondary).setDisabled(mq.volume >= 1.5), 'volup'),
-            applyBtnEmoji(new ButtonBuilder().setCustomId('music_fav').setStyle(ButtonStyle.Secondary), 'fav')
-        ),
-        // Hàng 3 (5 nút icon): Autoplay | Hàng đợi | Lời bài hát | 24/7 (xanh) | Dừng & Thoát (đỏ)
-        new ActionRowBuilder().addComponents(
-            applyBtnEmoji(new ButtonBuilder().setCustomId('music_autoplay').setStyle(mq.autoplay ? ButtonStyle.Success : ButtonStyle.Secondary), 'autoplay'),
-            applyBtnEmoji(new ButtonBuilder().setCustomId('music_queue').setStyle(ButtonStyle.Secondary), 'queue'),
-            applyBtnEmoji(new ButtonBuilder().setCustomId('music_lyrics').setStyle(ButtonStyle.Secondary), 'lyrics'),
-            applyBtnEmoji(new ButtonBuilder().setCustomId('music_247').setStyle(ButtonStyle.Success), 'stay247'),
-            applyBtnEmoji(new ButtonBuilder().setCustomId('music_stop').setStyle(ButtonStyle.Danger), 'stop')
-        ),
-        // Hàng 4 (Select Menu): Dropdown chọn hiệu ứng âm thanh giống 100% hình mẫu
-        new ActionRowBuilder().addComponents(
-            new StringSelectMenuBuilder()
-                .setCustomId('music_effect_select')
-                .setPlaceholder('Chọn Hiệu Ứng Âm Thanh')
-                .addOptions(
-                    Object.entries(AUDIO_EFFECTS).map(([key, ef]) =>
-                        new StringSelectMenuOptionBuilder()
-                            .setLabel(ef.label)
-                            .setValue(key)
-                            .setDefault(key === (mq.effect || 'none'))
-                    )
-                )
-        )
-    ];
-}
-
-// Giao diện "Đang phát" dạng Components V2 — bố cục cao cấp giống 100% thiết kế Premium:
-// banner, ảnh bìa lớn ở giữa, thông tin gọn gàng, thanh tiến trình trên 1 dòng và 4 hàng nút gọn.
-function buildMusicContainer(mq) {
-    const track = mq.current;
-    if (!track) {
-        return buildMusicNoticeContainer('Không có bài đang phát', 'Bài đã kết thúc hoặc bot đã rời kênh.', 0x99AAB5);
-    }
-    const played = mq.currentResource ? Math.floor(mq.currentResource.playbackDuration / 1000) : 0;
-    const currentSecs = (mq.seekBase || 0) + played;
-    const totalSecs = track.duration || 0;
-
-    const isPaused = mq.player.state.status === voiceLib.AudioPlayerStatus.Paused;
-    const statusText = isPaused ? '⏸️ **Tạm dừng:**' : '🎧 **Đang phát:**';
-    const accent = isPaused ? 0xF1C40F : 0xE50914;
-
-    const loopText = mq.loop === 'track' ? 'Bài hiện tại' : mq.loop === 'queue' ? 'Cả hàng đợi' : 'Tắt';
-    const volPct = Math.round(mq.volume * 100);
-
-    const metaText =
-        `🎙️ **Ca sĩ:** ${track.author || 'Không rõ'}\n` +
-        `▶️ **Nguồn:** ${track.source || 'youtube'}\n` +
-        `👤 **Added by:** \`${track.requestedBy || 'ai đó'}\``;
-
-    const progressStr =
-        `🎧 \`${formatDuration(currentSecs)}\` ${buildMusicProgressBar(currentSecs, totalSecs, 16)} \`${formatDuration(totalSecs)}\``;
-
-    const effectLabel = (mq.effect && mq.effect !== 'none') ? (AUDIO_EFFECTS[mq.effect]?.label || 'Tắt') : 'Tắt';
-    const statsText =
-        `**Effect:** \`${effectLabel}\` | **Loop:** ${loopText} | **Volume:** ${volPct}% | **24/7:** ${mq.stay247 ? 'Bật' : 'Tắt'}`;
-
-    const embed = new EmbedBuilder()
-        .setColor(accent)
-        .setTitle(`${statusText} ${track.title}`.substring(0, 250))
-        .setURL(track.url || null)
-        .setDescription(`${metaText}\n\n${progressStr}\n\n${statsText}`);
-
-    if (track.thumbnail) embed.setImage(track.thumbnail);
-
-    return embed;
-}
-
 function buildMusicPayload(mq) {
-    const embed = buildMusicContainer(mq);
-    const rows = mq.current ? buildMusicRows(mq) : [];
-    return { embeds: [embed], components: rows };
+    return normalizePayload(buildMusicDashboard({
+        track: mq.current,
+        elapsed: (mq.seekBase || 0) + (mq.currentResource ? Math.floor(mq.currentResource.playbackDuration / 1000) : 0),
+        paused: mq.player.state.status === voiceLib.AudioPlayerStatus.Paused,
+        volume: mq.volume, loop: mq.loop, autoplay: mq.autoplay, stay247: mq.stay247,
+        effect: mq.effect, effects: AUDIO_EFFECTS, queue: mq.queue || []
+    }));
 }
 
 function buildMusicNoticeContainer(title, body, accent = 0x5865F2) {
@@ -4573,11 +4303,11 @@ function buildMusicNoticeContainer(title, body, accent = 0x5865F2) {
 }
 
 function buildMusicNoticePayload(title, body, accent = 0x5865F2) {
-    return { embeds: [buildMusicNoticeContainer(title, body, accent)], components: [] };
+    return normalizePayload({ embeds: [buildMusicNoticeContainer(title, body, accent)], components: [] });
 }
 // Thông báo nhạc dạng ẩn (chỉ người bấm thấy)
 function buildMusicNoticeEphemeral(title, body, accent = 0x5865F2) {
-    return { embeds: [buildMusicNoticeContainer(title, body, accent)], flags: MessageFlags.Ephemeral };
+    return normalizePayload({ embeds: [buildMusicNoticeContainer(title, body, accent)], flags: MessageFlags.Ephemeral });
 }
 
 // ⏹️ Thông báo "Dừng & Thoát" — Components V2 đẹp mắt, thay thế panel điều khiển khi người dùng
@@ -4623,74 +4353,8 @@ function buildMusicStopPayload(lastTrack, byUser) {
 // opts: { components: [...ActionRow], ephemeral, allowedMentions, files, extraFlags }
 // -----------------------------------------------------------------
 function embedToV2Payload(embed, opts = {}) {
-    const d = (embed && embed.data) ? embed.data : {};
-    const accent = typeof d.color === 'number' ? d.color : 0x5865F2;
-    const container = new ContainerBuilder().setAccentColor(accent);
-
-    // Phần đầu: author (dòng nhỏ) + title (heading) + description
-    const headerParts = [];
-    if (d.author?.name) headerParts.push(`-# ${d.author.name}`);
-    if (d.title) headerParts.push(`## ${d.title}`);
-    if (d.description) headerParts.push(d.description);
-    const headerText = headerParts.join('\n');
-    const thumbUrl = d.thumbnail?.url;
-
-    if (headerText) {
-        if (thumbUrl) {
-            container.addSectionComponents(
-                new SectionBuilder()
-                    .addTextDisplayComponents(new TextDisplayBuilder().setContent(headerText))
-                    .setThumbnailAccessory(new ThumbnailBuilder().setURL(thumbUrl))
-            );
-        } else {
-            container.addTextDisplayComponents(new TextDisplayBuilder().setContent(headerText));
-        }
-    } else if (thumbUrl) {
-        // Có thumbnail nhưng không có text -> vẫn cần 1 text tối thiểu cho Section
-        container.addSectionComponents(
-            new SectionBuilder()
-                .addTextDisplayComponents(new TextDisplayBuilder().setContent('​'))
-                .setThumbnailAccessory(new ThumbnailBuilder().setURL(thumbUrl))
-        );
-    }
-
-    // Các field -> markdown (nhãn in đậm + giá trị, cách nhau 1 dòng trống)
-    if (Array.isArray(d.fields) && d.fields.length > 0) {
-        if (headerText || thumbUrl) container.addSeparatorComponents(new SeparatorBuilder().setSpacing(SeparatorSpacingSize.Small).setDivider(true));
-        const fieldText = d.fields.map(f => `**${f.name}**\n${f.value}`).join('\n\n');
-        container.addTextDisplayComponents(new TextDisplayBuilder().setContent(fieldText.slice(0, 4000)));
-    }
-
-    // Ảnh lớn (image) -> media gallery nếu có builder; nếu không thì bỏ qua an toàn
-    if (d.image?.url && typeof MediaGalleryBuilder !== 'undefined' && typeof MediaGalleryItemBuilder !== 'undefined') {
-        try {
-            container.addMediaGalleryComponents(
-                new MediaGalleryBuilder().addItems(new MediaGalleryItemBuilder().setURL(d.image.url))
-            );
-        } catch { /* builder không có sẵn -> bỏ qua ảnh */ }
-    }
-
-    // Chân trang + thời gian
-    const footerBits = [];
-    if (d.footer?.text) footerBits.push(d.footer.text);
-    if (d.timestamp) footerBits.push(`<t:${Math.floor(new Date(d.timestamp).getTime() / 1000)}:f>`);
-    if (footerBits.length > 0) {
-        container.addSeparatorComponents(new SeparatorBuilder().setSpacing(SeparatorSpacingSize.Small).setDivider(true));
-        container.addTextDisplayComponents(new TextDisplayBuilder().setContent(`-# ${footerBits.join(' • ')}`));
-    }
-
-    // Nút bấm (ActionRow) đi kèm -> nhét vào trong container để hợp lệ với V2
-    const extraComponents = Array.isArray(opts.components) ? opts.components : [];
-    for (const row of extraComponents) container.addActionRowComponents(row);
-
-    let flags = MessageFlags.IsComponentsV2;
-    if (opts.ephemeral) flags |= MessageFlags.Ephemeral;
-    if (opts.extraFlags) flags |= opts.extraFlags;
-
-    const payload = { components: [container], flags };
-    if (opts.allowedMentions) payload.allowedMentions = opts.allowedMentions;
-    if (opts.files) payload.files = opts.files;
-    return payload;
+    const { extraFlags = 0, ...options } = opts;
+    return normalizePayload({ ...options, embeds: [embed], flags: extraFlags | (opts.ephemeral ? MessageFlags.Ephemeral : 0) });
 }
 
 // 🔒 Thông báo TỪ CHỐI thao tác (panel ownership / sai kênh...) — Components V2 + markdown, luôn ẩn.
@@ -4741,13 +4405,13 @@ function buildQueueRemoveRow(mq) {
 // favorites = mảng track { title, url, duration, thumbnail }. Trả về payload đầy đủ cho reply/editReply.
 function buildFavoritesPayload(favorites) {
     if (!favorites || favorites.length === 0) {
-        return {
-            components: [buildMusicNoticeContainer(
+        return normalizePayload({
+            embeds: [buildMusicNoticeContainer(
                 'Album Yêu thích trống',
                 'Bạn chưa lưu bài nào. Bấm nút **❤ Yêu thích** ở panel nhạc để thêm bài đang phát vào album của bạn.',
                 0x99AAB5
             )], flags: MessageFlags.Ephemeral
-        };
+        });
     }
     const lines = favorites.slice(0, 15).map((t, i) => `${i + 1}. **${t.title}** \`${formatDuration(t.duration)}\``);
     let body = lines.join('\n');
@@ -4769,7 +4433,7 @@ function buildFavoritesPayload(favorites) {
             .setPlaceholder('▶ Chọn 1 bài yêu thích để phát...')
             .addOptions(options)
     );
-    return { embeds: [container], components: [row], flags: MessageFlags.Ephemeral };
+    return normalizePayload({ embeds: [container], components: [row], flags: MessageFlags.Ephemeral });
 }
 
 // 🎚️ Payload chọn HIỆU ỨNG âm thanh (8 hiệu ứng + Tắt). currentKey = hiệu ứng đang áp để đánh dấu.
@@ -4792,7 +4456,7 @@ function buildEffectsPayload(currentKey = 'none') {
             .setPlaceholder('🎚️ Chọn hiệu ứng âm thanh...')
             .addOptions(options)
     );
-    return { embeds: [container], components: [row], flags: MessageFlags.Ephemeral };
+    return normalizePayload({ embeds: [container], components: [row], flags: MessageFlags.Ephemeral });
 }
 
 // 📁 Payload danh sách TẤT CẢ album của 1 user (tên + số bài). ephemeral=true -> kèm cờ Ephemeral.
@@ -4822,9 +4486,9 @@ function albumKey(name) {
 function buildAlbumDetailPayload(name, tracks) {
     const list = tracks || [];
     if (list.length === 0) {
-        return {
+        return normalizePayload({
             embeds: [buildMusicNoticeContainer(`Album "${name}" đang trống`, 'Thêm bài vào bằng `/album them tên:' + name + '` khi đang nghe một bài.', 0x99AAB5)], flags: MessageFlags.Ephemeral
-        };
+        });
     }
     const lines = list.slice(0, 15).map((t, i) => `${i + 1}. **${t.title}** \`${formatDuration(t.duration)}\``);
     let body = lines.join('\n');
@@ -4847,7 +4511,7 @@ function buildAlbumDetailPayload(name, tracks) {
             .setPlaceholder('▶ Chọn 1 bài trong album để phát...')
             .addOptions(options)
     );
-    return { embeds: [container], components: [row], flags: MessageFlags.Ephemeral };
+    return normalizePayload({ embeds: [container], components: [row], flags: MessageFlags.Ephemeral });
 }
 
 // 🔴 THANH TIẾN TRÌNH LIVE: cập nhật tin "Đang phát" định kỳ để phút:giây và thanh tiến trình
@@ -4862,59 +4526,17 @@ function stopProgressUpdater(mq) {
 function startProgressUpdater(guildId) {
     const mq = musicQueues.get(guildId);
     if (!mq) return;
-    stopProgressUpdater(mq); // dọn timer cũ (nếu có) trước khi mở timer mới
-    mq.progressEditing = false; // chưa có edit nào đang bay
-    mq.progressTimer = setInterval(async () => {
-        const m = musicQueues.get(guildId);
-        // Điều kiện dừng: hết queue/không còn bài, hoặc player không còn phát.
-        if (!m || !m.current) { stopProgressUpdater(m); return; }
-        const status = m.player.state.status;
-        if (status !== voiceLib.AudioPlayerStatus.Playing && status !== voiceLib.AudioPlayerStatus.Paused) {
-            stopProgressUpdater(m);
+    stopProgressUpdater(mq);
+    mq.progressTimer = setInterval(() => {
+        const status = mq.player.state.status;
+        if (musicQueues.get(guildId) !== mq || !mq.current ||
+            (status !== voiceLib.AudioPlayerStatus.Playing && status !== voiceLib.AudioPlayerStatus.Paused)) {
+            stopProgressUpdater(mq);
             return;
         }
-        // 🩹 TỰ HỒI PHỤC panel: nếu đang phát mà KHÔNG còn tin panel (lần tạo ban đầu thất bại -> lỗi "mở
-        // nhạc 5 lần 1 lần không ra bảng điều khiển", hoặc panel bị xóa -> lỗi "mất bảng điều khiển mà bot
-        // vẫn hát") thì gửi lại panel mới thay vì dừng cập nhật.
-        if (!m.nowPlayingMessage) {
-            if (m.progressEditing || !m.textChannel) return;
-            m.progressEditing = true;
-            try {
-                const fresh = await m.textChannel.send(buildMusicPayload(m)).catch(() => null);
-                const cur = musicQueues.get(guildId);
-                if (cur && fresh) cur.nowPlayingMessage = fresh;
-            } finally {
-                const cur = musicQueues.get(guildId);
-                if (cur) cur.progressEditing = false;
-            }
-            return;
-        }
-        // 🚦 Chống dồn edit: nếu lần edit trước CHƯA xong (host/Discord chậm hoặc bị rate-limit) thì BỎ QUA
-        // nhịp này. Không có guard, các edit dồn hàng đợi rồi tới nơi LỘN THỨ TỰ -> panel hiện bài cũ dù đã
-        // sang bài mới (lỗi "qua bài vẫn hiện bài vừa hát"), và càng nghe lâu càng lag.
-        if (m.progressEditing) return;
-        // Chốt lại bài đang phát TẠI THỜI ĐIỂM build payload; nếu trong lúc await mà đã chuyển bài thì bỏ
-        // kết quả cũ đi (không ghi đè panel bài mới bằng dữ liệu bài cũ).
-        const trackAtBuild = m.current;
-        const payload = buildMusicPayload(m);
-        m.progressEditing = true;
-        try {
-            const ok = await m.nowPlayingMessage.edit(payload).catch(() => null);
-            const cur = musicQueues.get(guildId);
-            if (!cur) return;
-            if (!ok) {
-                // Edit thất bại (tin bị xóa / mất quyền) -> gửi LẠI panel mới để không "mất bảng điều khiển
-                // mà bot vẫn hát". Chỉ gửi lại khi vẫn đúng bài đang phát.
-                if (cur.current === trackAtBuild && cur.textChannel) {
-                    const fresh = await cur.textChannel.send(buildMusicPayload(cur)).catch(() => null);
-                    if (fresh) cur.nowPlayingMessage = fresh;
-                }
-            }
-        } finally {
-            const cur = musicQueues.get(guildId);
-            if (cur) cur.progressEditing = false;
-        }
+        if (!mq.progressEditing) writeMusicPanel(guildId).catch(() => null);
     }, 7000);
+    mq.progressTimer.unref?.();
 }
 
 // Dừng tiến trình yt-dlp con hiện tại (nếu có) để tránh rò rỉ tiến trình khi skip/stop/rời kênh
@@ -5231,18 +4853,26 @@ async function playNextTrack(guildId, opts = {}) {
         // Vô hiệu hóa nút ở tin "Đang phát" cũ (V2: thay bằng container thông báo không nút)
         mq.current = null;
         mq.currentResource = null;
+        stopProgressUpdater(mq);
         musicStore.clearSession(guildId); // hết bài -> không còn gì để khôi phục sau restart
-        const endPayload = buildMusicNoticePayload('Hàng đợi đã hết', 'Bot sẽ rời kênh thoại sau **2 phút** nếu không có bài mới.', 0x99AAB5);
+        const stillEnding = () => musicQueues.get(guildId) === mq && !mq.current && mq.playGeneration === genId;
+        const endPayload = buildMusicNoticePayload('Hàng đợi đã hết', mq.stay247
+            ? 'Mimi vẫn ở trong phòng vì chế độ **24/7** đang bật. Thêm bài với `/play` để nghe tiếp.'
+            : 'Thêm bài với `/play` để nghe tiếp. Mimi sẽ rời kênh thoại sau **2 phút** nếu chưa có bài mới.', 0x99AAB5);
         if (mq.nowPlayingMessage) {
-            const ok = await mq.nowPlayingMessage.edit(endPayload).catch(() => null);
-            if (!ok && mq.textChannel) mq.nowPlayingMessage = await mq.textChannel.send(endPayload).catch(() => null);
+            await writeMusicPanel.finish(mq, endPayload, {
+                isCurrent: stillEnding
+            }).catch(() => null);
         } else if (mq.textChannel) {
-            mq.nowPlayingMessage = await mq.textChannel.send(endPayload).catch(() => null);
+            const fresh = await mq.textChannel.send(endPayload).catch(() => null);
+            if (stillEnding()) mq.nowPlayingMessage = fresh;
+            else if (fresh && musicQueues.get(guildId)?.nowPlayingMessage?.id !== fresh.id) await fresh.delete().catch(() => null);
         }
+        if (!stillEnding()) return;
         mq.idleTimeout = setTimeout(() => {
             const m = musicQueues.get(guildId);
             // stay247 bật -> giữ kết nối, không auto-leave dù hết bài
-            if (m && !m.stay247 && !m.current && m.queue.length === 0) {
+            if (m === mq && m.playGeneration === genId && !m.stay247 && !m.current && m.queue.length === 0) {
                 m.connection.destroy();
                 musicQueues.delete(guildId);
                 musicStore.clearSession(guildId);
@@ -5284,7 +4914,7 @@ async function playNextTrack(guildId, opts = {}) {
             format: 'bestaudio/best',
             noPlaylist: true,
             noWarnings: true,
-            noCheckCertificates: true,
+            noCheckCertificates: false,
             quiet: true,
             noPart: true,
             socketTimeout: 30,
@@ -5302,7 +4932,7 @@ async function playNextTrack(guildId, opts = {}) {
             // Tải thẳng từ mốc thời gian khi tua hoặc khi đổi hiệu ứng -> không bắt ffmpeg đọc/bỏ qua hàng MB dữ liệu qua pipe
             ytdlOpts.downloadSections = `*${seekSec}-inf`;
         }
-        const ytdlProcess = ytDlpExec.exec(next.url, ytdlOpts, { stdio: ['ignore', 'pipe', 'pipe'] });
+        const ytdlProcess = ytDlpExec.exec(validateMusicUrl(next.url), ytdlOpts, { stdio: ['ignore', 'pipe', 'pipe'] });
 
         let stderrBuffer = '';
         ytdlProcess.stderr?.on('data', (chunk) => {
@@ -5443,15 +5073,7 @@ async function playNextTrack(guildId, opts = {}) {
         // tin riêng, còn playNextTrack lại GỬI MỚI một tin "Đang phát" khác -> tin "Đang tải" bị bỏ
         // lại nguyên trạng. Nay lệnh /play & miplay gán tin trạng thái vào mq.nowPlayingMessage nên
         // nó được edit trực tiếp thành giao diện "Đang phát".
-        const nowPayload = buildMusicPayload(mq);
-        let edited = false;
-        if (mq.nowPlayingMessage) {
-            const updated = await mq.nowPlayingMessage.edit(nowPayload).catch(() => null);
-            if (updated) edited = true;
-        }
-        if (!edited) {
-            mq.nowPlayingMessage = await mq.textChannel.send(nowPayload).catch(() => null);
-        }
+        await writeMusicPanel(guildId);
         startProgressUpdater(guildId); // Bắt đầu cập nhật thanh tiến trình LIVE
     } catch (err) {
         console.error(`❌ [Music] Lỗi phát nhạc ở server ${guildId}:`, err.message);
@@ -5590,6 +5212,7 @@ async function getOrCreateMusicQueue(guild, voiceChannel, textChannel) {
     const startVolume = typeof djCfg.defaultVolume === 'number' ? djCfg.defaultVolume : 1;
 
     mq = {
+        guildId: guild.id,
         connection, player,
         voiceChannelId: voiceChannel.id,
         textChannel,
@@ -6071,7 +5694,7 @@ async function postUpdateAnnouncement() {
 // -----------------------------------------------------------------
 // 🚀 ĐỒNG BỘ LỆNH SLASH COMMANDS
 // -----------------------------------------------------------------
-client.once('ready', async () => {
+client.once('clientReady', async () => {
     antiRaid.initAntiRaid(client);
     cleanupOrphanedMusicFragments();
 
@@ -6097,31 +5720,15 @@ client.once('ready', async () => {
     setInterval(async () => {
         let changed = false;
         const now = Date.now();
-        const DECAY_INTERVAL_MS = 10 * 60 * 1000; // 10 phút
-        const DECAY_AMOUNT = 100 / (12 * 6); // ~1.39 mỗi 10 phút → hết 100 trong 12h
         
         for (const userId in economyData) {
             const uData = economyData[userId];
             if (!uData || !uData.pet) continue;
             
             const pet = uData.pet;
-            if (!pet.lastDecay) pet.lastDecay = now;
-            
-            // Tính số lần decay đã bỏ lỡ
-            const elapsed = now - pet.lastDecay;
-            if (elapsed < DECAY_INTERVAL_MS) continue;
-            
-            const missedTicks = Math.floor(elapsed / DECAY_INTERVAL_MS);
-            const totalDecay = Math.round(DECAY_AMOUNT * missedTicks);
-            
-            if (totalDecay <= 0) continue;
-            
             const oldHunger = pet.hunger;
             const oldHappiness = pet.happiness;
-            
-            pet.hunger = Math.max(0, pet.hunger - totalDecay);
-            pet.happiness = Math.max(0, pet.happiness - totalDecay);
-            pet.lastDecay = now;
+            if (!applyPetDecayRealtime(pet, now)) continue;
             changed = true;
             
             // 🔔 Gửi DM nhắc nhở khi chỉ số về 20% hoặc thấp hơn
@@ -6158,8 +5765,8 @@ client.once('ready', async () => {
         if (changed) saveEconomy();
     }, 10 * 60 * 1000).unref(); // Chạy mỗi 10 phút
 
-    // 🎨 Tự cấp Application Emoji cho panel nhạc (an toàn, không cần quyền server).
-    await provisionAppEmojis().catch(e => console.error('🎨 [Emoji] provisionAppEmojis lỗi:', e?.message));
+    // Cấp emoji ứng dụng chạy nền; UI thiếu emoji dùng chữ tới khi bộ biểu cảm sẵn sàng.
+    startAppEmojiProvisioning().catch(() => console.warn('🎨 Không hoàn tất nạp emoji ứng dụng; giao diện tiếp tục bằng chữ.'));
     await syncChannels();
 
     // 🔌 Khởi động Internal API cho website (chỉ chạy nếu đã đặt MIMI_API_TOKEN)
@@ -6174,6 +5781,7 @@ client.once('ready', async () => {
             killCurrentProcess,
             persistSession,
             skipCurrentTrack,
+            stopAndLeaveVoice,
             logger: console,
             broadcastUpdateAnnouncement,
             cleanupDuplicateAnnouncements
@@ -6185,17 +5793,7 @@ client.once('ready', async () => {
     // 🔄 Khôi phục các phiên phát nhạc đang dở (session-restore độc quyền)
     restoreMusicSessions().catch(e => console.error('❌ [Music] restoreMusicSessions lỗi:', e?.message));
 
-    // ĐÃ TẮT TỰ ĐỘNG PHÁT THÔNG BÁO KHI KHỞI ĐỘNG ĐỂ CHỐNG SPAM 100%
-    // Tự động quét và thu hồi sạch sẽ tất cả thông báo cũ trên toàn bộ các server khi khởi động:
-    setTimeout(async () => {
-        try {
-            console.log('🧹 [Startup] Đang quét và thu hồi toàn bộ thông báo cũ trên tất cả server...');
-            await cleanupDuplicateAnnouncements();
-            console.log('🧹 [Startup] Hoàn tất dọn dẹp và thu hồi thông báo cũ.');
-        } catch (e) {
-            console.error('🧹 [Startup] Lỗi dọn dẹp thông báo cũ:', e.message);
-        }
-    }, 4000);
+    // Restart chỉ nạp mã và phục hồi phiên; đăng/xóa thông báo dùng lệnh quản trị tường minh.
 
     const activities = [
         { name: 'Danh Sách Lương', type: 0 }, 
@@ -6433,12 +6031,11 @@ client.once('ready', async () => {
             .setDefaultMemberPermissions(PermissionFlagsBits.ManageGuild)
             .addStringOption(option => 
                 option.setName('trạng_thái')
-                .setDescription('Chọn Bật, Tắt hoặc chế độ Xác Thực 24 Giờ')
+                .setDescription('Bật hoặc tắt xác thực; quản trị viên chủ động đặt lại khi cần')
                 .setRequired(true)
                 .addChoices(
                     { name: '✅ Bật', value: 'on' },
-                    { name: '🔌 Tắt', value: 'off' },
-                    { name: '⏰ Xác Thực 24 Giờ (reset lúc 00:00 VN)', value: '24h' }
+                    { name: '🔌 Tắt', value: 'off' }
                 )
             )
             .addBooleanOption(option =>
@@ -6641,6 +6238,10 @@ client.once('ready', async () => {
                 )),
 
         new SlashCommandBuilder()
+            .setName('setupemoji')
+            .setDescription('Cài bộ emoji Mimi vào máy chủ, dùng lại emoji đã có')
+            .setDefaultMemberPermissions(PermissionFlagsBits.ManageGuildExpressions),
+        new SlashCommandBuilder()
             .setName('addemoji')
             .setDescription('Thêm emoji tùy chỉnh vào server (Hỗ trợ: emoji Discord, link từ emoji.gg/discadia)')
             .setDefaultMemberPermissions(PermissionFlagsBits.ManageEmojisAndStickers)
@@ -6769,6 +6370,7 @@ client.once('ready', async () => {
         new SlashCommandBuilder()
             .setName('antiraid')
             .setDescription('Cấu hình và kiểm soát hệ thống bảo vệ máy chủ Anti-Raid')
+            .setDefaultMemberPermissions(PermissionFlagsBits.Administrator)
             .addSubcommand(s => s.setName('trangthai').setDescription('Xem trạng thái hoạt động của hệ thống Anti-Raid'))
             .addSubcommand(s => s.setName('lockdown').setDescription('Khóa hoặc mở khóa khẩn cấp toàn bộ kênh chat')
                 .addStringOption(o => o.setName('chế_độ').setDescription('Bật hoặc tắt khóa khẩn cấp').setRequired(true)
@@ -6891,17 +6493,24 @@ client.once('ready', async () => {
             .setDescription('Xem bảng hướng dẫn sử dụng tất cả các tính năng của bot')
     ];
 
-    const botId = config.clientId || client.user.id;
-    const rest = new REST({ version: '10' }).setToken(config.token);
+    const botId = botClientId || client.user.id;
+    const rest = new REST({ version: '10' }).setToken(botToken);
     try {
-        await rest.put(Routes.applicationCommands(botId), { body: commands });
+        // Discord không hỗ trợ custom emoji trong tên choice/mô tả slash command.
+        const plainCommand = value => {
+            const data = typeof value.toJSON === 'function' ? value.toJSON() : value;
+            const copy = { ...data };
+            if (copy.description) copy.description = require('./communityEmojis').plainUiText(copy.description);
+            if (copy.choices) copy.choices = copy.choices.map(choice => ({ ...choice, name: require('./communityEmojis').plainUiText(choice.name) }));
+            if (copy.options) copy.options = copy.options.map(plainCommand);
+            return copy;
+        };
+        await rest.put(Routes.applicationCommands(botId), { body: commands.map(plainCommand) });
     } catch (error) {
         console.error('❌ Lỗi đồng bộ lệnh:', error);
     }
 
-    // ── 📢 THÔNG BÁO CẬP NHẬT (Components V2 + markdown) ──
-    // Chỉ đăng 1 lần cho mỗi version (tránh spam mỗi lần bot restart).
-    await postUpdateAnnouncement().catch(err => console.error('❌ [Update] Lỗi đăng thông báo cập nhật:', err.message));
+    // Cập nhật mã/restart không tự phát thông báo ra các cộng đồng.
 
     // ── Quét & dọn config của các server bot không còn tham gia (bị kick/rời khi bot offline) ──
     let removedGuildCount = 0;
@@ -6954,7 +6563,7 @@ client.once('ready', async () => {
                     giveChan.send({ content: `🎉 **Giveaway "${g.title}" đã kết thúc!**\n😔 Không có ai tham gia.` }).catch(() => null);
                 } else {
                     const winnerIds = [...parts].sort(() => Math.random() - 0.5).slice(0, Math.min(g.winners, parts.length));
-                    giveChan.send({ content: `🎉 **Giveaway "${g.title}" đã kết thúc!**\n🏆 Người thắng: ${winnerIds.map(id => `<@${id}>`).join(', ')}\n🎁 Phần thưởng: **${g.prize}**\n\nChúc mừng! 🎊` }).catch(() => null);
+                    giveChan.send({ content: `🎉 **Giveaway "${g.title}" đã kết thúc!**\n🏆 Người thắng: ${winnerIds.map(id => `<@${id}>`).join(', ')}\n🎁 Phần thưởng: **${g.prize}**\n\nChúc mừng! 🎊`, allowedMentions: { parse: [], users: winnerIds } }).catch(() => null);
                 }
                 continue;
             }
@@ -6971,7 +6580,7 @@ client.once('ready', async () => {
                         giveChan.send({ content: `🎉 **Giveaway "${fresh.title}" đã kết thúc!**\n😔 Không có ai tham gia.` }).catch(() => null);
                     } else {
                         const winnerIds = [...parts].sort(() => Math.random() - 0.5).slice(0, Math.min(fresh.winners, parts.length));
-                        giveChan.send({ content: `🎉 **Giveaway "${fresh.title}" đã kết thúc!**\n🏆 Người thắng: ${winnerIds.map(id => `<@${id}>`).join(', ')}\n🎁 Phần thưởng: **${fresh.prize}**\n\nChúc mừng! 🎊` }).catch(() => null);
+                        giveChan.send({ content: `🎉 **Giveaway "${fresh.title}" đã kết thúc!**\n🏆 Người thắng: ${winnerIds.map(id => `<@${id}>`).join(', ')}\n🎁 Phần thưởng: **${fresh.prize}**\n\nChúc mừng! 🎊`, allowedMentions: { parse: [], users: winnerIds } }).catch(() => null);
                     }
                 } else {
                     await updateGiveawayEmbed(giveChan, msgId, fresh, false);
@@ -8176,12 +7785,10 @@ client.on('messageCreate', async (message) => {
     }
 
     // ==========================================
-    // ?? L?NH PH�T S�NG LI�N SERVER: mibroadcast (Admin & Owner)
+    // 📢 THÔNG BÁO LIÊN SERVER: chỉ chủ sở hữu bot có quyền phát.
     // ==========================================
     if (command === "mibroadcast" || command === "mithongbaoliensv") {
-        const isOwner = message.author.id === OWNER_ID || (client.application?.owner && (client.application.owner.id === message.author.id || client.application.owner.members?.has?.(message.author.id)));
-        const isAdmin = message.member?.permissions?.has(PermissionFlagsBits.Administrator) || message.member?.permissions?.has(PermissionFlagsBits.ManageGuild);
-        if (!isOwner && !isAdmin) return message.reply({ content: "?? L?nh n�y y�u c?u quy?n Qu?n tr? vi�n (Administrator) ho?c l� Owner c?a bot.", allowedMentions: { repliedUser: false } });
+        if (!isBotOwner(message.author.id)) return message.reply({ content: '🚫 Chỉ chủ sở hữu bot được phát thông báo liên server.', allowedMentions: { repliedUser: false } });
         
         broadcastDrafts.set(message.author.id, { embeds: [], pingEveryone: false });
 
@@ -8189,7 +7796,6 @@ client.on('messageCreate', async (message) => {
 
         return renderBroadcastBuilder(message, broadcastDrafts.get(message.author.id));
 
-        return message.reply({ embeds: [helpEmbed], components: [row, rowSend], allowedMentions: { repliedUser: false } });
     }
     // ==========================================
     // ⏰ LỆNH ĐẶT LỊCH NHẮC NHỞ: minhac | midatlich
@@ -8223,7 +7829,7 @@ client.on('messageCreate', async (message) => {
             }
             const removed = reminders.splice(idx, 1)[0];
             if (activeReminderTimeouts.has(removed.id)) {
-                clearTimeout(activeReminderTimeouts.get(removed.id));
+                clearLongTimeout(activeReminderTimeouts.get(removed.id));
                 activeReminderTimeouts.delete(removed.id);
             }
             saveReminders();
@@ -8346,7 +7952,7 @@ if (command === 'mibanminigame' || command === 'mibanmg') {
                             client.application.owner.members?.has?.(message.author.id)
                         ));
 
-        if (message.guild?.id !== '1517068246493429852') {
+        if (message.guild?.id !== HOME_GUILD_ID) {
             return message.reply({ content: '🚫 Lệnh này chỉ được phép sử dụng trong Máy Chủ Hỗ Trợ của bot!', allowedMentions: { repliedUser: false } });
         }
 
@@ -8440,7 +8046,7 @@ if (command === 'mibanminigame' || command === 'mibanmg') {
                             client.application.owner.members?.has?.(message.author.id)
                         ));
 
-        if (message.guild?.id !== '1517068246493429852') {
+        if (message.guild?.id !== HOME_GUILD_ID) {
             return message.reply({ content: '🚫 Lệnh này chỉ được phép sử dụng trong Máy Chủ Hỗ Trợ của bot!', allowedMentions: { repliedUser: false } });
         }
 
@@ -8491,24 +8097,9 @@ if (command === 'mibanminigame' || command === 'mibanmg') {
     // 📖 LỆNH TRỢ GIÚP: mihelp
     // ==========================================
     if (command === 'mihelp') {
-        const introEmbed = new EmbedBuilder()
-            .setColor('#FF69B4')
-            .setTitle('🎀 DANH SÁCH LỆNH MIMI BOT 🎀')
-            .setDescription(
-                'Chào mừng bạn đến với **MIMI BOT**! Dưới đây là danh sách các tính năng hiện có.\n' +
-                'Hãy chọn một mục trong menu thả xuống bên dưới để xem hướng dẫn chi tiết nhé!'
-            )
-            .setThumbnail(client.user.displayAvatarURL())
-            .addFields(
-                { name: '🌟 Nổi Bật', value: '`/setup`, `/farm`, `/shop`, `/giveawaycreate`, `/play`' },
-                { name: '🌾 Cập Nhật Mới', value: 'Hệ thống **Nông Trại (MIMI Farm)**, **Cửa Hàng Hạt Giống & Đất Đai**, và **Nghe Nhạc Tự Động** đã chính thức ra mắt!' }
-            )
-            .setFooter({ text: 'Sử dụng menu bên dưới để chuyển trang hướng dẫn' })
-            .setTimestamp();
-
         const selectMenu = new StringSelectMenuBuilder()
             .setCustomId('help_select')
-            .setPlaceholder('📂 Chọn tính năng muốn xem hướng dẫn...')
+            .setPlaceholder('📖 Khám phá 17 nhóm tính năng của Mimi')
             .addOptions(
                 new StringSelectMenuOptionBuilder().setLabel('Khởi Tạo Hệ Thống').setDescription('Lệnh /setup và /resetsetup để khởi tạo server').setValue('help_setup').setEmoji('⚙️'),
                 new StringSelectMenuOptionBuilder().setLabel('Xác Thực Thành Viên (Verify)').setDescription('Bảo vệ máy chủ với tính năng Verify').setValue('help_verify').setEmoji('🛡️'),
@@ -8519,11 +8110,18 @@ if (command === 'mibanminigame' || command === 'mibanmg') {
                 new StringSelectMenuOptionBuilder().setLabel('Hệ Thống Kinh Tế & Nông Trại').setDescription('Farm, Gieo hạt, Tưới cây, Mua đất, Siêu thị, Daily...').setValue('help_economy').setEmoji('💰'),
                 new StringSelectMenuOptionBuilder().setLabel('Trò Chơi Giải Trí & Casino').setDescription('Coin Flip, Tài Xỉu, Bầu Cua, Slot, Blackjack...').setValue('help_game').setEmoji('🎰'),
                 new StringSelectMenuOptionBuilder().setLabel('Hệ Thống Nghe Nhạc').setDescription('Phát nhạc từ YouTube, Spotify, Soundcloud...').setValue('help_music').setEmoji('🎵'),
-                new StringSelectMenuOptionBuilder().setLabel('Ủng Hộ Bot').setDescription('Thông tin donate & mã QR chuyển khoản duy trì bot').setValue('help_donate').setEmoji('☕')
+                new StringSelectMenuOptionBuilder().setLabel('Ủng Hộ Bot').setDescription('Thông tin donate & mã QR chuyển khoản duy trì bot').setValue('help_donate').setEmoji('☕'),
+                new StringSelectMenuOptionBuilder().setLabel('Lời Chào Thành Viên Mới').setDescription('Tùy chỉnh lời chào cho thành viên mới').setValue('help_welcome').setEmoji('👋'),
+                new StringSelectMenuOptionBuilder().setLabel('Ticket Hỗ Trợ').setDescription('Mở, tiếp nhận và lưu trữ ticket').setValue('help_ticket').setEmoji('🎫'),
+                new StringSelectMenuOptionBuilder().setLabel('Vai Trò Bằng Biểu Cảm').setDescription('Thiết lập vai trò với reaction emoji').setValue('help_reaction').setEmoji('🎭'),
+                new StringSelectMenuOptionBuilder().setLabel('Chấm Công').setDescription('Vào ca, ra ca và báo cáo').setValue('help_attendance').setEmoji('🕒'),
+                new StringSelectMenuOptionBuilder().setLabel('Thông Báo Quản Trị').setDescription('Gửi thông báo cho máy chủ').setValue('help_admin').setEmoji('📢'),
+                new StringSelectMenuOptionBuilder().setLabel('Góp Ý Cộng Đồng').setDescription('Thiết lập và gửi góp ý').setValue('help_feedback').setEmoji('📬'),
+                new StringSelectMenuOptionBuilder().setLabel('Bảng Thông Tin').setDescription('Gửi bảng nội dung, hình ảnh và liên kết').setValue('help_embed').setEmoji('📝')
             );
 
         const row = new ActionRowBuilder().addComponents(selectMenu);
-        return message.reply({ embeds: [introEmbed], components: [row] }).catch(() => null);
+        return message.reply(buildHelpOverview({ avatarUrl: client.user.displayAvatarURL(), rows: [row] })).catch(() => null);
     }
 
     // ==========================================
@@ -8788,7 +8386,7 @@ if (command === 'mibanminigame' || command === 'mibanmg') {
             new ButtonBuilder().setCustomId(`marry_decline_${userId}`).setLabel('Từ Chối').setStyle(ButtonStyle.Danger)
         );
 
-        const proposeMsg = await message.reply({ content: `💍 <@${target.id}>, bạn có đồng ý kết hôn với **${message.author.username}** không? (Bạn có 60 giây để quyết định)`, components: [row] });
+        const proposeMsg = await message.reply({ content: `💍 <@${target.id}>, bạn có đồng ý kết hôn với **${message.author.username}** không? (Bạn có 60 giây để quyết định)`, components: [row], allowedMentions: { parse: [], users: [target.id], repliedUser: false } });
 
         const filter = i => i.user.id === target.id && i.customId.startsWith('marry_');
         try {
@@ -8863,36 +8461,20 @@ function getUserBackgroundPath(uId) {
 async function saveUserBackground(uId, url) {
     try {
         if (!fs.existsSync(BG_DIR)) fs.mkdirSync(BG_DIR, { recursive: true });
-        const controller = new AbortController();
-        const timeout = setTimeout(() => controller.abort(), 15000);
-        const res = await fetch(url, {
-            signal: controller.signal,
-            headers: {
-                'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36'
-            }
-        });
-        clearTimeout(timeout);
-        if (!res.ok) throw new Error(`Máy chủ trả về HTTP ${res.status}`);
-        const contentType = (res.headers.get('content-type') || '').toLowerCase();
-        const buffer = Buffer.from(await res.arrayBuffer());
-        if (buffer.length < 100) throw new Error('File ảnh rỗng hoặc không tải được!');
-        if (buffer.length > 8 * 1024 * 1024) throw new Error('Dung lượng ảnh vượt quá 8MB!');
-
-        let ext = 'png';
-        if (contentType.includes('jpeg') || contentType.includes('jpg')) ext = 'jpg';
-        else if (contentType.includes('gif')) ext = 'gif';
-        else if (contentType.includes('webp')) ext = 'webp';
+        if (!/^\d{17,20}$/.test(String(uId))) throw new Error('ID người dùng không hợp lệ.');
+        const { buffer, format: ext } = await downloadPublicImage(url, { maxBytes: 8 * 1024 * 1024, timeoutMs: 15000 });
+        if (buffer.length < 100) throw new Error('File ảnh rỗng hoặc không tải được.');
+        const savePath = path.join(BG_DIR, `${uId}.${ext}`);
+        fs.writeFileSync(savePath + '.tmp', buffer);
+        fs.renameSync(savePath + '.tmp', savePath);
 
         // Xoá các định dạng cũ của user nếu có
         ['png', 'jpg', 'jpeg', 'gif', 'webp'].forEach(e => {
             const oldP = path.join(BG_DIR, `${uId}.${e}`);
-            if (fs.existsSync(oldP)) {
+            if (e !== ext && fs.existsSync(oldP)) {
                 try { fs.unlinkSync(oldP); } catch {}
             }
         });
-
-        const savePath = path.join(BG_DIR, `${uId}.${ext}`);
-        fs.writeFileSync(savePath, buffer);
         return { success: true, filePath: savePath, ext };
     } catch (err) {
         return { success: false, error: err.message || 'Lỗi không xác định khi tải ảnh' };
@@ -8905,19 +8487,6 @@ async function saveUserBackground(uId, url) {
         const xpNeeded = xpNeededForLevel(userData.level);
         const userAvatar = message.author.displayAvatarURL({ extension: 'png', size: 256 });
         
-        // Custom progress bar with dot/diamond markers
-        const pctValue = xpNeeded > 0 ? Math.max(0, Math.min(1, userData.xp / xpNeeded)) : 0;
-        const pctInt = Math.round(pctValue * 100);
-        const barLen = 12;
-        const filled = Math.round(pctValue * barLen);
-        const progressBar = '▰'.repeat(filled) + '▱'.repeat(barLen - filled);
-        
-        // Tính toán thêm thông tin
-        const petEmoji = userData.pet ? (userData.pet.emoji || (userData.pet.type === 'dog' ? '🐶' : (userData.pet.type === 'cat' ? '🐱' : (userData.pet.type === 'parrot' ? '🦜' : '🐰')))) : '';
-        const petInfo = userData.pet ? `${petEmoji} **${userData.pet.name}** (Level ${userData.pet.level || 1})` : '❌ Chưa nuôi';
-        const canCauInfo = userData.cancau_uses ? `**${userData.cancau_uses}** lượt` : '❌ Chưa mua';
-        const cuocInfo = userData.cuoc_uses ? `**${userData.cuoc_uses}** lượt` : '❌ Chưa mua';
-
         const btnSell = new ButtonBuilder().setCustomId('profile_sell_item').setLabel('Bán Đồ').setStyle(ButtonStyle.Danger);
             try { btnSell.setEmoji(PROFILE_EMOJI.coin); } catch {}
             const btnShop = new ButtonBuilder().setCustomId('profile_shop').setLabel('Mua Sắm').setStyle(ButtonStyle.Primary);
@@ -8943,98 +8512,14 @@ async function saveUserBackground(uId, url) {
             }
         }
 
-        const hasBg = !!bgInfo || (userData.bgUrl && userData.bgUrl !== 'broken');
-
-        const profileContainer = new ContainerBuilder()
-            .setAccentColor(0x5865F2)
-            .addTextDisplayComponents(
-                new TextDisplayBuilder().setContent(
-                    `# ${PROFILE_EMOJI.crown} HỒ SƠ CỦA ${message.author.username.toUpperCase()}`
-                )
-            )
-            .addSeparatorComponents(
-                new SeparatorBuilder().setSpacing(SeparatorSpacingSize.Small).setDivider(true)
-            )
-            .addSectionComponents(
-                new SectionBuilder()
-                    .addTextDisplayComponents(
-                        new TextDisplayBuilder().setContent(
-                            `${PROFILE_EMOJI.user} **Thành viên:** ${message.author}\n` +
-                            `${PROFILE_EMOJI.id} **ID:** \`${message.author.id}\`\n` +
-                            `${PROFILE_EMOJI.level} **Cấp độ:** \`Level ${userData.level}\``
-                        )
-                    )
-                    .setThumbnailAccessory(
-                        new ThumbnailBuilder().setURL(userAvatar)
-                    )
-            )
-            .addSeparatorComponents(
-                new SeparatorBuilder().setSpacing(SeparatorSpacingSize.Small).setDivider(true)
-            )
-            .addTextDisplayComponents(
-                new TextDisplayBuilder().setContent(
-                    `### ${PROFILE_EMOJI.stats} Tài sản & Tiến trình\n` +
-                    `> ${PROFILE_EMOJI.coin} **Ví tiền:** \`${userData.balance.toLocaleString()} xu\`\n` +
-                    `> ${PROFILE_EMOJI.xp} **Kinh nghiệm:** \`${userData.xp.toLocaleString()} / ${xpNeeded.toLocaleString()} XP\`\n` +
-                    `> ${progressBar} **${pctInt}%**`
-                )
-            )
-            .addSeparatorComponents(
-                new SeparatorBuilder().setSpacing(SeparatorSpacingSize.Small).setDivider(true)
-            )
-            .addTextDisplayComponents(
-                new TextDisplayBuilder().setContent(
-                    `### ${PROFILE_EMOJI.heart} Thông tin cá nhân\n` +
-                    `> ${PROFILE_EMOJI.heart} **Tình trạng:** ${userData.spouseId ? `Đã kết hôn với <@${userData.spouseId}>` : 'Độc thân'}\n` +
-                    `> ${PROFILE_EMOJI.ring} **Nhẫn cưới:** ${userData.inventory?.nhan_cuoi ? `${PROFILE_EMOJI.check} Có trang bị` : '❌ Không có'}\n` +
-                    `> ${PROFILE_EMOJI.image} **Ảnh nền:** ${hasBg ? `${PROFILE_EMOJI.check} Đã trang bị` : '❌ Chưa trang bị'}`
-                )
-            )
-            .addSeparatorComponents(
-                new SeparatorBuilder().setSpacing(SeparatorSpacingSize.Small).setDivider(true)
-            )
-            .addTextDisplayComponents(
-                new TextDisplayBuilder().setContent(
-                    `### ${PROFILE_EMOJI.sparkle} Vật phẩm & Dụng cụ\n` +
-                    `> 🐾 **Thú cưng:** ${petInfo}\n` +
-                    `> 🎣 **Cần câu:** ${canCauInfo}\n` +
-                    `> ⛏️ **Cuốc:** ${cuocInfo}`
-                )
-            );
-        
-        // Hiển thị ảnh Background đính kèm trực tiếp (Native Attachment) — không bao giờ lỗi/hết hạn
         if (bgInfo) {
             const fileName = `profile_bg_${userId}.${bgInfo.ext}`;
             bgAttachment = new AttachmentBuilder(bgInfo.filePath, { name: fileName });
-            profileContainer
-                .addSeparatorComponents(
-                    new SeparatorBuilder().setSpacing(SeparatorSpacingSize.Small).setDivider(true)
-                )
-                .addMediaGalleryComponents(
-                    new MediaGalleryBuilder().addItems(
-                        new MediaGalleryItemBuilder().setURL(`attachment://${fileName}`)
-                    )
-                );
-        } else if (userData.bgUrl && userData.bgUrl !== 'local') {
-            profileContainer.addTextDisplayComponents(
-                new TextDisplayBuilder().setContent(`> ⚠️ *Ảnh nền trước đây đã hết hạn hoặc không khả dụng. Bạn hãy dùng lệnh \`mibg\` đính kèm ảnh mới để cài đặt lại nhé!*`)
-            );
         }
-        
-        profileContainer
-            .addSeparatorComponents(
-                new SeparatorBuilder().setSpacing(SeparatorSpacingSize.Small).setDivider(true)
-            )
-            .addActionRowComponents(row);
-
-        const replyPayload = {
-            components: [profileContainer],
-            flags: MessageFlags.IsComponentsV2,
-            allowedMentions: { repliedUser: false }
-        };
-        if (bgAttachment) {
-            replyPayload.files = [bgAttachment];
-        }
+        const replyPayload = buildProfilePayload({
+            user: message.author, data: userData, xpNeeded, avatarUrl: userAvatar,
+            backgroundAttachment: bgAttachment, backgroundUnavailable: !bgInfo && !!userData.bgUrl, rows: [row]
+        });
 
         return message.reply(replyPayload);
     }
@@ -9256,108 +8741,6 @@ async function saveUserBackground(uId, url) {
 // ==========================================
 // 🐾 HỆ THỐNG QUẢN LÝ & CẬP NHẬT TRẠNG THÁI THÚ CƯNG (PET SYSTEM V2)
 // ==========================================
-function applyPetDecayRealtime(pet) {
-    if (!pet) return false;
-    const now = Date.now();
-    if (!pet.lastDecay) pet.lastDecay = now;
-    const elapsed = now - pet.lastDecay;
-    const DECAY_INTERVAL_MS = 10 * 60 * 1000;
-    if (elapsed >= DECAY_INTERVAL_MS) {
-        const missedTicks = Math.floor(elapsed / DECAY_INTERVAL_MS);
-        const totalDecay = Math.round((100 / (12 * 6)) * missedTicks);
-        if (totalDecay > 0) {
-            pet.hunger = Math.max(0, pet.hunger - totalDecay);
-            pet.happiness = Math.max(0, pet.happiness - totalDecay);
-            pet.lastDecay = now;
-            return true;
-        }
-    }
-    return false;
-}
-
-function makePetProgressBar(value, max = 100, length = 10) {
-    const safeMax = max > 0 ? max : 100;
-    const pct = Math.max(0, Math.min(1, (Number(value) || 0) / safeMax));
-    const filled = Math.round(pct * length);
-    return '▰'.repeat(filled) + '▱'.repeat(length - filled);
-}
-
-function getPetMood(pet) {
-    if (pet.hunger >= 80 && pet.happiness >= 80) {
-        return { text: '🌟 Cực kỳ hạnh phúc & Sung mãn', color: 0x00FFA3, desc: 'Bé đang rất no và vui vẻ! Đang mang lại vận may cho chủ nhân!' };
-    }
-    if (pet.hunger >= 50 && pet.happiness >= 50) {
-        return { text: '😊 Khỏe mạnh & Vui tươi', color: 0x2ECC71, desc: 'Bé đang cảm thấy rất thoải mái và yêu quý bạn.' };
-    }
-    if (pet.hunger >= 20 && pet.happiness >= 20) {
-        return { text: '🥺 Hơi đói & Cần quan tâm', color: 0xF39C12, desc: 'Bé bắt đầu đói bụng rồi, hãy cho bé ăn và chơi cùng nhé!' };
-    }
-    return { text: '🚨 Đói lả & Kiệt sức', color: 0xE74C3C, desc: 'Bé đang rất đói và buồn! Cần được cho ăn và chăm sóc khẩn cấp!' };
-}
-
-function buildPetEmbed(user, pet, notice = '') {
-    const hungerBar = makePetProgressBar(pet.hunger, 100, 10);
-    const happyBar = makePetProgressBar(pet.happiness, 100, 10);
-    const xpNeeded = pet.level * 100;
-    const xpBar = makePetProgressBar(pet.xp, xpNeeded, 10);
-    const mood = getPetMood(pet);
-
-    const hungerLabel = pet.hunger >= 80 ? '🟢 No nê' : (pet.hunger >= 50 ? '🟡 Vừa bụng' : (pet.hunger >= 20 ? '🟠 Hơi đói' : '🔴 Rất đói'));
-    const happyLabel = pet.happiness >= 80 ? '🟢 Phấn khích' : (pet.happiness >= 50 ? '🟡 Vui vẻ' : (pet.happiness >= 20 ? '🟠 Hơi buồn' : '🔴 Buồn chán'));
-
-    const desc = (notice ? `${notice}\n\n` : '') +
-        `**${pet.emoji || '🐾'} Tên thú cưng:** \`${pet.name}\`\n` +
-        `**⭐ Cấp độ:** \`Level ${pet.level}\`\n` +
-        `**📈 Tiến trình XP:** \`${pet.xp} / ${xpNeeded} XP\`\n` +
-        `> ${xpBar} **${Math.round((pet.xp / xpNeeded) * 100)}%**\n\n` +
-        `**🎭 Tâm trạng hiện tại:** **${mood.text}**\n` +
-        `*${mood.desc}*`;
-
-    const embed = new EmbedBuilder()
-        .setColor(mood.color)
-        .setTitle(`🐾 HỒ SƠ THÚ CƯNG — ${user.username.toUpperCase()}`)
-        .setDescription(desc)
-        .addFields(
-            { name: '🍖 Độ No', value: `> ${hungerBar}\n> **${pet.hunger}/100** (${hungerLabel})`, inline: true },
-            { name: '🎾 Vui Vẻ', value: `> ${happyBar}\n> **${pet.happiness}/100** (${happyLabel})`, inline: true }
-        )
-        .setThumbnail(user.displayAvatarURL({ extension: 'png', size: 256 }))
-        .setFooter({ text: 'Bấm nút bên dưới để chăm sóc — Chỉ số và thanh trạng thái sẽ tự động nhảy số tức thì!' })
-        .setTimestamp();
-
-    return embed;
-}
-
-function buildPetComponents(ownerId, pet, userData) {
-    const isHungry = pet.hunger < 100;
-    const now = Date.now();
-    const isTired = userData.cooldowns?.pet_play && now < userData.cooldowns.pet_play;
-    const timeLeft = isTired ? Math.ceil((userData.cooldowns.pet_play - now) / 1000) : 0;
-
-    const row = new ActionRowBuilder().addComponents(
-        new ButtonBuilder()
-            .setCustomId(`pet_feed:${ownerId}`)
-            .setLabel('🍖 Cho Ăn (10k xu)')
-            .setStyle(ButtonStyle.Success)
-            .setDisabled(!isHungry),
-        new ButtonBuilder()
-            .setCustomId(`pet_play:${ownerId}`)
-            .setLabel(isTired ? `🎾 Chơi Cùng (${timeLeft}s)` : '🎾 Chơi Cùng')
-            .setStyle(ButtonStyle.Primary)
-            .setDisabled(pet.happiness >= 100 || isTired),
-        new ButtonBuilder()
-            .setCustomId(`pet_rename:${ownerId}`)
-            .setLabel('✏️ Đổi Tên')
-            .setStyle(ButtonStyle.Secondary),
-        new ButtonBuilder()
-            .setCustomId(`pet_refresh:${ownerId}`)
-            .setLabel('🔄 Làm Mới')
-            .setStyle(ButtonStyle.Secondary)
-    );
-
-    return [row];
-}
-
     // 🐾 LỆNH NUÔI THÚ: mipet | minuoithu
     if (command === 'mipet' || command === 'minuoithu') {
         const userData = getUserData(userId);
@@ -9745,8 +9128,12 @@ function buildPetComponents(ownerId, pet, userData) {
         const { bet, error } = parseBet(args[1], userData.balance);
         if (error) return message.reply({ content: error + `\nCú pháp: \`${command} [số/all] [bau/cua/tom/ca/ga/nai]\` hoặc \`${command} [số/all]\` để chọn bằng reaction`, allowedMentions: { repliedUser: false } });
 
-        const symbols = { bau: '🍐 Bầu', cua: '🦀 Cua', tom: '🦐 Tôm', ca: '🐟 Cá', ga: '🐓 Gà', nai: '🦌 Nai' };
-        const emojiOf = { bau: '🍐', cua: '🦀', tom: '🦐', ca: '🐟', ga: '🐓', nai: '🦌' };
+        const animalNames = { bau: 'Bầu', cua: 'Cua', tom: 'Tôm', ca: 'Cá', ga: 'Gà', nai: 'Nai' };
+        const animalEmojiKeys = { bau: 'pear', cua: 'crab', tom: 'shrimp', ca: 'fish', ga: 'chicken', nai: 'deer' };
+        // Cố định ID cho phiên này: biểu cảm hiển thị/react/filter phải là cùng một đối tượng.
+        const emojiOf = Object.fromEntries(Object.entries(animalEmojiKeys).map(([key, icon]) => [key, emojiForKey(icon)]));
+        const emojiIds = Object.fromEntries(Object.entries(emojiOf).map(([key, value]) => [key, value.match(/^<a?:[^:]+:(\d+)>$/)?.[1] || null]));
+        const symbols = Object.fromEntries(Object.entries(animalNames).map(([key, name]) => [key, `${emojiOf[key]} ${name}`.trim()]));
         const keys = Object.keys(symbols);
         let choice = args[2] ? args[2].toLowerCase() : null;
         if (choice === 'tôm') choice = 'tom';
@@ -9781,6 +9168,9 @@ function buildPetComponents(ownerId, pet, userData) {
         }
 
         // ------ Chế độ mới: chọn bằng REACTION EMOJI, có thể chọn nhiều con, 30 giây ------
+        if (Object.values(emojiIds).some(id => !id)) {
+            return message.reply({ content: `Bộ biểu cảm bầu cua đang được nạp. Bạn có thể đặt trực tiếp bằng \`${command} ${bet} bau\` (hoặc cua/tom/ca/ga/nai).`, allowedMentions: { repliedUser: false } });
+        }
         const animalOrder = keys; // ['bau','cua','tom','ca','ga','nai']
 
         const setupEmbed = new EmbedBuilder()
@@ -9792,22 +9182,22 @@ function buildPetComponents(ownerId, pet, userData) {
                 `✅ Có thể chọn **nhiều con** cùng lúc\n` +
                 `⏱️ Thời gian chọn: **30 giây** — reaction sau 30 giây sẽ **không được tính**\n` +
                 `🔄 Không react con nào → **hoàn tiền**, không mất/nhận xu\n\n` +
-                animalOrder.map(k => `${emojiOf[k]} ${symbols[k].split(' ')[1]}`).join('   ')
+                animalOrder.map(k => symbols[k]).join('   ')
             )
             .setFooter({ text: 'Bầu Cua Tôm Cá — react để chọn, có hiệu lực trong 30s' });
 
         const setupMsg = await message.reply({ embeds: [setupEmbed], allowedMentions: { repliedUser: false } });
 
         for (const k of animalOrder) {
-            try { await setupMsg.react(emojiOf[k]); } catch (e) { /* bỏ qua nếu bot thiếu quyền react */ }
+            try { await setupMsg.react(emojiIds[k]); } catch (e) { /* bỏ qua nếu bot thiếu quyền react */ }
         }
 
         const chosen = new Set();
-        const filter = (reaction, reactUser) => reactUser.id === userId && Object.values(emojiOf).includes(reaction.emoji.name);
+        const filter = (reaction, reactUser) => reactUser.id === userId && Object.values(emojiIds).includes(reaction.emoji.id);
         const collector = setupMsg.createReactionCollector({ filter, time: 30_000 });
 
         collector.on('collect', (reaction) => {
-            const key = animalOrder.find(k => emojiOf[k] === reaction.emoji.name);
+            const key = animalOrder.find(k => emojiIds[k] === reaction.emoji.id);
             if (key) chosen.add(key);
         });
 
@@ -10078,6 +9468,7 @@ function buildPetComponents(ownerId, pet, userData) {
             return;
         }
 
+        game.message = sent;
         if (instantEnd) {
             let outcome = 'lose';
             if (pXiban && !dXiban) outcome = 'xiban';
@@ -10302,61 +9693,19 @@ function buildPetComponents(ownerId, pet, userData) {
     // 😄 LỆNH miaddemoji — Thêm emoji bằng prefix
     // ==========================================
     if (command === 'miaddemoji') {
-        const me = message.guild.members.me;
-        if (!me.permissions.has(PermissionFlagsBits.ManageGuildExpressions) && 
-            !me.permissions.has(PermissionFlagsBits.ManageEmojisAndStickers)) {
-            return message.reply('❌ Bot thiếu quyền **Manage Emojis and Stickers** trên máy chủ này!');
-        }
-        if (!message.member.permissions.has(PermissionFlagsBits.ManageEmojisAndStickers) && 
-            !message.member.permissions.has(PermissionFlagsBits.ManageGuildExpressions)) {
-            return message.reply('❌ Bạn không có quyền thêm Emoji vào máy chủ!');
-        }
-
-        const rawSource = args[1];
-        const customName = args[2];
+        const expressionPermission = PermissionFlagsBits.ManageGuildExpressions;
+        if (!message.member?.permissions.has(expressionPermission)) return message.reply('❌ Bạn cần quyền Quản lý biểu cảm máy chủ.');
+        if (!message.guild.members.me?.permissions.has(expressionPermission)) return message.reply('❌ Bot cần quyền Quản lý biểu cảm máy chủ.');
         const attachment = message.attachments.first();
-
-        if (!rawSource && !attachment) {
-            return message.reply('❌ Cú pháp: `miaddemoji <emoji_mẫu/link_ảnh> [tên]` hoặc đính kèm ảnh!');
-        }
-
-        let emojiURL = '';
-        let defaultName = 'mimi_emoji';
-
-        if (attachment) {
-            emojiURL = attachment.url;
-            defaultName = attachment.name ? attachment.name.split('.')[0] : 'mimi_emoji';
-        } else {
-            const match = rawSource.match(/^<(a?):(\w+):(\d+)>$/);
-            if (match) {
-                const animated = match[1] === 'a';
-                defaultName = match[2];
-                const emojiId = match[3];
-                const ext = animated ? 'gif' : 'png';
-                emojiURL = `https://cdn.discordapp.com/emojis/${emojiId}.${ext}?size=256&quality=lossless`;
-            } else if (/^\d{17,20}$/.test(rawSource)) {
-                const found = client.emojis.cache.get(rawSource);
-                const ext = (found && found.animated) ? 'gif' : 'png';
-                defaultName = found ? found.name : 'emoji_' + rawSource.slice(-4);
-                emojiURL = `https://cdn.discordapp.com/emojis/${rawSource}.${ext}?size=256&quality=lossless`;
-            } else if (/^https?:\/\/.+/i.test(rawSource)) {
-                emojiURL = rawSource;
-                const urlParts = rawSource.split('/');
-                const lastPart = urlParts[urlParts.length - 1].split('?')[0];
-                if (lastPart) defaultName = lastPart.split('.')[0] || 'mimi_emoji';
-            } else {
-                return message.reply('❌ Nguồn không hợp lệ! Hãy paste emoji dạng `<:tên:id>`, dán link ảnh hoặc đính kèm file.');
-            }
-        }
-
-        const cleanName = (customName || defaultName).replace(/[^a-zA-Z0-9_]/g, '_').slice(0, 32);
-        const finalName = cleanName.length >= 2 ? cleanName : `emoji_${cleanName}`;
-
+        const source = args[1];
+        if (!source && !attachment) return message.reply('📖 Dùng `miaddemoji <emoji/link ảnh/trang emoji.gg hoặc discadia> [tên]`, hoặc đính kèm ảnh.');
         try {
-            const newEmoji = await message.guild.emojis.create({ attachment: emojiURL, name: finalName });
-            return message.reply(`🎉 Đã thêm emoji **${newEmoji}** (\`:${newEmoji.name}:\`) vào server thành công!`);
-        } catch (err) {
-            return message.reply(`❌ Không thể thêm emoji: ${err.message}`);
+            const image = await importEmojiImage(source, { attachment, name: args[2], cache: client.emojis.cache });
+            const emoji = await message.guild.emojis.create({ attachment: image.buffer, name: image.name, reason: `Thêm emoji bởi ${message.author.id}` });
+            return message.reply(`✅ Đã thêm ${emoji} • \`:${emoji.name}:\``);
+        } catch (error) {
+            const detail = error.code === 30008 ? 'Máy chủ đã hết chỗ emoji.' : error.code === 50013 ? 'Bot thiếu quyền thêm emoji.' : error.message;
+            return message.reply(`❌ Không thể thêm emoji: ${detail}`);
         }
     }
 
@@ -10366,8 +9715,8 @@ function buildPetComponents(ownerId, pet, userData) {
         if (!hasPermission) {
             const warnMsg = await message.reply({ content: '❌ Bạn không có quyền sử dụng lệnh thông báo này!', allowedMentions: { repliedUser: false } }).catch(() => null);
             setTimeout(() => { 
-                if (warnMsg) warnMsg.delete().catch(() => null); 
-                message.delete().catch(() => null); 
+                if (warnMsg) warnMsg.delete().catch(() => null);
+                message.delete().catch(() => null);
             }, 4000);
             return;
         }
@@ -10379,8 +9728,8 @@ function buildPetComponents(ownerId, pet, userData) {
                 allowedMentions: { repliedUser: false } 
             }).catch(() => null);
             setTimeout(() => { 
-                if (warnMsg) warnMsg.delete().catch(() => null); 
-                message.delete().catch(() => null); 
+                if (warnMsg) warnMsg.delete().catch(() => null);
+                message.delete().catch(() => null);
             }, 4000);
             return;
         }
@@ -10438,7 +9787,7 @@ function buildPetComponents(ownerId, pet, userData) {
             mq.autoplay = !mq.autoplay;
             if (mq.autoplay && !mq.lastSeed && mq.current) mq.lastSeed = mq.current;
             persistSession(message.guild.id);
-            if (mq.nowPlayingMessage) mq.nowPlayingMessage.edit(buildMusicPayload(mq)).catch(() => null);
+            if (mq.nowPlayingMessage) refreshMusicPanel(mq).catch(() => null);
             return noticeV2(
                 mq.autoplay ? 'Đã bật Autoplay radio' : 'Đã tắt Autoplay radio',
                 mq.autoplay ? 'Hết hàng đợi bot sẽ **tự phát bài liên quan**.' : 'Bot sẽ **dừng** khi hết hàng đợi.',
@@ -10448,7 +9797,7 @@ function buildPetComponents(ownerId, pet, userData) {
         // mi247 / mistay
         mq.stay247 = !mq.stay247;
         persistSession(message.guild.id);
-        if (mq.nowPlayingMessage) mq.nowPlayingMessage.edit(buildMusicPayload(mq)).catch(() => null);
+        if (mq.nowPlayingMessage) refreshMusicPanel(mq).catch(() => null);
         return noticeV2(
             mq.stay247 ? 'Đã bật chế độ 24/7' : 'Đã tắt chế độ 24/7',
             mq.stay247 ? 'Bot **ở lại kênh** dù không còn ai nghe hoặc hết bài.' : 'Bot **tự rời kênh** khi không còn ai nghe hoặc sau 2 phút hết bài.',
@@ -10476,7 +9825,7 @@ function buildPetComponents(ownerId, pet, userData) {
         }
         const resumeSec = getPlaybackSec(mq);
         await playNextTrack(message.guild.id, { replayCurrent: true, seekSec: resumeSec, effectKey: rest });
-        if (mq.nowPlayingMessage) mq.nowPlayingMessage.edit(buildMusicPayload(mq)).catch(() => null);
+        if (mq.nowPlayingMessage) refreshMusicPanel(mq).catch(() => null);
         return noticeV2('Đã đổi hiệu ứng', `Đang áp **${AUDIO_EFFECTS[rest].label}** từ vị trí \`${formatDuration(resumeSec)}\`.`, 0x57F287);
     }
 
@@ -10628,6 +9977,11 @@ function buildPetComponents(ownerId, pet, userData) {
         const conn = voiceLib.getVoiceConnection(message.guild.id);
         if (!mq && !conn) {
             return message.reply({ content: '❌ Bot hiện không ở trong kênh thoại nào trên server.', allowedMentions: { repliedUser: false } });
+        }
+        const isManager = message.member.permissions?.has(PermissionFlagsBits.ManageGuild) || message.member.permissions?.has(PermissionFlagsBits.Administrator);
+        const activeVoiceId = mq?.voiceChannelId || conn?.joinConfig?.channelId;
+        if ((!isManager && message.member.voice?.channel?.id !== activeVoiceId) || !canControlMusic(message.guild.id, message.member, mq)) {
+            return message.reply({ content: '❌ Chỉ DJ, người mở phiên nhạc trong cùng kênh thoại hoặc quản trị viên được dừng nhạc.', allowedMentions: { repliedUser: false } });
         }
         stopAndLeaveVoice(message.guild.id);
         return message.reply({ content: '👋 Đã ngắt kết nối và rời khỏi kênh thoại theo yêu cầu!', allowedMentions: { repliedUser: false } });
@@ -10832,6 +10186,11 @@ client.on('interactionCreate', async interaction => {
     }
     const gConfig = getGuildConfig(guild.id);
 
+    // Kiểm tra lại ở mọi nút/form, kể cả các bảng được mở trước lần cập nhật.
+    if (customId?.startsWith('bc_') && !isBotOwner(user.id)) {
+        return interaction.reply({ content: '🚫 Chỉ chủ sở hữu bot được quản lý thông báo liên server.', flags: MessageFlags.Ephemeral });
+    }
+
     // 🔍 Xử lý Autocomplete cho Slash Command (Gợi ý emoji server trong reactionrole-add & reactionrole-remove)
     if (interaction.isAutocomplete()) {
         const { commandName } = interaction;
@@ -10927,10 +10286,12 @@ client.on('interactionCreate', async interaction => {
             'resetgame': { ownerOnly: true, supportGuildOnly: true },
             'resetbot': { ownerOnly: true, supportGuildOnly: true },
             'serverlist': { ownerOnly: true },
-            'broadcast': { ownerOrAdmin: true },
+            'broadcast': { ownerOnly: true },
+            'genkey': { ownerOnly: true },
+            'xacnhan': { ownerOnly: true },
             'resetbalance': { ownerOnly: true },
-            'banminigame': { ownerOrAdmin: true },
-            'unbanminigame': { ownerOrAdmin: true }
+            'banminigame': { ownerOnly: true },
+            'unbanminigame': { ownerOnly: true }
         };
 
         const guard = RESTRICTED_COMMANDS[commandName];
@@ -11353,7 +10714,7 @@ client.on('interactionCreate', async interaction => {
                         const shuffled = [...parts].sort(() => Math.random() - 0.5);
                         const winnerIds = shuffled.slice(0, Math.min(g.winners, parts.length));
                         const winnerMentions = winnerIds.map(id => `<@${id}>`).join(', ');
-                        await giveChan.send({ content: `🎉 **Giveaway "${g.title}" đã kết thúc!**\n🏆 Người thắng: ${winnerMentions}\n🎁 Phần thưởng: **${g.prize}**\n\nChúc mừng! 🎊` }).catch(() => null);
+                        await giveChan.send({ content: `🎉 **Giveaway "${g.title}" đã kết thúc!**\n🏆 Người thắng: ${winnerMentions}\n🎁 Phần thưởng: **${g.prize}**\n\nChúc mừng! 🎊`, allowedMentions: { parse: [], users: winnerIds } }).catch(() => null);
                     }
                 } else {
                     await updateGiveawayEmbed(giveChan, sent.id, g, false);
@@ -11773,6 +11134,7 @@ client.on('interactionCreate', async interaction => {
             // Chỉ cần allowedMentions để mention THẬT SỰ kêu; mặc định tắt hết mention để không ping ngoài ý muốn.
             const payload = {
                 components: [container], flags: MessageFlags.IsComponentsV2,
+                mimiUi: { preserve: true },
                 allowedMentions: { parse: ['everyone', 'roles'] }
             };
 
@@ -11786,9 +11148,7 @@ client.on('interactionCreate', async interaction => {
         }
 
         if (commandName === "broadcast") {
-            const isOwner = interaction.user.id === OWNER_ID || (client.application?.owner && (client.application.owner.id === interaction.user.id || client.application.owner.members?.has?.(interaction.user.id)));
-            const isAdmin = interaction.member?.permissions?.has(PermissionFlagsBits.Administrator) || interaction.member?.permissions?.has(PermissionFlagsBits.ManageGuild);
-            if (!isOwner && !isAdmin) return interaction.reply({ content: "\u{1F6AB} B\u{1EA1}n c\u{1EA7}n c\u{00F3} quy\u{1EC1}n Qu\u{1EA3}n tr\u{1ECB} vi\u{00EA}n (Administrator) ho\u{1EB7}c l\u{00E0} Owner c\u{1EE7}a bot \u{0111}\u{1EC3} d\u{00F9}ng l\u{1EC7}nh n\u{00E0}y.", flags: MessageFlags.Ephemeral });
+            if (!isBotOwner(interaction.user.id)) return interaction.reply({ content: '🚫 Chỉ chủ sở hữu bot được phát thông báo liên server.', flags: MessageFlags.Ephemeral });
             broadcastDrafts.set(interaction.user.id, { embeds: [], pingEveryone: false });
             return renderBroadcastBuilder(interaction, broadcastDrafts.get(interaction.user.id));
         }
@@ -11959,7 +11319,7 @@ client.on('interactionCreate', async interaction => {
                                 client.application.owner.members?.has?.(interaction.user.id)
                             ));
                             
-            if (interaction.guild?.id !== '1517068246493429852') {
+            if (interaction.guild?.id !== HOME_GUILD_ID) {
                 return interaction.editReply({ content: '🚫 Lệnh này chỉ được phép sử dụng trong Máy Chủ Hỗ Trợ của bot!' });
             }
 
@@ -12002,7 +11362,7 @@ client.on('interactionCreate', async interaction => {
                                 client.application.owner.members?.has?.(interaction.user.id)
                             ));
 
-            if (interaction.guild?.id !== '1517068246493429852') {
+            if (interaction.guild?.id !== HOME_GUILD_ID) {
                 return interaction.editReply({ content: '🚫 Lệnh này chỉ được phép sử dụng trong Máy Chủ Hỗ Trợ của bot!' });
             }
 
@@ -12301,7 +11661,7 @@ client.on('interactionCreate', async interaction => {
                 ? [new ActionRowBuilder().addComponents(buttons)]
                 : [];
 
-            const sent = await targetChannel.send(embedToV2Payload(embed, { components })).catch(() => null);
+            const sent = await targetChannel.send(embedToV2Payload(embed, { components, mimiUi: { preserve: true } })).catch(() => null);
             if (!sent) return interaction.editReply({ content: '❌ Bot không thể gửi vào kênh đó (Kiểm tra quyền).' });
 
             return interaction.editReply({ content: `✅ Đã gửi embed vào ${targetChannel}!` });
@@ -12347,80 +11707,29 @@ client.on('interactionCreate', async interaction => {
         // ==========================================
         // 😄 LỆNH /addemoji — Thêm emoji tùy chỉnh vào server
         // ==========================================
-        if (commandName === 'addemoji') {
+        if (commandName === 'setupemoji' || commandName === 'addemoji') {
+            const expressionPermission = PermissionFlagsBits.ManageGuildExpressions;
+            if (!interaction.memberPermissions?.has(expressionPermission)) {
+                return interaction.reply({ content: '❌ Bạn cần quyền Quản lý biểu cảm máy chủ.', flags: MessageFlags.Ephemeral });
+            }
             await interaction.deferReply({ flags: MessageFlags.Ephemeral });
-
-            // Kiểm tra quyền bot
-            const me = guild.members.me;
-            if (!me.permissions.has(PermissionFlagsBits.ManageGuildExpressions) && 
-                !me.permissions.has(PermissionFlagsBits.ManageEmojisAndStickers)) {
-                return interaction.editReply({ content: '❌ Bot thiếu quyền **Manage Emojis and Stickers** (Quản lý Biểu tượng cảm xúc) trên máy chủ này để thêm emoji!' });
-            }
-
-            const rawSource = options.getString('nguồn') || options.getString('emoji');
-            const attachment = options.getAttachment('ảnh');
-            const customName = options.getString('tên');
-
-            if (!rawSource && !attachment) {
-                return interaction.editReply({ content: '❌ Vui lòng nhập link ảnh, paste emoji mẫu dạng `<:tên:id>` hoặc đính kèm file ảnh tại mục `ảnh`!' });
-            }
-
-            let emojiURL = '';
-            let defaultName = 'mimi_emoji';
-
-            if (attachment) {
-                emojiURL = attachment.url;
-                defaultName = attachment.name ? attachment.name.split('.')[0] : 'mimi_emoji';
-            } else {
-                const input = rawSource.trim();
-                // 1. Kiểm tra <:name:id> hoặc <a:name:id>
-                const match = input.match(/^<(a?):(\w+):(\d+)>$/);
-                if (match) {
-                    const animated = match[1] === 'a';
-                    defaultName = match[2];
-                    const emojiId = match[3];
-                    const ext = animated ? 'gif' : 'png';
-                    emojiURL = `https://cdn.discordapp.com/emojis/${emojiId}.${ext}?size=256&quality=lossless`;
-                } 
-                // 2. Kiểm tra nếu chỉ nhập ID số của emoji
-                else if (/^\d{17,20}$/.test(input)) {
-                    const found = client.emojis.cache.get(input);
-                    const ext = (found && found.animated) ? 'gif' : 'png';
-                    defaultName = found ? found.name : 'emoji_' + input.slice(-4);
-                    emojiURL = `https://cdn.discordapp.com/emojis/${input}.${ext}?size=256&quality=lossless`;
-                }
-                // 3. Kiểm tra nếu là link HTTP / HTTPS (emoji.gg, discadia, cdn...)
-                else if (/^https?:\/\/.+/i.test(input)) {
-                    emojiURL = input;
-                    const urlParts = input.split('/');
-                    const lastPart = urlParts[urlParts.length - 1].split('?')[0];
-                    if (lastPart) {
-                        defaultName = lastPart.split('.')[0] || 'mimi_emoji';
-                    }
-                } else {
-                    return interaction.editReply({ 
-                        content: '❌ Định dạng nguồn không hợp lệ!\n• Paste emoji Discord: `<:tên:id>` hoặc `<a:tên:id>`\n• Hoặc dán link ảnh trực tiếp (`.png`, `.jpg`, `.gif`) từ emoji.gg, discadia\n• Hoặc đính kèm file ảnh tại mục `ảnh`.' 
-                    });
-                }
-            }
-
-            const cleanName = (customName || defaultName).replace(/[^a-zA-Z0-9_]/g, '_').slice(0, 32);
-            const finalName = cleanName.length >= 2 ? cleanName : `emoji_${cleanName}`;
-
+            if (!guild.members.me?.permissions.has(expressionPermission)) return interaction.editReply({ content: '❌ Bot cần quyền Quản lý biểu cảm máy chủ.' });
             try {
-                const newEmoji = await guild.emojis.create({ attachment: emojiURL, name: finalName });
-                return interaction.editReply({ 
-                    content: `🎉 **ĐÃ THÊM EMOJI THÀNH CÔNG!**\n\n• Biểu tượng: ${newEmoji}\n• Tên emoji: \`:${newEmoji.name}:\`\n• Dạng copy: \`<${newEmoji.animated ? 'a' : ''}:${newEmoji.name}:${newEmoji.id}>\`` 
-                });
-            } catch (err) {
-                console.error('❌ [addemoji]', err);
-                if (err.code === 30008) {
-                    return interaction.editReply({ content: '❌ Máy chủ đã đạt giới hạn tối đa số lượng Emoji! Vui lòng xóa bớt emoji cũ hoặc nâng cấp Boost server.' });
+                if (commandName === 'setupemoji') {
+                    const result = await installGuildEmojis(guild, { reason: `Cài bộ emoji Mimi bởi ${interaction.user.id}` });
+                    const icons = result.created.join(' ');
+                    const failures = result.failed.map(item => `• \`${item.name}\`: ${item.reason}`).join('\n');
+                    return interaction.editReply({ content: `✨ **Bộ emoji Mimi**\nTạo mới: **${result.created.length}** • Đã có: **${result.reused.length}** • Chưa cài được: **${result.failed.length}**\n${icons}${failures ? '\n' + failures : ''}\n-# Giao diện bot vẫn có emoji dự phòng khi máy chủ hết chỗ.` });
                 }
-                if (err.code === 50035 || err.message?.includes('File cannot be larger')) {
-                    return interaction.editReply({ content: '❌ Kích thước file ảnh emoji quá lớn (vượt quá 256KB theo quy định Discord)!' });
-                }
-                return interaction.editReply({ content: `❌ Không thể thêm emoji: **${err.message || 'Lỗi không xác định'}**. Hãy đảm bảo link ảnh còn hoạt động và server còn chỗ trống emoji.` });
+                const source = options.getString('nguồn');
+                const attachment = options.getAttachment('ảnh');
+                if (!source && !attachment) return interaction.editReply({ content: '📖 Dán emoji Discord, link ảnh/trang emoji.gg hoặc discadia, hoặc đính kèm ảnh tại mục ảnh.' });
+                const image = await importEmojiImage(source, { attachment, name: options.getString('tên'), cache: client.emojis.cache });
+                const emoji = await guild.emojis.create({ attachment: image.buffer, name: image.name, reason: `Thêm emoji bởi ${interaction.user.id}` });
+                return interaction.editReply({ content: `✅ **Đã thêm emoji**\nBiểu tượng: ${emoji}\nTên: \`:${emoji.name}:\`\nSao chép: \`<${emoji.animated ? 'a' : ''}:${emoji.name}:${emoji.id}>\`` });
+            } catch (error) {
+                const detail = error.code === 30008 ? 'Máy chủ đã hết chỗ emoji.' : error.code === 50013 ? 'Bot thiếu quyền thêm emoji.' : error.message;
+                return interaction.editReply({ content: `❌ Không thể cài emoji: ${detail}` });
             }
         }
 
@@ -13043,7 +12352,7 @@ client.on('interactionCreate', async interaction => {
 
             if (state === '24h') {
                 if (gConfig.isVerifySetup && gConfig.verifyDailyMode && gConfig.verifyChannelId && guild.channels.cache.get(gConfig.verifyChannelId)) {
-                    return interaction.editReply({ content: '⚠️ Chế độ **Xác Thực 24 Giờ** đã đang hoạt động từ trước.\nDùng `/resetverify` nếu muốn ngắt và tạo lại.' });
+                    return interaction.editReply({ content: 'ℹ️ Hệ thống xác thực đã được bật. Xác thực không tự hết hạn hàng ngày; quản trị viên chủ động đặt lại khi cần.\nDùng `/resetverify` nếu muốn ngắt và tạo lại.' });
                 }
 
                 await setupVerifySystem(guild, gConfig);
@@ -13054,10 +12363,9 @@ client.on('interactionCreate', async interaction => {
                 saveConfig();
 
                 return interaction.editReply({ 
-                    content: '⏰ **Đã BẬT chế độ Xác Thực 24 Giờ thành công!**\n\n' +
-                             '• Khi thành viên xác thực → nhận role **Đã Xác Thực** đến **23:59**.\n' +
-                             '• Đúng **00:00 (múi giờ Việt Nam)** — toàn bộ thành viên bị thu hồi role Đã Xác Thực và trả về Chưa Xác Thực.\n' +
-                             '• Họ cần xác thực lại vào ngày hôm sau.\n\n' +
+                    content: '✅ **Đã BẬT hệ thống xác thực!**\n\n' +
+                             '• Thành viên bấm xác thực để nhận role **Đã Xác Thực**.\n' +
+                             '• Xác thực không tự hết hạn hàng ngày; quản trị viên chủ động đặt lại khi cần.\n\n' +
                              `🔒 Đã cấp vai trò **Chưa Xác Thực** cho **${stats24h.unverifiedAssigned}** thành viên hiện có.\n` +
                              (stats24h.verifiedBotAssigned > 0 ? `🤖 Đã cấp vai trò **Đã Xác Thực** cho **${stats24h.verifiedBotAssigned}** bot khác.\n` : '') +
                              (stats24h.failed > 0 ? `⚠️ **${stats24h.failed}** thành viên gán role thất bại (kiểm tra vị trí role Bot).\n` : '') +
@@ -13078,7 +12386,7 @@ client.on('interactionCreate', async interaction => {
                 saveConfig();
 
                 return interaction.editReply({ 
-                    content: '🔓 **Đã TẮT hệ thống xác thực và mở lại toàn bộ kênh cho mọi người!**\n(Role và kênh xác thực vẫn được ghi nhớ — gõ `/setupverify` chọn **Bật** hoặc **Xác Thực 24 Giờ** khi cần.)' 
+                    content: '🔓 **Đã TẮT hệ thống xác thực và mở lại toàn bộ kênh cho mọi người!**\n(Role và kênh xác thực vẫn được ghi nhớ — gõ `/setupverify` chọn **Bật** khi cần.)'
                 });
             }
         }
@@ -13400,17 +12708,10 @@ client.on('interactionCreate', async interaction => {
             const { level: lv, currentExp: ce, neededExp: ne } = getCurrentLevelExp(exp);
             const sorted = Object.entries(gConfig.levelSystem?.users || {}).sort((a,b)=>b[1]-a[1]);
             const rank = sorted.findIndex(([id])=>id===tUser.id)+1;
-            return interaction.reply({ embeds: [new EmbedBuilder()
-                .setColor(0xF1C40F).setTitle(`⭐ Cấp Độ Chat Server - ${tUser.username}`)
-                .setThumbnail(tUser.displayAvatarURL())
-                .addFields(
-                    { name: '🏅 Cấp', value: `**${lv}**`, inline: true },
-                    { name: '📊 Hạng Server', value: rank > 0 ? `**#${rank}**` : 'Chưa có', inline: true },
-                    { name: '✨ Tổng EXP', value: `${exp.toLocaleString()} EXP`, inline: true },
-                    { name: `Tiến trình đến Cấp ${lv + 1}`, value: `\`${buildLevelBar(ce, ne)}\` ${ce}/${ne} EXP` }
-                )
-                .setFooter({ text: 'Nhận EXP bằng cách chat trong server (cooldown 60s)' })
-            ]});
+            return interaction.reply(buildRankPayload({
+                user: tUser, level: lv, currentExp: ce, neededExp: ne, totalExp: exp,
+                guildName: interaction.guild.name, rank, avatarUrl: tUser.displayAvatarURL()
+            }));
         }
 
         if (commandName === 'leaderboard') {
@@ -14096,7 +13397,7 @@ if (commandName === 'setup') {
                 row.addComponents(new ButtonBuilder().setCustomId('create_ticket_btn:Ticket').setLabel('Mở Ticket Mới').setStyle(ButtonStyle.Primary));
             }
 
-            await targetChannel.send(embedToV2Payload(ticketEmbed, { components: [row] }));
+            await targetChannel.send(embedToV2Payload(ticketEmbed, { components: [row], mimiUi: { preserve: true } }));
             return interaction.editReply({ content: `✅ Đã gửi bảng Ticket tùy chỉnh tới ${targetChannel} thành công!` });
         }
 
@@ -14155,7 +13456,11 @@ if (commandName === 'setup') {
             if (!mq && !conn) {
                 return interaction.editReply({ content: '❌ Bot hiện không ở trong kênh thoại nào trên server.' });
             }
-
+            const isManager = member.permissions?.has(PermissionFlagsBits.ManageGuild) || member.permissions?.has(PermissionFlagsBits.Administrator);
+            const activeVoiceId = mq?.voiceChannelId || conn?.joinConfig?.channelId;
+            if ((!isManager && member.voice?.channel?.id !== activeVoiceId) || !canControlMusic(guild.id, member, mq)) {
+                return interaction.editReply({ content: '❌ Chỉ DJ, người mở phiên nhạc trong cùng kênh thoại hoặc quản trị viên được dừng nhạc.' });
+            }
             stopAndLeaveVoice(guild.id);
             return interaction.editReply({ content: '👋 Đã ngắt kết nối và rời khỏi kênh thoại theo yêu cầu!' });
         }
@@ -14427,7 +13732,7 @@ if (commandName === 'setup') {
                 }
                 const names = musicStore.getAlbumNames(user.id);
                 return interaction.reply({
-                    embeds: [buildAlbumListContainer(names, (n) => (musicStore.getAlbum(user.id, n) || []).length)] | MessageFlags.Ephemeral
+                    embeds: [buildAlbumListContainer(names, (n) => (musicStore.getAlbum(user.id, n) || []).length)], flags: MessageFlags.Ephemeral
                 });
             }
 
@@ -14566,7 +13871,7 @@ if (commandName === 'setup') {
             mq.autoplay = !mq.autoplay;
             if (mq.autoplay && !mq.lastSeed && mq.current) mq.lastSeed = mq.current;
             persistSession(guild.id);
-            if (mq.nowPlayingMessage) mq.nowPlayingMessage.edit(buildMusicPayload(mq)).catch(() => null);
+            if (mq.nowPlayingMessage) refreshMusicPanel(mq).catch(() => null);
             return interaction.reply({ embeds: [buildMusicNoticeContainer(
                 mq.autoplay ? 'Đã bật Autoplay' : 'Đã tắt Autoplay',
                 mq.autoplay ? 'Bot sẽ tự động chọn bài liên quan khi hết hàng đợi.' : 'Bot sẽ dừng lại khi hết bài trong hàng đợi.',
@@ -14587,7 +13892,7 @@ if (commandName === 'setup') {
             }
             mq.stay247 = !mq.stay247;
             persistSession(guild.id);
-            if (mq.nowPlayingMessage) mq.nowPlayingMessage.edit(buildMusicPayload(mq)).catch(() => null);
+            if (mq.nowPlayingMessage) refreshMusicPanel(mq).catch(() => null);
             return interaction.reply({ embeds: [buildMusicNoticeContainer(
                 mq.stay247 ? 'Đã bật chế độ 24/7' : 'Đã tắt chế độ 24/7',
                 mq.stay247 ? 'Bot sẽ ở lại kênh thoại kể cả khi hết nhạc hoặc không có ai.' : 'Bot sẽ rời đi khi không hoạt động.',
@@ -14713,7 +14018,7 @@ if (commandName === 'changelog') {
 
         // Cập nhật lại số lượng hàng đợi hiển thị trên tin nhắn "Đang phát" (nếu có)
         if (mq.nowPlayingMessage && mq.current) {
-            mq.nowPlayingMessage.edit(buildMusicPayload(mq)).catch(() => null);
+            refreshMusicPanel(mq).catch(() => null);
         }
 
         if (mq.queue.length === 0) {
@@ -14747,7 +14052,7 @@ if (commandName === 'changelog') {
         const resumeSec = getPlaybackSec(mq); // giữ nguyên tiến độ hiện tại
         mq.effect = key;
         if (isMain) {
-            await interaction.update(buildMusicPayload(mq)).catch(() => null);
+            await refreshMusicInteraction(interaction, mq).catch(() => null);
         } else {
             await interaction.update(buildEffectsPayload(key)).catch(() => null);
         }
@@ -14756,7 +14061,7 @@ if (commandName === 'changelog') {
         // Cập nhật lại panel "Đang phát" nếu thao tác từ menu popup bên ngoài
         const mqNow = musicQueues.get(guild.id);
         if (mqNow && mqNow.current && mqNow.nowPlayingMessage && !isMain) {
-            mqNow.nowPlayingMessage.edit(buildMusicPayload(mqNow)).catch(() => null);
+            refreshMusicPanel(mqNow).catch(() => null);
         }
         return;
     }
@@ -14859,7 +14164,7 @@ if (commandName === 'changelog') {
                 desc: 'Hệ thống xác thực hoạt động **độc lập hoàn toàn** khỏi `/setup`. Bạn chủ động bật/tắt khi cần.',
                 fields: [
                     { name: '`/setupverify` → chọn **Bật**', value: 'Bot tạo (hoặc dùng lại) kênh xác thực + 2 role (Chưa/Đã xác thực).\nThành viên mới tự động được gán role **Chưa Xác Thực** và bị hạn chế xem kênh cho đến khi bấm xác thực.' },
-                    { name: '`/setupverify` → chọn **⏰ Xác Thực 24 Giờ**', value: 'Hoạt động giống chế độ Bật nhưng có thêm cơ chế tự động reset:\n• Thành viên xác thực → nhận role **Đã Xác Thực** đến hết ngày.\n• Đúng **00:00 múi giờ Việt Nam** — toàn bộ thành viên đã xác thực bị thu hồi role và trả về **Chưa Xác Thực**.\n• Họ cần bấm xác thực lại vào ngày hôm sau.\n• 🔔 Ai **bỏ lỡ xác thực quá 5 ngày** trong tuần (từ Thứ 2) sẽ được bot **nhắc nhở qua DM** một lần duy nhất trong tuần đó.\n• Chuyển từ **Bật** sang chế độ này **giữ nguyên** role/kênh cũ, không tạo role mới.' },
+                    { name: 'ℹ️ Thời hạn xác thực', value: 'Xác thực không tự hết hạn hoặc reset lúc nửa đêm. Quản trị viên chủ động đặt lại khi cần bằng `/resetverify-all` (cần quyền Administrator).' },
                     { name: '`/setupverify` → chọn **Tắt**', value: 'Tắt tính năng xác thực và **mở lại toàn bộ kênh** cho mọi người.\nRole và kênh được ghi nhớ để bật lại nhanh, không mất cấu hình.' },
                     { name: '`/resetverify`', value: 'Chỉ ngắt kết nối và xóa tin nhắn bảng xác thực.\nRole + kênh vẫn tồn tại và được ghi nhớ. Dùng khi muốn gửi lại bảng xác thực mới.' },
                     { name: '⚠️ Lưu ý', value: 'Role của Bot phải có vị trí (position) **cao hơn** role Chưa/Đã Xác Thực trong danh sách Roles của server.' },
@@ -14941,7 +14246,7 @@ if (commandName === 'changelog') {
                 desc: 'Các lệnh quản lý thành viên, tin nhắn và emoji. Mỗi lệnh yêu cầu quyền tương ứng.',
                 fields: [
                     { name: '🖼️ `/avatar [@người]`', value: 'Xem ảnh đại diện (kích thước gốc) của bản thân hoặc bất kỳ thành viên nào trong server. Có link tải ảnh.' },
-                    { name: '✨ `/addemoji [nguồn/ảnh] [tên]` · `miaddemoji`', value: 'Thêm emoji tùy chỉnh vào server cực nhanh.\n• Hỗ trợ: dán link ảnh trực tiếp (từ emoji.gg, discadia, CDN), copy emoji server khác `<:tên:id>`, hoặc tải tệp ảnh trực tiếp.\nYêu cầu quyền **Manage Emojis and Stickers**.' },
+                    { name: '✨ `/setupemoji` · `/addemoji [nguồn/ảnh] [tên]` · `miaddemoji`', value: 'Cài bộ emoji Mimi hoặc thêm emoji tùy chỉnh vào server.\n• Hỗ trợ: trang emoji.gg/discadia có ảnh công khai, link ảnh trực tiếp, emoji Discord `<:tên:id>` và tệp đính kèm.\nYêu cầu quyền **Quản lý biểu cảm máy chủ**.' },
                     { name: '🗑️ `/clear [số_lượng]`', value: 'Xóa hàng loạt tin nhắn gần nhất trong kênh hiện tại (1-100 tin).\n⚠️ Chỉ xóa được tin nhắn trong **14 ngày** gần đây.\nYêu cầu quyền **Manage Messages**.' },
                     { name: '👢 `/kick [@thành_viên] [lý_do]`', value: 'Kick thành viên khỏi server. Họ có thể tham gia lại nếu có link invite.\nYêu cầu quyền **Kick Members**.' },
                     { name: '🔨 `/ban [@thành_viên] [lý_do] [xóa_tin_nhắn]`', value: 'Ban vĩnh viễn thành viên khỏi server. Tùy chọn xóa tin nhắn 0-7 ngày gần đây.\nYêu cầu quyền **Ban Members**.' },
@@ -15001,7 +14306,7 @@ if (commandName === 'changelog') {
                 desc: 'Tìm và phát nhạc trực tiếp từ **YouTube, SoundCloud, Spotify, Bandcamp, Twitch, Vimeo**... trong kênh thoại. Panel **Đang phát** hiển thị thanh tiến trình trực tiếp và toàn bộ điều khiển bằng **nút bấm**.',
                 fields: [
                     { name: '🔊 Vào & Rời Kênh — `/join` · `/leave` · `mijoin` · `mileave`', value: '`/join` — Mời bot vào kênh thoại của bạn trước.\n`/leave` — Ngắt kết nối và cho bot rời khỏi kênh thoại.' },
-                    { name: '▶️ Phát nhạc — `/play [từ_khóa]` · `miplay` / `mipl`', value: 'Vào **kênh thoại** trước, rồi nhập tên bài (bot tự tìm) hoặc dán **link** trực tiếp (YouTube, Spotify, SoundCloud).\nCó thể chỉ định nguồn tìm kiếm: `sc: tên bài` (SoundCloud) hoặc `sp: tên bài` (Spotify).' },
+                    { name: '▶️ Phát nhạc — `/play [từ_khóa]` · `miplay` / `mipl`', value: 'Vào **kênh thoại** trước, rồi nhập tên bài (bot tự tìm) hoặc dán **link** trực tiếp (YouTube, Spotify, SoundCloud).\nCó thể chỉ định nguồn tìm kiếm: `sc: tên bài` (SoundCloud) hoặc `yt: tên bài` (YouTube).' },
                     { name: '🎛️ Hàng nút điều khiển (4 hàng dưới panel Đang phát)', value: '**Hàng 1:** ▶️/⏸️ Tạm dừng·Tiếp tục • ⏭️ Bỏ qua • ⏹️ Dừng & Thoát • 🔁 Lặp (Tắt→Bài→Hàng đợi)\n**Hàng 2:** 🔉/🔊 Giảm·Tăng âm • 📋 Hàng đợi • 💖 Yêu thích bài đang nghe\n**Hàng 3:** 📻 Autoplay • ♾️ 24/7 • 🎛️ Hiệu ứng • 🎤 Lời bài hát\n**Hàng 4:** ⏪ −10s • ⏩ +10s • 🔄 Phát lại từ đầu • 🔀 Xáo trộn • 🗑️ Xoá hàng đợi' },
                     { name: '🎚️ Hiệu ứng âm thanh — nút 🎛️ · `mifx` / `mihieuung`', value: 'Áp **live** ngay tại vị trí đang nghe (không cắt nhạc): Bassboost, Nightcore, Chill Lofi, Vaporwave, 8D, Soft/Warm, Tremolo, Sped 1.5x, hoặc **Tắt** để về gốc.' },
                     { name: '📻 Autoplay & ♾️ 24/7', value: '**Autoplay** (nút 📻 · `miradio`): hết hàng đợi bot tự phát bài liên quan.\n**24/7** (nút ♾️ · `mistay`): bot ở lại kênh kể cả khi hết bài / không còn ai nghe.' },
@@ -15039,15 +14344,7 @@ if (commandName === 'changelog') {
         const page = HELP_PAGES[selected];
         if (!page) return interaction.update({});
 
-        const pageEmbed = new EmbedBuilder()
-            .setColor(page.color)
-            .setTitle(`${page.emoji} ${page.title}`)
-            .setDescription(page.desc)
-            .addFields(page.fields)
-            .setFooter({ text: '← Chọn lại danh mục khác từ menu bên dưới để tiếp tục xem' })
-            .setTimestamp();
-
-        return interaction.update({ embeds: [pageEmbed], components: interaction.message.components });
+        return interaction.update(buildHelpPage(page, extractActionRows(interaction.message)));
     }
 
     const ECONOMY_INTERACTION_PREFIXES = ['marry_', 'buy_ring', 'bj_'];
@@ -15394,10 +14691,13 @@ if (commandName === 'changelog') {
             if (!userData.inventory || !userData.inventory.nhan_cuoi) {
                 return interaction.reply({ content: '❌ Bạn không có nhẫn để bán!', flags: 64 });
             }
-            // Sell ring
-            delete userData.inventory.nhan_cuoi;
+            // Bán một chiếc nhẫn và ghi nhận giao dịch trước khi lưu dữ liệu.
+            userData.inventory.nhan_cuoi -= 1;
+            if (userData.inventory.nhan_cuoi <= 0) delete userData.inventory.nhan_cuoi;
             userData.balance += 700000;
-            saveUserData(interaction.user.id, userData);
+            recordEconomyIncome(interaction.user.id, guild.id, 700000, 'ban_nhan');
+            addTransaction(interaction.user.id, 'in', 700000, 'Bán nhẫn cưới');
+            saveEconomy();
             return interaction.reply({ content: '✅ Bạn đã bán nhẫn và thu lại **700,000 xu**!', flags: 64 });
         }
         if (customId === 'profile_sell_item') {
@@ -15541,7 +14841,7 @@ if (commandName === 'changelog') {
             if (!userData.pet) return interaction.reply({ content: '❌ Bạn chưa có thú cưng! Hãy dùng `mipet` để nhận nuôi bé nhé.', flags: MessageFlags.Ephemeral });
 
             const pet = userData.pet;
-            applyPetDecayRealtime(pet);
+            if (applyPetDecayRealtime(pet)) saveEconomy();
 
             // Nút Đổi Tên Thú Cưng (Hiện Modal)
             if (customId.startsWith('pet_rename')) {
@@ -15739,7 +15039,7 @@ if (commandName === 'changelog') {
                 // Bật autoplay giữa lúc còn bài -> chưa cần làm gì; khi hết queue playNextTrack sẽ tự tìm radio.
                 if (mq.autoplay && !mq.lastSeed && mq.current) mq.lastSeed = mq.current;
                 persistSession(guild.id); // lưu để khôi phục đúng trạng thái sau restart
-                await interaction.update(buildMusicPayload(mq)).catch(() => null);
+                await refreshMusicInteraction(interaction, mq).catch(() => null);
                 return interaction.followUp(buildMusicNoticeEphemeral(
                     mq.autoplay ? 'Đã bật Autoplay radio' : 'Đã tắt Autoplay radio',
                     mq.autoplay
@@ -15752,7 +15052,7 @@ if (commandName === 'changelog') {
             if (customId === 'music_247') {
                 mq.stay247 = !mq.stay247;
                 persistSession(guild.id); // lưu để khôi phục đúng trạng thái sau restart
-                await interaction.update(buildMusicPayload(mq)).catch(() => null);
+                await refreshMusicInteraction(interaction, mq).catch(() => null);
                 return interaction.followUp(buildMusicNoticeEphemeral(
                     mq.stay247 ? 'Đã bật chế độ 24/7' : 'Đã tắt chế độ 24/7',
                     mq.stay247
@@ -15770,7 +15070,7 @@ if (commandName === 'changelog') {
             if (customId === 'music_pauseresume') {
                 if (mq.player.state.status === voiceLib.AudioPlayerStatus.Playing) mq.player.pause();
                 else if (mq.player.state.status === voiceLib.AudioPlayerStatus.Paused) mq.player.unpause();
-                return interaction.update(buildMusicPayload(mq)).catch(() => null);
+                return refreshMusicInteraction(interaction, mq).catch(() => null);
             }
 
             // (music_skip đã xử lý TRƯỚC gate — vote-skip)
@@ -15787,9 +15087,8 @@ if (commandName === 'changelog') {
                 musicQueues.delete(guild.id);
                 musicStore.clearSession(guild.id); // dừng thủ công -> không khôi phục sau restart
 
-                // Trả lời interaction TRƯỚC bằng Components V2 đẹp — đảm bảo không bao giờ
-                // "không phản hồi kịp thời" kể cả khi dọn tài nguyên bên dưới ném lỗi.
-                await interaction.update(buildMusicStopPayload(lastTrack, byUser)).catch(() => null);
+                // Xác nhận ngay trước khi dọn tài nguyên và chờ hàng ghi REST.
+                await interaction.deferUpdate().catch(() => null);
 
                 // Dọn tài nguyên SAU, mỗi bước bọc try/catch để lỗi 1 bước không chặn các bước khác.
                 mq.queue = [];
@@ -15803,13 +15102,21 @@ if (commandName === 'changelog') {
                         mq.connection.destroy();
                     }
                 } catch { /* connection có thể đã bị destroy bởi Disconnected handler */ }
+                const stopPayload = buildMusicStopPayload(lastTrack, byUser);
+                await writeMusicPanel.finish(mq, stopPayload, {
+                    isCurrent: () => {
+                        const active = musicQueues.get(guild.id)?.nowPlayingMessage;
+                        return !active || (active.id ? active.id !== mq.nowPlayingMessage?.id : active !== mq.nowPlayingMessage);
+                    }
+                }).catch(() => null);
+                if (interaction.message?.id !== mq.nowPlayingMessage?.id) await interaction.editReply(stopPayload).catch(() => null);
                 return;
             }
 
             if (customId === 'music_loop') {
                 mq.loop = mq.loop === 'off' ? 'track' : (mq.loop === 'track' ? 'queue' : 'off');
                 persistSession(guild.id); // lưu chế độ lặp để khôi phục đúng sau restart
-                return interaction.update(buildMusicPayload(mq)).catch(() => null);
+                return refreshMusicInteraction(interaction, mq).catch(() => null);
             }
 
             if (customId === 'music_volup' || customId === 'music_voldown') {
@@ -15818,7 +15125,7 @@ if (commandName === 'changelog') {
                 // inlineVolume LUÔN bật (xem playNextTrack) -> chỉnh âm lượng TỨC THÌ, không phát lại bài.
                 if (mq.currentResource?.volume) mq.currentResource.volume.setVolume(mq.volume);
                 persistSession(guild.id); // lưu âm lượng để khôi phục đúng sau restart
-                return interaction.update(buildMusicPayload(mq)).catch(() => null);
+                return refreshMusicInteraction(interaction, mq).catch(() => null);
             }
 
             if (customId === 'music_queue') {
@@ -15855,7 +15162,7 @@ if (commandName === 'changelog') {
                 // Re-fetch sau await: bài có thể đã kết thúc / bot rời kênh (mq bị xoá) trong lúc chờ.
                 const mqAfterSeek = musicQueues.get(guild.id);
                 if (mqAfterSeek?.current && mqAfterSeek.nowPlayingMessage) {
-                    mqAfterSeek.nowPlayingMessage.edit(buildMusicPayload(mqAfterSeek)).catch(() => null);
+                    refreshMusicPanel(mqAfterSeek).catch(() => null);
                 }
                 return;
             }
@@ -15867,7 +15174,7 @@ if (commandName === 'changelog') {
                 // Re-fetch sau await: bài có thể đã kết thúc / bot rời kênh (mq bị xoá) trong lúc chờ.
                 const mqAfterRestart = musicQueues.get(guild.id);
                 if (mqAfterRestart?.current && mqAfterRestart.nowPlayingMessage) {
-                    mqAfterRestart.nowPlayingMessage.edit(buildMusicPayload(mqAfterRestart)).catch(() => null);
+                    refreshMusicPanel(mqAfterRestart).catch(() => null);
                 }
                 return;
             }
@@ -15882,7 +15189,7 @@ if (commandName === 'changelog') {
                     [mq.queue[i], mq.queue[j]] = [mq.queue[j], mq.queue[i]];
                 }
                 persistSession(guild.id);
-                await interaction.update(buildMusicPayload(mq)).catch(() => null);
+                await refreshMusicInteraction(interaction, mq).catch(() => null);
                 return interaction.followUp(buildMusicNoticeEphemeral('Đã xáo trộn hàng đợi', `**${mq.queue.length} bài** trong hàng đợi đã được xáo trộn ngẫu nhiên.`, 0x57F287)).catch(() => null);
             }
 
@@ -15894,7 +15201,7 @@ if (commandName === 'changelog') {
                 }
                 mq.queue = [];
                 persistSession(guild.id);
-                await interaction.update(buildMusicPayload(mq)).catch(() => null);
+                await refreshMusicInteraction(interaction, mq).catch(() => null);
                 return interaction.followUp(buildMusicNoticeEphemeral('Đã xóa hàng đợi', `Đã xóa **${removed} bài** khỏi hàng đợi. Bài đang phát vẫn tiếp tục.`, 0x99AAB5)).catch(() => null);
             }
         }
@@ -15921,7 +15228,7 @@ if (commandName === 'changelog') {
             }
 
             const game = blackjackGames.get(ownerId);
-            if (!game) {
+            if (!game || game.message?.id !== interaction.message.id) {
                 return interaction.reply({ content: '❌ Ván này đã kết thúc hoặc không còn tồn tại.', flags: MessageFlags.Ephemeral }).catch(() => null);
             }
 
@@ -16040,9 +15347,9 @@ if (commandName === 'changelog') {
                     diamondMineGames.delete(user.id);
 
                     if (currentGuildId) {
-                        recordEconomyExpense(user.id, currentGuildId, game.bet, 'diamond_mine_loss');
                         addTransaction(user.id, 'out', game.bet, 'Thua đào kim cương (trúng bom)');
                     }
+                    saveEconomy();
 
                     const bombEmbed = buildMineEmbed(game, 'touched_mine');
                     return interaction.update({ embeds: [bombEmbed], components: buildMineGridRows(game) }).catch(() => null);
@@ -16099,7 +15406,7 @@ if (commandName === 'changelog') {
         // ==========================================
         if (customId === 'hilo_higher' || customId === 'hilo_lower' || customId === 'hilo_cashout') {
             const game = highLowGames.get(user.id);
-            if (!game) {
+            if (!game || game.message?.id !== interaction.message.id) {
                 return interaction.reply({ content: '❌ Ván bài Cao Thấp này đã kết thúc hoặc không phải của bạn!', flags: MessageFlags.Ephemeral });
             }
 
@@ -16161,8 +15468,8 @@ if (commandName === 'changelog') {
             // ĐOÁN SAI -> THUA CUỘC
             if (!isWin) {
                 highLowGames.delete(user.id);
-                recordEconomyExpense(user.id, guild.id, game.bet, 'hilo_loss');
                 addTransaction(user.id, 'out', game.bet, 'Thua Cao Thấp (Hi-Lo)');
+                saveEconomy();
 
                 const choiceText = choice === 'higher' ? 'Cao Hơn 🔺' : 'Thấp Hơn 🔻';
                 game.currentCard = nextCard;
@@ -16222,7 +15529,7 @@ if (commandName === 'changelog') {
                 await interaction.channel.send({ content: `🎉 **Giveaway "${g.title}" đã bị kết thúc sớm bởi ${interaction.user.username}!**\n😔 Không có ai tham gia.` }).catch(() => null);
             } else {
                 const winnerIds = [...parts].sort(() => Math.random() - 0.5).slice(0, Math.min(g.winners, parts.length));
-                await interaction.channel.send({ content: `🎉 **Giveaway "${g.title}" đã bị kết thúc sớm bởi ${interaction.user.username}!**\n🏆 Người thắng: ${winnerIds.map(id => `<@${id}>`).join(', ')}\n🎁 Phần thưởng: **${g.prize}**\n\nChúc mừng! 🎊` }).catch(() => null);
+                await interaction.channel.send({ content: `🎉 **Giveaway "${g.title}" đã bị kết thúc sớm bởi ${interaction.user.username}!**\n🏆 Người thắng: ${winnerIds.map(id => `<@${id}>`).join(', ')}\n🎁 Phần thưởng: **${g.prize}**\n\nChúc mừng! 🎊`, allowedMentions: { parse: [], users: winnerIds } }).catch(() => null);
             }
 
             return interaction.reply({ content: `✅ Đã kết thúc giveaway **"${g.title}"** sớm.`, flags: MessageFlags.Ephemeral });
@@ -16246,7 +15553,8 @@ if (commandName === 'changelog') {
 
             const winnerIds = [...parts].sort(() => Math.random() - 0.5).slice(0, Math.min(g.winners, parts.length));
             await interaction.channel.send({
-                content: `🎲 **Reroll Giveaway "${g.title}"!**\n🏆 Người thắng mới: ${winnerIds.map(id => `<@${id}>`).join(', ')}\n🎁 Phần thưởng: **${g.prize}**\n\nChúc mừng! 🎊`
+                content: `🎲 **Reroll Giveaway "${g.title}"!**\n🏆 Người thắng mới: ${winnerIds.map(id => `<@${id}>`).join(', ')}\n🎁 Phần thưởng: **${g.prize}**\n\nChúc mừng! 🎊`,
+                allowedMentions: { parse: [], users: winnerIds }
             }).catch(() => null);
 
             return interaction.reply({ content: `✅ Đã reroll thành công!`, flags: MessageFlags.Ephemeral });
@@ -16379,7 +15687,7 @@ if (commandName === 'changelog') {
             const hasUnverified = unverifiedRole ? member.roles.cache.has(unverifiedRole.id) : false;
 
             if (hasVerified && !hasUnverified) {
-                const modeNote = gConfig.verifyDailyMode ? '\n⏰ Xác thực của bạn sẽ được **reset lúc 00:00** hôm nay (múi giờ Việt Nam).' : '';
+                const modeNote = gConfig.verifyDailyMode ? '\nℹ️ Xác thực của bạn được giữ cho đến khi quản trị viên đặt lại.' : '';
                 return interaction.reply({ content: `✅ Bạn đã xác thực trước đó rồi!${modeNote}`, flags: MessageFlags.Ephemeral });
             }
 
@@ -16402,7 +15710,7 @@ if (commandName === 'changelog') {
             }
 
             const modeMsg = gConfig.verifyDailyMode
-                ? '🎉 **Xác thực thành công!** Chào mừng bạn đến với server.\n⏰ Lưu ý: Xác thực của bạn sẽ **hết hạn lúc 00:00** (múi giờ Việt Nam) và cần xác thực lại vào ngày hôm sau.'
+                ? '🎉 **Xác thực thành công!** Chào mừng bạn đến với server.\nℹ️ Xác thực của bạn được giữ cho đến khi quản trị viên đặt lại.'
                 : '🎉 **Xác thực thành công!** Chào mừng bạn đến với server, giờ bạn đã có thể xem toàn bộ kênh.';
 
             return interaction.reply({ content: modeMsg, flags: MessageFlags.Ephemeral });
@@ -16527,7 +15835,7 @@ if (commandName === 'changelog') {
             const modal = new ModalBuilder().setCustomId(`ticket_modal:${buttonLabel}`).setTitle(`Form Gửi Nội Dung Hỗ Trợ`);
             const contentInput = new TextInputBuilder()
                 .setCustomId('ticket_reason_input').setLabel('Nội dung cần hỗ trợ ngắn gọn là gì?').setStyle(TextInputStyle.Paragraph)
-                .setPlaceholder('Ví dụ: loi-game, nap-the...').setRequired(true).setMaxLength(50); 
+                .setPlaceholder('Ví dụ: Cần hỗ trợ xác thực thành viên').setRequired(true).setMaxLength(50);
 
             modal.addComponents(new ActionRowBuilder().addComponents(contentInput));
             return interaction.showModal(modal);
@@ -16541,7 +15849,7 @@ if (commandName === 'changelog') {
                 }
                 if (ticketTimeouts.has(channel.id)) { clearTimeout(ticketTimeouts.get(channel.id)); ticketTimeouts.delete(channel.id); }
 
-                const originEmbed = interaction.message.embeds[0]; if (!originEmbed) return;
+                const originEmbed = readMessageEmbed(interaction.message); if (!originEmbed) return;
                 const creatorId = originEmbed.footer?.text?.replace('ID Người tạo: ', '').trim() || '';
                 
                 const updatedEmbed = EmbedBuilder.from(originEmbed)
@@ -16550,7 +15858,7 @@ if (commandName === 'changelog') {
                         originEmbed.description.split('\n\n• **Phân loại:**')[0] + 
                         `\n\n• **Phân loại:** Ticket\n• **Trạng thái:** 🟢 ĐÃ TIẾP NHẬN\n• **Nhân sự hỗ trợ:** ${user}`
                     )
-                    .setFooter({ text: `ID Người tạo: ${creatorId} | Thợ xử lý: ${user.id}` }); 
+                    .setFooter({ text: `ID Người tạo: ${creatorId} | Thợ xử lý: ${user.id}` });
 
                 const updatedRow = new ActionRowBuilder().addComponents(
                     new ButtonBuilder().setCustomId('reject_ticket_btn').setLabel('❌ Hủy Nhận').setStyle(ButtonStyle.Secondary),
@@ -16558,11 +15866,11 @@ if (commandName === 'changelog') {
                 );
 
                 await interaction.update({ embeds: [updatedEmbed], components: [updatedRow] });
-                return channel.send({ content: `🔔 <@${creatorId}> ơi, quản trị viên ${user} đã nhận xử lý ca hỗ trợ này!` });
+                return channel.send({ content: `🔔 <@${creatorId}> ơi, quản trị viên ${user} đã nhận xử lý ca hỗ trợ này!`, allowedMentions: { parse: [], users: [creatorId] } });
             }
 
             if (customId === 'reject_ticket_btn') {
-                const originEmbed = interaction.message.embeds[0]; if (!originEmbed) return;
+                const originEmbed = readMessageEmbed(interaction.message); if (!originEmbed) return;
                 const footerText = originEmbed?.footer?.text || "";
                 const creatorId = footerText.replace('ID Người tạo: ', '').split('|')[0].trim();
                 const staffPart = footerText.split('Thợ xử lý: ')[1];
@@ -16612,12 +15920,13 @@ if (commandName === 'changelog') {
                 ticketTimeouts.set(channel.id, timeoutId);
 
                 return channel.send({ 
-                    content: `⚠️ **CẢNH BÁO COOLDOWN (HỦY CA)**\n• **Nhân sự vừa hủy:** ${user}\n• **Chủ phòng hỗ trợ:** <@${creatorId}>\n⏱️ **Hệ thống tự động xóa kênh:** **<t:${autoCloseTimestamp}:R>**` 
+                    content: `⚠️ **CẢNH BÁO COOLDOWN (HỦY CA)**\n• **Nhân sự vừa hủy:** ${user}\n• **Chủ phòng hỗ trợ:** <@${creatorId}>\n⏱️ **Hệ thống tự động xóa kênh:** **<t:${autoCloseTimestamp}:R>**`,
+                    allowedMentions: { parse: [], users: [creatorId] }
                 });
             }
 
             if (customId === 'close_ticket_btn') {
-                const originEmbed = interaction.message.embeds[0];
+                const originEmbed = readMessageEmbed(interaction.message);
                 const footerText = originEmbed?.footer?.text || "";
                 const creatorId = footerText.replace('ID Người tạo: ', '').split('|')[0].trim();
 
@@ -16790,8 +16099,9 @@ if (commandName === 'changelog') {
                     const ch = g.channels.cache.get(m.channelId);
                     if (!ch) continue;
                     const msg = await ch.messages.fetch(m.messageId).catch(() => null);
-                    if (!msg || !msg.embeds[0]) continue;
-                    const oldEmbed = EmbedBuilder.from(msg.embeds[0]);
+                    const previous = msg ? readMessageEmbed(msg) : null;
+                    if (!previous) continue;
+                    const oldEmbed = EmbedBuilder.from(previous);
                     const fieldIdx = oldEmbed.data.fields.findIndex(f => f.name.includes('Số người tham gia'));
                     if (fieldIdx !== -1) {
                         oldEmbed.data.fields[fieldIdx].value = `**${count}** người`;
@@ -16813,8 +16123,9 @@ if (commandName === 'changelog') {
         if (!userData.pet) return interaction.reply({ content: '❌ Bạn chưa có thú cưng!', flags: MessageFlags.Ephemeral });
 
         const newName = interaction.fields.getTextInputValue('pet_name_input')?.trim();
-        if (!newName) return interaction.reply({ content: '❌ Tên không được để trống!', flags: MessageFlags.Ephemeral });
+        if (!newName || newName.length > 20) return interaction.reply({ content: '❌ Tên phải có từ 1 đến 20 ký tự!', flags: MessageFlags.Ephemeral });
 
+        applyPetDecayRealtime(userData.pet);
         userData.pet.name = newName;
         saveEconomy();
 
@@ -17037,6 +16348,8 @@ if (commandName === 'changelog') {
             if (interaction.customId === "bc_send") {
                 const draft = broadcastDrafts.get(interaction.user.id);
                 if (!draft || draft.embeds.length === 0) return interaction.reply({ content: "❌ Chưa có bảng nào để phát sóng!", flags: MessageFlags.Ephemeral });
+                if (draft.sending) return interaction.reply({ content: '⏳ Thông báo này đang được gửi. Vui lòng đợi hoàn tất.', flags: MessageFlags.Ephemeral });
+                draft.sending = true;
                 const guildsList = [...client.guilds.cache.values()];
                 
                 const loadingContainer = new ContainerBuilder().setAccentColor(0xF1C40F)
@@ -17045,7 +16358,7 @@ if (commandName === 'changelog') {
                 await interaction.update({
                     components: [loadingContainer],
                     flags: MessageFlags.IsComponentsV2
-                });
+                }).catch(error => { draft.sending = false; throw error; });
                 
                 let sentCount = 0;
                 
@@ -17078,6 +16391,7 @@ if (commandName === 'changelog') {
 
                 const v2Payload = {
                     components: broadcastContainers,
+                    mimiUi: { preserve: true },
                     flags: MessageFlags.IsComponentsV2,
                     allowedMentions: { parse: draft.pingEveryone ? ["everyone"] : [] }
                 };
@@ -17087,9 +16401,11 @@ if (commandName === 'changelog') {
                         let me = g.members.me;
                         if (!me) me = await g.members.fetchMe().catch(() => null);
                         if (!me) continue;
-                        const canSend = (c) => c && me && (c.type === ChannelType.GuildText || c.type === ChannelType.GuildAnnouncement) && c.permissionsFor(me)?.has(PermissionFlagsBits.SendMessages) && c.permissionsFor(me)?.has(PermissionFlagsBits.EmbedLinks);
-                        let targetChannel = canSend(g.systemChannel) ? g.systemChannel : g.channels.cache.find(canSend);
-                        if (!targetChannel) { const fetched = await g.channels.fetch().catch(() => null); if (fetched) targetChannel = fetched.find(canSend); }
+                        const canSend = (c) => c && me && (c.type === ChannelType.GuildText || c.type === ChannelType.GuildAnnouncement) && c.permissionsFor(me)?.has(PermissionFlagsBits.ViewChannel) && c.permissionsFor(me)?.has(PermissionFlagsBits.SendMessages);
+                        const settings = getGuildConfig(g.id);
+                        let targetChannel = settings.systemChannelId ? (g.channels.cache.get(settings.systemChannelId) || await g.channels.fetch(settings.systemChannelId).catch(() => null)) : null;
+                        if (!canSend(targetChannel)) targetChannel = g.channels.cache.find(c => /(?:update|thong-bao|thông-báo|announcement|news|bot-update|changelog)/i.test(c.name || '') && canSend(c));
+                        if (!canSend(targetChannel)) targetChannel = canSend(g.systemChannel) ? g.systemChannel : null;
                         if (targetChannel) { await targetChannel.send(v2Payload); sentCount++; }
                     } catch (e) {}
                 }
@@ -17144,8 +16460,8 @@ if (commandName === 'changelog') {
 });
 // 🔑 ĐĂNG NHẬP BOT
 // -----------------------------------------------------------------
-if (!config.token || config.token.trim() === "") {
-    console.error("❌ LỖI: Chưa nhập token trong config.json!"); 
+if (!botToken) {
+    console.error("❌ LỖI: Chưa nhập token trong config.json!");
     process.exit(1);
 } else {
 
@@ -17186,35 +16502,13 @@ async function updateStatsChannels(guild) {
     }
 }
 
-    client.login(config.token.trim()).catch((err) => {
-        console.error("❌ LỖI ĐĂNG NHẬP BOT — chi tiết:", err);
+    client.login(botToken).catch((err) => {
+        console.error("❌ LỖI ĐĂNG NHẬP BOT:", err?.message || 'Không xác định được lỗi đăng nhập.');
         console.error("👉 Nếu thấy 'disallowed intents': vào Discord Developer Portal → Bot → bật 'Server Members Intent' và 'Message Content Intent'.");
     });
 }
 
-// DM Notification handler added manually
-client.on('messageCreate', async (msg) => {
-    try {
-        if (!msg.content && msg.attachments.size === 0) return;
-        if (msg.author.bot) return;
-        if (!msg.guild) {
-            try {
-                const owner = await client.users.fetch(OWNER_ID);
-                if (owner) {
-                    const dmEmbed = new EmbedBuilder()
-                        .setColor('#3498DB')
-                        .setTitle('📩 Tin nhắn trực tiếp mới')
-                        .addFields(
-                            { name: 'Người gửi', value: `${msg.author.tag} (${msg.author.id})` },
-                            { name: 'Nội dung', value: msg.content || '*Chỉ có tệp đính kèm*' }
-                        )
-                        .setTimestamp();
-                    await owner.send({ embeds: [dmEmbed] }).catch(() => null);
-                }
-            } catch (err) {}
-        }
-    } catch(e) {}
-});
+// Chuyển tiếp DM dùng duy nhất handler có tùy chọn và cooldown ở phía trên.
 
 async function renderBroadcastBuilder(interaction, draft) {
     const previewContainers = draft.embeds.map((e, idx) => {
@@ -17245,7 +16539,7 @@ async function renderBroadcastBuilder(interaction, draft) {
         if (e.image) tags.push('🖼️ Có ảnh');
         if (e.footer) tags.push('📝 Có footer');
         c.addTextDisplayComponents(new TextDisplayBuilder().setContent(`-# Bảng ${idx + 1}/${draft.embeds.length} • ${tags.join(' • ')}`));
-        return c;
+        return preserveUi(c);
     });
 
     const row = new ActionRowBuilder().addComponents(
@@ -17258,10 +16552,10 @@ async function renderBroadcastBuilder(interaction, draft) {
         new ButtonBuilder().setCustomId("bc_send").setLabel("🚀 PHÁT SÓNG NGAY").setStyle(ButtonStyle.Success).setDisabled(draft.embeds.length === 0)
     );
 
-    const controlContainer = new ContainerBuilder().setAccentColor(0x5865F2);
-    let controlText = `## 🛠️ BROADCAST BUILDER (Components V2)\n` +
-        `> Đang có **${draft.embeds.length}/4** bảng thông báo.\n` +
-        `> Ping @everyone: **${draft.pingEveryone ? "BẬT 🟢" : "TẮT 🔴"}**\n`;
+    const controlContainer = new ContainerBuilder().setAccentColor(0x2DD4BF);
+    let controlText = `## 📢 Xưởng thông báo Mimi\n` +
+        `**${draft.embeds.length}/4** bảng đã soạn · Nhắc mọi người: **${draft.pingEveryone ? "Bật" : "Tắt"}**\n` +
+        `Xem lại nội dung và màu của từng bảng trước khi gửi.\n`;
     
     if (draft.embeds.length === 0) {
         controlText += `\n*Chưa có bảng nào! Hãy bấm **➕ Thêm Bảng** bên dưới để tạo mục thông báo đầu tiên.*`;

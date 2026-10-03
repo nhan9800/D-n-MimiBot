@@ -1,106 +1,80 @@
-// Gửi thông báo cập nhật hệ thống nhạc vào kênh thông báo.
-// Token lấy từ config.json (giống index.js) hoặc biến môi trường DISCORD_TOKEN/TOKEN.
-// KHÔNG hardcode token. Chạy: node scripts/announce-music-update.js
-//
-// Có thể override kênh: node scripts/announce-music-update.js <channelId>
+'use strict';
 
-const path = require('path');
+const fs = require('node:fs');
+const path = require('node:path');
 const {
-  Client,
-  GatewayIntentBits,
-  ContainerBuilder,
-  TextDisplayBuilder,
-  SeparatorBuilder,
-  SeparatorSpacingSize,
-  MessageFlags,
+    Client, GatewayIntentBits, ContainerBuilder, TextDisplayBuilder,
+    SeparatorBuilder, MessageFlags,
 } = require('discord.js');
+const { COMMUNITY_EMOJI, provisionCommunityEmojis } = require('../communityEmojis');
+const { normalizePayload } = require('../discordUi');
+const { version } = require('../package.json');
 
-const DEFAULT_CHANNEL_ID = '1527814721053655092';
-const channelId = process.argv[2] || DEFAULT_CHANNEL_ID;
+function createAnnouncementPayload(kind = 'music') {
+    const music = kind === 'music';
+    const icon = COMMUNITY_EMOJI;
+    const card = new ContainerBuilder().setAccentColor(0x2DD4BF)
+        .addTextDisplayComponents(new TextDisplayBuilder().setContent(`-# **MIMI** • ${music ? 'KHÔNG GIAN ÂM NHẠC' : 'CỘNG ĐỒNG'}`))
+        .addTextDisplayComponents(new TextDisplayBuilder().setContent(
+            `## ${music ? icon.music : icon.sparkle} ${music ? 'Nghe nhạc cùng Mimi' : `Mimi ${version} · Giao diện cộng đồng mới`}\n` +
+            (music ? 'Một hàng đợi để cùng nghe, cùng lưu và cùng khám phá.' : 'Giao diện mint/teal thống nhất, hồ sơ mới và bộ emoji dùng chung trên các máy chủ.')))
+        .addSeparatorComponents(new SeparatorBuilder().setSpacing(1).setDivider(true));
+    const sections = music ? [
+        `### ${icon.queue} Hàng đợi & thư viện\nLưu yêu thích, quản lý album cá nhân và ghi lại phiên nhạc để khôi phục. Dùng \`/play\`, \`/queue\`, \`/album\`.`,
+        `### ${icon.effect} Điều khiển ngay trên Discord\nPhát/tạm dừng, tua, lặp, xáo trộn và hiệu ứng âm thanh trên bảng điều khiển. Lời bài hát có tại \`/loibaihat\`.`,
+        `### ${icon.shield} Máy chủ chọn cách sử dụng\nQuản trị viên cấu hình DJ role, vote-skip, autoplay hoặc chế độ ở lại voice qua các lệnh nhạc.`,
+    ] : [
+        `### ${icon.user} Hồ sơ rõ ràng hơn\n\`miprofile\` giữ ví tiền, XP, ảnh bìa và vật phẩm. \`/level\` hiển thị cấp độ và EXP riêng của máy chủ.`,
+        `### ${icon.sparkle} Emoji cho cộng đồng\nGiao diện có bộ emoji dùng chung và biểu tượng dự phòng. Admin có thể cài bộ vào server bằng \`/setupemoji\`.`,
+        `### ${icon.music} Nhạc & hoạt động cộng đồng\nKhám phá lệnh nghe nhạc, nông trại, ticket, xác thực và chấm công trong \`/help\`.`,
+    ];
+    for (const section of sections) card.addTextDisplayComponents(new TextDisplayBuilder().setContent(section));
+    card.addSeparatorComponents(new SeparatorBuilder().setSpacing(1).setDivider(true))
+        .addTextDisplayComponents(new TextDisplayBuilder().setContent('-# Mimi • Bot cộng đồng miễn phí\n[Website Mimi](https://mimibot.id.vn) · [Hỗ trợ](https://discord.gg/gBUHY3qph2)'));
+    return { components: [card], flags: MessageFlags.IsComponentsV2, allowedMentions: { parse: [] } };
+}
+
+async function runAnnouncement({ channelId, token, kind = 'music', DiscordClient = Client, timeoutMs = 20000 }) {
+    if (!/^\d{17,20}$/.test(String(channelId))) throw new Error('Cần ID kênh Discord hợp lệ (17–20 chữ số).');
+    if (!token?.trim()) throw new Error('Chưa cấu hình DISCORD_TOKEN hoặc token trong config.json.');
+    const client = new DiscordClient({ intents: [GatewayIntentBits.Guilds] });
+    let timer;
+    try {
+        await new Promise((resolve, reject) => {
+            timer = setTimeout(() => reject(new Error('Hết thời gian kết nối Discord.')), timeoutMs);
+            client.once('clientReady', resolve);
+            Promise.resolve(client.login(token)).catch(() => reject(new Error('Không thể đăng nhập Discord.')));
+        });
+        clearTimeout(timer);
+        await provisionCommunityEmojis(client, { logger: { warn() {}, info() {} } });
+        const channel = await client.channels.fetch(channelId);
+        if (!channel?.isTextBased()) throw new Error('Kênh đích không phải kênh văn bản.');
+        await channel.send(normalizePayload(createAnnouncementPayload(kind)));
+    } finally {
+        clearTimeout(timer);
+        client.destroy();
+    }
+}
 
 function resolveToken() {
-  const envToken =
-    process.env.DISCORD_TOKEN || process.env.TOKEN || process.env.BOT_TOKEN;
-  if (envToken && envToken.trim()) return envToken.trim();
-  try {
-    const config = require(path.join(__dirname, '..', 'config.json'));
-    if (config && config.token && config.token.trim()) return config.token.trim();
-  } catch (_) {
-    /* không có config.json */
-  }
-  return null;
+    const root = path.join(__dirname, '..');
+    const envPath = path.join(root, '.env');
+    if (fs.existsSync(envPath)) process.loadEnvFile(envPath);
+    const token = process.env.DISCORD_TOKEN || process.env.TOKEN || process.env.BOT_TOKEN;
+    if (token?.trim()) return token.trim();
+    try { return JSON.parse(fs.readFileSync(path.join(root, 'config.json'), 'utf8')).token || ''; }
+    catch { return ''; }
 }
 
-const token = resolveToken();
-if (!token) {
-  console.error(
-    '[LỖI] Không tìm thấy token. Đặt biến môi trường DISCORD_TOKEN, hoặc để config.json (có "token") ở thư mục gốc bot.'
-  );
-  process.exit(1);
+async function main(kind = 'music', args = process.argv.slice(2)) {
+    if (args.length === 1 && args[0] === '--preview') {
+        console.log(JSON.stringify(createAnnouncementPayload(kind), null, 2));
+        return;
+    }
+    if (args.length !== 2 || args[0] !== '--send') throw new Error('Dùng --preview để xem bản nháp; gửi thực tế cần --send <channelId>.');
+    await runAnnouncement({ channelId: args[1], token: resolveToken(), kind });
+    console.log('Đã gửi thông báo vào kênh được chỉ định.');
 }
 
-const NEWS =
-  '# 🎵 CẬP NHẬT LỚN — HỆ THỐNG NHẠC MIMIBOT 🎵\n\n' +
-  'MimiBot vừa lên đời với dàn tính năng nhạc hoàn chỉnh! Tất cả những gì mới:';
-
-const SECTIONS = [
-  '**💾 Ghi nhớ & khôi phục**\n' +
-    'Bot tự lưu hàng đợi, âm lượng, chế độ phát. Khởi động lại là nhạc chơi tiếp đúng chỗ cũ, không mất bài.',
-  '**🎚️ 8 hiệu ứng âm thanh**\n' +
-    'Bassboost, Nightcore, Vaporwave, 8D, Karaoke... chọn ngay trên panel, đổi giữa bài không cần phát lại.',
-  '**📻 Autoplay radio + 24/7**\n' +
-    'Hết hàng đợi bot tự tìm bài cùng gu phát tiếp. Bật 24/7 để bot ở lại kênh không tự thoát.',
-  '**📖 Lời bài hát**\n' +
-    '`/loibaihat` — xem lời bài đang phát hoặc tra bất kỳ bài nào.',
-  '**⭐ Yêu thích & Album cá nhân**\n' +
-    'Lưu bài yêu thích và tạo album riêng của bạn với `/album`.',
-  '**🎧 Nhiều nguồn nhạc hơn**\n' +
-    'Ngoài YouTube: hỗ trợ Spotify, SoundCloud, Bandcamp, Twitch, Vimeo và link nhạc trực tiếp.',
-  '**🛡️ DJ Role & Vote-skip**\n' +
-    'Chủ server đặt DJ role qua `/dj` để phân quyền. Có bỏ phiếu skip chống phá nhạc.',
-  '**🎛️ Bảng điều khiển 17 nút**\n' +
-    'Panel mới đầy đủ: phát/dừng, lặp, âm lượng, tua ⏪⏩, phát lại ↺, xáo trộn 🔀, xóa hàng đợi 🗑, hiệu ứng, lời bài hát...',
-];
-
-const FOOTER = '💜 Vào kênh voice và thử ngay nhé!';
-
-const client = new Client({ intents: [GatewayIntentBits.Guilds] });
-
-client.once('clientReady', async () => {
-  try {
-    const channel = await client.channels.fetch(channelId);
-    if (!channel || !channel.isTextBased()) {
-      console.error(`[LỖI] Kênh ${channelId} không tồn tại hoặc không phải kênh text.`);
-      process.exit(1);
-    }
-
-    const container = new ContainerBuilder().setAccentColor(0x1db954);
-    container.addTextDisplayComponents(new TextDisplayBuilder().setContent(NEWS));
-    container.addSeparatorComponents(
-      new SeparatorBuilder().setSpacing(SeparatorSpacingSize.Small)
-    );
-    for (const block of SECTIONS) {
-      container.addTextDisplayComponents(new TextDisplayBuilder().setContent(block));
-    }
-    container.addSeparatorComponents(
-      new SeparatorBuilder().setSpacing(SeparatorSpacingSize.Small)
-    );
-    container.addTextDisplayComponents(new TextDisplayBuilder().setContent(FOOTER));
-
-    await channel.send({
-      components: [container],
-      flags: MessageFlags.IsComponentsV2,
-    });
-
-    console.log(`[OK] Đã gửi thông báo vào kênh ${channelId}.`);
-    process.exit(0);
-  } catch (err) {
-    console.error('[LỖI] Gửi thất bại:', err.message || err);
-    process.exit(1);
-  }
-});
-
-client.login(token).catch((err) => {
-  console.error('[LỖI] Đăng nhập thất bại:', err.message || err);
-  process.exit(1);
-});
+if (require.main === module) main().catch(error => { console.error(error.message); process.exitCode = 1; });
+module.exports = { createAnnouncementPayload, runAnnouncement, main };

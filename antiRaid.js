@@ -11,6 +11,8 @@
 
 const { PermissionFlagsBits, ChannelType, AuditLogEvent, EmbedBuilder } = require('discord.js');
 const licenseStore = require('./licenseStore');
+const fs = require('fs');
+const path = require('path');
 
 // Bộ nhớ đệm theo dõi hành vi tấn công: guildId -> { channelDeletes: [], roleDeletes: [], joins: [] }
 const raidTracker = new Map();
@@ -32,21 +34,20 @@ let customToggleCheck = null;
 function setToggleCheck(fn) { customToggleCheck = fn; }
 
 function isLicenseValid(guildId) {
-    if (customToggleCheck && customToggleCheck(guildId) === false) return false;
     if (customToggleCheck && !customToggleCheck(guildId)) return false;
     const lic = licenseStore.getLicense(guildId);
     return lic && lic.active;
 }
 
 // Tìm Executor của hành động trong Audit Log
-async function getAuditExecutor(guild, auditType) {
+async function getAuditExecutor(guild, auditType, targetId) {
     try {
         if (!guild.members.me?.permissions.has(PermissionFlagsBits.ViewAuditLog)) return null;
-        const logs = await guild.fetchAuditLogs({ limit: 1, type: auditType }).catch(() => null);
-        const entry = logs?.entries?.first();
+        const logs = await guild.fetchAuditLogs({ limit: 6, type: auditType }).catch(() => null);
+        const entry = logs?.entries?.find(log => String(log.target?.id ?? log.targetId) === String(targetId)
+            && Date.now() - log.createdTimestamp <= 5000 && log.createdTimestamp <= Date.now());
         if (!entry) return null;
-        // Chỉ chấp nhận log trong vòng 5 giây gần nhất
-        if (Date.now() - entry.createdTimestamp > 5000) return null;
+        // Ghép đúng đối tượng bị tác động, không quy trách nhiệm cho log của kênh/role khác.
         return entry.executor;
     } catch {
         return null;
@@ -54,28 +55,36 @@ async function getAuditExecutor(guild, auditType) {
 }
 
 // Cách ly hoặc thu hồi quyền của kẻ tấn công
+const activeQuarantines = new Set();
 async function quarantineAttacker(guild, executor, reason) {
     if (!executor || executor.id === guild.ownerId || executor.id === guild.client.user.id) return;
+    const quarantineKey = `${guild.id}:${executor.id}`;
+    if (activeQuarantines.has(quarantineKey)) return;
+    activeQuarantines.add(quarantineKey);
     try {
         const member = await guild.members.fetch(executor.id).catch(() => null);
-        if (!member || !member.moderatable) return;
+        if (!member || !member.manageable) return;
 
         // Xóa tất cả các role có quyền Admin / Manage để vô hiệu hóa
-        const dangerousRoles = member.roles.cache.filter(r =>
+        const dangerousRoles = member.roles.cache.filter(r => r.id !== guild.id && !r.managed && r.editable && (
             r.permissions.has(PermissionFlagsBits.Administrator) ||
             r.permissions.has(PermissionFlagsBits.ManageGuild) ||
             r.permissions.has(PermissionFlagsBits.ManageChannels) ||
             r.permissions.has(PermissionFlagsBits.ManageRoles) ||
             r.permissions.has(PermissionFlagsBits.BanMembers) ||
             r.permissions.has(PermissionFlagsBits.KickMembers)
-        );
+        ));
 
+        let removedRoles = 0;
         for (const [, r] of dangerousRoles) {
-            await member.roles.remove(r, `[MIMI Anti-Raid] Tước quyền do vi phạm: ${reason}`).catch(() => null);
+            await member.roles.remove(r, `[MIMI Anti-Raid] Tước quyền do vi phạm: ${reason}`)
+                .then(() => { removedRoles++; }).catch(() => null);
         }
 
-        // Mute / Timeout kẻ tấn công 24 giờ
-        await member.timeout(24 * 60 * 60 * 1000, `[MIMI Anti-Raid] ${reason}`).catch(() => null);
+        // Administrator không thể timeout; cần tước role trước rồi kiểm tra lại khả năng timeout.
+        const timedOut = member.moderatable
+            ? await member.timeout(24 * 60 * 60 * 1000, `[MIMI Anti-Raid] ${reason}`).then(() => true).catch(() => false)
+            : false;
 
         // Gửi thông báo đến Owner máy chủ
         const owner = await guild.fetchOwner().catch(() => null);
@@ -83,17 +92,19 @@ async function quarantineAttacker(guild, executor, reason) {
             const embed = new EmbedBuilder()
                 .setColor('#FF0033')
                 .setTitle('🚨 [CẢNH BÁO KHẨN CẤP] PHÁT HIỆN TẤN CÔNG MÁY CHỦ')
-                .setDescription(`Hệ thống MIMI Anti-Raid vừa ngăn chặn thành công một cuộc tấn công vào máy chủ **${guild.name}**!`)
+                .setDescription(`Hệ thống MIMI Anti-Raid phát hiện hành vi bất thường tại máy chủ **${guild.name}**.`)
                 .addFields(
                     { name: '👤 Kẻ vi phạm', value: `<@${executor.id}> (${executor.tag} - ID: \`${executor.id}\`)`, inline: true },
                     { name: '⚡ Hành vi', value: `\`${reason}\``, inline: true },
-                    { name: '🛡️ Hành động xử lý', value: 'Đã lập tức tước toàn bộ quyền Quản trị & Timeout 24h đối tượng.', inline: false }
+                    { name: '🛡️ Hành động xử lý', value: `Đã gỡ ${removedRoles} role có quyền quản trị. ${timedOut ? 'Đã timeout 24 giờ.' : 'Chưa timeout được; hãy kiểm tra quyền và vị trí role của bot.'}`, inline: false }
                 )
                 .setTimestamp();
             await owner.send({ embeds: [embed] }).catch(() => null);
         }
     } catch (e) {
         console.error('❌ [AntiRaid] Lỗi khi xử lý kẻ tấn công:', e?.message || e);
+    } finally {
+        activeQuarantines.delete(quarantineKey);
     }
 }
 
@@ -104,7 +115,7 @@ function initAntiRaid(client) {
         const guild = channel.guild;
         if (!guild || !isLicenseValid(guild.id)) return;
 
-        const executor = await getAuditExecutor(guild, AuditLogEvent.ChannelDelete);
+        const executor = await getAuditExecutor(guild, AuditLogEvent.ChannelDelete, channel.id);
         if (!executor || executor.id === guild.ownerId || executor.id === client.user.id) return;
 
         const tracker = getTracker(guild.id);
@@ -123,7 +134,7 @@ function initAntiRaid(client) {
         const guild = role.guild;
         if (!guild || !isLicenseValid(guild.id)) return;
 
-        const executor = await getAuditExecutor(guild, AuditLogEvent.RoleDelete);
+        const executor = await getAuditExecutor(guild, AuditLogEvent.RoleDelete, role.id);
         if (!executor || executor.id === guild.ownerId || executor.id === client.user.id) return;
 
         const tracker = getTracker(guild.id);
@@ -144,7 +155,7 @@ function initAntiRaid(client) {
 
         // Nếu là BOT lạ vào server mà không phải do Owner mời -> tự động kick
         if (member.user.bot) {
-            const executor = await getAuditExecutor(guild, AuditLogEvent.BotAdd);
+            const executor = await getAuditExecutor(guild, AuditLogEvent.BotAdd, member.id);
             if (executor && executor.id !== guild.ownerId && executor.id !== client.user.id) {
                 // Kiểm tra xem executor có quyền Administrator không
                 const inviter = await guild.members.fetch(executor.id).catch(() => null);
@@ -181,27 +192,84 @@ function initAntiRaid(client) {
 
         if (hasMassMention && !message.member?.permissions.has(PermissionFlagsBits.MentionEveryone)) {
             await message.delete().catch(() => null);
-            await message.member?.timeout(10 * 60 * 1000, '[MIMI Anti-Raid] Spam mass mention trái phép').catch(() => null);
+            if (message.member?.moderatable) {
+                await message.member.timeout(10 * 60 * 1000, '[MIMI Anti-Raid] Spam mass mention trái phép').catch(() => null);
+            }
         }
     });
 }
 
-// Bộ nhớ lưu trạng thái khóa gốc của từng kênh (guildId -> Map(channelId -> state))
+// Giữ trạng thái từng quyền riêng biệt qua restart để mở khóa không làm đổi cấu hình cũ.
+const LOCKDOWN_FILE = path.join(__dirname, 'data', 'anti_raid_lockdowns.json');
 const lockdownStates = new Map();
+try {
+    if (fs.existsSync(LOCKDOWN_FILE)) {
+        const saved = JSON.parse(fs.readFileSync(LOCKDOWN_FILE, 'utf8'));
+        for (const [guildId, channels] of Object.entries(saved)) {
+            const states = new Map();
+            for (const [channelId, state] of Object.entries(channels || {})) {
+                if (state && ['SendMessages', 'AddReactions'].every(key => [true, false, null].includes(state[key]))) {
+                    states.set(channelId, state);
+                }
+            }
+            if (states.size) lockdownStates.set(guildId, states);
+        }
+    }
+} catch (err) {
+    console.error('❌ [AntiRaid] Không đọc được trạng thái khóa; sẽ không mở khóa kênh thiếu bản sao quyền:', err.message);
+}
+
+function saveLockdownStates() {
+    try {
+        fs.mkdirSync(path.dirname(LOCKDOWN_FILE), { recursive: true });
+        const saved = Object.fromEntries([...lockdownStates].map(([guildId, states]) => [guildId, Object.fromEntries(states)]));
+        fs.writeFileSync(LOCKDOWN_FILE + '.tmp', JSON.stringify(saved, null, 2), 'utf8');
+        fs.renameSync(LOCKDOWN_FILE + '.tmp', LOCKDOWN_FILE);
+        return true;
+    } catch (err) {
+        console.error('❌ [AntiRaid] Không lưu được trạng thái khóa:', err.message);
+        return false;
+    }
+}
+
+function permissionState(overwrite, permission) {
+    if (overwrite?.deny.has(permission)) return false;
+    if (overwrite?.allow.has(permission)) return true;
+    return null;
+}
+
+const activeLockdowns = new Set();
 
 // Khóa khẩn cấp toàn bộ máy chủ (Emergency Lockdown Thông Minh)
 async function triggerLockdown(guild, enable = true, executorMember = null) {
+    if (!executorMember || !(executorMember.id === guild?.ownerId ||
+        executorMember.permissions?.has(PermissionFlagsBits.Administrator) ||
+        executorMember.permissions?.has(PermissionFlagsBits.ManageGuild))) {
+        return { ok: false, error: 'Bạn cần quyền Quản lý máy chủ hoặc Administrator để khóa/mở khóa.' };
+    }
     if (!guild || !guild.members.me?.permissions.has(PermissionFlagsBits.ManageChannels)) {
         return { ok: false, error: 'Bot thiếu quyền Manage Channels để khóa kênh.' };
     }
 
+    if (activeLockdowns.has(guild.id)) return { ok: false, error: 'Một thao tác khóa/mở khóa đang chạy. Hãy đợi hoàn tất.' };
+    if (!enable && !lockdownStates.get(guild.id)?.size) {
+        return { ok: false, error: 'Không có trạng thái khóa đã lưu để phục hồi. Quyền kênh hiện tại được giữ nguyên.' };
+    }
+    activeLockdowns.add(guild.id);
+
     const textChannels = guild.channels.cache.filter(c => c.type === ChannelType.GuildText || c.type === ChannelType.GuildAnnouncement);
     let count = 0;
+    let failedCount = 0;
 
     if (!lockdownStates.has(guild.id)) {
         lockdownStates.set(guild.id, new Map());
     }
     const guildStates = lockdownStates.get(guild.id);
+    if (!enable) {
+        for (const channelId of guildStates.keys()) {
+            if (!guild.channels.cache.has(channelId)) guildStates.delete(channelId);
+        }
+    }
 
     for (const [, ch] of textChannels) {
         try {
@@ -209,13 +277,18 @@ async function triggerLockdown(guild, enable = true, executorMember = null) {
                 // Đang khóa: Lưu trạng thái hiện tại (chỉ lưu nếu chưa từng lưu trong đợt lockdown này)
                 if (!guildStates.has(ch.id)) {
                     const everyonePerms = ch.permissionOverwrites.cache.get(guild.roles.everyone.id);
-                    const originalState = everyonePerms ? (everyonePerms.deny.has(PermissionFlagsBits.SendMessages) ? false : (everyonePerms.allow.has(PermissionFlagsBits.SendMessages) ? true : null)) : null;
+                    const originalState = {
+                        SendMessages: permissionState(everyonePerms, PermissionFlagsBits.SendMessages),
+                        AddReactions: permissionState(everyonePerms, PermissionFlagsBits.AddReactions)
+                    };
                     guildStates.set(ch.id, originalState);
+                    // Ghi bản sao quyền trước khi sửa Discord; không khóa khi đĩa ghi lỗi.
+                    if (!saveLockdownStates()) { guildStates.delete(ch.id); failedCount++; continue; }
                 }
 
-                // Nếu kênh CHƯA bị khóa trước đó (original !== false), thì ta mới khóa
+                // Kênh đã khóa từ trước vẫn giữ nguyên quyền ban đầu khi phục hồi.
                 const savedState = guildStates.get(ch.id);
-                if (savedState !== false) {
+                if (savedState.SendMessages !== false) {
                     await ch.permissionOverwrites.edit(guild.roles.everyone, {
                         SendMessages: false,
                         AddReactions: false
@@ -226,30 +299,32 @@ async function triggerLockdown(guild, enable = true, executorMember = null) {
                 // Đang mở khóa
                 const savedState = guildStates.get(ch.id);
                 
-                // Nếu kênh ĐÃ bị khóa TỪ TRƯỚC khi có lệnh lockdown (savedState === false), ta KHÔNG MỞ KHÓA kênh đó!
-                if (savedState === false) {
-                    continue; 
-                }
-
-                // Phục hồi lại trạng thái null hoặc true
+                if (!savedState) continue; // Kênh tạo sau đợt khóa không có bản sao: không sửa.
+                // Phục hồi đúng từng quyền, kể cả quyền đã deny trước khi bật lockdown.
                 await ch.permissionOverwrites.edit(guild.roles.everyone, {
-                    SendMessages: savedState === true ? true : null,
-                    AddReactions: savedState === true ? true : null
+                    SendMessages: savedState.SendMessages,
+                    AddReactions: savedState.AddReactions
                 }, { reason: `[MIMI Anti-Raid] Tắt Lockdown bởi ${executorMember?.user?.tag || 'Admin'}` });
+                guildStates.delete(ch.id);
+                if (!saveLockdownStates()) { guildStates.set(ch.id, savedState); failedCount++; }
                 count++;
             }
-        } catch {}
+        } catch { failedCount++; }
     }
 
-    if (!enable) {
-        // Đã mở khóa xong, clear state
+    if (!enable && !guildStates.size) {
         lockdownStates.delete(guild.id);
+        saveLockdownStates();
     }
+
+    activeLockdowns.delete(guild.id);
 
     return {
-        ok: true,
+        ok: failedCount === 0,
+        error: failedCount ? `Không xử lý được ${failedCount} kênh. Trạng thái phục hồi được giữ để thử lại.` : undefined,
         enable,
-        channelCount: count
+        channelCount: count,
+        failedCount
     };
 }
 

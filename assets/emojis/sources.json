@@ -1,0 +1,3070 @@
+{
+  "schemaVersion": 1,
+  "reviewedAt": "2026-10-03",
+  "twemojiVersion": "17.0.3",
+  "assets": [
+    {
+      "file": "mimi_antique.png",
+      "keys": [
+        "antique"
+      ],
+      "unicode": "🏺",
+      "source": "Twemoji v17.0.3",
+      "author": "Twemoji — Twitter, Inc. and other contributors",
+      "license": "CC-BY-4.0",
+      "licenseUrl": "https://creativecommons.org/licenses/by/4.0/",
+      "page": "https://github.com/jdecked/twemoji/blob/v17.0.3/assets/72x72/1f3fa.png",
+      "url": "https://raw.githubusercontent.com/jdecked/twemoji/v17.0.3/assets/72x72/1f3fa.png",
+      "modified": false,
+      "width": 72,
+      "height": 72,
+      "bytes": 821,
+      "sha256": "9a35c40873922961f49935914ab1294f1b70bf7807ff6bf39d83c4fbab7e04c2"
+    },
+    {
+      "file": "mimi_arrow.png",
+      "keys": [
+        "arrow"
+      ],
+      "unicode": "➡️",
+      "source": "Twemoji v17.0.3",
+      "author": "Twemoji — Twitter, Inc. and other contributors",
+      "license": "CC-BY-4.0",
+      "licenseUrl": "https://creativecommons.org/licenses/by/4.0/",
+      "page": "https://github.com/jdecked/twemoji/blob/v17.0.3/assets/72x72/27a1.png",
+      "url": "https://raw.githubusercontent.com/jdecked/twemoji/v17.0.3/assets/72x72/27a1.png",
+      "modified": false,
+      "width": 72,
+      "height": 72,
+      "bytes": 363,
+      "sha256": "d5b7288f327425755badd771bd9807addb77d9a752890906f95eddfed131b627"
+    },
+    {
+      "file": "mimi_arrowback.png",
+      "keys": [
+        "arrowback"
+      ],
+      "unicode": "↩️",
+      "source": "Twemoji v17.0.3",
+      "author": "Twemoji — Twitter, Inc. and other contributors",
+      "license": "CC-BY-4.0",
+      "licenseUrl": "https://creativecommons.org/licenses/by/4.0/",
+      "page": "https://github.com/jdecked/twemoji/blob/v17.0.3/assets/72x72/21a9.png",
+      "url": "https://raw.githubusercontent.com/jdecked/twemoji/v17.0.3/assets/72x72/21a9.png",
+      "modified": false,
+      "width": 72,
+      "height": 72,
+      "bytes": 462,
+      "sha256": "fcce8a4ef72baffd39afc7137419edd86fb45e92a8832ee95006ac2bdfa38ed2"
+    },
+    {
+      "file": "mimi_arrowhorizontal.png",
+      "keys": [
+        "arrowhorizontal"
+      ],
+      "unicode": "↔",
+      "source": "Twemoji v17.0.3",
+      "author": "Twemoji — Twitter, Inc. and other contributors",
+      "license": "CC-BY-4.0",
+      "licenseUrl": "https://creativecommons.org/licenses/by/4.0/",
+      "page": "https://github.com/jdecked/twemoji/blob/v17.0.3/assets/72x72/2194.png",
+      "url": "https://raw.githubusercontent.com/jdecked/twemoji/v17.0.3/assets/72x72/2194.png",
+      "modified": false,
+      "width": 72,
+      "height": 72,
+      "bytes": 413,
+      "sha256": "ddf0db284cad126cf4c946f9e3e9e85e319b6c13f8098ca966be988dc1bfff66"
+    },
+    {
+      "file": "mimi_arrowleft.png",
+      "keys": [
+        "arrowleft"
+      ],
+      "unicode": "◀️",
+      "source": "Twemoji v17.0.3",
+      "author": "Twemoji — Twitter, Inc. and other contributors",
+      "license": "CC-BY-4.0",
+      "licenseUrl": "https://creativecommons.org/licenses/by/4.0/",
+      "page": "https://github.com/jdecked/twemoji/blob/v17.0.3/assets/72x72/25c0.png",
+      "url": "https://raw.githubusercontent.com/jdecked/twemoji/v17.0.3/assets/72x72/25c0.png",
+      "modified": false,
+      "width": 72,
+      "height": 72,
+      "bytes": 312,
+      "sha256": "68d7de3fbb7d93b2e939441d409e9b45e647721e8422bacb248ad23da1a5c88d"
+    },
+    {
+      "file": "mimi_autoplay.png",
+      "keys": [
+        "autoplay"
+      ],
+      "unicode": "📻",
+      "source": "Twemoji v17.0.3",
+      "author": "Twemoji — Twitter, Inc. and other contributors",
+      "license": "CC-BY-4.0",
+      "licenseUrl": "https://creativecommons.org/licenses/by/4.0/",
+      "page": "https://github.com/jdecked/twemoji/blob/v17.0.3/assets/72x72/1f4fb.png",
+      "url": "https://raw.githubusercontent.com/jdecked/twemoji/v17.0.3/assets/72x72/1f4fb.png",
+      "modified": false,
+      "width": 72,
+      "height": 72,
+      "bytes": 629,
+      "sha256": "26242eb1aed442b9e7468e30f809c45c80a50e374db3be314b08bd97efc43bc5"
+    },
+    {
+      "file": "mimi_backpack.png",
+      "keys": [
+        "backpack"
+      ],
+      "unicode": "🎒",
+      "source": "Twemoji v17.0.3",
+      "author": "Twemoji — Twitter, Inc. and other contributors",
+      "license": "CC-BY-4.0",
+      "licenseUrl": "https://creativecommons.org/licenses/by/4.0/",
+      "page": "https://github.com/jdecked/twemoji/blob/v17.0.3/assets/72x72/1f392.png",
+      "url": "https://raw.githubusercontent.com/jdecked/twemoji/v17.0.3/assets/72x72/1f392.png",
+      "modified": false,
+      "width": 72,
+      "height": 72,
+      "bytes": 1020,
+      "sha256": "90c5c184281c70faf50208c230a6e5fb6e3cae6ab58fc7ffcaa865d46b6fe0eb"
+    },
+    {
+      "file": "mimi_ban.png",
+      "keys": [
+        "ban"
+      ],
+      "unicode": "🚫",
+      "source": "Twemoji v17.0.3",
+      "author": "Twemoji — Twitter, Inc. and other contributors",
+      "license": "CC-BY-4.0",
+      "licenseUrl": "https://creativecommons.org/licenses/by/4.0/",
+      "page": "https://github.com/jdecked/twemoji/blob/v17.0.3/assets/72x72/1f6ab.png",
+      "url": "https://raw.githubusercontent.com/jdecked/twemoji/v17.0.3/assets/72x72/1f6ab.png",
+      "modified": false,
+      "width": 72,
+      "height": 72,
+      "bytes": 617,
+      "sha256": "648f2e93eeb916922acc1de00811798cd6f09e60efa98fddb7af90a515c643cc"
+    },
+    {
+      "file": "mimi_bank.png",
+      "keys": [
+        "bank"
+      ],
+      "unicode": "🏦",
+      "source": "Twemoji v17.0.3",
+      "author": "Twemoji — Twitter, Inc. and other contributors",
+      "license": "CC-BY-4.0",
+      "licenseUrl": "https://creativecommons.org/licenses/by/4.0/",
+      "page": "https://github.com/jdecked/twemoji/blob/v17.0.3/assets/72x72/1f3e6.png",
+      "url": "https://raw.githubusercontent.com/jdecked/twemoji/v17.0.3/assets/72x72/1f3e6.png",
+      "modified": false,
+      "width": 72,
+      "height": 72,
+      "bytes": 526,
+      "sha256": "18f1e1f4fe5585108349cf029e48ad91a12dae4627be962667fb0b4933c69bba"
+    },
+    {
+      "file": "mimi_bankcard.png",
+      "keys": [
+        "bankcard"
+      ],
+      "unicode": "💳",
+      "source": "Twemoji v17.0.3",
+      "author": "Twemoji — Twitter, Inc. and other contributors",
+      "license": "CC-BY-4.0",
+      "licenseUrl": "https://creativecommons.org/licenses/by/4.0/",
+      "page": "https://github.com/jdecked/twemoji/blob/v17.0.3/assets/72x72/1f4b3.png",
+      "url": "https://raw.githubusercontent.com/jdecked/twemoji/v17.0.3/assets/72x72/1f4b3.png",
+      "modified": false,
+      "width": 72,
+      "height": 72,
+      "bytes": 439,
+      "sha256": "66a1646024f0fd58b7fbc8f674b9c097d9e9a96ab0dbb11b92bb377a2eccfa4e"
+    },
+    {
+      "file": "mimi_basket.png",
+      "keys": [
+        "basket"
+      ],
+      "unicode": "🧺",
+      "source": "Twemoji v17.0.3",
+      "author": "Twemoji — Twitter, Inc. and other contributors",
+      "license": "CC-BY-4.0",
+      "licenseUrl": "https://creativecommons.org/licenses/by/4.0/",
+      "page": "https://github.com/jdecked/twemoji/blob/v17.0.3/assets/72x72/1f9fa.png",
+      "url": "https://raw.githubusercontent.com/jdecked/twemoji/v17.0.3/assets/72x72/1f9fa.png",
+      "modified": false,
+      "width": 72,
+      "height": 72,
+      "bytes": 1228,
+      "sha256": "22e0371d54d4b05da1ad0bef46b7d3901dfe271e0eb01178cd699611c50fcaa4"
+    },
+    {
+      "file": "mimi_bell.png",
+      "keys": [
+        "bell"
+      ],
+      "unicode": "🔔",
+      "source": "Twemoji v17.0.3",
+      "author": "Twemoji — Twitter, Inc. and other contributors",
+      "license": "CC-BY-4.0",
+      "licenseUrl": "https://creativecommons.org/licenses/by/4.0/",
+      "page": "https://github.com/jdecked/twemoji/blob/v17.0.3/assets/72x72/1f514.png",
+      "url": "https://raw.githubusercontent.com/jdecked/twemoji/v17.0.3/assets/72x72/1f514.png",
+      "modified": false,
+      "width": 72,
+      "height": 72,
+      "bytes": 445,
+      "sha256": "2256b6c50560132ea3b72c7453527acefd8423e7afff830d350e366bd3523e72"
+    },
+    {
+      "file": "mimi_bomb.png",
+      "keys": [
+        "bomb"
+      ],
+      "unicode": "💣",
+      "source": "Twemoji v17.0.3",
+      "author": "Twemoji — Twitter, Inc. and other contributors",
+      "license": "CC-BY-4.0",
+      "licenseUrl": "https://creativecommons.org/licenses/by/4.0/",
+      "page": "https://github.com/jdecked/twemoji/blob/v17.0.3/assets/72x72/1f4a3.png",
+      "url": "https://raw.githubusercontent.com/jdecked/twemoji/v17.0.3/assets/72x72/1f4a3.png",
+      "modified": false,
+      "width": 72,
+      "height": 72,
+      "bytes": 561,
+      "sha256": "e3f9d45110f6534fe8f65ebee07c9c6a1dce6e5ae6433265d22940a7f43b6870"
+    },
+    {
+      "file": "mimi_bot.png",
+      "keys": [
+        "bot"
+      ],
+      "unicode": "🤖",
+      "source": "Twemoji v17.0.3",
+      "author": "Twemoji — Twitter, Inc. and other contributors",
+      "license": "CC-BY-4.0",
+      "licenseUrl": "https://creativecommons.org/licenses/by/4.0/",
+      "page": "https://github.com/jdecked/twemoji/blob/v17.0.3/assets/72x72/1f916.png",
+      "url": "https://raw.githubusercontent.com/jdecked/twemoji/v17.0.3/assets/72x72/1f916.png",
+      "modified": false,
+      "width": 72,
+      "height": 72,
+      "bytes": 797,
+      "sha256": "3ee07ef63a271f85d7ae80d9f1a70b021cd1d31df387c603fa24c8f0ee7f8b2f"
+    },
+    {
+      "file": "mimi_bowl.png",
+      "keys": [
+        "bowl"
+      ],
+      "unicode": "🥣",
+      "source": "Twemoji v17.0.3",
+      "author": "Twemoji — Twitter, Inc. and other contributors",
+      "license": "CC-BY-4.0",
+      "licenseUrl": "https://creativecommons.org/licenses/by/4.0/",
+      "page": "https://github.com/jdecked/twemoji/blob/v17.0.3/assets/72x72/1f963.png",
+      "url": "https://raw.githubusercontent.com/jdecked/twemoji/v17.0.3/assets/72x72/1f963.png",
+      "modified": false,
+      "width": 72,
+      "height": 72,
+      "bytes": 1010,
+      "sha256": "e8d1031e2eb3d14de5a7a98d3d3f330b7bc2797b9c98eacc8244922a8881159b"
+    },
+    {
+      "file": "mimi_box.png",
+      "keys": [
+        "box"
+      ],
+      "unicode": "📦",
+      "source": "Twemoji v17.0.3",
+      "author": "Twemoji — Twitter, Inc. and other contributors",
+      "license": "CC-BY-4.0",
+      "licenseUrl": "https://creativecommons.org/licenses/by/4.0/",
+      "page": "https://github.com/jdecked/twemoji/blob/v17.0.3/assets/72x72/1f4e6.png",
+      "url": "https://raw.githubusercontent.com/jdecked/twemoji/v17.0.3/assets/72x72/1f4e6.png",
+      "modified": false,
+      "width": 72,
+      "height": 72,
+      "bytes": 897,
+      "sha256": "c26454afb9bbc2a63ac70d721b7972dce47c9c2c176f1f97875acd52dbd0ba80"
+    },
+    {
+      "file": "mimi_brokenheart.png",
+      "keys": [
+        "brokenheart"
+      ],
+      "unicode": "💔",
+      "source": "Twemoji v17.0.3",
+      "author": "Twemoji — Twitter, Inc. and other contributors",
+      "license": "CC-BY-4.0",
+      "licenseUrl": "https://creativecommons.org/licenses/by/4.0/",
+      "page": "https://github.com/jdecked/twemoji/blob/v17.0.3/assets/72x72/1f494.png",
+      "url": "https://raw.githubusercontent.com/jdecked/twemoji/v17.0.3/assets/72x72/1f494.png",
+      "modified": false,
+      "width": 72,
+      "height": 72,
+      "bytes": 623,
+      "sha256": "bc6c9312cc71086497645902e60417a4a1248ad14243fec6cb53bbd5982db93d"
+    },
+    {
+      "file": "mimi_bronzemedal.png",
+      "keys": [
+        "bronzemedal"
+      ],
+      "unicode": "🥉",
+      "source": "Twemoji v17.0.3",
+      "author": "Twemoji — Twitter, Inc. and other contributors",
+      "license": "CC-BY-4.0",
+      "licenseUrl": "https://creativecommons.org/licenses/by/4.0/",
+      "page": "https://github.com/jdecked/twemoji/blob/v17.0.3/assets/72x72/1f949.png",
+      "url": "https://raw.githubusercontent.com/jdecked/twemoji/v17.0.3/assets/72x72/1f949.png",
+      "modified": false,
+      "width": 72,
+      "height": 72,
+      "bytes": 946,
+      "sha256": "c8593c2996b948cb3854d0a3c46666cbeccfa205050f5d42716da3326857525f"
+    },
+    {
+      "file": "mimi_broom.png",
+      "keys": [
+        "broom"
+      ],
+      "unicode": "🧹",
+      "source": "Twemoji v17.0.3",
+      "author": "Twemoji — Twitter, Inc. and other contributors",
+      "license": "CC-BY-4.0",
+      "licenseUrl": "https://creativecommons.org/licenses/by/4.0/",
+      "page": "https://github.com/jdecked/twemoji/blob/v17.0.3/assets/72x72/1f9f9.png",
+      "url": "https://raw.githubusercontent.com/jdecked/twemoji/v17.0.3/assets/72x72/1f9f9.png",
+      "modified": false,
+      "width": 72,
+      "height": 72,
+      "bytes": 629,
+      "sha256": "b1ca55c19d16aef9e38e68e4fb84aaa9ad9f114ddcc406cc95ead45d3ef65c4b"
+    },
+    {
+      "file": "mimi_building.png",
+      "keys": [
+        "building"
+      ],
+      "unicode": "🏢",
+      "source": "Twemoji v17.0.3",
+      "author": "Twemoji — Twitter, Inc. and other contributors",
+      "license": "CC-BY-4.0",
+      "licenseUrl": "https://creativecommons.org/licenses/by/4.0/",
+      "page": "https://github.com/jdecked/twemoji/blob/v17.0.3/assets/72x72/1f3e2.png",
+      "url": "https://raw.githubusercontent.com/jdecked/twemoji/v17.0.3/assets/72x72/1f3e2.png",
+      "modified": false,
+      "width": 72,
+      "height": 72,
+      "bytes": 304,
+      "sha256": "0ec499456983ba98de586373bf2e404bbbdef969b8b4fd4bfce94a54168004ef"
+    },
+    {
+      "file": "mimi_bulb.png",
+      "keys": [
+        "bulb"
+      ],
+      "unicode": "💡",
+      "source": "Twemoji v17.0.3",
+      "author": "Twemoji — Twitter, Inc. and other contributors",
+      "license": "CC-BY-4.0",
+      "licenseUrl": "https://creativecommons.org/licenses/by/4.0/",
+      "page": "https://github.com/jdecked/twemoji/blob/v17.0.3/assets/72x72/1f4a1.png",
+      "url": "https://raw.githubusercontent.com/jdecked/twemoji/v17.0.3/assets/72x72/1f4a1.png",
+      "modified": false,
+      "width": 72,
+      "height": 72,
+      "bytes": 687,
+      "sha256": "bf0b74aa708457db96c21f658f0eff5ec185a10242f4aa157a86823149c7d704"
+    },
+    {
+      "file": "mimi_cake.png",
+      "keys": [
+        "cake"
+      ],
+      "unicode": "🎂",
+      "source": "Twemoji v17.0.3",
+      "author": "Twemoji — Twitter, Inc. and other contributors",
+      "license": "CC-BY-4.0",
+      "licenseUrl": "https://creativecommons.org/licenses/by/4.0/",
+      "page": "https://github.com/jdecked/twemoji/blob/v17.0.3/assets/72x72/1f382.png",
+      "url": "https://raw.githubusercontent.com/jdecked/twemoji/v17.0.3/assets/72x72/1f382.png",
+      "modified": false,
+      "width": 72,
+      "height": 72,
+      "bytes": 1256,
+      "sha256": "8435f19559eaa852af385c4c2efadbbeeeaee4b325ecfd96c54bf4e7ba0f00c5"
+    },
+    {
+      "file": "mimi_calendar.png",
+      "keys": [
+        "calendar"
+      ],
+      "unicode": "📅",
+      "source": "Twemoji v17.0.3",
+      "author": "Twemoji — Twitter, Inc. and other contributors",
+      "license": "CC-BY-4.0",
+      "licenseUrl": "https://creativecommons.org/licenses/by/4.0/",
+      "page": "https://github.com/jdecked/twemoji/blob/v17.0.3/assets/72x72/1f4c5.png",
+      "url": "https://raw.githubusercontent.com/jdecked/twemoji/v17.0.3/assets/72x72/1f4c5.png",
+      "modified": false,
+      "width": 72,
+      "height": 72,
+      "bytes": 716,
+      "sha256": "71462858483307e28b27b196ddb845cb6962bca811014cb65bf631c4d0dc2a50"
+    },
+    {
+      "file": "mimi_card.png",
+      "keys": [
+        "card"
+      ],
+      "unicode": "🃏",
+      "source": "Twemoji v17.0.3",
+      "author": "Twemoji — Twitter, Inc. and other contributors",
+      "license": "CC-BY-4.0",
+      "licenseUrl": "https://creativecommons.org/licenses/by/4.0/",
+      "page": "https://github.com/jdecked/twemoji/blob/v17.0.3/assets/72x72/1f0cf.png",
+      "url": "https://raw.githubusercontent.com/jdecked/twemoji/v17.0.3/assets/72x72/1f0cf.png",
+      "modified": false,
+      "width": 72,
+      "height": 72,
+      "bytes": 923,
+      "sha256": "9c4eee500b0aebcb49193c0d2aa406fef4456f386e896dc45b740ffcff856810"
+    },
+    {
+      "file": "mimi_cardback.png",
+      "keys": [
+        "cardback"
+      ],
+      "unicode": "🂠",
+      "source": "Twemoji v17.0.3",
+      "author": "Twemoji — Twitter, Inc. and other contributors",
+      "license": "CC-BY-4.0",
+      "licenseUrl": "https://creativecommons.org/licenses/by/4.0/",
+      "page": "https://github.com/jdecked/twemoji/blob/v17.0.3/assets/72x72/1f3b4.png",
+      "url": "https://raw.githubusercontent.com/jdecked/twemoji/v17.0.3/assets/72x72/1f3b4.png",
+      "modified": false,
+      "note": "Ảnh flower-playing-cards đại diện cho lá bài úp; U+1F0A0 không có PNG Twemoji.",
+      "width": 72,
+      "height": 72,
+      "bytes": 565,
+      "sha256": "54bd0d8ebe5c072a496bed4c818bcfc5ba3f5261cddcd79eeb00617320bae438"
+    },
+    {
+      "file": "mimi_cart.png",
+      "keys": [
+        "cart"
+      ],
+      "unicode": "🛒",
+      "source": "Twemoji v17.0.3",
+      "author": "Twemoji — Twitter, Inc. and other contributors",
+      "license": "CC-BY-4.0",
+      "licenseUrl": "https://creativecommons.org/licenses/by/4.0/",
+      "page": "https://github.com/jdecked/twemoji/blob/v17.0.3/assets/72x72/1f6d2.png",
+      "url": "https://raw.githubusercontent.com/jdecked/twemoji/v17.0.3/assets/72x72/1f6d2.png",
+      "modified": false,
+      "width": 72,
+      "height": 72,
+      "bytes": 711,
+      "sha256": "68b2e058d5cf2a630e11611165c8e5d2168609b374e7c87e90fbb552e52d81c0"
+    },
+    {
+      "file": "mimi_casino.png",
+      "keys": [
+        "casino"
+      ],
+      "unicode": "🎰",
+      "source": "Twemoji v17.0.3",
+      "author": "Twemoji — Twitter, Inc. and other contributors",
+      "license": "CC-BY-4.0",
+      "licenseUrl": "https://creativecommons.org/licenses/by/4.0/",
+      "page": "https://github.com/jdecked/twemoji/blob/v17.0.3/assets/72x72/1f3b0.png",
+      "url": "https://raw.githubusercontent.com/jdecked/twemoji/v17.0.3/assets/72x72/1f3b0.png",
+      "modified": false,
+      "width": 72,
+      "height": 72,
+      "bytes": 560,
+      "sha256": "daa1b040b8fa67248541bead47564dc68a1dee3b3ac2352c92bafacb1e993d1b"
+    },
+    {
+      "file": "mimi_cat.png",
+      "keys": [
+        "cat"
+      ],
+      "unicode": "🐱",
+      "source": "Twemoji v17.0.3",
+      "author": "Twemoji — Twitter, Inc. and other contributors",
+      "license": "CC-BY-4.0",
+      "licenseUrl": "https://creativecommons.org/licenses/by/4.0/",
+      "page": "https://github.com/jdecked/twemoji/blob/v17.0.3/assets/72x72/1f431.png",
+      "url": "https://raw.githubusercontent.com/jdecked/twemoji/v17.0.3/assets/72x72/1f431.png",
+      "modified": false,
+      "width": 72,
+      "height": 72,
+      "bytes": 1225,
+      "sha256": "536beb584cb8e894615262dc5342dc13f18f7fe21f4657a936dc559b99031b4a"
+    },
+    {
+      "file": "mimi_celebrate.png",
+      "keys": [
+        "celebrate"
+      ],
+      "unicode": "🎉",
+      "source": "Twemoji v17.0.3",
+      "author": "Twemoji — Twitter, Inc. and other contributors",
+      "license": "CC-BY-4.0",
+      "licenseUrl": "https://creativecommons.org/licenses/by/4.0/",
+      "page": "https://github.com/jdecked/twemoji/blob/v17.0.3/assets/72x72/1f389.png",
+      "url": "https://raw.githubusercontent.com/jdecked/twemoji/v17.0.3/assets/72x72/1f389.png",
+      "modified": false,
+      "width": 72,
+      "height": 72,
+      "bytes": 1376,
+      "sha256": "7289a4aa98f9a81a1108f98abfcebd214dab96df64c8ea67ed6e83116a8e4ce8"
+    },
+    {
+      "file": "mimi_chat.png",
+      "keys": [
+        "chat"
+      ],
+      "unicode": "💬",
+      "source": "Twemoji v17.0.3",
+      "author": "Twemoji — Twitter, Inc. and other contributors",
+      "license": "CC-BY-4.0",
+      "licenseUrl": "https://creativecommons.org/licenses/by/4.0/",
+      "page": "https://github.com/jdecked/twemoji/blob/v17.0.3/assets/72x72/1f4ac.png",
+      "url": "https://raw.githubusercontent.com/jdecked/twemoji/v17.0.3/assets/72x72/1f4ac.png",
+      "modified": false,
+      "width": 72,
+      "height": 72,
+      "bytes": 496,
+      "sha256": "bc8c761343ac5bfd75c3112f4dfa00e4f16aa6b920e7f7332ed34330109c7872"
+    },
+    {
+      "file": "mimi_cherry.png",
+      "keys": [
+        "cherry"
+      ],
+      "unicode": "🍒",
+      "source": "Twemoji v17.0.3",
+      "author": "Twemoji — Twitter, Inc. and other contributors",
+      "license": "CC-BY-4.0",
+      "licenseUrl": "https://creativecommons.org/licenses/by/4.0/",
+      "page": "https://github.com/jdecked/twemoji/blob/v17.0.3/assets/72x72/1f352.png",
+      "url": "https://raw.githubusercontent.com/jdecked/twemoji/v17.0.3/assets/72x72/1f352.png",
+      "modified": false,
+      "width": 72,
+      "height": 72,
+      "bytes": 787,
+      "sha256": "b5f3f3ea261d60642e690c2816427e2330e06439f659bac590e591d6c5ad545f"
+    },
+    {
+      "file": "mimi_chicken.png",
+      "keys": [
+        "chicken"
+      ],
+      "unicode": "🐓",
+      "source": "Twemoji v17.0.3",
+      "author": "Twemoji — Twitter, Inc. and other contributors",
+      "license": "CC-BY-4.0",
+      "licenseUrl": "https://creativecommons.org/licenses/by/4.0/",
+      "page": "https://github.com/jdecked/twemoji/blob/v17.0.3/assets/72x72/1f413.png",
+      "url": "https://raw.githubusercontent.com/jdecked/twemoji/v17.0.3/assets/72x72/1f413.png",
+      "modified": false,
+      "width": 72,
+      "height": 72,
+      "bytes": 873,
+      "sha256": "b10397f1b189b07c36bf395866eaa53f1e90634d8199b7fc9dea78f59a178231"
+    },
+    {
+      "file": "mimi_clear.png",
+      "keys": [
+        "clear"
+      ],
+      "unicode": "🗑️",
+      "source": "Twemoji v17.0.3",
+      "author": "Twemoji — Twitter, Inc. and other contributors",
+      "license": "CC-BY-4.0",
+      "licenseUrl": "https://creativecommons.org/licenses/by/4.0/",
+      "page": "https://github.com/jdecked/twemoji/blob/v17.0.3/assets/72x72/1f5d1.png",
+      "url": "https://raw.githubusercontent.com/jdecked/twemoji/v17.0.3/assets/72x72/1f5d1.png",
+      "modified": false,
+      "width": 72,
+      "height": 72,
+      "bytes": 1017,
+      "sha256": "344fc83ee040ebe9934481e6612f9034adba51287c997605aa97a8cd08e1c910"
+    },
+    {
+      "file": "mimi_clock.png",
+      "keys": [
+        "clock"
+      ],
+      "unicode": "⏰",
+      "source": "Twemoji v17.0.3",
+      "author": "Twemoji — Twitter, Inc. and other contributors",
+      "license": "CC-BY-4.0",
+      "licenseUrl": "https://creativecommons.org/licenses/by/4.0/",
+      "page": "https://github.com/jdecked/twemoji/blob/v17.0.3/assets/72x72/23f0.png",
+      "url": "https://raw.githubusercontent.com/jdecked/twemoji/v17.0.3/assets/72x72/23f0.png",
+      "modified": false,
+      "width": 72,
+      "height": 72,
+      "bytes": 1106,
+      "sha256": "a765e00f57c3495ff9f8cdf203af7e11515d9d4ea82f024b9ef296d185307fc6"
+    },
+    {
+      "file": "mimi_club.png",
+      "keys": [
+        "club"
+      ],
+      "unicode": "♣",
+      "source": "Twemoji v17.0.3",
+      "author": "Twemoji — Twitter, Inc. and other contributors",
+      "license": "CC-BY-4.0",
+      "licenseUrl": "https://creativecommons.org/licenses/by/4.0/",
+      "page": "https://github.com/jdecked/twemoji/blob/v17.0.3/assets/72x72/2663.png",
+      "url": "https://raw.githubusercontent.com/jdecked/twemoji/v17.0.3/assets/72x72/2663.png",
+      "modified": false,
+      "width": 72,
+      "height": 72,
+      "bytes": 478,
+      "sha256": "b6fb3a6fd1fa31be17d82ad3d6e8dde18d27cdefbcaadfb6b28595f419ae6611"
+    },
+    {
+      "file": "mimi_coffee.png",
+      "keys": [
+        "coffee"
+      ],
+      "unicode": "☕",
+      "source": "Twemoji v17.0.3",
+      "author": "Twemoji — Twitter, Inc. and other contributors",
+      "license": "CC-BY-4.0",
+      "licenseUrl": "https://creativecommons.org/licenses/by/4.0/",
+      "page": "https://github.com/jdecked/twemoji/blob/v17.0.3/assets/72x72/2615.png",
+      "url": "https://raw.githubusercontent.com/jdecked/twemoji/v17.0.3/assets/72x72/2615.png",
+      "modified": false,
+      "width": 72,
+      "height": 72,
+      "bytes": 1284,
+      "sha256": "7698fb9dcbaf4459b3e29ee97eba2df94c0adf2daf118c91dbfeb3e569d470ab"
+    },
+    {
+      "file": "mimi_coin.png",
+      "keys": [
+        "coin"
+      ],
+      "unicode": "💰",
+      "source": "Twemoji v17.0.3",
+      "author": "Twemoji — Twitter, Inc. and other contributors",
+      "license": "CC-BY-4.0",
+      "licenseUrl": "https://creativecommons.org/licenses/by/4.0/",
+      "page": "https://github.com/jdecked/twemoji/blob/v17.0.3/assets/72x72/1f4b0.png",
+      "url": "https://raw.githubusercontent.com/jdecked/twemoji/v17.0.3/assets/72x72/1f4b0.png",
+      "modified": false,
+      "width": 72,
+      "height": 72,
+      "bytes": 772,
+      "sha256": "356cbaf73b1793d3073c3f153e9b80e6e93793f7dca9e620094ca9abccc8f401"
+    },
+    {
+      "file": "mimi_corn.png",
+      "keys": [
+        "corn"
+      ],
+      "unicode": "🌽",
+      "source": "Twemoji v17.0.3",
+      "author": "Twemoji — Twitter, Inc. and other contributors",
+      "license": "CC-BY-4.0",
+      "licenseUrl": "https://creativecommons.org/licenses/by/4.0/",
+      "page": "https://github.com/jdecked/twemoji/blob/v17.0.3/assets/72x72/1f33d.png",
+      "url": "https://raw.githubusercontent.com/jdecked/twemoji/v17.0.3/assets/72x72/1f33d.png",
+      "modified": false,
+      "width": 72,
+      "height": 72,
+      "bytes": 1160,
+      "sha256": "cf6953dfae46b569d83f2be3e4234513370f81fdab07c557ea3004fc60398984"
+    },
+    {
+      "file": "mimi_crab.png",
+      "keys": [
+        "crab"
+      ],
+      "unicode": "🦀",
+      "source": "Twemoji v17.0.3",
+      "author": "Twemoji — Twitter, Inc. and other contributors",
+      "license": "CC-BY-4.0",
+      "licenseUrl": "https://creativecommons.org/licenses/by/4.0/",
+      "page": "https://github.com/jdecked/twemoji/blob/v17.0.3/assets/72x72/1f980.png",
+      "url": "https://raw.githubusercontent.com/jdecked/twemoji/v17.0.3/assets/72x72/1f980.png",
+      "modified": false,
+      "width": 72,
+      "height": 72,
+      "bytes": 1585,
+      "sha256": "0b21f51be6acb5a58188de058f3d3be49f232353956eacbf6a6751f01379b703"
+    },
+    {
+      "file": "mimi_crown.png",
+      "keys": [
+        "crown"
+      ],
+      "unicode": "👑",
+      "source": "Twemoji v17.0.3",
+      "author": "Twemoji — Twitter, Inc. and other contributors",
+      "license": "CC-BY-4.0",
+      "licenseUrl": "https://creativecommons.org/licenses/by/4.0/",
+      "page": "https://github.com/jdecked/twemoji/blob/v17.0.3/assets/72x72/1f451.png",
+      "url": "https://raw.githubusercontent.com/jdecked/twemoji/v17.0.3/assets/72x72/1f451.png",
+      "modified": false,
+      "width": 72,
+      "height": 72,
+      "bytes": 992,
+      "sha256": "086f008b14ecc4498583235dc97b2619bda6dfc3a5b221d837c0a7306d1d0115"
+    },
+    {
+      "file": "mimi_deer.png",
+      "keys": [
+        "deer"
+      ],
+      "unicode": "🦌",
+      "source": "Twemoji v17.0.3",
+      "author": "Twemoji — Twitter, Inc. and other contributors",
+      "license": "CC-BY-4.0",
+      "licenseUrl": "https://creativecommons.org/licenses/by/4.0/",
+      "page": "https://github.com/jdecked/twemoji/blob/v17.0.3/assets/72x72/1f98c.png",
+      "url": "https://raw.githubusercontent.com/jdecked/twemoji/v17.0.3/assets/72x72/1f98c.png",
+      "modified": false,
+      "width": 72,
+      "height": 72,
+      "bytes": 1216,
+      "sha256": "8b3d17283f3dd779c930721b8c1d03682dbff6cc818c481ac82554eb3c83dfcb"
+    },
+    {
+      "file": "mimi_diamond.png",
+      "keys": [
+        "diamond"
+      ],
+      "unicode": "💎",
+      "source": "Twemoji v17.0.3",
+      "author": "Twemoji — Twitter, Inc. and other contributors",
+      "license": "CC-BY-4.0",
+      "licenseUrl": "https://creativecommons.org/licenses/by/4.0/",
+      "page": "https://github.com/jdecked/twemoji/blob/v17.0.3/assets/72x72/1f48e.png",
+      "url": "https://raw.githubusercontent.com/jdecked/twemoji/v17.0.3/assets/72x72/1f48e.png",
+      "modified": false,
+      "width": 72,
+      "height": 72,
+      "bytes": 816,
+      "sha256": "3764291f25fec57d7dd404c33015a1deb5e553a8e3b7267e40ca0a92e39dd5f8"
+    },
+    {
+      "file": "mimi_diamondsuit.png",
+      "keys": [
+        "diamondsuit"
+      ],
+      "unicode": "♦",
+      "source": "Twemoji v17.0.3",
+      "author": "Twemoji — Twitter, Inc. and other contributors",
+      "license": "CC-BY-4.0",
+      "licenseUrl": "https://creativecommons.org/licenses/by/4.0/",
+      "page": "https://github.com/jdecked/twemoji/blob/v17.0.3/assets/72x72/2666.png",
+      "url": "https://raw.githubusercontent.com/jdecked/twemoji/v17.0.3/assets/72x72/2666.png",
+      "modified": false,
+      "width": 72,
+      "height": 72,
+      "bytes": 407,
+      "sha256": "72cabaf448adb15d2278c81e80a8b3afd24d634c330de57787241e24f030710c"
+    },
+    {
+      "file": "mimi_dice.png",
+      "keys": [
+        "dice"
+      ],
+      "unicode": "🎲",
+      "source": "Twemoji v17.0.3",
+      "author": "Twemoji — Twitter, Inc. and other contributors",
+      "license": "CC-BY-4.0",
+      "licenseUrl": "https://creativecommons.org/licenses/by/4.0/",
+      "page": "https://github.com/jdecked/twemoji/blob/v17.0.3/assets/72x72/1f3b2.png",
+      "url": "https://raw.githubusercontent.com/jdecked/twemoji/v17.0.3/assets/72x72/1f3b2.png",
+      "modified": false,
+      "width": 72,
+      "height": 72,
+      "bytes": 950,
+      "sha256": "71a92260bbe0b8dc08285f1357c8fe6c6cd8b344dafc75391503f2dc3a2270c1"
+    },
+    {
+      "file": "mimi_disc.png",
+      "keys": [
+        "disc"
+      ],
+      "unicode": "💿",
+      "source": "Twemoji v17.0.3",
+      "author": "Twemoji — Twitter, Inc. and other contributors",
+      "license": "CC-BY-4.0",
+      "licenseUrl": "https://creativecommons.org/licenses/by/4.0/",
+      "page": "https://github.com/jdecked/twemoji/blob/v17.0.3/assets/72x72/1f4bf.png",
+      "url": "https://raw.githubusercontent.com/jdecked/twemoji/v17.0.3/assets/72x72/1f4bf.png",
+      "modified": false,
+      "width": 72,
+      "height": 72,
+      "bytes": 924,
+      "sha256": "bd0f89674908c3ff56ee313e0a432821fed485f34e7451bc8a4017d8239bfcd2"
+    },
+    {
+      "file": "mimi_dog.png",
+      "keys": [
+        "dog"
+      ],
+      "unicode": "🐶",
+      "source": "Twemoji v17.0.3",
+      "author": "Twemoji — Twitter, Inc. and other contributors",
+      "license": "CC-BY-4.0",
+      "licenseUrl": "https://creativecommons.org/licenses/by/4.0/",
+      "page": "https://github.com/jdecked/twemoji/blob/v17.0.3/assets/72x72/1f436.png",
+      "url": "https://raw.githubusercontent.com/jdecked/twemoji/v17.0.3/assets/72x72/1f436.png",
+      "modified": false,
+      "width": 72,
+      "height": 72,
+      "bytes": 1089,
+      "sha256": "ac8393e853a619d8cd2b502abb1cee1f79af97fd511b24f0a7cf99d102b2d02f"
+    },
+    {
+      "file": "mimi_dolphin.png",
+      "keys": [
+        "dolphin"
+      ],
+      "unicode": "🐬",
+      "source": "Twemoji v17.0.3",
+      "author": "Twemoji — Twitter, Inc. and other contributors",
+      "license": "CC-BY-4.0",
+      "licenseUrl": "https://creativecommons.org/licenses/by/4.0/",
+      "page": "https://github.com/jdecked/twemoji/blob/v17.0.3/assets/72x72/1f42c.png",
+      "url": "https://raw.githubusercontent.com/jdecked/twemoji/v17.0.3/assets/72x72/1f42c.png",
+      "modified": false,
+      "width": 72,
+      "height": 72,
+      "bytes": 868,
+      "sha256": "a67c1d746aabea6de3eea9430e1bd335ff3f1d7261083a19e496ac686272fd57"
+    },
+    {
+      "file": "mimi_door.png",
+      "keys": [
+        "door"
+      ],
+      "unicode": "🚪",
+      "source": "Twemoji v17.0.3",
+      "author": "Twemoji — Twitter, Inc. and other contributors",
+      "license": "CC-BY-4.0",
+      "licenseUrl": "https://creativecommons.org/licenses/by/4.0/",
+      "page": "https://github.com/jdecked/twemoji/blob/v17.0.3/assets/72x72/1f6aa.png",
+      "url": "https://raw.githubusercontent.com/jdecked/twemoji/v17.0.3/assets/72x72/1f6aa.png",
+      "modified": false,
+      "width": 72,
+      "height": 72,
+      "bytes": 262,
+      "sha256": "6338697b427d284f114d3df9252bf090c8f89f2d5c7f5bfacee1423a74d250a6"
+    },
+    {
+      "file": "mimi_dot.png",
+      "keys": [
+        "dot"
+      ],
+      "unicode": "🟢",
+      "source": "Twemoji v17.0.3",
+      "author": "Twemoji — Twitter, Inc. and other contributors",
+      "license": "CC-BY-4.0",
+      "licenseUrl": "https://creativecommons.org/licenses/by/4.0/",
+      "page": "https://github.com/jdecked/twemoji/blob/v17.0.3/assets/72x72/1f7e2.png",
+      "url": "https://raw.githubusercontent.com/jdecked/twemoji/v17.0.3/assets/72x72/1f7e2.png",
+      "modified": false,
+      "width": 72,
+      "height": 72,
+      "bytes": 411,
+      "sha256": "c91fd8bf4b559519ddb1de41351bb13b562b996840d999b048770c388576d127"
+    },
+    {
+      "file": "mimi_down.png",
+      "keys": [
+        "down"
+      ],
+      "unicode": "🔻",
+      "source": "Twemoji v17.0.3",
+      "author": "Twemoji — Twitter, Inc. and other contributors",
+      "license": "CC-BY-4.0",
+      "licenseUrl": "https://creativecommons.org/licenses/by/4.0/",
+      "page": "https://github.com/jdecked/twemoji/blob/v17.0.3/assets/72x72/1f53b.png",
+      "url": "https://raw.githubusercontent.com/jdecked/twemoji/v17.0.3/assets/72x72/1f53b.png",
+      "modified": false,
+      "width": 72,
+      "height": 72,
+      "bytes": 343,
+      "sha256": "3483baff62ab0c5dfa104910fa989e7edfb04520e2c8721a988d85c1923dcaf7"
+    },
+    {
+      "file": "mimi_effect.png",
+      "keys": [
+        "effect"
+      ],
+      "unicode": "🎛️",
+      "source": "Twemoji v17.0.3",
+      "author": "Twemoji — Twitter, Inc. and other contributors",
+      "license": "CC-BY-4.0",
+      "licenseUrl": "https://creativecommons.org/licenses/by/4.0/",
+      "page": "https://github.com/jdecked/twemoji/blob/v17.0.3/assets/72x72/1f39b.png",
+      "url": "https://raw.githubusercontent.com/jdecked/twemoji/v17.0.3/assets/72x72/1f39b.png",
+      "modified": false,
+      "width": 72,
+      "height": 72,
+      "bytes": 866,
+      "sha256": "282ac39279c841d25244b4145f1a93de88e794a277b28504a9bfd099b10bfc9d"
+    },
+    {
+      "file": "mimi_error.png",
+      "keys": [
+        "error"
+      ],
+      "unicode": "❌",
+      "source": "Twemoji v17.0.3",
+      "author": "Twemoji — Twitter, Inc. and other contributors",
+      "license": "CC-BY-4.0",
+      "licenseUrl": "https://creativecommons.org/licenses/by/4.0/",
+      "page": "https://github.com/jdecked/twemoji/blob/v17.0.3/assets/72x72/274c.png",
+      "url": "https://raw.githubusercontent.com/jdecked/twemoji/v17.0.3/assets/72x72/274c.png",
+      "modified": false,
+      "width": 72,
+      "height": 72,
+      "bytes": 366,
+      "sha256": "3dc3ebd43d1d85af678ac5a72b0305df7bcd20b621f95291d76b827f5e47d89f"
+    },
+    {
+      "file": "mimi_eye.png",
+      "keys": [
+        "eye"
+      ],
+      "unicode": "👁️",
+      "source": "Twemoji v17.0.3",
+      "author": "Twemoji — Twitter, Inc. and other contributors",
+      "license": "CC-BY-4.0",
+      "licenseUrl": "https://creativecommons.org/licenses/by/4.0/",
+      "page": "https://github.com/jdecked/twemoji/blob/v17.0.3/assets/72x72/1f441.png",
+      "url": "https://raw.githubusercontent.com/jdecked/twemoji/v17.0.3/assets/72x72/1f441.png",
+      "modified": false,
+      "width": 72,
+      "height": 72,
+      "bytes": 971,
+      "sha256": "b625748c631b0e921860f91288bbc04f7cdab05209b3b7754e3d33228be6d3b4"
+    },
+    {
+      "file": "mimi_farm.png",
+      "keys": [
+        "farm"
+      ],
+      "unicode": "🌱",
+      "source": "Twemoji v17.0.3",
+      "author": "Twemoji — Twitter, Inc. and other contributors",
+      "license": "CC-BY-4.0",
+      "licenseUrl": "https://creativecommons.org/licenses/by/4.0/",
+      "page": "https://github.com/jdecked/twemoji/blob/v17.0.3/assets/72x72/1f331.png",
+      "url": "https://raw.githubusercontent.com/jdecked/twemoji/v17.0.3/assets/72x72/1f331.png",
+      "modified": false,
+      "width": 72,
+      "height": 72,
+      "bytes": 470,
+      "sha256": "a759ee14fbe13cd57481749c707d80417b3ae0976e6b2d86067be08b90b3d6be"
+    },
+    {
+      "file": "mimi_fav.png",
+      "keys": [
+        "fav"
+      ],
+      "unicode": "💖",
+      "source": "Twemoji v17.0.3",
+      "author": "Twemoji — Twitter, Inc. and other contributors",
+      "license": "CC-BY-4.0",
+      "licenseUrl": "https://creativecommons.org/licenses/by/4.0/",
+      "page": "https://github.com/jdecked/twemoji/blob/v17.0.3/assets/72x72/1f496.png",
+      "url": "https://raw.githubusercontent.com/jdecked/twemoji/v17.0.3/assets/72x72/1f496.png",
+      "modified": false,
+      "width": 72,
+      "height": 72,
+      "bytes": 856,
+      "sha256": "f8c41a373f3d8541e29e8dc1b8520de6792375c661ed9f13767a8837ada5e774"
+    },
+    {
+      "file": "mimi_fire.png",
+      "keys": [
+        "fire"
+      ],
+      "unicode": "🔥",
+      "source": "Twemoji v17.0.3",
+      "author": "Twemoji — Twitter, Inc. and other contributors",
+      "license": "CC-BY-4.0",
+      "licenseUrl": "https://creativecommons.org/licenses/by/4.0/",
+      "page": "https://github.com/jdecked/twemoji/blob/v17.0.3/assets/72x72/1f525.png",
+      "url": "https://raw.githubusercontent.com/jdecked/twemoji/v17.0.3/assets/72x72/1f525.png",
+      "modified": false,
+      "width": 72,
+      "height": 72,
+      "bytes": 928,
+      "sha256": "b0f4c358afcce0ddcde029e72ea2d6054eece0ce5a34c9a7e0c5761ff4f33a25"
+    },
+    {
+      "file": "mimi_fish.png",
+      "keys": [
+        "fish"
+      ],
+      "unicode": "🐟",
+      "source": "Twemoji v17.0.3",
+      "author": "Twemoji — Twitter, Inc. and other contributors",
+      "license": "CC-BY-4.0",
+      "licenseUrl": "https://creativecommons.org/licenses/by/4.0/",
+      "page": "https://github.com/jdecked/twemoji/blob/v17.0.3/assets/72x72/1f41f.png",
+      "url": "https://raw.githubusercontent.com/jdecked/twemoji/v17.0.3/assets/72x72/1f41f.png",
+      "modified": false,
+      "width": 72,
+      "height": 72,
+      "bytes": 993,
+      "sha256": "ae95236fe5d5b9199a29be2323d4fe26c84bc2dfce922e8bf8f7345ec743fde7"
+    },
+    {
+      "file": "mimi_fishing.png",
+      "keys": [
+        "fishing"
+      ],
+      "unicode": "🎣",
+      "source": "Twemoji v17.0.3",
+      "author": "Twemoji — Twitter, Inc. and other contributors",
+      "license": "CC-BY-4.0",
+      "licenseUrl": "https://creativecommons.org/licenses/by/4.0/",
+      "page": "https://github.com/jdecked/twemoji/blob/v17.0.3/assets/72x72/1f3a3.png",
+      "url": "https://raw.githubusercontent.com/jdecked/twemoji/v17.0.3/assets/72x72/1f3a3.png",
+      "modified": false,
+      "width": 72,
+      "height": 72,
+      "bytes": 1151,
+      "sha256": "563fdc5869b366c430976c2fd0ad2ce7d3a597a5186bd691e14dc58223cd5cc4"
+    },
+    {
+      "file": "mimi_fist.png",
+      "keys": [
+        "fist"
+      ],
+      "unicode": "✊",
+      "source": "Twemoji v17.0.3",
+      "author": "Twemoji — Twitter, Inc. and other contributors",
+      "license": "CC-BY-4.0",
+      "licenseUrl": "https://creativecommons.org/licenses/by/4.0/",
+      "page": "https://github.com/jdecked/twemoji/blob/v17.0.3/assets/72x72/270a.png",
+      "url": "https://raw.githubusercontent.com/jdecked/twemoji/v17.0.3/assets/72x72/270a.png",
+      "modified": false,
+      "width": 72,
+      "height": 72,
+      "bytes": 823,
+      "sha256": "44bc6ebcb79d391873e86d747895f8a982073502de9f6639eef86c2eebd2f78c"
+    },
+    {
+      "file": "mimi_flag.png",
+      "keys": [
+        "flag"
+      ],
+      "unicode": "🏁",
+      "source": "Twemoji v17.0.3",
+      "author": "Twemoji — Twitter, Inc. and other contributors",
+      "license": "CC-BY-4.0",
+      "licenseUrl": "https://creativecommons.org/licenses/by/4.0/",
+      "page": "https://github.com/jdecked/twemoji/blob/v17.0.3/assets/72x72/1f3c1.png",
+      "url": "https://raw.githubusercontent.com/jdecked/twemoji/v17.0.3/assets/72x72/1f3c1.png",
+      "modified": false,
+      "width": 72,
+      "height": 72,
+      "bytes": 623,
+      "sha256": "124361e2d87f8d951162f7d1c23dd46257433e31b05bd13d94bbc22a6837d5d5"
+    },
+    {
+      "file": "mimi_folder.png",
+      "keys": [
+        "folder"
+      ],
+      "unicode": "📁",
+      "source": "Twemoji v17.0.3",
+      "author": "Twemoji — Twitter, Inc. and other contributors",
+      "license": "CC-BY-4.0",
+      "licenseUrl": "https://creativecommons.org/licenses/by/4.0/",
+      "page": "https://github.com/jdecked/twemoji/blob/v17.0.3/assets/72x72/1f4c1.png",
+      "url": "https://raw.githubusercontent.com/jdecked/twemoji/v17.0.3/assets/72x72/1f4c1.png",
+      "modified": false,
+      "width": 72,
+      "height": 72,
+      "bytes": 433,
+      "sha256": "aa35788932ca224888cb65330a007a1bcbe2daaf6546801963041f301e5527e1"
+    },
+    {
+      "file": "mimi_fresh.png",
+      "keys": [
+        "fresh"
+      ],
+      "unicode": "🆕",
+      "source": "Twemoji v17.0.3",
+      "author": "Twemoji — Twitter, Inc. and other contributors",
+      "license": "CC-BY-4.0",
+      "licenseUrl": "https://creativecommons.org/licenses/by/4.0/",
+      "page": "https://github.com/jdecked/twemoji/blob/v17.0.3/assets/72x72/1f195.png",
+      "url": "https://raw.githubusercontent.com/jdecked/twemoji/v17.0.3/assets/72x72/1f195.png",
+      "modified": false,
+      "width": 72,
+      "height": 72,
+      "bytes": 668,
+      "sha256": "6fa828cde4b044fad032514553b15fa2998e078311463756050bad4c4c0b9420"
+    },
+    {
+      "file": "mimi_game.png",
+      "keys": [
+        "game"
+      ],
+      "unicode": "🎮",
+      "source": "Twemoji v17.0.3",
+      "author": "Twemoji — Twitter, Inc. and other contributors",
+      "license": "CC-BY-4.0",
+      "licenseUrl": "https://creativecommons.org/licenses/by/4.0/",
+      "page": "https://github.com/jdecked/twemoji/blob/v17.0.3/assets/72x72/1f3ae.png",
+      "url": "https://raw.githubusercontent.com/jdecked/twemoji/v17.0.3/assets/72x72/1f3ae.png",
+      "modified": false,
+      "width": 72,
+      "height": 72,
+      "bytes": 1046,
+      "sha256": "f5083b4905181260208a00a6f7a45947cffc9d66a3fc2295574f28498dff20c5"
+    },
+    {
+      "file": "mimi_gift.png",
+      "keys": [
+        "gift"
+      ],
+      "unicode": "🎁",
+      "source": "Twemoji v17.0.3",
+      "author": "Twemoji — Twitter, Inc. and other contributors",
+      "license": "CC-BY-4.0",
+      "licenseUrl": "https://creativecommons.org/licenses/by/4.0/",
+      "page": "https://github.com/jdecked/twemoji/blob/v17.0.3/assets/72x72/1f381.png",
+      "url": "https://raw.githubusercontent.com/jdecked/twemoji/v17.0.3/assets/72x72/1f381.png",
+      "modified": false,
+      "width": 72,
+      "height": 72,
+      "bytes": 440,
+      "sha256": "1d8142ccc2d696dd6571ff277ec26b81d4231e1e00377aebaa5270a5f37075d5"
+    },
+    {
+      "file": "mimi_globe.png",
+      "keys": [
+        "globe"
+      ],
+      "unicode": "🌐",
+      "source": "Twemoji v17.0.3",
+      "author": "Twemoji — Twitter, Inc. and other contributors",
+      "license": "CC-BY-4.0",
+      "licenseUrl": "https://creativecommons.org/licenses/by/4.0/",
+      "page": "https://github.com/jdecked/twemoji/blob/v17.0.3/assets/72x72/1f310.png",
+      "url": "https://raw.githubusercontent.com/jdecked/twemoji/v17.0.3/assets/72x72/1f310.png",
+      "modified": false,
+      "width": 72,
+      "height": 72,
+      "bytes": 674,
+      "sha256": "d2bd985becebae9f434bb53fa48fc26ad6b73d01e80070c488af62d72375bd69"
+    },
+    {
+      "file": "mimi_goldmedal.png",
+      "keys": [
+        "goldmedal"
+      ],
+      "unicode": "🥇",
+      "source": "Twemoji v17.0.3",
+      "author": "Twemoji — Twitter, Inc. and other contributors",
+      "license": "CC-BY-4.0",
+      "licenseUrl": "https://creativecommons.org/licenses/by/4.0/",
+      "page": "https://github.com/jdecked/twemoji/blob/v17.0.3/assets/72x72/1f947.png",
+      "url": "https://raw.githubusercontent.com/jdecked/twemoji/v17.0.3/assets/72x72/1f947.png",
+      "modified": false,
+      "width": 72,
+      "height": 72,
+      "bytes": 856,
+      "sha256": "41ea4ddf7822fcd58d0147d394824cd634e02da6f3f72fcbdbe14b1178051e59"
+    },
+    {
+      "file": "mimi_grape.png",
+      "keys": [
+        "grape"
+      ],
+      "unicode": "🍇",
+      "source": "Twemoji v17.0.3",
+      "author": "Twemoji — Twitter, Inc. and other contributors",
+      "license": "CC-BY-4.0",
+      "licenseUrl": "https://creativecommons.org/licenses/by/4.0/",
+      "page": "https://github.com/jdecked/twemoji/blob/v17.0.3/assets/72x72/1f347.png",
+      "url": "https://raw.githubusercontent.com/jdecked/twemoji/v17.0.3/assets/72x72/1f347.png",
+      "modified": false,
+      "width": 72,
+      "height": 72,
+      "bytes": 972,
+      "sha256": "3afca645b6345db352d61254b9cdbf2650aded82bc733a4c3f4a238b23b659ff"
+    },
+    {
+      "file": "mimi_hand.png",
+      "keys": [
+        "hand"
+      ],
+      "unicode": "✋",
+      "source": "Twemoji v17.0.3",
+      "author": "Twemoji — Twitter, Inc. and other contributors",
+      "license": "CC-BY-4.0",
+      "licenseUrl": "https://creativecommons.org/licenses/by/4.0/",
+      "page": "https://github.com/jdecked/twemoji/blob/v17.0.3/assets/72x72/270b.png",
+      "url": "https://raw.githubusercontent.com/jdecked/twemoji/v17.0.3/assets/72x72/270b.png",
+      "modified": false,
+      "width": 72,
+      "height": 72,
+      "bytes": 693,
+      "sha256": "bda2e7dccdd909cfdbc22f7b580b259dffa9b9b34020fbfcf3b8478673b59c83"
+    },
+    {
+      "file": "mimi_handshake.png",
+      "keys": [
+        "handshake"
+      ],
+      "unicode": "🤝",
+      "source": "Twemoji v17.0.3",
+      "author": "Twemoji — Twitter, Inc. and other contributors",
+      "license": "CC-BY-4.0",
+      "licenseUrl": "https://creativecommons.org/licenses/by/4.0/",
+      "page": "https://github.com/jdecked/twemoji/blob/v17.0.3/assets/72x72/1f91d.png",
+      "url": "https://raw.githubusercontent.com/jdecked/twemoji/v17.0.3/assets/72x72/1f91d.png",
+      "modified": false,
+      "width": 72,
+      "height": 72,
+      "bytes": 999,
+      "sha256": "32bdc6cd0c499c35f06893f27f0a2104abc2fd47ffb9f57ca1fbac92b4badcc1"
+    },
+    {
+      "file": "mimi_heart.png",
+      "keys": [
+        "heart"
+      ],
+      "unicode": "💗",
+      "source": "Twemoji v17.0.3",
+      "author": "Twemoji — Twitter, Inc. and other contributors",
+      "license": "CC-BY-4.0",
+      "licenseUrl": "https://creativecommons.org/licenses/by/4.0/",
+      "page": "https://github.com/jdecked/twemoji/blob/v17.0.3/assets/72x72/1f497.png",
+      "url": "https://raw.githubusercontent.com/jdecked/twemoji/v17.0.3/assets/72x72/1f497.png",
+      "modified": false,
+      "width": 72,
+      "height": 72,
+      "bytes": 998,
+      "sha256": "06bcc8e8a069f4e1c2c58a9681b709e9fbc2f10e7501b33544cb6768a50a4a37"
+    },
+    {
+      "file": "mimi_heartsuit.png",
+      "keys": [
+        "heartsuit"
+      ],
+      "unicode": "♥",
+      "source": "Twemoji v17.0.3",
+      "author": "Twemoji — Twitter, Inc. and other contributors",
+      "license": "CC-BY-4.0",
+      "licenseUrl": "https://creativecommons.org/licenses/by/4.0/",
+      "page": "https://github.com/jdecked/twemoji/blob/v17.0.3/assets/72x72/2665.png",
+      "url": "https://raw.githubusercontent.com/jdecked/twemoji/v17.0.3/assets/72x72/2665.png",
+      "modified": false,
+      "width": 72,
+      "height": 72,
+      "bytes": 468,
+      "sha256": "c74295fa0227f14af267010e808d6051dda6f8237142c181c9470ffe31e3d2b2"
+    },
+    {
+      "file": "mimi_help.png",
+      "keys": [
+        "help"
+      ],
+      "unicode": "📖",
+      "source": "Twemoji v17.0.3",
+      "author": "Twemoji — Twitter, Inc. and other contributors",
+      "license": "CC-BY-4.0",
+      "licenseUrl": "https://creativecommons.org/licenses/by/4.0/",
+      "page": "https://github.com/jdecked/twemoji/blob/v17.0.3/assets/72x72/1f4d6.png",
+      "url": "https://raw.githubusercontent.com/jdecked/twemoji/v17.0.3/assets/72x72/1f4d6.png",
+      "modified": false,
+      "width": 72,
+      "height": 72,
+      "bytes": 647,
+      "sha256": "b928c5032e4a18a54b7682e373939e7260146b80161b2b6b4b70b39cd8ab741b"
+    },
+    {
+      "file": "mimi_home.png",
+      "keys": [
+        "home"
+      ],
+      "unicode": "🏡",
+      "source": "Twemoji v17.0.3",
+      "author": "Twemoji — Twitter, Inc. and other contributors",
+      "license": "CC-BY-4.0",
+      "licenseUrl": "https://creativecommons.org/licenses/by/4.0/",
+      "page": "https://github.com/jdecked/twemoji/blob/v17.0.3/assets/72x72/1f3e1.png",
+      "url": "https://raw.githubusercontent.com/jdecked/twemoji/v17.0.3/assets/72x72/1f3e1.png",
+      "modified": false,
+      "width": 72,
+      "height": 72,
+      "bytes": 798,
+      "sha256": "7006de5e14de343f7877d812da0aebe60f86dafceb51c92a51e789985c48285c"
+    },
+    {
+      "file": "mimi_hourglass.png",
+      "keys": [
+        "hourglass"
+      ],
+      "unicode": "⏳",
+      "source": "Twemoji v17.0.3",
+      "author": "Twemoji — Twitter, Inc. and other contributors",
+      "license": "CC-BY-4.0",
+      "licenseUrl": "https://creativecommons.org/licenses/by/4.0/",
+      "page": "https://github.com/jdecked/twemoji/blob/v17.0.3/assets/72x72/23f3.png",
+      "url": "https://raw.githubusercontent.com/jdecked/twemoji/v17.0.3/assets/72x72/23f3.png",
+      "modified": false,
+      "width": 72,
+      "height": 72,
+      "bytes": 637,
+      "sha256": "fb298386e8b444a844be97ab0d3cfd775a1d8bd3baaf7449d1c1ec5f37ee5771"
+    },
+    {
+      "file": "mimi_id.png",
+      "keys": [
+        "id"
+      ],
+      "unicode": "🆔",
+      "source": "Twemoji v17.0.3",
+      "author": "Twemoji — Twitter, Inc. and other contributors",
+      "license": "CC-BY-4.0",
+      "licenseUrl": "https://creativecommons.org/licenses/by/4.0/",
+      "page": "https://github.com/jdecked/twemoji/blob/v17.0.3/assets/72x72/1f194.png",
+      "url": "https://raw.githubusercontent.com/jdecked/twemoji/v17.0.3/assets/72x72/1f194.png",
+      "modified": false,
+      "width": 72,
+      "height": 72,
+      "bytes": 495,
+      "sha256": "001fad0a3b26ae2e74ecb9e133971440daeb660cb3572715fb61a01b5aa7df35"
+    },
+    {
+      "file": "mimi_image.png",
+      "keys": [
+        "image"
+      ],
+      "unicode": "🖼️",
+      "source": "Twemoji v17.0.3",
+      "author": "Twemoji — Twitter, Inc. and other contributors",
+      "license": "CC-BY-4.0",
+      "licenseUrl": "https://creativecommons.org/licenses/by/4.0/",
+      "page": "https://github.com/jdecked/twemoji/blob/v17.0.3/assets/72x72/1f5bc.png",
+      "url": "https://raw.githubusercontent.com/jdecked/twemoji/v17.0.3/assets/72x72/1f5bc.png",
+      "modified": false,
+      "width": 72,
+      "height": 72,
+      "bytes": 675,
+      "sha256": "4117dd49a0f4e3cde6ffa57de73270de233e6774e94de87e4d13070750a248a2"
+    },
+    {
+      "file": "mimi_inbox.png",
+      "keys": [
+        "inbox"
+      ],
+      "unicode": "📥",
+      "source": "Twemoji v17.0.3",
+      "author": "Twemoji — Twitter, Inc. and other contributors",
+      "license": "CC-BY-4.0",
+      "licenseUrl": "https://creativecommons.org/licenses/by/4.0/",
+      "page": "https://github.com/jdecked/twemoji/blob/v17.0.3/assets/72x72/1f4e5.png",
+      "url": "https://raw.githubusercontent.com/jdecked/twemoji/v17.0.3/assets/72x72/1f4e5.png",
+      "modified": false,
+      "width": 72,
+      "height": 72,
+      "bytes": 484,
+      "sha256": "4ee57b08a5e82a228b6725eb4bd714912a45d849dbe997051bdb0e661cc8b7de"
+    },
+    {
+      "file": "mimi_kick.png",
+      "keys": [
+        "kick"
+      ],
+      "unicode": "👢",
+      "source": "Twemoji v17.0.3",
+      "author": "Twemoji — Twitter, Inc. and other contributors",
+      "license": "CC-BY-4.0",
+      "licenseUrl": "https://creativecommons.org/licenses/by/4.0/",
+      "page": "https://github.com/jdecked/twemoji/blob/v17.0.3/assets/72x72/1f462.png",
+      "url": "https://raw.githubusercontent.com/jdecked/twemoji/v17.0.3/assets/72x72/1f462.png",
+      "modified": false,
+      "width": 72,
+      "height": 72,
+      "bytes": 686,
+      "sha256": "2569aad081b7d6e7c0c97eefa7c035397b9f85085201d35549ad67af5c355749"
+    },
+    {
+      "file": "mimi_leaf.png",
+      "keys": [
+        "leaf"
+      ],
+      "unicode": "🌿",
+      "source": "Twemoji v17.0.3",
+      "author": "Twemoji — Twitter, Inc. and other contributors",
+      "license": "CC-BY-4.0",
+      "licenseUrl": "https://creativecommons.org/licenses/by/4.0/",
+      "page": "https://github.com/jdecked/twemoji/blob/v17.0.3/assets/72x72/1f33f.png",
+      "url": "https://raw.githubusercontent.com/jdecked/twemoji/v17.0.3/assets/72x72/1f33f.png",
+      "modified": false,
+      "width": 72,
+      "height": 72,
+      "bytes": 1143,
+      "sha256": "7f3afe08d276a753d2f64926629f0d056fbcd76c1677cf0b7fb8536ad517ab1d"
+    },
+    {
+      "file": "mimi_lemon.png",
+      "keys": [
+        "lemon"
+      ],
+      "unicode": "🍋",
+      "source": "Twemoji v17.0.3",
+      "author": "Twemoji — Twitter, Inc. and other contributors",
+      "license": "CC-BY-4.0",
+      "licenseUrl": "https://creativecommons.org/licenses/by/4.0/",
+      "page": "https://github.com/jdecked/twemoji/blob/v17.0.3/assets/72x72/1f34b.png",
+      "url": "https://raw.githubusercontent.com/jdecked/twemoji/v17.0.3/assets/72x72/1f34b.png",
+      "modified": false,
+      "width": 72,
+      "height": 72,
+      "bytes": 853,
+      "sha256": "1460213cd97a5e8edf83c57f4c80a15fc3d0af3d09240ab3cf026fa71a88d77f"
+    },
+    {
+      "file": "mimi_level.png",
+      "keys": [
+        "level"
+      ],
+      "unicode": "🏆",
+      "source": "Twemoji v17.0.3",
+      "author": "Twemoji — Twitter, Inc. and other contributors",
+      "license": "CC-BY-4.0",
+      "licenseUrl": "https://creativecommons.org/licenses/by/4.0/",
+      "page": "https://github.com/jdecked/twemoji/blob/v17.0.3/assets/72x72/1f3c6.png",
+      "url": "https://raw.githubusercontent.com/jdecked/twemoji/v17.0.3/assets/72x72/1f3c6.png",
+      "modified": false,
+      "width": 72,
+      "height": 72,
+      "bytes": 896,
+      "sha256": "926ce5a398578129b6aae74a837809c7ead80dae6714c7b07ee90d8463b7479a"
+    },
+    {
+      "file": "mimi_link.png",
+      "keys": [
+        "link"
+      ],
+      "unicode": "🔗",
+      "source": "Twemoji v17.0.3",
+      "author": "Twemoji — Twitter, Inc. and other contributors",
+      "license": "CC-BY-4.0",
+      "licenseUrl": "https://creativecommons.org/licenses/by/4.0/",
+      "page": "https://github.com/jdecked/twemoji/blob/v17.0.3/assets/72x72/1f517.png",
+      "url": "https://raw.githubusercontent.com/jdecked/twemoji/v17.0.3/assets/72x72/1f517.png",
+      "modified": false,
+      "width": 72,
+      "height": 72,
+      "bytes": 635,
+      "sha256": "4fa9edbcc0695d4a38486ac2cccd4506320a5acac2de84afd1f5afa3609505c6"
+    },
+    {
+      "file": "mimi_lock.png",
+      "keys": [
+        "lock"
+      ],
+      "unicode": "🔒",
+      "source": "Twemoji v17.0.3",
+      "author": "Twemoji — Twitter, Inc. and other contributors",
+      "license": "CC-BY-4.0",
+      "licenseUrl": "https://creativecommons.org/licenses/by/4.0/",
+      "page": "https://github.com/jdecked/twemoji/blob/v17.0.3/assets/72x72/1f512.png",
+      "url": "https://raw.githubusercontent.com/jdecked/twemoji/v17.0.3/assets/72x72/1f512.png",
+      "modified": false,
+      "width": 72,
+      "height": 72,
+      "bytes": 796,
+      "sha256": "9b5bd88c22d68cf09e47d0a2aa4a7b70e58ff94fe9de6bb6dabd1bf94455c608"
+    },
+    {
+      "file": "mimi_loopqueue.png",
+      "keys": [
+        "loopOff",
+        "loopQueue"
+      ],
+      "unicode": "🔁",
+      "source": "Twemoji v17.0.3",
+      "author": "Twemoji — Twitter, Inc. and other contributors",
+      "license": "CC-BY-4.0",
+      "licenseUrl": "https://creativecommons.org/licenses/by/4.0/",
+      "page": "https://github.com/jdecked/twemoji/blob/v17.0.3/assets/72x72/1f501.png",
+      "url": "https://raw.githubusercontent.com/jdecked/twemoji/v17.0.3/assets/72x72/1f501.png",
+      "modified": false,
+      "width": 72,
+      "height": 72,
+      "bytes": 563,
+      "sha256": "01aff80a1508f5088fbce165f33b20153bf3d05d3f4da9ce334c85623b777df7"
+    },
+    {
+      "file": "mimi_looptrack.png",
+      "keys": [
+        "loopTrack"
+      ],
+      "unicode": "🔂",
+      "source": "Twemoji v17.0.3",
+      "author": "Twemoji — Twitter, Inc. and other contributors",
+      "license": "CC-BY-4.0",
+      "licenseUrl": "https://creativecommons.org/licenses/by/4.0/",
+      "page": "https://github.com/jdecked/twemoji/blob/v17.0.3/assets/72x72/1f502.png",
+      "url": "https://raw.githubusercontent.com/jdecked/twemoji/v17.0.3/assets/72x72/1f502.png",
+      "modified": false,
+      "width": 72,
+      "height": 72,
+      "bytes": 616,
+      "sha256": "4267b69a8edb7f82d6fde8456733133f933d60dc2a35447ebb8bae83a2db5afb"
+    },
+    {
+      "file": "mimi_lyrics.png",
+      "keys": [
+        "lyrics"
+      ],
+      "unicode": "🎤",
+      "source": "Twemoji v17.0.3",
+      "author": "Twemoji — Twitter, Inc. and other contributors",
+      "license": "CC-BY-4.0",
+      "licenseUrl": "https://creativecommons.org/licenses/by/4.0/",
+      "page": "https://github.com/jdecked/twemoji/blob/v17.0.3/assets/72x72/1f3a4.png",
+      "url": "https://raw.githubusercontent.com/jdecked/twemoji/v17.0.3/assets/72x72/1f3a4.png",
+      "modified": false,
+      "width": 72,
+      "height": 72,
+      "bytes": 768,
+      "sha256": "f90956be5bea11d8a25e15f8b6280cf976f836b648648b20dec1148f824e632b"
+    },
+    {
+      "file": "mimi_mail.png",
+      "keys": [
+        "mail"
+      ],
+      "unicode": "📬",
+      "source": "Twemoji v17.0.3",
+      "author": "Twemoji — Twitter, Inc. and other contributors",
+      "license": "CC-BY-4.0",
+      "licenseUrl": "https://creativecommons.org/licenses/by/4.0/",
+      "page": "https://github.com/jdecked/twemoji/blob/v17.0.3/assets/72x72/1f4ec.png",
+      "url": "https://raw.githubusercontent.com/jdecked/twemoji/v17.0.3/assets/72x72/1f4ec.png",
+      "modified": false,
+      "width": 72,
+      "height": 72,
+      "bytes": 728,
+      "sha256": "e50384beb7f0146523d04643a4887c72c3c90371dbd0142a9bf9ce16e7b18dce"
+    },
+    {
+      "file": "mimi_meat.png",
+      "keys": [
+        "meat"
+      ],
+      "unicode": "🍖",
+      "source": "Twemoji v17.0.3",
+      "author": "Twemoji — Twitter, Inc. and other contributors",
+      "license": "CC-BY-4.0",
+      "licenseUrl": "https://creativecommons.org/licenses/by/4.0/",
+      "page": "https://github.com/jdecked/twemoji/blob/v17.0.3/assets/72x72/1f356.png",
+      "url": "https://raw.githubusercontent.com/jdecked/twemoji/v17.0.3/assets/72x72/1f356.png",
+      "modified": false,
+      "width": 72,
+      "height": 72,
+      "bytes": 836,
+      "sha256": "f4be4603d0d9861ad4fe395740b5bab9fb0b8f8c8ada17efb41e3c4b58dfe191"
+    },
+    {
+      "file": "mimi_megaphone.png",
+      "keys": [
+        "megaphone"
+      ],
+      "unicode": "📢",
+      "source": "Emoji.gg / DΛR",
+      "author": "DΛR",
+      "license": "CC-BY-4.0",
+      "licenseUrl": "https://creativecommons.org/licenses/by/4.0/",
+      "page": "https://emoji.gg/emoji/9582_announce",
+      "url": "https://cdn3.emoji.gg/emojis/9582_announce.png",
+      "modified": false,
+      "sha256": "0b6d678098c0145d6fda2f26e60504b1aa0bd0cbf85d69c666d19bff41035bf3",
+      "bytes": 77065,
+      "width": 1000,
+      "height": 1000
+    },
+    {
+      "file": "mimi_mermaid.png",
+      "keys": [
+        "mermaid"
+      ],
+      "unicode": "🧜‍♀️",
+      "source": "Twemoji v17.0.3",
+      "author": "Twemoji — Twitter, Inc. and other contributors",
+      "license": "CC-BY-4.0",
+      "licenseUrl": "https://creativecommons.org/licenses/by/4.0/",
+      "page": "https://github.com/jdecked/twemoji/blob/v17.0.3/assets/72x72/1f9dc-200d-2640-fe0f.png",
+      "url": "https://raw.githubusercontent.com/jdecked/twemoji/v17.0.3/assets/72x72/1f9dc-200d-2640-fe0f.png",
+      "modified": false,
+      "width": 72,
+      "height": 72,
+      "bytes": 1238,
+      "sha256": "efe32c7b392b92d1e5c308e37fefffd2c0d1206e82bc4e7ea823989476a165f5"
+    },
+    {
+      "file": "mimi_music.png",
+      "keys": [
+        "music"
+      ],
+      "unicode": "🎧",
+      "source": "Twemoji v17.0.3",
+      "author": "Twemoji — Twitter, Inc. and other contributors",
+      "license": "CC-BY-4.0",
+      "licenseUrl": "https://creativecommons.org/licenses/by/4.0/",
+      "page": "https://github.com/jdecked/twemoji/blob/v17.0.3/assets/72x72/1f3a7.png",
+      "url": "https://raw.githubusercontent.com/jdecked/twemoji/v17.0.3/assets/72x72/1f3a7.png",
+      "modified": false,
+      "width": 72,
+      "height": 72,
+      "bytes": 774,
+      "sha256": "96e389bc7e931917946bab3b7f6cb92a9949b7c13386c458f032b53602b0b69a"
+    },
+    {
+      "file": "mimi_mute.png",
+      "keys": [
+        "mute"
+      ],
+      "unicode": "🔇",
+      "source": "Twemoji v17.0.3",
+      "author": "Twemoji — Twitter, Inc. and other contributors",
+      "license": "CC-BY-4.0",
+      "licenseUrl": "https://creativecommons.org/licenses/by/4.0/",
+      "page": "https://github.com/jdecked/twemoji/blob/v17.0.3/assets/72x72/1f507.png",
+      "url": "https://raw.githubusercontent.com/jdecked/twemoji/v17.0.3/assets/72x72/1f507.png",
+      "modified": false,
+      "width": 72,
+      "height": 72,
+      "bytes": 428,
+      "sha256": "ad03599599ea461a1791d2394d0cc7c0faff6b41e7ab9826eca04fa11f34d8d9"
+    },
+    {
+      "file": "mimi_nophone.png",
+      "keys": [
+        "nophone"
+      ],
+      "unicode": "📵",
+      "source": "Twemoji v17.0.3",
+      "author": "Twemoji — Twitter, Inc. and other contributors",
+      "license": "CC-BY-4.0",
+      "licenseUrl": "https://creativecommons.org/licenses/by/4.0/",
+      "page": "https://github.com/jdecked/twemoji/blob/v17.0.3/assets/72x72/1f4f5.png",
+      "url": "https://raw.githubusercontent.com/jdecked/twemoji/v17.0.3/assets/72x72/1f4f5.png",
+      "modified": false,
+      "width": 72,
+      "height": 72,
+      "bytes": 910,
+      "sha256": "217b7ca0c6cfa8661a042921db57f110f8e5bf6eaa21bea98891de177b8590cd"
+    },
+    {
+      "file": "mimi_note.png",
+      "keys": [
+        "note"
+      ],
+      "unicode": "📝",
+      "source": "Twemoji v17.0.3",
+      "author": "Twemoji — Twitter, Inc. and other contributors",
+      "license": "CC-BY-4.0",
+      "licenseUrl": "https://creativecommons.org/licenses/by/4.0/",
+      "page": "https://github.com/jdecked/twemoji/blob/v17.0.3/assets/72x72/1f4dd.png",
+      "url": "https://raw.githubusercontent.com/jdecked/twemoji/v17.0.3/assets/72x72/1f4dd.png",
+      "modified": false,
+      "width": 72,
+      "height": 72,
+      "bytes": 773,
+      "sha256": "9dbd5500d885c84df2bb614b30b41150bf9e4237a9dd981380348f797d8f751d"
+    },
+    {
+      "file": "mimi_number.png",
+      "keys": [
+        "number"
+      ],
+      "unicode": "🔢",
+      "source": "Twemoji v17.0.3",
+      "author": "Twemoji — Twitter, Inc. and other contributors",
+      "license": "CC-BY-4.0",
+      "licenseUrl": "https://creativecommons.org/licenses/by/4.0/",
+      "page": "https://github.com/jdecked/twemoji/blob/v17.0.3/assets/72x72/1f522.png",
+      "url": "https://raw.githubusercontent.com/jdecked/twemoji/v17.0.3/assets/72x72/1f522.png",
+      "modified": false,
+      "width": 72,
+      "height": 72,
+      "bytes": 723,
+      "sha256": "65abc49d4b8ea25d79dab79fb1d3188be7e66797b7f30ffd41da7416e0146eec"
+    },
+    {
+      "file": "mimi_one.png",
+      "keys": [
+        "one"
+      ],
+      "unicode": "1️⃣",
+      "source": "Twemoji v17.0.3",
+      "author": "Twemoji — Twitter, Inc. and other contributors",
+      "license": "CC-BY-4.0",
+      "licenseUrl": "https://creativecommons.org/licenses/by/4.0/",
+      "page": "https://github.com/jdecked/twemoji/blob/v17.0.3/assets/72x72/31-20e3.png",
+      "url": "https://raw.githubusercontent.com/jdecked/twemoji/v17.0.3/assets/72x72/31-20e3.png",
+      "modified": false,
+      "width": 72,
+      "height": 72,
+      "bytes": 315,
+      "sha256": "2df18edfc32d604689469f21882532c20c7bf692548923d9669c5b379389fb6e"
+    },
+    {
+      "file": "mimi_outbox.png",
+      "keys": [
+        "outbox"
+      ],
+      "unicode": "📤",
+      "source": "Twemoji v17.0.3",
+      "author": "Twemoji — Twitter, Inc. and other contributors",
+      "license": "CC-BY-4.0",
+      "licenseUrl": "https://creativecommons.org/licenses/by/4.0/",
+      "page": "https://github.com/jdecked/twemoji/blob/v17.0.3/assets/72x72/1f4e4.png",
+      "url": "https://raw.githubusercontent.com/jdecked/twemoji/v17.0.3/assets/72x72/1f4e4.png",
+      "modified": false,
+      "width": 72,
+      "height": 72,
+      "bytes": 456,
+      "sha256": "6f6b775d03d6de7e1da145551b8ce9369bfd0f4bd6f2d7812693252ae311010a"
+    },
+    {
+      "file": "mimi_palette.png",
+      "keys": [
+        "palette"
+      ],
+      "unicode": "🎨",
+      "source": "Twemoji v17.0.3",
+      "author": "Twemoji — Twitter, Inc. and other contributors",
+      "license": "CC-BY-4.0",
+      "licenseUrl": "https://creativecommons.org/licenses/by/4.0/",
+      "page": "https://github.com/jdecked/twemoji/blob/v17.0.3/assets/72x72/1f3a8.png",
+      "url": "https://raw.githubusercontent.com/jdecked/twemoji/v17.0.3/assets/72x72/1f3a8.png",
+      "modified": false,
+      "width": 72,
+      "height": 72,
+      "bytes": 809,
+      "sha256": "ae8605683fb481f54e385dccfbe88988311172fb541f08d00321c67e67b122a2"
+    },
+    {
+      "file": "mimi_paperclip.png",
+      "keys": [
+        "paperclip"
+      ],
+      "unicode": "📎",
+      "source": "Twemoji v17.0.3",
+      "author": "Twemoji — Twitter, Inc. and other contributors",
+      "license": "CC-BY-4.0",
+      "licenseUrl": "https://creativecommons.org/licenses/by/4.0/",
+      "page": "https://github.com/jdecked/twemoji/blob/v17.0.3/assets/72x72/1f4ce.png",
+      "url": "https://raw.githubusercontent.com/jdecked/twemoji/v17.0.3/assets/72x72/1f4ce.png",
+      "modified": false,
+      "width": 72,
+      "height": 72,
+      "bytes": 541,
+      "sha256": "6930b0a8c19fbbfbb3f82f2ee639b86e863a7bc0dabe3d03197e80bb0541a0c5"
+    },
+    {
+      "file": "mimi_parrot.png",
+      "keys": [
+        "parrot"
+      ],
+      "unicode": "🦜",
+      "source": "Twemoji v17.0.3",
+      "author": "Twemoji — Twitter, Inc. and other contributors",
+      "license": "CC-BY-4.0",
+      "licenseUrl": "https://creativecommons.org/licenses/by/4.0/",
+      "page": "https://github.com/jdecked/twemoji/blob/v17.0.3/assets/72x72/1f99c.png",
+      "url": "https://raw.githubusercontent.com/jdecked/twemoji/v17.0.3/assets/72x72/1f99c.png",
+      "modified": false,
+      "width": 72,
+      "height": 72,
+      "bytes": 1013,
+      "sha256": "428315201ee3bca7d95f07a1a8f3f072dabc5d4297bfb7e3f5d5ccdaf7aaf433"
+    },
+    {
+      "file": "mimi_pause.png",
+      "keys": [
+        "pause"
+      ],
+      "unicode": "⏸️",
+      "source": "Twemoji v17.0.3",
+      "author": "Twemoji — Twitter, Inc. and other contributors",
+      "license": "CC-BY-4.0",
+      "licenseUrl": "https://creativecommons.org/licenses/by/4.0/",
+      "page": "https://github.com/jdecked/twemoji/blob/v17.0.3/assets/72x72/23f8.png",
+      "url": "https://raw.githubusercontent.com/jdecked/twemoji/v17.0.3/assets/72x72/23f8.png",
+      "modified": false,
+      "width": 72,
+      "height": 72,
+      "bytes": 218,
+      "sha256": "67c45f895d6f99a83b1acee314cac2e59a508addb13bf068e0c2ca87aebdee3e"
+    },
+    {
+      "file": "mimi_pear.png",
+      "keys": [
+        "pear"
+      ],
+      "unicode": "🍐",
+      "source": "Twemoji v17.0.3",
+      "author": "Twemoji — Twitter, Inc. and other contributors",
+      "license": "CC-BY-4.0",
+      "licenseUrl": "https://creativecommons.org/licenses/by/4.0/",
+      "page": "https://github.com/jdecked/twemoji/blob/v17.0.3/assets/72x72/1f350.png",
+      "url": "https://raw.githubusercontent.com/jdecked/twemoji/v17.0.3/assets/72x72/1f350.png",
+      "modified": false,
+      "width": 72,
+      "height": 72,
+      "bytes": 597,
+      "sha256": "2f0412513c74eda0dae581fb39c1aa78dda42dd3769e8b10db35c90679722e23"
+    },
+    {
+      "file": "mimi_pencil.png",
+      "keys": [
+        "pencil"
+      ],
+      "unicode": "✏️",
+      "source": "Twemoji v17.0.3",
+      "author": "Twemoji — Twitter, Inc. and other contributors",
+      "license": "CC-BY-4.0",
+      "licenseUrl": "https://creativecommons.org/licenses/by/4.0/",
+      "page": "https://github.com/jdecked/twemoji/blob/v17.0.3/assets/72x72/270f.png",
+      "url": "https://raw.githubusercontent.com/jdecked/twemoji/v17.0.3/assets/72x72/270f.png",
+      "modified": false,
+      "width": 72,
+      "height": 72,
+      "bytes": 647,
+      "sha256": "c3db8396f6cddef2a1c3a663977d155bff52b4b3899bf4c9382e29106a093a73"
+    },
+    {
+      "file": "mimi_pet.png",
+      "keys": [
+        "pet"
+      ],
+      "unicode": "🐾",
+      "source": "Twemoji v17.0.3",
+      "author": "Twemoji — Twitter, Inc. and other contributors",
+      "license": "CC-BY-4.0",
+      "licenseUrl": "https://creativecommons.org/licenses/by/4.0/",
+      "page": "https://github.com/jdecked/twemoji/blob/v17.0.3/assets/72x72/1f43e.png",
+      "url": "https://raw.githubusercontent.com/jdecked/twemoji/v17.0.3/assets/72x72/1f43e.png",
+      "modified": false,
+      "width": 72,
+      "height": 72,
+      "bytes": 462,
+      "sha256": "345715d683f3ba84650a4a681297750d37998af8f733b37df8706e631e452d50"
+    },
+    {
+      "file": "mimi_pickaxe.png",
+      "keys": [
+        "pickaxe"
+      ],
+      "unicode": "⛏️",
+      "source": "Twemoji v17.0.3",
+      "author": "Twemoji — Twitter, Inc. and other contributors",
+      "license": "CC-BY-4.0",
+      "licenseUrl": "https://creativecommons.org/licenses/by/4.0/",
+      "page": "https://github.com/jdecked/twemoji/blob/v17.0.3/assets/72x72/26cf.png",
+      "url": "https://raw.githubusercontent.com/jdecked/twemoji/v17.0.3/assets/72x72/26cf.png",
+      "modified": false,
+      "width": 72,
+      "height": 72,
+      "bytes": 600,
+      "sha256": "f63b08b50ccb930d33094e13b00559128fd1924c80d38ecb8b0de96937f0f623"
+    },
+    {
+      "file": "mimi_pin.png",
+      "keys": [
+        "pin"
+      ],
+      "unicode": "📌",
+      "source": "Twemoji v17.0.3",
+      "author": "Twemoji — Twitter, Inc. and other contributors",
+      "license": "CC-BY-4.0",
+      "licenseUrl": "https://creativecommons.org/licenses/by/4.0/",
+      "page": "https://github.com/jdecked/twemoji/blob/v17.0.3/assets/72x72/1f4cc.png",
+      "url": "https://raw.githubusercontent.com/jdecked/twemoji/v17.0.3/assets/72x72/1f4cc.png",
+      "modified": false,
+      "width": 72,
+      "height": 72,
+      "bytes": 752,
+      "sha256": "62539521ce2183a0282127a792af6af4ecab5b4dc33f6f2d87f7681ab08628ef"
+    },
+    {
+      "file": "mimi_play.png",
+      "keys": [
+        "play"
+      ],
+      "unicode": "▶️",
+      "source": "Twemoji v17.0.3",
+      "author": "Twemoji — Twitter, Inc. and other contributors",
+      "license": "CC-BY-4.0",
+      "licenseUrl": "https://creativecommons.org/licenses/by/4.0/",
+      "page": "https://github.com/jdecked/twemoji/blob/v17.0.3/assets/72x72/25b6.png",
+      "url": "https://raw.githubusercontent.com/jdecked/twemoji/v17.0.3/assets/72x72/25b6.png",
+      "modified": false,
+      "width": 72,
+      "height": 72,
+      "bytes": 312,
+      "sha256": "514202d2674f49672935a65ae43559a1cf6af9b6c13bf35c74228ae3aff3887e"
+    },
+    {
+      "file": "mimi_plus.png",
+      "keys": [
+        "plus"
+      ],
+      "unicode": "➕",
+      "source": "Twemoji v17.0.3",
+      "author": "Twemoji — Twitter, Inc. and other contributors",
+      "license": "CC-BY-4.0",
+      "licenseUrl": "https://creativecommons.org/licenses/by/4.0/",
+      "page": "https://github.com/jdecked/twemoji/blob/v17.0.3/assets/72x72/2795.png",
+      "url": "https://raw.githubusercontent.com/jdecked/twemoji/v17.0.3/assets/72x72/2795.png",
+      "modified": false,
+      "width": 72,
+      "height": 72,
+      "bytes": 236,
+      "sha256": "f76f0ea18167458d10ab7315e0df8fd9bf843abf629e37529bbd8590db89ea7c"
+    },
+    {
+      "file": "mimi_pointdown.png",
+      "keys": [
+        "pointdown"
+      ],
+      "unicode": "👇",
+      "source": "Twemoji v17.0.3",
+      "author": "Twemoji — Twitter, Inc. and other contributors",
+      "license": "CC-BY-4.0",
+      "licenseUrl": "https://creativecommons.org/licenses/by/4.0/",
+      "page": "https://github.com/jdecked/twemoji/blob/v17.0.3/assets/72x72/1f447.png",
+      "url": "https://raw.githubusercontent.com/jdecked/twemoji/v17.0.3/assets/72x72/1f447.png",
+      "modified": false,
+      "width": 72,
+      "height": 72,
+      "bytes": 467,
+      "sha256": "99a50b833fec96a9f274d707bb567cd242ec35db35d6bc26ac391c0619304b2e"
+    },
+    {
+      "file": "mimi_pointright.png",
+      "keys": [
+        "pointright"
+      ],
+      "unicode": "👉",
+      "source": "Twemoji v17.0.3",
+      "author": "Twemoji — Twitter, Inc. and other contributors",
+      "license": "CC-BY-4.0",
+      "licenseUrl": "https://creativecommons.org/licenses/by/4.0/",
+      "page": "https://github.com/jdecked/twemoji/blob/v17.0.3/assets/72x72/1f449.png",
+      "url": "https://raw.githubusercontent.com/jdecked/twemoji/v17.0.3/assets/72x72/1f449.png",
+      "modified": false,
+      "width": 72,
+      "height": 72,
+      "bytes": 423,
+      "sha256": "9cf1114324a6653750f0f8af7783a744e45adadca47c48844e4ee0f11df269bf"
+    },
+    {
+      "file": "mimi_police.png",
+      "keys": [
+        "police"
+      ],
+      "unicode": "👮",
+      "source": "Twemoji v17.0.3",
+      "author": "Twemoji — Twitter, Inc. and other contributors",
+      "license": "CC-BY-4.0",
+      "licenseUrl": "https://creativecommons.org/licenses/by/4.0/",
+      "page": "https://github.com/jdecked/twemoji/blob/v17.0.3/assets/72x72/1f46e.png",
+      "url": "https://raw.githubusercontent.com/jdecked/twemoji/v17.0.3/assets/72x72/1f46e.png",
+      "modified": false,
+      "width": 72,
+      "height": 72,
+      "bytes": 1169,
+      "sha256": "530e041f4d4a6f09fe427026e7b1f4e7bc8b42252051d101a7b7672d3ab45731"
+    },
+    {
+      "file": "mimi_pufferfish.png",
+      "keys": [
+        "pufferfish"
+      ],
+      "unicode": "🐡",
+      "source": "Twemoji v17.0.3",
+      "author": "Twemoji — Twitter, Inc. and other contributors",
+      "license": "CC-BY-4.0",
+      "licenseUrl": "https://creativecommons.org/licenses/by/4.0/",
+      "page": "https://github.com/jdecked/twemoji/blob/v17.0.3/assets/72x72/1f421.png",
+      "url": "https://raw.githubusercontent.com/jdecked/twemoji/v17.0.3/assets/72x72/1f421.png",
+      "modified": false,
+      "width": 72,
+      "height": 72,
+      "bytes": 798,
+      "sha256": "aac92e2c5182446d41374589525adddbe196d3b4e619ffe1cb802473bf12ebc9"
+    },
+    {
+      "file": "mimi_queue.png",
+      "keys": [
+        "queue",
+        "info"
+      ],
+      "unicode": "📋",
+      "source": "Twemoji v17.0.3",
+      "author": "Twemoji — Twitter, Inc. and other contributors",
+      "license": "CC-BY-4.0",
+      "licenseUrl": "https://creativecommons.org/licenses/by/4.0/",
+      "page": "https://github.com/jdecked/twemoji/blob/v17.0.3/assets/72x72/1f4cb.png",
+      "url": "https://raw.githubusercontent.com/jdecked/twemoji/v17.0.3/assets/72x72/1f4cb.png",
+      "modified": false,
+      "width": 72,
+      "height": 72,
+      "bytes": 381,
+      "sha256": "aded875d5fa6e878d1728c01e8ee931f5bea23e842410e8dbf8a507ddf16f020"
+    },
+    {
+      "file": "mimi_rabbit.png",
+      "keys": [
+        "rabbit"
+      ],
+      "unicode": "🐰",
+      "source": "Twemoji v17.0.3",
+      "author": "Twemoji — Twitter, Inc. and other contributors",
+      "license": "CC-BY-4.0",
+      "licenseUrl": "https://creativecommons.org/licenses/by/4.0/",
+      "page": "https://github.com/jdecked/twemoji/blob/v17.0.3/assets/72x72/1f430.png",
+      "url": "https://raw.githubusercontent.com/jdecked/twemoji/v17.0.3/assets/72x72/1f430.png",
+      "modified": false,
+      "width": 72,
+      "height": 72,
+      "bytes": 1205,
+      "sha256": "4d45aea6b95575c5036a370fe38bc00280016f8217826c71315b73b593742eec"
+    },
+    {
+      "file": "mimi_restart.png",
+      "keys": [
+        "restart"
+      ],
+      "unicode": "🔄",
+      "source": "Twemoji v17.0.3",
+      "author": "Twemoji — Twitter, Inc. and other contributors",
+      "license": "CC-BY-4.0",
+      "licenseUrl": "https://creativecommons.org/licenses/by/4.0/",
+      "page": "https://github.com/jdecked/twemoji/blob/v17.0.3/assets/72x72/1f504.png",
+      "url": "https://raw.githubusercontent.com/jdecked/twemoji/v17.0.3/assets/72x72/1f504.png",
+      "modified": false,
+      "width": 72,
+      "height": 72,
+      "bytes": 631,
+      "sha256": "5c7dfd19f0084d425482e1541140061d2734152922826b0a7be88d7013f17cd2"
+    },
+    {
+      "file": "mimi_ring.png",
+      "keys": [
+        "ring"
+      ],
+      "unicode": "💍",
+      "source": "Twemoji v17.0.3",
+      "author": "Twemoji — Twitter, Inc. and other contributors",
+      "license": "CC-BY-4.0",
+      "licenseUrl": "https://creativecommons.org/licenses/by/4.0/",
+      "page": "https://github.com/jdecked/twemoji/blob/v17.0.3/assets/72x72/1f48d.png",
+      "url": "https://raw.githubusercontent.com/jdecked/twemoji/v17.0.3/assets/72x72/1f48d.png",
+      "modified": false,
+      "width": 72,
+      "height": 72,
+      "bytes": 667,
+      "sha256": "228b0f9602885c715627f619727b6b40033e0fb6e223d0c854261640bd15bc5d"
+    },
+    {
+      "file": "mimi_rocket.png",
+      "keys": [
+        "rocket"
+      ],
+      "unicode": "🚀",
+      "source": "Twemoji v17.0.3",
+      "author": "Twemoji — Twitter, Inc. and other contributors",
+      "license": "CC-BY-4.0",
+      "licenseUrl": "https://creativecommons.org/licenses/by/4.0/",
+      "page": "https://github.com/jdecked/twemoji/blob/v17.0.3/assets/72x72/1f680.png",
+      "url": "https://raw.githubusercontent.com/jdecked/twemoji/v17.0.3/assets/72x72/1f680.png",
+      "modified": false,
+      "width": 72,
+      "height": 72,
+      "bytes": 1064,
+      "sha256": "a4d8b439357e38510505048dfc85c54c9cbb08c04ef4d9d4bacd03572a17c9a5"
+    },
+    {
+      "file": "mimi_roles.png",
+      "keys": [
+        "roles"
+      ],
+      "unicode": "🎭",
+      "source": "Twemoji v17.0.3",
+      "author": "Twemoji — Twitter, Inc. and other contributors",
+      "license": "CC-BY-4.0",
+      "licenseUrl": "https://creativecommons.org/licenses/by/4.0/",
+      "page": "https://github.com/jdecked/twemoji/blob/v17.0.3/assets/72x72/1f3ad.png",
+      "url": "https://raw.githubusercontent.com/jdecked/twemoji/v17.0.3/assets/72x72/1f3ad.png",
+      "modified": false,
+      "width": 72,
+      "height": 72,
+      "bytes": 1127,
+      "sha256": "5996ea4170d3ea756a2cad95b1c2ae31d2064a856bf619a638e7689bbecede4b"
+    },
+    {
+      "file": "mimi_sad.png",
+      "keys": [
+        "sad"
+      ],
+      "unicode": "😔",
+      "source": "Twemoji v17.0.3",
+      "author": "Twemoji — Twitter, Inc. and other contributors",
+      "license": "CC-BY-4.0",
+      "licenseUrl": "https://creativecommons.org/licenses/by/4.0/",
+      "page": "https://github.com/jdecked/twemoji/blob/v17.0.3/assets/72x72/1f614.png",
+      "url": "https://raw.githubusercontent.com/jdecked/twemoji/v17.0.3/assets/72x72/1f614.png",
+      "modified": false,
+      "width": 72,
+      "height": 72,
+      "bytes": 683,
+      "sha256": "70684e6f3d83eed95d1cba7429bedaf96898ce516bb255da4c658f826f8c5bee"
+    },
+    {
+      "file": "mimi_save.png",
+      "keys": [
+        "save"
+      ],
+      "unicode": "💾",
+      "source": "Twemoji v17.0.3",
+      "author": "Twemoji — Twitter, Inc. and other contributors",
+      "license": "CC-BY-4.0",
+      "licenseUrl": "https://creativecommons.org/licenses/by/4.0/",
+      "page": "https://github.com/jdecked/twemoji/blob/v17.0.3/assets/72x72/1f4be.png",
+      "url": "https://raw.githubusercontent.com/jdecked/twemoji/v17.0.3/assets/72x72/1f4be.png",
+      "modified": false,
+      "width": 72,
+      "height": 72,
+      "bytes": 360,
+      "sha256": "31291e250e46d29f8a8eb238ec1c2c9dea94575fda3cede974569a9867504c66"
+    },
+    {
+      "file": "mimi_scales.png",
+      "keys": [
+        "scales"
+      ],
+      "unicode": "⚖️",
+      "source": "Twemoji v17.0.3",
+      "author": "Twemoji — Twitter, Inc. and other contributors",
+      "license": "CC-BY-4.0",
+      "licenseUrl": "https://creativecommons.org/licenses/by/4.0/",
+      "page": "https://github.com/jdecked/twemoji/blob/v17.0.3/assets/72x72/2696.png",
+      "url": "https://raw.githubusercontent.com/jdecked/twemoji/v17.0.3/assets/72x72/2696.png",
+      "modified": false,
+      "width": 72,
+      "height": 72,
+      "bytes": 684,
+      "sha256": "1061c98a4a5be454d0b6da16313afa6948cd68d1c96ae0f956ea90d678129580"
+    },
+    {
+      "file": "mimi_scissors.png",
+      "keys": [
+        "scissors"
+      ],
+      "unicode": "✂️",
+      "source": "Twemoji v17.0.3",
+      "author": "Twemoji — Twitter, Inc. and other contributors",
+      "license": "CC-BY-4.0",
+      "licenseUrl": "https://creativecommons.org/licenses/by/4.0/",
+      "page": "https://github.com/jdecked/twemoji/blob/v17.0.3/assets/72x72/2702.png",
+      "url": "https://raw.githubusercontent.com/jdecked/twemoji/v17.0.3/assets/72x72/2702.png",
+      "modified": false,
+      "width": 72,
+      "height": 72,
+      "bytes": 1096,
+      "sha256": "fe21dacd904c44f7850adfd93aafc8bcf65f384454e763d10f367e88d3fe6be2"
+    },
+    {
+      "file": "mimi_scroll.png",
+      "keys": [
+        "scroll"
+      ],
+      "unicode": "📜",
+      "source": "Twemoji v17.0.3",
+      "author": "Twemoji — Twitter, Inc. and other contributors",
+      "license": "CC-BY-4.0",
+      "licenseUrl": "https://creativecommons.org/licenses/by/4.0/",
+      "page": "https://github.com/jdecked/twemoji/blob/v17.0.3/assets/72x72/1f4dc.png",
+      "url": "https://raw.githubusercontent.com/jdecked/twemoji/v17.0.3/assets/72x72/1f4dc.png",
+      "modified": false,
+      "width": 72,
+      "height": 72,
+      "bytes": 416,
+      "sha256": "4c59731e94aba9d1a3a8cc81639e311d8247ac010376bb30659e5a3cb697760f"
+    },
+    {
+      "file": "mimi_search.png",
+      "keys": [
+        "search"
+      ],
+      "unicode": "🔍",
+      "source": "Twemoji v17.0.3",
+      "author": "Twemoji — Twitter, Inc. and other contributors",
+      "license": "CC-BY-4.0",
+      "licenseUrl": "https://creativecommons.org/licenses/by/4.0/",
+      "page": "https://github.com/jdecked/twemoji/blob/v17.0.3/assets/72x72/1f50d.png",
+      "url": "https://raw.githubusercontent.com/jdecked/twemoji/v17.0.3/assets/72x72/1f50d.png",
+      "modified": false,
+      "width": 72,
+      "height": 72,
+      "bytes": 880,
+      "sha256": "e0a353c943b3e91b9ade3925083fd08d09a9d772e64f72b04216e85383102dea"
+    },
+    {
+      "file": "mimi_seekback.png",
+      "keys": [
+        "seekback"
+      ],
+      "unicode": "⏪",
+      "source": "Twemoji v17.0.3",
+      "author": "Twemoji — Twitter, Inc. and other contributors",
+      "license": "CC-BY-4.0",
+      "licenseUrl": "https://creativecommons.org/licenses/by/4.0/",
+      "page": "https://github.com/jdecked/twemoji/blob/v17.0.3/assets/72x72/23ea.png",
+      "url": "https://raw.githubusercontent.com/jdecked/twemoji/v17.0.3/assets/72x72/23ea.png",
+      "modified": false,
+      "width": 72,
+      "height": 72,
+      "bytes": 413,
+      "sha256": "47c6cd9129464ead0e24ef222e334e07058387c6715f524a9f6d441c6540ad59"
+    },
+    {
+      "file": "mimi_seekfwd.png",
+      "keys": [
+        "seekfwd"
+      ],
+      "unicode": "⏩",
+      "source": "Twemoji v17.0.3",
+      "author": "Twemoji — Twitter, Inc. and other contributors",
+      "license": "CC-BY-4.0",
+      "licenseUrl": "https://creativecommons.org/licenses/by/4.0/",
+      "page": "https://github.com/jdecked/twemoji/blob/v17.0.3/assets/72x72/23e9.png",
+      "url": "https://raw.githubusercontent.com/jdecked/twemoji/v17.0.3/assets/72x72/23e9.png",
+      "modified": false,
+      "width": 72,
+      "height": 72,
+      "bytes": 389,
+      "sha256": "453c96acaf77939f88dc3caf9b77fa4265a1fcd008e26a0d06b74291024b01da"
+    },
+    {
+      "file": "mimi_settings.png",
+      "keys": [
+        "settings"
+      ],
+      "unicode": "⚙️",
+      "source": "Twemoji v17.0.3",
+      "author": "Twemoji — Twitter, Inc. and other contributors",
+      "license": "CC-BY-4.0",
+      "licenseUrl": "https://creativecommons.org/licenses/by/4.0/",
+      "page": "https://github.com/jdecked/twemoji/blob/v17.0.3/assets/72x72/2699.png",
+      "url": "https://raw.githubusercontent.com/jdecked/twemoji/v17.0.3/assets/72x72/2699.png",
+      "modified": false,
+      "width": 72,
+      "height": 72,
+      "bytes": 499,
+      "sha256": "b0b96d48e5b0430370c056be87710aa7108527accd0065426967b4d62be428b1"
+    },
+    {
+      "file": "mimi_seven.png",
+      "keys": [
+        "seven"
+      ],
+      "unicode": "7️⃣",
+      "source": "Twemoji v17.0.3",
+      "author": "Twemoji — Twitter, Inc. and other contributors",
+      "license": "CC-BY-4.0",
+      "licenseUrl": "https://creativecommons.org/licenses/by/4.0/",
+      "page": "https://github.com/jdecked/twemoji/blob/v17.0.3/assets/72x72/37-20e3.png",
+      "url": "https://raw.githubusercontent.com/jdecked/twemoji/v17.0.3/assets/72x72/37-20e3.png",
+      "modified": false,
+      "width": 72,
+      "height": 72,
+      "bytes": 449,
+      "sha256": "d0dd2489e49148dc954049d92f17791aafac1efa811c20b32bf27d9fccd56a2f"
+    },
+    {
+      "file": "mimi_shark.png",
+      "keys": [
+        "shark"
+      ],
+      "unicode": "🦈",
+      "source": "Twemoji v17.0.3",
+      "author": "Twemoji — Twitter, Inc. and other contributors",
+      "license": "CC-BY-4.0",
+      "licenseUrl": "https://creativecommons.org/licenses/by/4.0/",
+      "page": "https://github.com/jdecked/twemoji/blob/v17.0.3/assets/72x72/1f988.png",
+      "url": "https://raw.githubusercontent.com/jdecked/twemoji/v17.0.3/assets/72x72/1f988.png",
+      "modified": false,
+      "width": 72,
+      "height": 72,
+      "bytes": 883,
+      "sha256": "ea3fa48f8fb50bfe63c834aad6b676a7d725b16cb10df1ff151e5cfab59ccedc"
+    },
+    {
+      "file": "mimi_shield.png",
+      "keys": [
+        "shield"
+      ],
+      "unicode": "🛡️",
+      "source": "Twemoji v17.0.3",
+      "author": "Twemoji — Twitter, Inc. and other contributors",
+      "license": "CC-BY-4.0",
+      "licenseUrl": "https://creativecommons.org/licenses/by/4.0/",
+      "page": "https://github.com/jdecked/twemoji/blob/v17.0.3/assets/72x72/1f6e1.png",
+      "url": "https://raw.githubusercontent.com/jdecked/twemoji/v17.0.3/assets/72x72/1f6e1.png",
+      "modified": false,
+      "width": 72,
+      "height": 72,
+      "bytes": 850,
+      "sha256": "14507cfc799d2855cf0d49832541c4729eac707e256e73d3f83aa9d72a8bb123"
+    },
+    {
+      "file": "mimi_shrimp.png",
+      "keys": [
+        "shrimp"
+      ],
+      "unicode": "🦐",
+      "source": "Twemoji v17.0.3",
+      "author": "Twemoji — Twitter, Inc. and other contributors",
+      "license": "CC-BY-4.0",
+      "licenseUrl": "https://creativecommons.org/licenses/by/4.0/",
+      "page": "https://github.com/jdecked/twemoji/blob/v17.0.3/assets/72x72/1f990.png",
+      "url": "https://raw.githubusercontent.com/jdecked/twemoji/v17.0.3/assets/72x72/1f990.png",
+      "modified": false,
+      "width": 72,
+      "height": 72,
+      "bytes": 1190,
+      "sha256": "1fb4d36b73a8de36710c27ce0997fd2d0ce4898f4559eb8794a6f0c23f9ca8be"
+    },
+    {
+      "file": "mimi_shuffle.png",
+      "keys": [
+        "shuffle"
+      ],
+      "unicode": "🔀",
+      "source": "Twemoji v17.0.3",
+      "author": "Twemoji — Twitter, Inc. and other contributors",
+      "license": "CC-BY-4.0",
+      "licenseUrl": "https://creativecommons.org/licenses/by/4.0/",
+      "page": "https://github.com/jdecked/twemoji/blob/v17.0.3/assets/72x72/1f500.png",
+      "url": "https://raw.githubusercontent.com/jdecked/twemoji/v17.0.3/assets/72x72/1f500.png",
+      "modified": false,
+      "width": 72,
+      "height": 72,
+      "bytes": 533,
+      "sha256": "b92a223406491916a6557b9a733c23efec9089f1916e46fd237c4e80003757b5"
+    },
+    {
+      "file": "mimi_signal.png",
+      "keys": [
+        "signal"
+      ],
+      "unicode": "📶",
+      "source": "Twemoji v17.0.3",
+      "author": "Twemoji — Twitter, Inc. and other contributors",
+      "license": "CC-BY-4.0",
+      "licenseUrl": "https://creativecommons.org/licenses/by/4.0/",
+      "page": "https://github.com/jdecked/twemoji/blob/v17.0.3/assets/72x72/1f4f6.png",
+      "url": "https://raw.githubusercontent.com/jdecked/twemoji/v17.0.3/assets/72x72/1f4f6.png",
+      "modified": false,
+      "width": 72,
+      "height": 72,
+      "bytes": 241,
+      "sha256": "9c40a34b64489e816273b3fe2b1dc301d90ea92497df1c978cee2be3277ea6e0"
+    },
+    {
+      "file": "mimi_silvermedal.png",
+      "keys": [
+        "silvermedal"
+      ],
+      "unicode": "🥈",
+      "source": "Twemoji v17.0.3",
+      "author": "Twemoji — Twitter, Inc. and other contributors",
+      "license": "CC-BY-4.0",
+      "licenseUrl": "https://creativecommons.org/licenses/by/4.0/",
+      "page": "https://github.com/jdecked/twemoji/blob/v17.0.3/assets/72x72/1f948.png",
+      "url": "https://raw.githubusercontent.com/jdecked/twemoji/v17.0.3/assets/72x72/1f948.png",
+      "modified": false,
+      "width": 72,
+      "height": 72,
+      "bytes": 919,
+      "sha256": "7f47866788cadc4910113c4d2c774a711c55a3e65cead58374e18f9f1517476a"
+    },
+    {
+      "file": "mimi_skip.png",
+      "keys": [
+        "skip"
+      ],
+      "unicode": "⏭️",
+      "source": "Twemoji v17.0.3",
+      "author": "Twemoji — Twitter, Inc. and other contributors",
+      "license": "CC-BY-4.0",
+      "licenseUrl": "https://creativecommons.org/licenses/by/4.0/",
+      "page": "https://github.com/jdecked/twemoji/blob/v17.0.3/assets/72x72/23ed.png",
+      "url": "https://raw.githubusercontent.com/jdecked/twemoji/v17.0.3/assets/72x72/23ed.png",
+      "modified": false,
+      "width": 72,
+      "height": 72,
+      "bytes": 410,
+      "sha256": "efdbc09ef0b65cccf5ddec1bffb819f07197cc84e82e7a5f2edd27206ddf6f33"
+    },
+    {
+      "file": "mimi_skull.png",
+      "keys": [
+        "skull"
+      ],
+      "unicode": "💀",
+      "source": "Twemoji v17.0.3",
+      "author": "Twemoji — Twitter, Inc. and other contributors",
+      "license": "CC-BY-4.0",
+      "licenseUrl": "https://creativecommons.org/licenses/by/4.0/",
+      "page": "https://github.com/jdecked/twemoji/blob/v17.0.3/assets/72x72/1f480.png",
+      "url": "https://raw.githubusercontent.com/jdecked/twemoji/v17.0.3/assets/72x72/1f480.png",
+      "modified": false,
+      "width": 72,
+      "height": 72,
+      "bytes": 544,
+      "sha256": "9fd5d570065aa68949bb713242f3915938d5bbaf7e24fe319b0553214c63e085"
+    },
+    {
+      "file": "mimi_spade.png",
+      "keys": [
+        "spade"
+      ],
+      "unicode": "♠",
+      "source": "Twemoji v17.0.3",
+      "author": "Twemoji — Twitter, Inc. and other contributors",
+      "license": "CC-BY-4.0",
+      "licenseUrl": "https://creativecommons.org/licenses/by/4.0/",
+      "page": "https://github.com/jdecked/twemoji/blob/v17.0.3/assets/72x72/2660.png",
+      "url": "https://raw.githubusercontent.com/jdecked/twemoji/v17.0.3/assets/72x72/2660.png",
+      "modified": false,
+      "width": 72,
+      "height": 72,
+      "bytes": 511,
+      "sha256": "178f97e0ecc2da258b5726b26a2fae5f7dae9868a24baef2f93a5a49bb7a9cc3"
+    },
+    {
+      "file": "mimi_sparkles.png",
+      "keys": [
+        "sparkle"
+      ],
+      "unicode": "✨",
+      "source": "Twemoji v17.0.3",
+      "author": "Twemoji — Twitter, Inc. and other contributors",
+      "license": "CC-BY-4.0",
+      "licenseUrl": "https://creativecommons.org/licenses/by/4.0/",
+      "page": "https://github.com/jdecked/twemoji/blob/v17.0.3/assets/72x72/2728.png",
+      "url": "https://raw.githubusercontent.com/jdecked/twemoji/v17.0.3/assets/72x72/2728.png",
+      "modified": false,
+      "width": 72,
+      "height": 72,
+      "bytes": 752,
+      "sha256": "ad3afa9c7beee612fdc68691d25b36dda934204a3d8916ff3d14df83548a0f84"
+    },
+    {
+      "file": "mimi_star.png",
+      "keys": [
+        "star"
+      ],
+      "unicode": "🌟",
+      "source": "Twemoji v17.0.3",
+      "author": "Twemoji — Twitter, Inc. and other contributors",
+      "license": "CC-BY-4.0",
+      "licenseUrl": "https://creativecommons.org/licenses/by/4.0/",
+      "page": "https://github.com/jdecked/twemoji/blob/v17.0.3/assets/72x72/1f31f.png",
+      "url": "https://raw.githubusercontent.com/jdecked/twemoji/v17.0.3/assets/72x72/1f31f.png",
+      "modified": false,
+      "width": 72,
+      "height": 72,
+      "bytes": 824,
+      "sha256": "2e3e22ccecbce3d15eddf733552ab89ae8a91289ec7dc2d555f5e69e92a04aad"
+    },
+    {
+      "file": "mimi_stats.png",
+      "keys": [
+        "stats"
+      ],
+      "unicode": "📈",
+      "source": "Twemoji v17.0.3",
+      "author": "Twemoji — Twitter, Inc. and other contributors",
+      "license": "CC-BY-4.0",
+      "licenseUrl": "https://creativecommons.org/licenses/by/4.0/",
+      "page": "https://github.com/jdecked/twemoji/blob/v17.0.3/assets/72x72/1f4c8.png",
+      "url": "https://raw.githubusercontent.com/jdecked/twemoji/v17.0.3/assets/72x72/1f4c8.png",
+      "modified": false,
+      "width": 72,
+      "height": 72,
+      "bytes": 727,
+      "sha256": "72b0d27cb37a1d6380662025e6d8898a27ec53c2735db7f2f2cb10688e4a00fe"
+    },
+    {
+      "file": "mimi_stay247.png",
+      "keys": [
+        "stay247"
+      ],
+      "unicode": "♾️",
+      "source": "Twemoji v17.0.3",
+      "author": "Twemoji — Twitter, Inc. and other contributors",
+      "license": "CC-BY-4.0",
+      "licenseUrl": "https://creativecommons.org/licenses/by/4.0/",
+      "page": "https://github.com/jdecked/twemoji/blob/v17.0.3/assets/72x72/267e.png",
+      "url": "https://raw.githubusercontent.com/jdecked/twemoji/v17.0.3/assets/72x72/267e.png",
+      "modified": false,
+      "width": 72,
+      "height": 72,
+      "bytes": 694,
+      "sha256": "29635693702c25b823d5ac040ff1b5b73f94ee96574b6a0313c150c583f8c4e0"
+    },
+    {
+      "file": "mimi_stone.png",
+      "keys": [
+        "stone"
+      ],
+      "unicode": "🪨",
+      "source": "Twemoji v17.0.3",
+      "author": "Twemoji — Twitter, Inc. and other contributors",
+      "license": "CC-BY-4.0",
+      "licenseUrl": "https://creativecommons.org/licenses/by/4.0/",
+      "page": "https://github.com/jdecked/twemoji/blob/v17.0.3/assets/72x72/1faa8.png",
+      "url": "https://raw.githubusercontent.com/jdecked/twemoji/v17.0.3/assets/72x72/1faa8.png",
+      "modified": false,
+      "width": 72,
+      "height": 72,
+      "bytes": 1429,
+      "sha256": "7b32ddf86df25eeafa7fef4b3a1e1bb7d1742c02faa54f43c992f42767d30d42"
+    },
+    {
+      "file": "mimi_stop.png",
+      "keys": [
+        "stop"
+      ],
+      "unicode": "⏹️",
+      "source": "Twemoji v17.0.3",
+      "author": "Twemoji — Twitter, Inc. and other contributors",
+      "license": "CC-BY-4.0",
+      "licenseUrl": "https://creativecommons.org/licenses/by/4.0/",
+      "page": "https://github.com/jdecked/twemoji/blob/v17.0.3/assets/72x72/23f9.png",
+      "url": "https://raw.githubusercontent.com/jdecked/twemoji/v17.0.3/assets/72x72/23f9.png",
+      "modified": false,
+      "width": 72,
+      "height": 72,
+      "bytes": 204,
+      "sha256": "583de4f234b4222d32eb5b23c704472dddecaac64d9c2d54d7d272a5225cccef"
+    },
+    {
+      "file": "mimi_strawberry.png",
+      "keys": [
+        "strawberry"
+      ],
+      "unicode": "🍓",
+      "source": "Twemoji v17.0.3",
+      "author": "Twemoji — Twitter, Inc. and other contributors",
+      "license": "CC-BY-4.0",
+      "licenseUrl": "https://creativecommons.org/licenses/by/4.0/",
+      "page": "https://github.com/jdecked/twemoji/blob/v17.0.3/assets/72x72/1f353.png",
+      "url": "https://raw.githubusercontent.com/jdecked/twemoji/v17.0.3/assets/72x72/1f353.png",
+      "modified": false,
+      "width": 72,
+      "height": 72,
+      "bytes": 1057,
+      "sha256": "8b62f5751206763c048db98361c117abcef2734b39417c12698af8605a3cee16"
+    },
+    {
+      "file": "mimi_sword.png",
+      "keys": [
+        "sword"
+      ],
+      "unicode": "⚔️",
+      "source": "Twemoji v17.0.3",
+      "author": "Twemoji — Twitter, Inc. and other contributors",
+      "license": "CC-BY-4.0",
+      "licenseUrl": "https://creativecommons.org/licenses/by/4.0/",
+      "page": "https://github.com/jdecked/twemoji/blob/v17.0.3/assets/72x72/2694.png",
+      "url": "https://raw.githubusercontent.com/jdecked/twemoji/v17.0.3/assets/72x72/2694.png",
+      "modified": false,
+      "width": 72,
+      "height": 72,
+      "bytes": 1027,
+      "sha256": "df56cd37825d12326acbd41be75e01f026bacf227b5831dc90f06ce36bbc662d"
+    },
+    {
+      "file": "mimi_tennis.png",
+      "keys": [
+        "tennis"
+      ],
+      "unicode": "🎾",
+      "source": "Twemoji v17.0.3",
+      "author": "Twemoji — Twitter, Inc. and other contributors",
+      "license": "CC-BY-4.0",
+      "licenseUrl": "https://creativecommons.org/licenses/by/4.0/",
+      "page": "https://github.com/jdecked/twemoji/blob/v17.0.3/assets/72x72/1f3be.png",
+      "url": "https://raw.githubusercontent.com/jdecked/twemoji/v17.0.3/assets/72x72/1f3be.png",
+      "modified": false,
+      "width": 72,
+      "height": 72,
+      "bytes": 778,
+      "sha256": "8cec710397f973bf820bbc1f5b0d28cf321a717fd51cab4e701db2b08840ebab"
+    },
+    {
+      "file": "mimi_three.png",
+      "keys": [
+        "three"
+      ],
+      "unicode": "3️⃣",
+      "source": "Twemoji v17.0.3",
+      "author": "Twemoji — Twitter, Inc. and other contributors",
+      "license": "CC-BY-4.0",
+      "licenseUrl": "https://creativecommons.org/licenses/by/4.0/",
+      "page": "https://github.com/jdecked/twemoji/blob/v17.0.3/assets/72x72/33-20e3.png",
+      "url": "https://raw.githubusercontent.com/jdecked/twemoji/v17.0.3/assets/72x72/33-20e3.png",
+      "modified": false,
+      "width": 72,
+      "height": 72,
+      "bytes": 546,
+      "sha256": "4ed5ae53456d55cc365d347c56a9296e8fb677e9d28a489204bc206b821d553f"
+    },
+    {
+      "file": "mimi_ticket.png",
+      "keys": [
+        "ticket"
+      ],
+      "unicode": "🎫",
+      "source": "Twemoji v17.0.3",
+      "author": "Twemoji — Twitter, Inc. and other contributors",
+      "license": "CC-BY-4.0",
+      "licenseUrl": "https://creativecommons.org/licenses/by/4.0/",
+      "page": "https://github.com/jdecked/twemoji/blob/v17.0.3/assets/72x72/1f3ab.png",
+      "url": "https://raw.githubusercontent.com/jdecked/twemoji/v17.0.3/assets/72x72/1f3ab.png",
+      "modified": false,
+      "width": 72,
+      "height": 72,
+      "bytes": 660,
+      "sha256": "29bff672978c6a270374b63729630c67e18f06663c7381de2b9b67389a6ecb3e"
+    },
+    {
+      "file": "mimi_timer.png",
+      "keys": [
+        "timer"
+      ],
+      "unicode": "⏱️",
+      "source": "Twemoji v17.0.3",
+      "author": "Twemoji — Twitter, Inc. and other contributors",
+      "license": "CC-BY-4.0",
+      "licenseUrl": "https://creativecommons.org/licenses/by/4.0/",
+      "page": "https://github.com/jdecked/twemoji/blob/v17.0.3/assets/72x72/23f1.png",
+      "url": "https://raw.githubusercontent.com/jdecked/twemoji/v17.0.3/assets/72x72/23f1.png",
+      "modified": false,
+      "width": 72,
+      "height": 72,
+      "bytes": 785,
+      "sha256": "f8f53f7913153994fce65949fb972fcf39af03fa5d8c935b7e216989d9103f87"
+    },
+    {
+      "file": "mimi_tomato.png",
+      "keys": [
+        "tomato"
+      ],
+      "unicode": "🍅",
+      "source": "Twemoji v17.0.3",
+      "author": "Twemoji — Twitter, Inc. and other contributors",
+      "license": "CC-BY-4.0",
+      "licenseUrl": "https://creativecommons.org/licenses/by/4.0/",
+      "page": "https://github.com/jdecked/twemoji/blob/v17.0.3/assets/72x72/1f345.png",
+      "url": "https://raw.githubusercontent.com/jdecked/twemoji/v17.0.3/assets/72x72/1f345.png",
+      "modified": false,
+      "width": 72,
+      "height": 72,
+      "bytes": 817,
+      "sha256": "0b04015e684d31050d438f6a2ca2e2abb750457748c3bf3de8ad8cd235b2de1b"
+    },
+    {
+      "file": "mimi_tools.png",
+      "keys": [
+        "tools"
+      ],
+      "unicode": "🛠️",
+      "source": "Twemoji v17.0.3",
+      "author": "Twemoji — Twitter, Inc. and other contributors",
+      "license": "CC-BY-4.0",
+      "licenseUrl": "https://creativecommons.org/licenses/by/4.0/",
+      "page": "https://github.com/jdecked/twemoji/blob/v17.0.3/assets/72x72/1f6e0.png",
+      "url": "https://raw.githubusercontent.com/jdecked/twemoji/v17.0.3/assets/72x72/1f6e0.png",
+      "modified": false,
+      "width": 72,
+      "height": 72,
+      "bytes": 808,
+      "sha256": "9763416a9c0caa35c4d03ea2cd5c65e44e53e6324ae4f58671840fb16dd306d2"
+    },
+    {
+      "file": "mimi_tractor.png",
+      "keys": [
+        "tractor"
+      ],
+      "unicode": "🚜",
+      "source": "Twemoji v17.0.3",
+      "author": "Twemoji — Twitter, Inc. and other contributors",
+      "license": "CC-BY-4.0",
+      "licenseUrl": "https://creativecommons.org/licenses/by/4.0/",
+      "page": "https://github.com/jdecked/twemoji/blob/v17.0.3/assets/72x72/1f69c.png",
+      "url": "https://raw.githubusercontent.com/jdecked/twemoji/v17.0.3/assets/72x72/1f69c.png",
+      "modified": false,
+      "width": 72,
+      "height": 72,
+      "bytes": 1105,
+      "sha256": "500d6532398ddf1a1755f414fa328d5e9e04782038f188c54c88fd1fa2a9b980"
+    },
+    {
+      "file": "mimi_transfer.png",
+      "keys": [
+        "transfer"
+      ],
+      "unicode": "💸",
+      "source": "Twemoji v17.0.3",
+      "author": "Twemoji — Twitter, Inc. and other contributors",
+      "license": "CC-BY-4.0",
+      "licenseUrl": "https://creativecommons.org/licenses/by/4.0/",
+      "page": "https://github.com/jdecked/twemoji/blob/v17.0.3/assets/72x72/1f4b8.png",
+      "url": "https://raw.githubusercontent.com/jdecked/twemoji/v17.0.3/assets/72x72/1f4b8.png",
+      "modified": false,
+      "width": 72,
+      "height": 72,
+      "bytes": 1449,
+      "sha256": "daf26ae36691689ba351925b0171614e6d24efbe9f11ed45a8a1f51b774638c8"
+    },
+    {
+      "file": "mimi_tropicalfish.png",
+      "keys": [
+        "tropicalfish"
+      ],
+      "unicode": "🐠",
+      "source": "Twemoji v17.0.3",
+      "author": "Twemoji — Twitter, Inc. and other contributors",
+      "license": "CC-BY-4.0",
+      "licenseUrl": "https://creativecommons.org/licenses/by/4.0/",
+      "page": "https://github.com/jdecked/twemoji/blob/v17.0.3/assets/72x72/1f420.png",
+      "url": "https://raw.githubusercontent.com/jdecked/twemoji/v17.0.3/assets/72x72/1f420.png",
+      "modified": false,
+      "width": 72,
+      "height": 72,
+      "bytes": 1054,
+      "sha256": "b88489cc016ae63f7dc3fe14942b5ae833cb46b69d9217faee1041d67fb084dc"
+    },
+    {
+      "file": "mimi_two.png",
+      "keys": [
+        "two"
+      ],
+      "unicode": "2️⃣",
+      "source": "Twemoji v17.0.3",
+      "author": "Twemoji — Twitter, Inc. and other contributors",
+      "license": "CC-BY-4.0",
+      "licenseUrl": "https://creativecommons.org/licenses/by/4.0/",
+      "page": "https://github.com/jdecked/twemoji/blob/v17.0.3/assets/72x72/32-20e3.png",
+      "url": "https://raw.githubusercontent.com/jdecked/twemoji/v17.0.3/assets/72x72/32-20e3.png",
+      "modified": false,
+      "width": 72,
+      "height": 72,
+      "bytes": 509,
+      "sha256": "e39f19ca769e259726aca4ae99b2ae6a137e038a3bf5492a683c79df4b44ea47"
+    },
+    {
+      "file": "mimi_unlock.png",
+      "keys": [
+        "unlock"
+      ],
+      "unicode": "🔓",
+      "source": "Twemoji v17.0.3",
+      "author": "Twemoji — Twitter, Inc. and other contributors",
+      "license": "CC-BY-4.0",
+      "licenseUrl": "https://creativecommons.org/licenses/by/4.0/",
+      "page": "https://github.com/jdecked/twemoji/blob/v17.0.3/assets/72x72/1f513.png",
+      "url": "https://raw.githubusercontent.com/jdecked/twemoji/v17.0.3/assets/72x72/1f513.png",
+      "modified": false,
+      "width": 72,
+      "height": 72,
+      "bytes": 806,
+      "sha256": "a2a8a14a02808278f07bd6e36ddba3943428872470fff835c193a580ba8aa27b"
+    },
+    {
+      "file": "mimi_up.png",
+      "keys": [
+        "up"
+      ],
+      "unicode": "🔺",
+      "source": "Twemoji v17.0.3",
+      "author": "Twemoji — Twitter, Inc. and other contributors",
+      "license": "CC-BY-4.0",
+      "licenseUrl": "https://creativecommons.org/licenses/by/4.0/",
+      "page": "https://github.com/jdecked/twemoji/blob/v17.0.3/assets/72x72/1f53a.png",
+      "url": "https://raw.githubusercontent.com/jdecked/twemoji/v17.0.3/assets/72x72/1f53a.png",
+      "modified": false,
+      "width": 72,
+      "height": 72,
+      "bytes": 350,
+      "sha256": "bd0ae4bb2b72a8a0f96c89452a8ce91845a8ba063b9cb9267fad7732973a5735"
+    },
+    {
+      "file": "mimi_user.png",
+      "keys": [
+        "user"
+      ],
+      "unicode": "👤",
+      "source": "Twemoji v17.0.3",
+      "author": "Twemoji — Twitter, Inc. and other contributors",
+      "license": "CC-BY-4.0",
+      "licenseUrl": "https://creativecommons.org/licenses/by/4.0/",
+      "page": "https://github.com/jdecked/twemoji/blob/v17.0.3/assets/72x72/1f464.png",
+      "url": "https://raw.githubusercontent.com/jdecked/twemoji/v17.0.3/assets/72x72/1f464.png",
+      "modified": false,
+      "width": 72,
+      "height": 72,
+      "bytes": 453,
+      "sha256": "0288e30cf9f23614991b0686ead67e8782021fa225ec974aa3d1bfa492811da3"
+    },
+    {
+      "file": "mimi_users.png",
+      "keys": [
+        "users"
+      ],
+      "unicode": "👥",
+      "source": "Twemoji v17.0.3",
+      "author": "Twemoji — Twitter, Inc. and other contributors",
+      "license": "CC-BY-4.0",
+      "licenseUrl": "https://creativecommons.org/licenses/by/4.0/",
+      "page": "https://github.com/jdecked/twemoji/blob/v17.0.3/assets/72x72/1f465.png",
+      "url": "https://raw.githubusercontent.com/jdecked/twemoji/v17.0.3/assets/72x72/1f465.png",
+      "modified": false,
+      "width": 72,
+      "height": 72,
+      "bytes": 696,
+      "sha256": "196e790d4c65af5ce8748d6d2587b44cd76cf6f3bc379ee22f186d489c71242c"
+    },
+    {
+      "file": "mimi_verify.png",
+      "keys": [
+        "check"
+      ],
+      "unicode": "✅",
+      "source": "Twemoji v17.0.3",
+      "author": "Twemoji — Twitter, Inc. and other contributors",
+      "license": "CC-BY-4.0",
+      "licenseUrl": "https://creativecommons.org/licenses/by/4.0/",
+      "page": "https://github.com/jdecked/twemoji/blob/v17.0.3/assets/72x72/2705.png",
+      "url": "https://raw.githubusercontent.com/jdecked/twemoji/v17.0.3/assets/72x72/2705.png",
+      "modified": false,
+      "width": 72,
+      "height": 72,
+      "bytes": 525,
+      "sha256": "e3cc2f7251c41ff1f4b2e07a3ccd074d21288160fbd9893f0f0e4fc62d2c63c5"
+    },
+    {
+      "file": "mimi_victory.png",
+      "keys": [
+        "victory"
+      ],
+      "unicode": "✌️",
+      "source": "Twemoji v17.0.3",
+      "author": "Twemoji — Twitter, Inc. and other contributors",
+      "license": "CC-BY-4.0",
+      "licenseUrl": "https://creativecommons.org/licenses/by/4.0/",
+      "page": "https://github.com/jdecked/twemoji/blob/v17.0.3/assets/72x72/270c.png",
+      "url": "https://raw.githubusercontent.com/jdecked/twemoji/v17.0.3/assets/72x72/270c.png",
+      "modified": false,
+      "width": 72,
+      "height": 72,
+      "bytes": 786,
+      "sha256": "cea523470d65f2a2a77529df0ba9dbd8b6d625e0311c3438a5a30b4dc583235d"
+    },
+    {
+      "file": "mimi_voldown.png",
+      "keys": [
+        "voldown"
+      ],
+      "unicode": "🔉",
+      "source": "Twemoji v17.0.3",
+      "author": "Twemoji — Twitter, Inc. and other contributors",
+      "license": "CC-BY-4.0",
+      "licenseUrl": "https://creativecommons.org/licenses/by/4.0/",
+      "page": "https://github.com/jdecked/twemoji/blob/v17.0.3/assets/72x72/1f509.png",
+      "url": "https://raw.githubusercontent.com/jdecked/twemoji/v17.0.3/assets/72x72/1f509.png",
+      "modified": false,
+      "width": 72,
+      "height": 72,
+      "bytes": 435,
+      "sha256": "e04b392ee59990d8817025f4cfd9198b52eec093dabd90196cd3f814bb8a7785"
+    },
+    {
+      "file": "mimi_volup.png",
+      "keys": [
+        "volup"
+      ],
+      "unicode": "🔊",
+      "source": "Twemoji v17.0.3",
+      "author": "Twemoji — Twitter, Inc. and other contributors",
+      "license": "CC-BY-4.0",
+      "licenseUrl": "https://creativecommons.org/licenses/by/4.0/",
+      "page": "https://github.com/jdecked/twemoji/blob/v17.0.3/assets/72x72/1f50a.png",
+      "url": "https://raw.githubusercontent.com/jdecked/twemoji/v17.0.3/assets/72x72/1f50a.png",
+      "modified": false,
+      "width": 72,
+      "height": 72,
+      "bytes": 655,
+      "sha256": "55a389705b863e35578972d0a336c9cb65c962a5599314629159c47ba46ddcd0"
+    },
+    {
+      "file": "mimi_warning.png",
+      "keys": [
+        "warning"
+      ],
+      "unicode": "⚠️",
+      "source": "Twemoji v17.0.3",
+      "author": "Twemoji — Twitter, Inc. and other contributors",
+      "license": "CC-BY-4.0",
+      "licenseUrl": "https://creativecommons.org/licenses/by/4.0/",
+      "page": "https://github.com/jdecked/twemoji/blob/v17.0.3/assets/72x72/26a0.png",
+      "url": "https://raw.githubusercontent.com/jdecked/twemoji/v17.0.3/assets/72x72/26a0.png",
+      "modified": false,
+      "width": 72,
+      "height": 72,
+      "bytes": 595,
+      "sha256": "7a03a74a92cb2f04b7f3e0338f51a3c4dfc1491a8f046b722f8a951502a7740e"
+    },
+    {
+      "file": "mimi_water.png",
+      "keys": [
+        "water"
+      ],
+      "unicode": "💧",
+      "source": "Twemoji v17.0.3",
+      "author": "Twemoji — Twitter, Inc. and other contributors",
+      "license": "CC-BY-4.0",
+      "licenseUrl": "https://creativecommons.org/licenses/by/4.0/",
+      "page": "https://github.com/jdecked/twemoji/blob/v17.0.3/assets/72x72/1f4a7.png",
+      "url": "https://raw.githubusercontent.com/jdecked/twemoji/v17.0.3/assets/72x72/1f4a7.png",
+      "modified": false,
+      "width": 72,
+      "height": 72,
+      "bytes": 449,
+      "sha256": "3cb1a265ad9e6858e91ccb6453c94f33c60cadbe3ffecbfb5cc9cb09510b4b67"
+    },
+    {
+      "file": "mimi_watermelon.png",
+      "keys": [
+        "watermelon"
+      ],
+      "unicode": "🍉",
+      "source": "Twemoji v17.0.3",
+      "author": "Twemoji — Twitter, Inc. and other contributors",
+      "license": "CC-BY-4.0",
+      "licenseUrl": "https://creativecommons.org/licenses/by/4.0/",
+      "page": "https://github.com/jdecked/twemoji/blob/v17.0.3/assets/72x72/1f349.png",
+      "url": "https://raw.githubusercontent.com/jdecked/twemoji/v17.0.3/assets/72x72/1f349.png",
+      "modified": false,
+      "width": 72,
+      "height": 72,
+      "bytes": 3309,
+      "sha256": "a573fa884368120947d55fd11267a1c28598fa4707260299600873462ac5df0b"
+    },
+    {
+      "file": "mimi_welcome.png",
+      "keys": [
+        "welcome"
+      ],
+      "unicode": "👋",
+      "source": "Twemoji v17.0.3",
+      "author": "Twemoji — Twitter, Inc. and other contributors",
+      "license": "CC-BY-4.0",
+      "licenseUrl": "https://creativecommons.org/licenses/by/4.0/",
+      "page": "https://github.com/jdecked/twemoji/blob/v17.0.3/assets/72x72/1f44b.png",
+      "url": "https://raw.githubusercontent.com/jdecked/twemoji/v17.0.3/assets/72x72/1f44b.png",
+      "modified": false,
+      "width": 72,
+      "height": 72,
+      "bytes": 1285,
+      "sha256": "dfee1561c6e59c90f7a292f90157bae85f75ccb3ae27b655898a51429e3a8910"
+    },
+    {
+      "file": "mimi_wheat.png",
+      "keys": [
+        "wheat"
+      ],
+      "unicode": "🌾",
+      "source": "Twemoji v17.0.3",
+      "author": "Twemoji — Twitter, Inc. and other contributors",
+      "license": "CC-BY-4.0",
+      "licenseUrl": "https://creativecommons.org/licenses/by/4.0/",
+      "page": "https://github.com/jdecked/twemoji/blob/v17.0.3/assets/72x72/1f33e.png",
+      "url": "https://raw.githubusercontent.com/jdecked/twemoji/v17.0.3/assets/72x72/1f33e.png",
+      "modified": false,
+      "width": 72,
+      "height": 72,
+      "bytes": 956,
+      "sha256": "39e08bb3f536eb06d7585045fca2cf209de7db8616aefbbf73232b25ea53374f"
+    },
+    {
+      "file": "mimi_wilted.png",
+      "keys": [
+        "wilted"
+      ],
+      "unicode": "🥀",
+      "source": "Twemoji v17.0.3",
+      "author": "Twemoji — Twitter, Inc. and other contributors",
+      "license": "CC-BY-4.0",
+      "licenseUrl": "https://creativecommons.org/licenses/by/4.0/",
+      "page": "https://github.com/jdecked/twemoji/blob/v17.0.3/assets/72x72/1f940.png",
+      "url": "https://raw.githubusercontent.com/jdecked/twemoji/v17.0.3/assets/72x72/1f940.png",
+      "modified": false,
+      "width": 72,
+      "height": 72,
+      "bytes": 1064,
+      "sha256": "1851517cad3cc2fcddfe4b9bf1f4bd8ab624a9f8048e240f538387236486e83d"
+    },
+    {
+      "file": "mimi_xp.png",
+      "keys": [
+        "xp"
+      ],
+      "unicode": "📊",
+      "source": "Twemoji v17.0.3",
+      "author": "Twemoji — Twitter, Inc. and other contributors",
+      "license": "CC-BY-4.0",
+      "licenseUrl": "https://creativecommons.org/licenses/by/4.0/",
+      "page": "https://github.com/jdecked/twemoji/blob/v17.0.3/assets/72x72/1f4ca.png",
+      "url": "https://raw.githubusercontent.com/jdecked/twemoji/v17.0.3/assets/72x72/1f4ca.png",
+      "modified": false,
+      "width": 72,
+      "height": 72,
+      "bytes": 403,
+      "sha256": "864fb71355263c81afccfcc467b05e5701bc81f9b88e6d7bdc916e736b889bdf"
+    }
+  ]
+}

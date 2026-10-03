@@ -26,6 +26,7 @@ const fs = require('fs');
 const path = require('path');
 const licenseStore = require('./licenseStore');
 const { buildInfo } = require('./buildInfo');
+const { getEmojiCoverage } = require('./communityEmojis');
 
 const pkgVersion = (() => {
     try { return require('./package.json').version || '0.0.0'; } catch { return '0.0.0'; }
@@ -139,6 +140,7 @@ function startInternalApi(deps) {
         killCurrentProcess,
         persistSession,
         skipCurrentTrack,
+        stopAndLeaveVoice,
         broadcastUpdateAnnouncement,
         cleanupDuplicateAnnouncements,
         logger = console,
@@ -151,6 +153,7 @@ function startInternalApi(deps) {
     // Token: ưu tiên env MIMI_API_TOKEN; nếu panel không inject env thì lấy
     // từ config.json (config.mimiApiToken) — file này bot chắc chắn đọc được.
     const TOKEN = (process.env.MIMI_API_TOKEN || config?.mimiApiToken || '').trim();
+    const ADMIN_TOKEN = (process.env.ADMIN_SECRET || '').trim();
     const DASHBOARD_SECRET = resolveDashboardSecret(config);
     // Ưu tiên MIMI_API_PORT (đặt thủ công). Nếu trống, dùng port Pterodactyl/VibeHost
     // cấp qua SERVER_PORT (bot Discord không cần port inbound nên port này đang rảnh).
@@ -163,7 +166,7 @@ function startInternalApi(deps) {
     // Chỉ tin header X-Forwarded-For khi kết nối đến TỪ proxy trong danh sách này;
     // mặc định rate-limit đếm theo địa chỉ socket thật (header giả mạo được).
     const TRUSTED_PROXIES = (process.env.MIMI_TRUSTED_PROXIES || '').split(',').map((s) => normalizeIp(s)).filter(Boolean);
-    // Danh sách IP máy chủ web được phép gọi /internal/*. Để trống = không giới hạn IP.
+    // Danh sách IP được phép gọi API riêng tư và quản trị. Để trống = không giới hạn IP.
     const ALLOWED_IPS = (process.env.MIMI_API_ALLOW_IPS || '').split(',').map((s) => normalizeIp(s)).filter(Boolean);
 
     if (!TOKEN) {
@@ -190,6 +193,26 @@ function startInternalApi(deps) {
         send(res, status, { ok: false, error: { code, message }, requestId: reqId }, reqId);
     }
 
+    // Các thao tác quản trị luôn dùng POST + Bearer, không nhận mật khẩu trong URL/body.
+    function authorizeAdmin(req, res, remoteIp, reqId) {
+        if (ALLOWED_IPS.length && !ALLOWED_IPS.includes(remoteIp)) {
+            fail(res, 403, 'FORBIDDEN', 'IP không được phép gọi API quản trị.', reqId);
+            return false;
+        }
+        const auth = String(req.headers.authorization || '').replace(/^Bearer\s+/i, '');
+        if (!/^Bearer\s+/i.test(String(req.headers.authorization || '')) ||
+            !(safeEqual(auth, TOKEN) || (ADMIN_TOKEN && safeEqual(auth, ADMIN_TOKEN)))) {
+            fail(res, 401, 'UNAUTHORIZED', 'Thiếu hoặc sai token quản trị.', reqId);
+            return false;
+        }
+        if (req.method !== 'POST') {
+            res.setHeader('Allow', 'POST');
+            fail(res, 405, 'METHOD_NOT_ALLOWED', 'Thao tác quản trị yêu cầu phương thức POST.', reqId);
+            return false;
+        }
+        return true;
+    }
+
     // Đọc & parse body JSON có giới hạn kích thước
     function readJson(req, limitBytes = 256 * 1024) {
         return new Promise((resolve, reject) => {
@@ -203,7 +226,11 @@ function startInternalApi(deps) {
             });
             req.on('end', () => {
                 if (!chunks.length) return resolve({});
-                try { resolve(JSON.parse(Buffer.concat(chunks).toString('utf8'))); }
+                try {
+                    const body = JSON.parse(Buffer.concat(chunks).toString('utf8'));
+                    if (!body || typeof body !== 'object' || Array.isArray(body)) throw new Error('INVALID_JSON');
+                    resolve(body);
+                }
                 catch { reject(new Error('INVALID_JSON')); }
             });
             req.on('error', reject);
@@ -267,7 +294,9 @@ function startInternalApi(deps) {
                     status: 'alive',
                     version: pkgVersion,
                     commit: buildInfo.shortCommit,
-                    builtAt: buildInfo.builtAt
+                    builtAt: buildInfo.builtAt,
+                    buildSource: buildInfo.source,
+                    emojiCoverage: getEmojiCoverage()
                 }, reqId);
             }
             if (url.pathname === '/health/ready') {
@@ -302,6 +331,14 @@ function startInternalApi(deps) {
                     return fs.createReadStream(jsPath).pipe(res);
                 }
             }
+            // Chỉ phục vụ đúng ảnh của portal, không mở đường dẫn file tùy ý.
+            if (url.pathname === '/hero-mimi.webp' && req.method === 'GET') {
+                const imagePath = path.join(__dirname, 'public', 'hero-mimi.webp');
+                if (fs.existsSync(imagePath)) {
+                    res.writeHead(200, { 'Content-Type': 'image/webp', 'X-Content-Type-Options': 'nosniff' });
+                    return fs.createReadStream(imagePath).pipe(res);
+                }
+            }
 
             // 🌐 PUBLIC APIS (Tra cứu & Kích hoạt bản quyền từ Web)
             if (url.pathname === '/api/stats') {
@@ -325,17 +362,15 @@ function startInternalApi(deps) {
                 }, reqId);
             }
 
-                                    if (url.pathname === '/api/admin/restart') {
-                const secret = url.searchParams.get('secret');
-                if (secret === 'mimi2026' || safeEqual(secret, process.env.ADMIN_SECRET || 'mimi2026')) {
-                    send(res, 200, { ok: true, message: 'Restarting bot process...' }, reqId);
-                    setTimeout(() => process.exit(0), 500);
-                    return;
-                }
-                return fail(res, 401, 'UNAUTHORIZED', 'Sai mật mã admin.', reqId);
+            if (url.pathname === '/api/admin/restart') {
+                if (!authorizeAdmin(req, res, remoteIp, reqId)) return;
+                send(res, 200, { ok: true, message: 'Đang khởi động lại tiến trình bot...' }, reqId);
+                setTimeout(() => process.exit(0), 500);
+                return;
             }
 
             if (url.pathname === '/api/broadcast/cleanup') {
+                if (!authorizeAdmin(req, res, remoteIp, reqId)) return;
                 try {
                     if (typeof cleanupDuplicateAnnouncements === 'function') {
                         const result = await cleanupDuplicateAnnouncements();
@@ -348,6 +383,7 @@ function startInternalApi(deps) {
             }
 
             if (url.pathname === '/api/broadcast/trigger') {
+                if (!authorizeAdmin(req, res, remoteIp, reqId)) return;
                 const force = url.searchParams.get('force') === 'true' || url.searchParams.get('force') === '1';
                 try {
                     if (typeof broadcastUpdateAnnouncement === 'function') {
@@ -356,7 +392,8 @@ function startInternalApi(deps) {
                     }
                     return send(res, 200, { ok: false, error: 'broadcastUpdateAnnouncement not provided in deps' }, reqId);
                 } catch (err) {
-                    return send(res, 500, { ok: false, error: err?.message, stack: err?.stack }, reqId);
+                    logger.error('❌ [InternalAPI] Không gửi được thông báo:', err?.message);
+                    return fail(res, 500, 'INTERNAL', 'Không thể gửi thông báo lúc này.', reqId);
                 }
             }
 
@@ -379,13 +416,9 @@ function startInternalApi(deps) {
             }
 
             if (req.method === 'POST' && url.pathname === '/api/license/admin/confirm') {
+                if (!authorizeAdmin(req, res, remoteIp, reqId)) return;
                 const body = await readJson(req);
-                const { guildId, plan = '1m', secret, action = 'activate', note = '' } = body || {};
-                const auth = (req.headers['authorization'] || '').replace(/^Bearer\s+/i, '');
-                const validSecret = safeEqual(auth, TOKEN) || safeEqual(secret, process.env.ADMIN_SECRET || 'mimi2026') || safeEqual(secret, TOKEN);
-                if (!validSecret) {
-                    return fail(res, 401, 'UNAUTHORIZED', 'Mã xác thực Admin không chính xác.', reqId);
-                }
+                const { guildId, plan = '1m', action = 'activate', note = '' } = body;
 
                 if (action === 'generate_key') {
                     const keyObj = licenseStore.generateKey(plan, note || 'Tạo từ Admin Web', 'Admin Web');
@@ -447,176 +480,55 @@ function startInternalApi(deps) {
             }
 
             // ---- GET /internal/team ----
-            // Nhận diện đội ngũ dev & support bằng cách được setup role trên Discord
+            // Chỉ đọc đội ngũ từ guild hỗ trợ đã chọn, không quét các cộng đồng khác.
             if (req.method === 'GET' && parts[1] === 'team') {
+                const targetGuildId = String(process.env.SUPPORT_SERVER_ID || process.env.MIMI_HOME_GUILD_ID || '').trim();
+                const guild = targetGuildId ? client.guilds.cache.get(targetGuildId) : null;
                 const team = [];
-                const roleKeywords = ['founder', 'owner', 'mimi', 'developer', 'dev', 'admin', 'quản trị', 'manager', 'mod', 'support', 'staff', 'tester', 'cộng đồng', 'partner', 'đối tác'];
+                const founderRoleId = (process.env.FOUNDER_ROLE_ID || '').trim();
+                const founderUserId = (process.env.FOUNDER_DISCORD_ID || '').trim();
+                const devUserId = (process.env.DEV_DISCORD_ID || '').trim();
 
-                // --- Cấu hình nhận diện thành viên ---
-                // Role ID cao nhất trong server (Founder role) — LUÔN CHÍNH XÁC
-                const FOUNDER_ROLE_ID = (process.env.FOUNDER_ROLE_ID || '1517081002269343854').trim();
-                // Env vars tùy chọn để override bằng User ID trực tiếp
-                const founderUserIdEnv = (process.env.FOUNDER_DISCORD_ID || '').trim();
-                const devUserIdEnv = (process.env.DEV_DISCORD_ID || '1138315103821889566').trim();
-
-                const targetGuildId = process.env.SUPPORT_SERVER_ID || process.env.DEV_GUILD_ID;
-                const guildsToCheck = targetGuildId && client.guilds.cache.has(targetGuildId)
-                    ? [client.guilds.cache.get(targetGuildId)]
-                    : Array.from(client.guilds.cache.values());
-
-                // Helper: fetch member từ Discord API nếu chưa có trong cache
-                async function fetchMemberSafe(guild, userId) {
-                    if (!userId) return null;
-                    try {
-                        return guild.members.cache.get(userId) || await guild.members.fetch(userId).catch(() => null);
-                    } catch { return null; }
+                async function fetchMemberSafe(userId) {
+                    if (!guild || !userId) return null;
+                    return guild.members.cache.get(userId) || await guild.members.fetch(userId).catch(() => null);
+                }
+                function addMember(member, details) {
+                    if (!member || member.user.bot || team.some(item => item.id === member.id)) return;
+                    team.push({
+                        id: member.id,
+                        name: member.displayName || member.user.username,
+                        username: member.user.username,
+                        avatar: member.user.displayAvatarURL({ size: 512, forceStatic: false }) || null,
+                        status: member.presence?.status || 'unknown',
+                        ...details
+                    });
                 }
 
-                for (const g of guildsToCheck) {
-                    if (!g) continue;
-                    try {
-                        await g.members.fetch({ time: 3000 }).catch(() => {});
-                    } catch {}
-
-                    // --- Bước 1: Nhận diện Founder bằng FOUNDER_ROLE_ID (Role ID cao nhất) ---
-                    // Ưu tiên: FOUNDER_DISCORD_ID (user ID) nếu có → rồi quét Role ID → cuối cùng ownerId
-                    let founderMember = null;
-                    if (founderUserIdEnv) {
-                        founderMember = await fetchMemberSafe(g, founderUserIdEnv);
+                if (guild) {
+                    // Fetch chỉ trong guild cấu hình; thiếu intent/quyền thì dùng cache hiện có.
+                    await guild.members.fetch({ time: 3000 }).catch(() => {});
+                    let founder = await fetchMemberSafe(founderUserId);
+                    if (!founder && founderRoleId) founder = guild.members.cache.find(member => !member.user.bot && member.roles.cache.has(founderRoleId));
+                    addMember(founder, { role: 'Founder & Community Owner', color: '#ff6b81', description: 'Người vận hành cộng đồng được cấu hình.', group: 'core', priority: 1, isDev: false });
+                    addMember(await fetchMemberSafe(devUserId), { role: 'Core Developer', color: '#2ecc71', description: 'Thành viên phát triển được cấu hình.', group: 'core', priority: 2, isDev: true });
+                    for (const member of guild.members.cache.values()) {
+                        const matchingRole = member.roles.cache.filter(role => /admin|quản trị|manager|moderator|support|staff|partner|đối tác/i.test(role.name)).sort((a, b) => b.position - a.position).first();
+                        if (!matchingRole) continue;
+                        const isPartner = /partner|đối tác/i.test(matchingRole.name);
+                        const isAdmin = /admin|quản trị|manager|moderator/i.test(matchingRole.name);
+                        addMember(member, {
+                            role: matchingRole.name,
+                            color: matchingRole.hexColor && matchingRole.hexColor !== '#000000' ? matchingRole.hexColor : '#9b59b6',
+                            description: 'Thành viên đội ngũ theo vai trò tại máy chủ hỗ trợ.',
+                            group: isPartner ? 'partner' : isAdmin ? 'admin' : 'community',
+                            priority: isPartner ? 6 : isAdmin ? 3 : 5,
+                            isDev: false
+                        });
                     }
-                    if (!founderMember) {
-                        // Tìm member nào có Role ID cao nhất (1517081002269343854)
-                        founderMember = g.members.cache.find(m =>
-                            !m.user.bot && m.roles.cache.has(FOUNDER_ROLE_ID)
-                        ) || null;
-                    }
-                    if (!founderMember) {
-                        // Fallback cuối: dùng ownerId
-                        founderMember = await fetchMemberSafe(g, g.ownerId);
-                        if (founderMember?.user?.bot) founderMember = null;
-                    }
-
-                    if (founderMember) {
-                        if (!team.some(item => item.id === founderMember.id)) {
-                            team.push({
-                                id: founderMember.id,
-                                name: founderMember.displayName || founderMember.user.username,
-                                username: founderMember.user.username,
-                                role: 'Founder & Community Owner',
-                                color: '#ff6b81',
-                                avatar: founderMember.user.displayAvatarURL({ size: 512, forceStatic: false }) || null,
-                                status: founderMember.presence?.status || 'online',
-                                description: 'Sáng lập hệ sinh thái MIMI, định hướng phát triển và kết nối cộng đồng yêu âm nhạc.',
-                                group: 'core',
-                                priority: 1,
-                                isDev: false
-                            });
-                        }
-                    }
-
-                    // --- Bước 2: Nhận diện Core Dev (nhan9800) bằng DEV_DISCORD_ID hoặc username ---
-                    if (devUserIdEnv) {
-                        const devMember = await fetchMemberSafe(g, devUserIdEnv);
-                        if (devMember && !devMember.user.bot && !team.some(item => item.id === devMember.id)) {
-                            team.push({
-                                id: devMember.id,
-                                name: devMember.displayName || devMember.user.username,
-                                username: devMember.user.username,
-                                role: 'Core Developer',
-                                color: '#2ecc71',
-                                avatar: devMember.user.displayAvatarURL({ size: 512, forceStatic: false }) || null,
-                                status: devMember.presence?.status || 'online',
-                                description: 'Phát triển kiến trúc Core Bot, hệ thống Internal API thời gian thực và Website MIMI.',
-                                group: 'core',
-                                priority: 2,
-                                isDev: true
-                            });
-                        }
-                    }
-
-                    // --- Bước 3: Quét toàn bộ role keywords cho các thành viên còn lại ---
-                    for (const member of g.members.cache.values()) {
-                        if (member.user.bot) continue;
-                        if (team.some(item => item.id === member.id)) continue;
-
-                        const isNhanByUsername = member.user.username.toLowerCase().includes('nhan9800');
-                        const matchingRole = member.roles.cache
-                            .filter(r => roleKeywords.some(kw => r.name.toLowerCase().includes(kw)))
-                            .sort((a, b) => b.position - a.position)
-                            .first();
-
-                        if (isNhanByUsername && !team.some(item => item.priority === 2)) {
-                            team.push({
-                                id: member.id,
-                                name: member.displayName || member.user.username,
-                                username: member.user.username,
-                                role: 'Core Developer',
-                                color: '#2ecc71',
-                                avatar: member.user.displayAvatarURL({ size: 512, forceStatic: false }) || null,
-                                status: member.presence?.status || 'online',
-                                description: 'Phát triển kiến trúc Core Bot, hệ thống Internal API thời gian thực và Website MIMI.',
-                                group: 'core',
-                                priority: 2,
-                                isDev: true
-                            });
-                        } else if (matchingRole) {
-                            const roleNameLower = matchingRole.name.toLowerCase();
-                            const isAdmin = /admin|quản trị|manager/i.test(roleNameLower);
-                            const isMod = /mod/i.test(roleNameLower);
-                            const isPartner = /partner|đối tác/i.test(roleNameLower);
-
-                            let priority = 5;
-                            let group = 'community';
-                            let defaultDesc = 'Báo lỗi, góp ý tính năng và hỗ trợ thành viên mới mỗi ngày trên server Discord.';
-                            let defaultColor = '#9b59b6';
-
-                            if (isPartner) {
-                                priority = 6;
-                                group = 'partner';
-                                defaultDesc = 'Đối tác chiến lược, hợp tác phát triển hệ sinh thái âm nhạc đa nền tảng cùng MIMI.';
-                                defaultColor = '#f1c40f';
-                            } else if (isAdmin) {
-                                priority = 3;
-                                group = 'admin';
-                                defaultDesc = 'Quản trị máy chủ, điều phối hoạt động sự kiện và hỗ trợ giải đáp thắc mắc của thành viên.';
-                                defaultColor = '#3498db';
-                            } else if (isMod) {
-                                priority = 4;
-                                group = 'admin';
-                                defaultColor = '#e67e22';
-                            }
-
-                            const hexColor = matchingRole.hexColor && matchingRole.hexColor !== '#000000'
-                                ? matchingRole.hexColor : defaultColor;
-
-                            team.push({
-                                id: member.id,
-                                name: member.displayName || member.user.username,
-                                username: member.user.username,
-                                role: matchingRole.name,
-                                color: hexColor,
-                                avatar: member.user.displayAvatarURL({ size: 512, forceStatic: false }) || null,
-                                status: member.presence?.status || 'online',
-                                description: defaultDesc,
-                                group,
-                                priority,
-                                isDev: false
-                            });
-                        }
-                    }
-
-                    if (team.length > 0) break;
                 }
-
-                team.sort((a, b) => (a.priority || 9) - (b.priority || 9));
-
-                return send(res, 200, {
-                    ok: true,
-                    team,
-                    count: team.length,
-                    source: 'discord_roles',
-                    updatedAt: new Date().toISOString()
-                }, reqId);
+                team.sort((a, b) => a.priority - b.priority);
+                return send(res, 200, { ok: true, team, count: team.length, source: guild ? 'discord_roles' : 'unconfigured', updatedAt: new Date().toISOString() }, reqId);
             }
 
             // ---- GET /internal/user?q=... ----
@@ -774,15 +686,23 @@ function startInternalApi(deps) {
                             mq.player.stop();
                         }
                     } else if (action === 'stop') {
-                        mq.queue = [];
-                        mq.loop = 'off';
-                        if (mq.idleTimeout) clearTimeout(mq.idleTimeout);
-                        if (typeof killCurrentProcess === 'function') killCurrentProcess(mq);
-                        // xoá khỏi Map TRƯỚC khi stop(true): listener Idle chạy đồng bộ, nếu
-                        // hàng đợi còn trong Map thì autoplay sẽ tự phát bài tiếp theo.
-                        musicQueues.delete(guildId);
-                        mq.player.stop(true);
-                        try { mq.connection?.destroy(); } catch {}
+                        if (typeof stopAndLeaveVoice === 'function') {
+                            stopAndLeaveVoice(guildId);
+                        } else {
+                            mq.queue = [];
+                            mq.loop = 'off';
+                            mq.autoplay = false;
+                            mq.playGeneration = (mq.playGeneration || 0) + 1;
+                            for (const timer of [mq.idleTimeout, mq.emptyChannelTimeout, mq.progressTimer]) {
+                                if (timer) clearTimeout(timer);
+                            }
+                            if (typeof killCurrentProcess === 'function') killCurrentProcess(mq);
+                            // Xoá hàng đợi trước khi stop để listener Idle không phát lại nhạc.
+                            musicQueues.delete(guildId);
+                            mq.player.stop(true);
+                            try { mq.connection?.destroy(); } catch {}
+                            if (typeof persistSession === 'function') persistSession(guildId);
+                        }
                     } else if (action === 'volume') {
                         const body = await readJson(req);
                         const v = Number(body.volume);

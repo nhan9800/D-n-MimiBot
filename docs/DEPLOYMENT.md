@@ -1,82 +1,58 @@
 # Triển khai
 
-Hai thành phần deploy ở hai nơi khác nhau:
+Bot ở VibeHost; website `Website-Mini-Bot` ở Nhân Hòa và có pipeline riêng. Repository bot không chứa `web/` hiện tại.
 
-- **Bot** → VibeHost (qua GitHub Actions + SFTP + Pterodactyl restart).
-- **Website** → Nhân Hòa (Next.js).
+Lần kiểm tra chỉ đọc ngày 2026-10-02: host bot báo commit `aae1815` (1.2.0), website báo `9d72b6c`. Phiên bản 1.3.0 trong workspace chưa được deploy/restart qua lần rà soát này; đối chiếu health trên host sau khi triển khai thực tế.
 
-## Bot — VibeHost
+## Bot và CI/CD
 
-### Tự động (đã cấu hình)
+[Workflow](../.github/workflows/deploy.yml) chạy trên push `main` hoặc dispatch thủ công:
 
-Mỗi lần push lên nhánh `main`, workflow [`.github/workflows/deploy.yml`](../.github/workflows/deploy.yml) sẽ:
+Mặc định workflow chỉ kiểm tra; hosting hiện dùng startup Git pull và restart qua panel. Muốn dùng đường SFTP, đặt repository variable `MIMI_DEPLOY_METHOD=sftp` sau khi cấu hình đủ secrets bên dưới. Khi SFTP chưa bật, workflow ghi rõ chưa upload/restart; trạng thái CI xanh chỉ xác nhận kiểm tra mã.
 
-1. Checkout code.
-2. SFTP lên VibeHost, **loại trừ** `node_modules`, `.git`, `.github`, file tạm/log, và `web/`, `docs/`, `*.md`.
-3. Gọi Pterodactyl API restart bot (nếu đã cấu hình secret).
+1. Dùng Node 22, `npm ci --ignore-scripts`, `npm run check`, `npm test`.
+2. Sinh `build-info.json` với commit/branch/thời gian UTC và fingerprint các file runtime.
+3. Khi SFTP được bật, upload whitelist mã bot, module UI/emoji/nhắc nhở/thú cưng, `assets/` kèm attribution/giấy phép, `public/`, bộ kiểm tra và test.
+4. Restart bằng Pterodactyl nếu đã đặt đủ secrets.
+5. Khi có health URL, kiểm tra bot báo đúng commit mới; quá thời hạn thì workflow lỗi.
 
-> `web/` và `docs/` **không** được đẩy lên host bot — chúng deploy riêng ở Nhân Hòa. Danh sách loại trừ ở cả `args` của workflow lẫn `.sftpignore`.
+SFTP dùng batch mode, dừng khi file upload lỗi và kiểm tra SSH host key đã pin. Không upload `.env`, `config.json`, economy, nhắc nhở, kho nhạc, cookie, `data/`, website, tài liệu hoặc script vá legacy. `.sftpignore` giữ cùng ranh giới cho công cụ deploy khác; workflow dùng whitelist riêng.
 
-### Secret cần đặt (GitHub → Settings → Secrets)
+| GitHub secret | Bắt buộc | Mục đích |
+|---|---|---|
+| `SFTP_SERVER` | Có | Host SFTP |
+| `SFTP_USERNAME` | Có | Tài khoản SFTP |
+| `SFTP_PASSWORD` | Có | Mật khẩu SFTP |
+| `SFTP_PORT` | Không | Cổng; mặc định 2022 |
+| `SFTP_KNOWN_HOSTS` | Có | Dòng known_hosts đúng host/cổng, xác minh fingerprint qua nhà cung cấp |
+| `PTERO_PANEL_URL` | Theo nhóm | URL panel HTTPS |
+| `PTERO_API_KEY` | Theo nhóm | Client API key của panel |
+| `PTERO_SERVER_ID` | Theo nhóm | ID server cần restart |
+| `MIMI_HEALTH_URL` | Không | URL `/health/live` truy cập được từ runner để xác minh commit |
 
-| Secret | Bắt buộc | Dùng cho |
-|--------|----------|----------|
-| `SFTP_PASSWORD` | ✅ | Đăng nhập SFTP VibeHost |
-| `PTERO_PANEL_URL` | tùy chọn | URL panel Pterodactyl (để restart) |
-| `PTERO_API_KEY` | tùy chọn | API key client Pterodactyl |
-| `PTERO_SERVER_ID` | tùy chọn | ID server trên panel |
+Nếu cả ba secret Pterodactyl trống, workflow báo cần restart thủ công; không tuyên bố bản mới đã chạy. Nếu chỉ đặt một phần, workflow lỗi. Khi thiếu health URL, restart có thể đã gửi nhưng commit chưa được xác minh tự động. Không dùng fallback chứa mật mã trong URL.
 
-Nếu thiếu 3 secret Pterodactyl, bước restart được bỏ qua (không fail) — bot chạy code mới ở lần restart thủ công kế tiếp.
+## Cài đặt runtime trên host
 
-### Biến môi trường của bot (đặt qua panel Pterodactyl)
+Host cần Node >=22.12.0, package theo lockfile, ffmpeg/yt-dlp và codec phù hợp. `npm ci --ignore-scripts` trên CI chỉ dùng kiểm tra; không cung cấp binary phát nhạc. Trên host thật chạy `npm ci` hoặc cung cấp binary và cài codec theo môi trường host. Nếu native opus không build được, dự án có `opusscript`; cần kiểm tra voice thực tế trước khi mở nhạc cho cộng đồng.
 
-Xem [`.env.example`](../.env.example). Quan trọng nhất:
+Đặt biến qua panel hoặc file `.env` riêng trên host theo [mẫu](../.env.example). `DISCORD_TOKEN` và `DISCORD_CLIENT_ID` dùng cho đăng nhập/đăng ký lệnh. Bot vẫn đọc config cũ và giữ dữ liệu guild. Sau nâng cấp schema/module, sao lưu file runtime trước restart.
 
-- `MIMI_API_TOKEN` — bật Internal API. Để trống = API không chạy.
-- `MIMI_API_PORT` (mặc định 8787), `MIMI_API_HOST` (khuyến nghị `127.0.0.1` nếu web cùng máy).
+Internal API tuỳ chọn: `MIMI_API_TOKEN`, `MIMI_API_PORT`, `MIMI_API_HOST`. Web và bot khác máy cần TLS/tunnel/firewall và `MIMI_API_ALLOW_IPS` phù hợp. `MIMI_WEB_BASE` dùng để tạo link `/dashboard`; token phía website phải trùng token bot.
 
-> Token Discord của bot **không** ở đây — nằm trong `config.json` (`token`, `clientId`).
+## Website riêng
 
-## Website — Nhân Hòa
+Mở repository `Website-Mini-Bot`, dùng hướng dẫn/package scripts ở đó để typecheck/lint/build và deploy Nhân Hòa. OAuth, callback URL, session secret và route proxy là cấu hình riêng của website; không copy credentials website vào bot hay bundle frontend.
 
-### Biến môi trường
+## Xác minh sau restart
 
-Sao chép [`web/.env.example`](../web/.env.example) thành `.env` (hoặc cấu hình trong panel Nhân Hòa) và điền:
+- `/health/live` báo commit mới; `/health/ready` trả 200 sau khi kết nối Discord.
+- Kiểm tra một guild thử nghiệm: lệnh trợ giúp/setup, quyền role xác thực, ticket và player/nút nhạc.
+- `/health/live` phải báo `emojiCoverage.complete: true` và đủ 172 key. Khi thiếu emoji, bot dùng chữ và thử lại hữu hạn; không fallback Unicode trang trí. Bộ picker guild bị giới hạn slot riêng với bộ ứng dụng.
+- Kiểm tra API chưa xác thực bị từ chối, dashboard đúng guild hoạt động, dữ liệu runtime không bị upload ghi đè.
 
-- `BOT_API_INTERNAL_URL` — URL tới Internal API của bot. Nếu web và bot **khác máy**, đây là địa chỉ công khai/tunnel tới cổng API (nhớ chặn firewall chỉ cho IP của web).
-- `MIMI_API_TOKEN` — **trùng khớp** với token đặt ở bot.
-- `DISCORD_CLIENT_ID`, `DISCORD_CLIENT_SECRET`, `DISCORD_REDIRECT_URI` — OAuth. Redirect URI phải khớp chính xác giá trị khai báo trong Discord Developer Portal, ví dụ `https://ten-mien/api/auth/callback`.
-- `AUTH_SECRET` — chuỗi ngẫu nhiên ≥ 32 ký tự (`openssl rand -hex 32`).
-- `NEXT_PUBLIC_*` — thông tin công khai (tên bot, client id, link mời, link hỗ trợ, site url).
+Các bước Discord/âm thanh cần môi trường thật; test offline không thay thế kiểm tra này. Script `scripts/auto-update-bot.sh` dành cho VPS có PM2: dừng khi có thay đổi local, pull fast-forward, cài package và chạy check/test rồi mới restart.
 
-### Build & chạy
+Ngày 03/10/2026 đã đọc VibeHost Mimi Music `9d9f7a18`: startup chọn Node 24, auto-pull `main`, cài `npm ci` khi hash lockfile đổi. URL Git cũ chuyển hướng tới cùng repository `nhan9800/D-n-MimiBot`. Runtime/config không nằm trong Git. Đây là cơ chế hosting đã đọc, chưa tự chứng minh bản mới chạy.
 
-```bash
-cd web
-npm ci
-npm run build
-npm run start      # mặc định cổng 3000
-```
-
-Nếu Nhân Hòa dùng Node hosting, trỏ start command tới `npm run start` sau khi `npm run build`. Đảm bảo Node ≥ 18.
-
-### Cấu hình Discord Developer Portal
-
-1. OAuth2 → thêm **Redirect** đúng bằng `DISCORD_REDIRECT_URI`.
-2. Scope dùng: `identify`, `guilds` (không cần bật gì thêm).
-
-## Kiểm tra sau deploy
-
-- `GET https://<domain-web>/status` → thấy trạng thái bot (online/offline, số liệu thật).
-- `GET http://<bot-host>:<port>/health/ready` → `200` khi bot đã kết nối Discord.
-- Đăng nhập `/dashboard` → thấy danh sách server quản lý được.
-
-## Khắc phục sự cố
-
-| Hiện tượng | Nguyên nhân thường gặp |
-|-----------|------------------------|
-| Trang status luôn "Đang đồng bộ" | Web chưa cấu hình `BOT_API_INTERNAL_URL`/`MIMI_API_TOKEN`, hoặc sai token |
-| `/status` báo "ngoại tuyến" | Bot chưa chạy, hoặc cổng API bị firewall chặn |
-| Đăng nhập xong quay lại trang chủ với `?auth=...` | OAuth chưa cấu hình đủ, hoặc redirect URI sai |
-| Dashboard 404 khi mở server | Người dùng không có quyền quản lý server đó |
-| Bot chạy nhưng không có Internal API | Chưa đặt `MIMI_API_TOKEN` ở phía bot |
+GitHub hiện thiếu `SFTP_SERVER`, `SFTP_USERNAME`, `SFTP_KNOWN_HOSTS`; không bỏ xác minh SSH để vượt thiếu cấu hình. Có thể triển khai bằng cơ chế kéo Git đã cấu hình trên host, sau backup/preflight và đối chiếu health. `buildInfo.js` chỉ tin metadata CI có fingerprint khớp; nếu host kéo Git, dùng HEAD khi file runtime sạch, không nhận `build-info.json` ignored cũ là mã đang chạy. Restart không tự phát hoặc xóa thông báo cập nhật.

@@ -1,39 +1,45 @@
-# docs/API.md — INTERNAL API & COMMAND REGISTRY SPECIFICATION
+# API bot
 
-## 1. INTERNAL API CONTRACT (BOT ↔ WEBSITE)
+Internal API chạy cùng bot, tùy chọn theo `MIMI_API_TOKEN`. Website ở repository riêng gọi API qua máy chủ của website; không để service token trên client.
 
-Bot cung cấp API nội bộ (Internal API) cho phép Dashboard gửi/nhận thông tin realtime:
+## Endpoint chính
 
-```text
-GET    /internal/status                        # Trạng thái gateway, active players, memory
-GET    /internal/guilds/:guildId/settings     # Lấy cài đặt server
-PATCH  /internal/guilds/:guildId/settings     # Cập nhật cài đặt server
-GET    /internal/guilds/:guildId/player       # Thông tin bài hát đang phát & vị trí
-POST   /internal/guilds/:guildId/player/pause # Tạm dừng phát
-POST   /internal/guilds/:guildId/player/resume# Tiếp tục phát
-POST   /internal/guilds/:guildId/player/skip  # Bỏ qua bài hát
-POST   /internal/guilds/:guildId/player/stop  # Dừng player
-GET    /internal/guilds/:guildId/queue       # Danh sách hàng chờ
-GET    /internal/health                        # Readiness & Liveness probe
-```
+| Method | Path | Xác thực | Mục đích |
+|---|---|---|---|
+| GET | `/health/live` | Không | Sống, version, commit rút gọn |
+| GET | `/health/ready` | Không | 200 khi đã kết nối Discord; 503 khi đang khởi động |
+| GET | `/internal/status` | Bearer service | Trạng thái và số liệu bot |
+| GET | `/internal/commands` | Bearer service | Danh mục lệnh slash |
+| GET | `/internal/team` | Bearer service | Đội ngũ từ guild hỗ trợ đã chọn; rỗng khi chưa cấu hình |
+| GET | `/internal/guilds/:guildId/settings` | Bearer + dashboard key | Cấu hình guild |
+| PATCH | `/internal/guilds/:guildId/settings` | Bearer + dashboard key | Sửa các trường được phép |
+| GET | `/internal/guilds/:guildId/player` | Bearer + dashboard key | Trạng thái player |
+| GET | `/internal/guilds/:guildId/queue` | Bearer + dashboard key | Hàng chờ |
+| POST | `/internal/guilds/:guildId/player/:action` | Bearer + dashboard key | pause/resume/skip/stop/volume |
+| POST | `/api/admin/restart` | Bearer quản trị | Yêu cầu restart tiến trình |
+| POST | `/api/broadcast/trigger` | Bearer quản trị | Gửi thông báo theo luồng có sẵn |
+| POST | `/api/broadcast/cleanup` | Bearer quản trị | Dọn thông báo theo luồng có sẵn |
+| POST | `/api/license/admin/confirm` | Bearer quản trị | Quản trị kho mã/kích hoạt tương thích |
 
-### Xác thực
+Không có endpoint `/internal/health` trong phiên bản hiện tại. Dùng `/health/live` và `/health/ready`.
 
-| Nhóm endpoint | Header bắt buộc |
-| :--- | :--- |
-| `/health/*` | không cần |
-| `/internal/status`, `/internal/commands` | `Authorization: Bearer <MIMI_API_TOKEN>` |
-| `/internal/guilds/:guildId/*` | `Authorization: Bearer <MIMI_API_TOKEN>` **và** `X-Mimi-Access-Key: <khoá>` |
+## Header và quyền
 
-Khoá truy cập do bot phát hành qua lệnh `/dashboard` (chỉ người có quyền Quản Lý Máy Chủ), gắn cứng với một `guildId`, hạn 7 ngày. Thiếu/sai/hết hạn → `403 DASHBOARD_KEY_REQUIRED`. Chi tiết: [SECURITY.md](SECURITY.md).
+Service header: `Authorization: Bearer <MIMI_API_TOKEN>`. Với guild, cần thêm `X-Mimi-Access-Key: <key>` phát qua `/dashboard` trong Discord sau kiểm tra quyền Quản Lý Máy Chủ. Key gắn guild và hạn dùng; thiếu/sai/hết hạn bị từ chối.
 
----
+Bearer quản trị nhận service token hoặc `ADMIN_SECRET` riêng đã cấu hình. API không nhận secret qua query/body và không có secret mặc định. GET vào endpoint quản trị không thay đổi trạng thái; sử dụng POST. Allowlist `MIMI_API_ALLOW_IPS` áp dụng ngay cả khi token hợp lệ.
 
-## 2. ERROR CODES MAPPING
+Các body JSON phải là object, nằm trong giới hạn kích thước của API; PATCH chỉ nhận trường cho phép và validate trước khi ghi. Các luồng broadcast/restart là thao tác thật: không dùng chúng để kiểm tra đọc trạng thái. [Mô hình bảo mật](SECURITY.md).
 
-| Mã Lỗi | Mô Tả | Hành Động Khắc Phục |
-| :--- | :--- | :--- |
-| `MIMI-VOICE-001` | Bot không thể kết nối Voice Channel | Kiểm tra quyền Connect / Speak của Bot |
-| `MIMI-VERIFY-ROLE-001` | Không tìm thấy Role xác thực | Chạy lại `/setupverify` |
-| `MIMI-VERIFY-ROLE-002` | Thiếu quyền Quản lý Role hoặc sai thứ tự Role | Kéo Role của Bot lên trên Role xác thực trong Server Settings |
-| `MIMI-ECO-001` | Thu nhập ngày vượt ngưỡng | Kiểm tra nhật ký giao dịch của tài khoản |
+## Lỗi thường gặp
+
+| Mã/trạng thái | Nguyên nhân | Hướng xử lý |
+|---|---|---|
+| 401/403 | Thiếu token, token sai hoặc IP không được phép | Kiểm tra môi trường hai đầu và allowlist |
+| `DASHBOARD_KEY_REQUIRED` | Key thiếu/sai guild/hết hạn | Lấy lại link `/dashboard` trong guild đúng |
+| 405 | Method không hợp lệ | Dùng đúng GET/POST/PATCH theo endpoint |
+| 429 | Vượt rate limit | Giảm tốc độ, giữ backoff |
+| `MIMI-VOICE-001` | Không kết nối voice | Kiểm tra Connect/Speak và trạng thái voice |
+| `MIMI-VERIFY-ROLE-002` | Thiếu quyền hoặc role bot thấp | Đưa role bot cao hơn role cần gán/gỡ |
+
+Test API dùng HTTP loopback và callback giả, không restart hay gửi broadcast trên production.

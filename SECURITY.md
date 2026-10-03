@@ -1,15 +1,9 @@
-# SECURITY.md — CHÍNH SÁCH BẢO MẬT & AN TOÀN DỮ LIỆU
+# Bảo mật và dữ liệu
 
-## 1. QUY TẮC BẢO MẬT CREDENTIALS
+Không commit token Discord, service token, mật khẩu hosting, cookie nguồn nhạc hoặc dữ liệu người dùng. Mọi thao tác quản trị API yêu cầu xác thực phía server; không dùng URL chứa mật mã hoặc secret mặc định.
 
-- **Không lưu Token trong Git:** Bot Token, Secret key, Password SFTP tuyệt đối không được commit vào git repository.
-- **Tách biệt Môi trường:** Development và Production sử dụng OAuth Credentials và Support Server URLs riêng.
-- **Phân quyền Bot:** Khuyến nghị đặt Role của Bot lên cao hơn Role Chưa/Đã Xác Thực nhưng thấp hơn Owner/Admin Role.
+Bot cộng đồng dùng miễn phí; mã kích hoạt tương thích chỉ được nhận khi có trong kho mã đã phát hành. Kho dữ liệu JSON được lưu và sao lưu trên host riêng, tránh deploy ghi đè.
 
----
+`/resetsetup` chỉ đặt lại cấu hình liên quan tới setup; không phải cam kết xóa toàn bộ economy, thư viện nhạc hoặc dữ liệu cá nhân. Yêu cầu xóa dữ liệu cụ thể qua [máy chủ hỗ trợ](https://discord.gg/gBUHY3qph2) hoặc link `DISCORD_SUPPORT_URL` của bên vận hành.
 
-## 2. QUYỀN RIÊNG TƯ DỮ LIỆU (PRIVACY POLICY)
-
-- Tin nhắn DM gửi trực tiếp tới Bot có thể được chuyển tiếp tới đội ngũ Quản trị viên (Bot Owner) nhằm mục đích hỗ trợ và chống abuse.
-- Dữ liệu lưu trữ bao gồm: Server ID, Channel ID, Role ID cấu hình, Lịch sử giờ công chấm công, Số dư economy.
-- Người dùng có thể yêu cầu xóa toàn bộ dữ liệu server bằng lệnh `/resetsetup` hoặc liên hệ Server Hỗ Trợ `https://discord.gg/KwHvTG2EmW`.
+Chi tiết xác thực, lockdown và vận hành: [docs/SECURITY.md](docs/SECURITY.md). Báo lỗi bảo mật riêng cho người vận hành, tránh công khai token hoặc dữ liệu thật.

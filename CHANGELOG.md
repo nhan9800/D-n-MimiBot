@@ -1,5 +1,43 @@
 # CHANGELOG.md — NHẬT KÝ THAY ĐỔI
 
+## [1.4.0] - 2026-10-02
+
+- Bổ sung ngày 03/10: 172 key custom emoji dùng 170 PNG có attribution/giấy phép CC-BY 4.0, giữ ý nghĩa số/hướng/chất bài/RPS. Nút/menu dùng emoji object; các field Discord không hỗ trợ custom dùng chữ; báo độ phủ và retry nền thay Unicode dự phòng.
+- Sửa ReferenceError của thú cưng bằng module dùng chung cho command, nút/modal và scheduler. Bầu cua nhận đúng custom emoji ID; tin voice/stage dùng cùng transport. Restart không tự đăng hoặc xóa thông báo cộng đồng.
+- Fingerprint mã runtime xác minh artifact CI; hosting kéo Git dùng HEAD sạch, bỏ metadata ignored cũ. `/health/live` trả nguồn phiên bản và độ phủ emoji để đối chiếu thực tế.
+- Thay diện mạo mọi tin nhắn bot bằng bảng màu mint, phần nhận diện theo tính năng, nhóm thông tin và hàng thao tác cuối thẻ. Giữ dữ liệu trạng thái đọc lại từ ticket/trò chơi sau restart và kiểu tin poll do Discord quản lý.
+- Dựng riêng bảng nhạc, hướng dẫn, hồ sơ cộng đồng và cấp độ máy chủ; tách khỏi handler trong `index.js`. Nút vẫn giữ `custom_id` và kiểm tra quyền hiện hành.
+- Toàn bộ modal dùng Label thay ActionRow cũ; thêm hướng dẫn nhập và giữ field ID, giá trị, điều kiện kiểm tra. Mẫu thông báo/ticket do người dùng tự thiết kế giữ màu và nội dung.
+- Bộ ghi bảng nhạc gom yêu cầu, bỏ payload trùng và chặn ghi REST chồng; chỉ khôi phục panel khi tin nhắn bị xóa, giữ kết quả của đúng phiên/bài và chờ lượt ghi trước khi chuyển sang trạng thái kết thúc.
+- Matcher emoji và lookup Unicode biên dịch một lần; emoji được cập nhật lúc chạy vẫn có hiệu lực, code block và reaction role giữ nguyên dữ liệu chức năng.
+- Thay landing public quảng cáo Shield trả phí bằng cổng Mimi cộng đồng miễn phí, lấy trạng thái từ `/health/live`, bỏ số liệu dựng sẵn và luồng mua key.
+- Bổ sung gallery 26 mẫu từ bộ dựng payload thực và các kiểm thử về giới hạn, biểu mẫu, layout, state và cập nhật đồng thời; cập nhật whitelist triển khai cho module mới.
+
+## [1.3.0] - 2026-10-02
+
+### Giao diện và cộng đồng
+- Chuẩn hóa giao diện Discord bằng module transport dùng chung, Components V2, bảng màu và footer thống nhất; giữ trạng thái ticket, reaction role và các nút tương tác khi đọc lại tin nhắn.
+- Thêm bộ emoji cộng đồng có fallback Unicode, tái sử dụng emoji đã có và hỗ trợ nhập ảnh từ emoji.gg, Discadia hoặc emoji Discord.
+- Cấu hình môi trường được nạp trước module; ưu tiên token/client ID từ môi trường và tiếp tục hỗ trợ cấu hình cũ.
+
+### Sửa lỗi và bảo mật
+- API restart/broadcast/quản trị bản quyền yêu cầu POST và Bearer token; bỏ mật mã mặc định và xác thực qua query/body.
+- Anti-Raid chỉ quy trách nhiệm theo audit log đúng đối tượng; khóa khẩn cấp lưu bản sao quyền để phục hồi chính xác sau restart.
+- Mã kích hoạt phải tồn tại trong kho đã phát hành; bỏ secret ký hardcode, tăng entropy và ghi dữ liệu license kiểu tạm-rồi-rename. Bot cộng đồng vẫn miễn phí.
+- Nhắc nhở hiểu đúng đơn vị giây và chia timeout dài để không chạy ngay khi vượt giới hạn Node.
+- Gỡ lựa chọn 24h khỏi cấu hình xác thực mới và sửa các thông báo hết hạn nửa đêm; job reset hàng ngày tiếp tục tắt, cấu hình cũ vẫn đọc được.
+- Kho cấu hình, xu, kênh, nhắc nhở và nhạc hỏng/sai kiểu được giữ nguyên để khôi phục; lượt lưu nhạc nền không ghi đè bản mới khi shutdown, lỗi ghi được thử lại.
+- TTS dùng wrapper parse JSON thay cho eval phản hồi ngoài; cố định Google HTTPS, timeout và giới hạn body. Dependency gián tiếp axios/uuid/tar được khóa override có phạm vi và kiểm tra tương thích, audit hiện tại sạch.
+- Giới hạn URL nhạc theo provider, nâng link hợp lệ lên HTTPS; `/play` dùng đúng nguồn được chọn. API đội ngũ chỉ đọc guild hỗ trợ đã cấu hình, không quét các cộng đồng khác/nhận diện người phát triển bằng username hardcode hoặc bịa presence online.
+
+### Dự án và kiểm tra
+- `npm run check` kiểm tra toàn bộ JavaScript; `npm test` chạy các regression test thật, không đăng nhập Discord hoặc gửi thông báo.
+- Đồng bộ package/lockfile thành 1.3.0 và yêu cầu Node >=22.12.0 theo thư viện voice.
+- Lưu script regex cũ dưới dạng văn bản trong `scripts/legacy/`; chẩn đoán nhạc tách riêng khỏi test.
+- CI/CD dùng SFTP batch có kiểm lỗi và xác minh host key; upload đầy đủ module/emoji/public, bỏ fallback restart chứa mật mã trong URL và kiểm tra commit khi có health URL.
+- Cập nhật tài liệu theo cấu trúc bot và website tách riêng; bổ sung ignore cho dữ liệu nhắc nhở, cookie và file runtime.
+- Tách kiểm tra hosting khỏi việc triển khai: báo cả thay đổi chưa commit và không xác nhận bản mới chỉ vì HEAD trùng commit hosting.
+
 ## [1.2.0] - 2026-07-26
 
 ### 🔐 Bảo mật

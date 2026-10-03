@@ -1,58 +1,50 @@
-# AGENTS.md — Quy ước làm việc trên repo Mimi
+# Quy ước làm việc trên repository Mimi bot
 
-Tài liệu này dành cho người và AI agent chỉnh sửa repo. Đọc trước khi thay đổi.
+Repository này là bot Discord/HTTP API 1.4.0. Website Next.js nằm ở repository/thư mục `Website-Mini-Bot` riêng; không thêm lệnh build website hoặc copy bản sao cũ vào bot.
 
-## Bố cục repo
+## Bộ nhớ và tiếp tục sau compact
 
-```
-/                     Bot Discord (index.js, ~7000 dòng) + config.json
-  internalApi.js      HTTP server nội bộ cho website gọi vào
-  .env.example        Biến môi trường của BOT (Internal API, ffmpeg)
-  .github/workflows/  Deploy bot lên VibeHost (SFTP + Pterodactyl)
-  docs/               ARCHITECTURE / DEPLOYMENT / SECURITY
-  web/                Website + dashboard (Next.js 14, TypeScript strict)
-    src/app/          Route (App Router)
-    src/components/   UI + home + dashboard + layout
-    src/lib/          env, bot-api, auth/, types, utils, site, features
-    .env.example      Biến môi trường của WEB (OAuth, bot API, session)
-```
+- Đầu phiên mới hoặc sau compact context, đọc `docs/PROJECT_MEMORY.md` trước khi tiếp tục công việc bot. File này là checkpoint ngắn; đọc tài liệu liên quan theo nhu cầu.
+- Đối chiếu mục tiêu và chỉ dẫn mới nhất của người dùng với checkpoint, rồi kiểm tra đúng repo, `package.json`, Git và file liên quan. Tiếp tục từ bước còn lại; không làm lại phần đã xong hoặc hỏi lại việc đã được cho phép.
+- Sau mốc triển khai/sửa lỗi/kiểm thử và trước bàn giao, kết thúc lượt hoặc compact đã biết, cập nhật yêu cầu mới, quyết định, file đã sửa, bằng chứng có ngày, việc chưa xong và bước tiếp theo. Giữ checkpoint gọn; thông tin cũ có giá trị được lưu trong lịch sử ngắn.
+- Phân biệt kết quả lịch sử với xác minh vừa chạy, mã nguồn local với hosting, bản minh họa với Discord thật. Không đánh dấu hoàn tất nếu chưa có bằng chứng; không xem việc còn lại là yêu cầu tự động deploy.
+- Không lưu bí mật hoặc dữ liệu runtime trong bộ nhớ. Chỉ dẫn trực tiếp mới của người dùng được ưu tiên hơn ghi chú cũ; khi cần sửa trạng thái thực, cập nhật cả checkpoint và tài liệu liên quan.
 
-## Nguyên tắc bất di bất dịch
+## Ranh giới và dữ liệu
 
-1. **An toàn dữ liệu trước tiên.** Không sửa logic đọc/ghi `config.json` của bot theo kiểu phá vỡ. Giữ mẫu ghi tạm-rồi-rename.
-2. **Không rewrite bot.** Chỉ thay đổi tối thiểu, có mục tiêu. Bot đang chạy thật.
-3. **Không bịa số liệu.** Mọi con số phải lấy từ bot qua Internal API. Chưa có → trạng thái trung tính ("Đang đồng bộ"), không hardcode.
-4. **Chỉ quảng bá tính năng có thật.** Trước khi thêm vào `web/src/lib/features.ts`, phải xác minh trong `index.js`.
-5. **Token không ra client.** Không import `src/lib/bot-api.ts` hay `src/lib/auth/*` vào Client Component. Client chỉ gọi route proxy `/api/*`.
-6. **Kiểm quyền ở server.** Mọi thao tác theo guild phải qua `requireGuildManager`.
-7. **Không thêm dependency native cho bot.** Internal API chỉ dùng Node built-in (`@discordjs/opus` không build được cục bộ — xem ghi chú deploy).
+1. Giữ tương thích `config.json` và các file runtime. Không đổi schema/di chuyển/xóa dữ liệu thật khi nâng cấp giao diện. Cấu hình dùng mẫu ghi tạm-rồi-rename.
+2. Chỉnh bot có mục tiêu; giữ command/custom ID/logic nghiệp vụ hiện có. Module UI/emoji được chia riêng, tránh rewrite toàn bộ `index.js`.
+3. Không commit token, `.env`, config/economy/reminders/music JSON, `data/`, cookie hay file backup runtime. Không deploy ghi đè dữ liệu host.
+4. Mọi thao tác theo guild kiểm quyền phía server. Endpoint nội bộ cần Bearer token và dashboard key đúng guild; endpoint quản trị chỉ POST + token rõ ràng.
+5. Không tự gửi broadcast, DM, restart, deploy hoặc push để kiểm tra. Các test dùng mock/HTTP loopback/thư mục tạm, không import `index.js`.
 
-## Ngôn ngữ
+## Bố cục
 
-Toàn bộ nội dung hướng tới người dùng, comment và tài liệu viết bằng **tiếng Việt**.
+- `index.js`: bootstrap, registry, lệnh và Discord events.
+- `discordUi.js`, `uiBuilder.js`: transport Discord/Components V2, bảng màu/footer.
+- `communityPanels.js`, `profileCard.js`, `modalUi.js`: bảng nhạc/hướng dẫn/hồ sơ/cấp độ và modal Label.
+- `musicPanelUpdater.js`: hàng ghi panel nhạc, chống trùng và kết quả cũ; trạng thái cuối dùng guard.
+- `petUi.js`: decay, trạng thái và thẻ/nút thú cưng dùng chung cho command, interaction và scheduler.
+- `communityEmojis.js`, `emojiImport.js`, `assets/emojis/`: bộ emoji ứng dụng, cài bộ vào guild, import ảnh an toàn.
+- `internalApi.js`, `dashboardAuth.js`: API và khoá dashboard.
+- `musicStore.js`, `musicSources.js`, `googleTts.js`, `reminderUtils.js`, `antiRaid.js`, `licenseStore.js`: nghiệp vụ/persistence.
+- `scripts/check-syntax.js`, `tests/`, `docs/`: kiểm tra và tài liệu.
+- `scripts/legacy/*.js.txt`: mã vá regex cũ, chỉ tham khảo; không đổi về script executable/chạy lại.
 
-## Quy trình kiểm tra
+## Kiểm tra bắt buộc
 
-Bot:
-```bash
-node --check index.js
-node --check internalApi.js
-```
+Dùng Node >=22.12.0. Cài dependency theo lockfile; máy kiểm tra có thể dùng `npm ci --ignore-scripts` (chưa cài binary phát nhạc).
 
-Web (trong `web/`):
-```bash
-npm run typecheck    # tsc --noEmit — PHẢI sạch
-npm run lint
-npm run build        # phải build thành công trước khi coi là xong
+```text
+npm run check
+npm test
+npm audit
 ```
 
-## Ranh giới deploy
+Check duyệt toàn bộ JavaScript hoạt động bằng `node --check`, không khởi động dịch vụ. Test có kiểm tra dependency API thực nhưng không đăng nhập Discord. Không gọi native install/build hoặc nguồn nhạc thật như một phần test mặc định.
 
-- Bot deploy lên VibeHost; `web/` và `docs/` bị **loại trừ** khỏi SFTP (xem `.sftpignore` và `args` trong workflow). Đừng gỡ các exclude này.
-- Web deploy riêng ở Nhân Hòa.
+## Deploy và phong cách
 
-## Style
+Workflow mặc định kiểm tra mã cho hosting dùng startup Git pull; CI xanh không chứng minh đã triển khai. Khi bật `MIMI_DEPLOY_METHOD=sftp`, dùng whitelist có host-key pin, upload module/ảnh/public nhưng không upload website/docs/legacy/runtime. Thêm module runtime mới phải cập nhật whitelist và tài liệu. `build-info.json` do CI sinh; commit/package version phải được đối chiếu đúng trước thông báo đã chạy production.
 
-- Web: TypeScript strict, Server Components mặc định, `'use client'` chỉ khi cần tương tác.
-- Bám theo tên biến chuẩn trong `web/.env.example` (đặc biệt `MIMI_API_TOKEN`, `NEXT_PUBLIC_SITE_URL`, `NEXT_PUBLIC_DISCORD_SUPPORT_URL`).
-- Accessibility: truyền đạt trạng thái bằng cả màu + ký hiệu + chữ, giữ focus state, tôn trọng `prefers-reduced-motion`.
+Nội dung cho người dùng, tài liệu và comment dùng tiếng Việt. Theo yêu cầu mới, icon trang trí mặc định dùng custom emoji ứng dụng; thiếu emoji dùng chữ, không fallback Unicode. Modal/nhãn/placeholder/slash choice không hỗ trợ custom emoji phải dùng chữ đúng API. Giữ nội dung tự thiết kế và reaction role của người dùng. Không quảng bá tính năng chưa xác minh bằng mã nguồn. Không thêm dependency native mới khi giải pháp Node built-in hoặc dependency hiện có đủ dùng.

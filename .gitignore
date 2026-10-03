@@ -2,6 +2,8 @@ node_modules/
 .env
 .env.local
 .env.production
+.env.*
+!.env.example
 
 # Dữ liệu runtime của bot — KHÔNG BAO GIỜ commit.
 # config.json chứa token Discord + mimiApiToken; các file còn lại là dữ liệu thật
@@ -10,6 +12,11 @@ node_modules/
 config.json
 economy.json
 tickets.json
+reminders.json
+cookies.txt
+youtube_cookies.txt
+youtube.cookies.txt
+cookies.json
 created_channels.json
 music_sessions.json
 music_library.json
@@ -28,5 +35,9 @@ dist/
 build/
 coverage/
 .sftp-config.json
+*.tmp
+*.bak
+*.flag
+restart.trigger
 
 data/

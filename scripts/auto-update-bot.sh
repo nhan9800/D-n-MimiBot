@@ -1,25 +1,19 @@
-#!/bin/bash
-# Script tự động Pull code từ GitHub và Restart Bot bằng PM2 trên VPS / VibeHost
-# Chạy lệnh: chmod +x scripts/auto-update-bot.sh && ./scripts/auto-update-bot.sh
-
-echo "=========================================="
-echo "   TỰ ĐỘNG CẬP NHẬT CODE MIMI BOT"
-echo "=========================================="
-
-echo "[1/3] Đang kéo mã nguồn mới nhất từ GitHub..."
-git pull origin main --force
-
-echo "[2/3] Đang kiểm tra và cài đặt thư viện mới..."
-npm install --ignore-scripts
-
-echo "[3/3] Đang khởi động lại Bot trong PM2..."
-if pm2 list | grep -q "mimi-bot"; then
-    pm2 restart mimi-bot
-else
-    pm2 start index.js --name "mimi-bot"
+#!/usr/bin/env bash
+# Chạy thủ công trên VPS có PM2. Dừng ngay nếu pull/cài đặt/kiểm tra thất bại.
+set -euo pipefail
+cd "$(dirname "$0")/.."
+if [ -n "$(git status --porcelain)" ]; then
+    echo 'Workspace có thay đổi chưa commit. Cần xử lý trước khi cập nhật.' >&2
+    exit 1
 fi
-
-echo "=========================================="
-echo "   ĐÃ HOÀN TẤT CẬP NHẬT & RESTART BOT!"
-echo "=========================================="
+git pull --ff-only origin main
+# Trên host thật cần install script để cài ffmpeg/yt-dlp/native codec.
+npm ci
+npm run check
+npm test
+if pm2 describe mimi-bot >/dev/null 2>&1; then
+    pm2 restart mimi-bot --update-env
+else
+    pm2 start index.js --name mimi-bot
+fi
 pm2 status mimi-bot

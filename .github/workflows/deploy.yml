@@ -1,23 +1,21 @@
-name: Deploy Bot to VibeHost
+name: Validate Bot and Optional SFTP Deploy
 
-# Đẩy mã nguồn bot lên VibeHost qua SFTP rồi restart tiến trình.
-# Chỉ chạy khi file thực sự thuộc về bot thay đổi — sửa tài liệu không cần deploy.
 on:
   push:
     branches: [main]
     paths-ignore:
       - '**.md'
       - 'docs/**'
+      - 'scripts/legacy/**'
   workflow_dispatch:
 
 concurrency:
-  # Push liên tiếp thì chỉ deploy bản mới nhất, tránh hai lần SFTP giẫm lên nhau.
   group: deploy-bot
-  cancel-in-progress: true
+  cancel-in-progress: false
 
 jobs:
   deploy:
-    name: Deploy Bot
+    name: Kiểm tra bot và triển khai khi bật SFTP
     runs-on: ubuntu-latest
     steps:
       - name: Checkout
@@ -25,56 +23,58 @@ jobs:
         with:
           persist-credentials: false
 
-      - name: Kiểm tra cú pháp trước khi deploy
+      - name: Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: npm
+
+      - name: Kiểm tra mã và test trước khi upload
         run: |
-          for f in index.js internalApi.js musicStore.js uiBuilder.js dashboardAuth.js buildInfo.js licenseStore.js licenseScheduler.js antiRaid.js; do
-            if [ -f "$f" ]; then
-              node --check "$f" || exit 1
-            fi
-          done
-          echo "✅ Cú pháp sạch."
+          npm ci --ignore-scripts
+          npm run check
+          npm test
 
       - name: Ghi dấu bản dựng
+        env:
+          BUILD_COMMIT: ${{ github.sha }}
+          BUILD_BRANCH: ${{ github.ref_name }}
+          BUILD_RUN: ${{ github.run_number }}
         run: |
-          cat > build-info.json <<JSON
-          {
-            "commit": "${{ github.sha }}",
-            "branch": "${{ github.ref_name }}",
-            "builtAt": "$(date -u +%Y-%m-%dT%H:%M:%SZ)",
-            "runNumber": ${{ github.run_number }}
-          }
-          JSON
-          cat build-info.json
+          node -e "require('fs').writeFileSync('build-info.json', JSON.stringify({commit:process.env.BUILD_COMMIT,branch:process.env.BUILD_BRANCH,builtAt:new Date().toISOString(),runNumber:Number(process.env.BUILD_RUN),runtimeFingerprint:require('./buildInfo').runtimeFingerprint()},null,2))"
 
-      - name: Kiểm tra secret SFTP
+      - name: Kiểm tra cấu hình SFTP
+        if: vars.MIMI_DEPLOY_METHOD == 'sftp'
         env:
           SFTP_PASSWORD: ${{ secrets.SFTP_PASSWORD }}
+          SFTP_USER: ${{ secrets.SFTP_USERNAME }}
+          SFTP_HOST: ${{ secrets.SFTP_SERVER }}
+          SFTP_KNOWN_HOSTS: ${{ secrets.SFTP_KNOWN_HOSTS }}
         run: |
-          if [ -z "$SFTP_PASSWORD" ]; then
-            echo "❌ Chưa đặt secret SFTP_PASSWORD trong repo Settings → Secrets → Actions."
-            exit 1
-          fi
+          for name in SFTP_PASSWORD SFTP_USER SFTP_HOST SFTP_KNOWN_HOSTS; do
+            if [ -z "${!name}" ]; then
+              echo "::error::Thiếu GitHub secret $name."
+              exit 1
+            fi
+          done
+          mkdir -p ~/.ssh
+          printf '%s\n' "$SFTP_KNOWN_HOSTS" > ~/.ssh/known_hosts
+          chmod 600 ~/.ssh/known_hosts
 
-      - name: Dọn thư mục trước khi đẩy
-        run: |
-          rm -rf .git .github docs
-          rm -f ./*.md
-          echo "${{ github.sha }}_${{ github.run_id }}" > restart.trigger
-          echo "Sẽ đẩy lên host:"
-          ls -A
-
-      - name: SFTP lên VibeHost
+      - name: Upload mã bot và tài nguyên giao diện
+        if: vars.MIMI_DEPLOY_METHOD == 'sftp'
         env:
           SFTP_PASSWORD: ${{ secrets.SFTP_PASSWORD }}
-          SFTP_USER: ${{ secrets.SFTP_USERNAME || 'nhan98-889566.9d9f7a18' }}
-          SFTP_HOST: ${{ secrets.SFTP_SERVER || 'hcm3.vibehost.vn' }}
+          SFTP_USER: ${{ secrets.SFTP_USERNAME }}
+          SFTP_HOST: ${{ secrets.SFTP_SERVER }}
           SFTP_PORT: ${{ secrets.SFTP_PORT || 2022 }}
         run: |
-          sudo apt-get update && sudo apt-get install -y sshpass
+          set -euo pipefail
+          sudo apt-get update -qq
+          sudo apt-get install -y sshpass
           export SSHPASS="$SFTP_PASSWORD"
-          echo "Bắt đầu SFTP upload..."
-          set +e
-          sshpass -e sftp -v -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null -o ConnectTimeout=30 -P "$SFTP_PORT" "$SFTP_USER@$SFTP_HOST" << 'EOF' 2>&1 | tee /tmp/sftp.log
+          # Whitelist: không upload config.json, data/, .env, web/ hoặc docs/.
+          cat > /tmp/mimi-upload.sftp <<'SFTP'
           put index.js
           put internalApi.js
           put buildInfo.js
@@ -84,72 +84,94 @@ jobs:
           put antiRaid.js
           put musicStore.js
           put uiBuilder.js
+          put communityPanels.js
+          put modalUi.js
+          put profileCard.js
+          put petUi.js
+          put musicPanelUpdater.js
           put dashboardAuth.js
+          put communityEmojis.js
+          put emojiImport.js
+          put discordUi.js
+          put reminderUtils.js
+          put googleTts.js
+          put musicSources.js
           put package.json
           put package-lock.json
+          -mkdir scripts
+          put scripts/check-syntax.js scripts/check-syntax.js
+          put scripts/announce-music-update.js scripts/announce-music-update.js
+          put scripts/announce-v2.js scripts/announce-v2.js
+          put scripts/home-guild-operations.js scripts/home-guild-operations.js
+          put scripts/plan-home-guild.js scripts/plan-home-guild.js
+          put scripts/sync-home-emojis.js scripts/sync-home-emojis.js
+          put scripts/download-emoji-assets.js scripts/download-emoji-assets.js
+          put -r assets
+          put -r public
+          put -r tests
           bye
-          EOF
-          RC=$?
-          echo "SFTP return code: $RC"
-          if [ $RC -ne 0 ]; then
-            LAST_ERR=$(grep -iE "permission denied|connection refused|timed out|host key|auth" /tmp/sftp.log | tail -n 5)
-            echo "::error title=SFTP Error::Exit code $RC: $LAST_ERR"
-            exit $RC
-          fi
-          echo "✅ SFTP hoàn tất." 
+          SFTP
+          sshpass -e sftp -o BatchMode=no -o StrictHostKeyChecking=yes -o ConnectTimeout=30 -b /tmp/mimi-upload.sftp -P "$SFTP_PORT" "$SFTP_USER@$SFTP_HOST"
 
-      - name: Restart bot qua Pterodactyl API hoặc Internal API
+      - name: Restart qua Pterodactyl nếu đã cấu hình
+        if: vars.MIMI_DEPLOY_METHOD == 'sftp'
+        id: restart
         env:
           PANEL_URL: ${{ secrets.PTERO_PANEL_URL }}
           API_KEY: ${{ secrets.PTERO_API_KEY }}
           SERVER_ID: ${{ secrets.PTERO_SERVER_ID }}
         run: |
-          if [ -n "$PANEL_URL" ] && [ -n "$API_KEY" ] && [ -n "$SERVER_ID" ]; then
-            PANEL_URL="${PANEL_URL%/}"
-            HTTP_CODE=$(curl -s -o /tmp/resp.txt -w "%{http_code}" \
-              -X POST "$PANEL_URL/api/client/servers/$SERVER_ID/power" \
-              -H "Authorization: Bearer $API_KEY" \
-              -H "Content-Type: application/json" \
-              -H "Accept: application/json" \
-              -d '{"signal":"restart"}')
-            if [ "$HTTP_CODE" = "204" ]; then
-              echo "✅ Đã gửi lệnh restart qua Pterodactyl Panel."
-              exit 0
-            fi
+          set -euo pipefail
+          if [ -z "$PANEL_URL" ] && [ -z "$API_KEY" ] && [ -z "$SERVER_ID" ]; then
+            echo 'restarted=false' >> "$GITHUB_OUTPUT"
+            echo '::notice::Đã upload mã. Cần restart thủ công trên panel để nạp phiên bản mới.'
+            exit 0
           fi
-          echo "🔄 Kích hoạt restart tự động qua Internal API..."
-          curl -s "http://hcm3.vibehost.vn:20019/api/admin/restart?secret=mimi2026" || true
-          echo "✅ Đã gửi tín hiệu khởi động lại tiến trình bot."
-          exit 0
-          PANEL_URL="${PANEL_URL%/}"
-          HTTP_CODE=$(curl -s -o /tmp/resp.txt -w "%{http_code}" \
-            -X POST "$PANEL_URL/api/client/servers/$SERVER_ID/power" \
-            -H "Authorization: Bearer $API_KEY" \
-            -H "Content-Type: application/json" \
-            -H "Accept: application/json" \
-            -d '{"signal":"restart"}')
-          if [ "$HTTP_CODE" = "204" ]; then
-            echo "✅ Đã gửi lệnh restart."
-          else
-            echo "❌ Restart thất bại (HTTP $HTTP_CODE):"
-            cat /tmp/resp.txt || true
+          if [ -z "$PANEL_URL" ] || [ -z "$API_KEY" ] || [ -z "$SERVER_ID" ]; then
+            echo '::error::Phải đặt đủ PTERO_PANEL_URL, PTERO_API_KEY và PTERO_SERVER_ID.'
             exit 1
           fi
+          case "$PANEL_URL" in
+            https://*) ;;
+            *) echo '::error::PTERO_PANEL_URL phải dùng HTTPS.'; exit 1 ;;
+          esac
+          HTTP_CODE=$(curl --silent --show-error --max-time 30 -o /tmp/ptero-response.txt -w '%{http_code}' \
+            -X POST "${PANEL_URL%/}/api/client/servers/$SERVER_ID/power" \
+            -H "Authorization: Bearer $API_KEY" \
+            -H 'Content-Type: application/json' -H 'Accept: application/json' \
+            -d '{"signal":"restart"}')
+          if [ "$HTTP_CODE" != '204' ]; then
+            echo "::error::Pterodactyl từ chối restart (HTTP $HTTP_CODE)."
+            exit 1
+          fi
+          echo 'restarted=true' >> "$GITHUB_OUTPUT"
 
-      - name: Xác minh bot đã chạy commit mới
-        continue-on-error: true
+      - name: Xác minh tiến trình chạy đúng commit mới
+        if: steps.restart.outputs.restarted == 'true'
+        env:
+          HEALTH_URL: ${{ secrets.MIMI_HEALTH_URL }}
+          EXPECTED_COMMIT: ${{ github.sha }}
         run: |
-          SHORT="$(echo '${{ github.sha }}' | cut -c1-7)"
-          echo "Kiểm tra commit $SHORT tại /health/live ..."
-          for i in 1 2 3; do
+          set -euo pipefail
+          if [ -z "$HEALTH_URL" ]; then
+            echo '::notice::Đã gửi restart. Chưa xác minh commit vì thiếu MIMI_HEALTH_URL (/health/live).'
+            exit 0
+          fi
+          for attempt in $(seq 1 12); do
             sleep 5
-            BODY=$(curl -s -m 5 http://hcm3.vibehost.vn:20019/health/live || true)
-            echo "  lần $i: $BODY"
-            case "$BODY" in
-              *"\"commit\":\"$SHORT\""*)
-                echo "✅ Bot đang chạy commit $SHORT."
-                exit 0 ;;
-            esac
+            if curl --fail --silent --show-error --max-time 10 "$HEALTH_URL" -o /tmp/mimi-health.json && \
+              node -e "const h=JSON.parse(require('fs').readFileSync('/tmp/mimi-health.json','utf8'));process.exit(h.ok && h.commit===process.env.EXPECTED_COMMIT.slice(0,7)?0:1)"; then
+              echo 'Đã xác minh bot đang chạy commit mới.'
+              exit 0
+            fi
           done
-          echo "ℹ️ Code mới đã upload xong lên host. Bấm Restart trên Panel để bot nạp bản mới ngay lập tức."
-          exit 0
+          echo '::error::Bot chưa chạy commit mới sau khi restart. Kiểm tra console trên panel.'
+          exit 1
+
+      - name: Ghi rõ trạng thái triển khai qua Git trên hosting
+        if: vars.MIMI_DEPLOY_METHOD != 'sftp'
+        run: |
+          echo '::notice::Kiểm tra mã đã đạt. Workflow không upload hoặc restart: hosting đang dùng Git pull khi khởi động.'
+          echo '### Kiểm tra mã đã đạt' >> "$GITHUB_STEP_SUMMARY"
+          echo 'Chưa triển khai bởi workflow này. Cần restart trên VibeHost để startup kéo main, rồi xác minh /health/live và /health/ready.' >> "$GITHUB_STEP_SUMMARY"
+          echo 'Chỉ bật repository variable MIMI_DEPLOY_METHOD=sftp khi đã cấu hình đủ secrets và SSH host key.' >> "$GITHUB_STEP_SUMMARY"

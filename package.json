@@ -1,12 +1,16 @@
 {
   "name": "mimi",
-  "version": "1.2.0",
+  "version": "1.4.0",
   "description": "Mimi — Discord Music Bot & Web Ecosystem",
   "main": "index.js",
   "scripts": {
     "start": "node index.js",
-    "check": "node --check index.js",
-    "test": "node --test"
+    "check": "node scripts/check-syntax.js",
+    "test": "node --test tests/*.test.js",
+    "preview:ui": "node scripts/build-ui-preview.js"
+  },
+  "engines": {
+    "node": ">=22.12.0"
   },
   "keywords": [
     "discord-bot",
@@ -27,5 +31,16 @@
     "node-cron": "^4.2.1",
     "opusscript": "^0.0.8",
     "yt-dlp-exec": "^1.0.2"
+  },
+  "overrides": {
+    "google-tts-api": {
+      "axios": "1.20.0"
+    },
+    "exceljs": {
+      "uuid": "11.1.1"
+    },
+    "@discordjs/node-pre-gyp": {
+      "tar": "7.5.22"
+    }
   }
 }

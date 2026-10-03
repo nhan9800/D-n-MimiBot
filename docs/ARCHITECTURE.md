@@ -1,75 +1,51 @@
 # Kiến trúc
 
-## Tổng quan
+## Bố cục hiện tại
 
-Mimi có ba phần độc lập về tiến trình nhưng liên kết qua Internal API.
+`D-n-MimiBot` là repository bot dùng cho VibeHost; mã cập nhật trong workspace mang phiên bản 1.4.0. `Website-Mini-Bot` là website Next.js riêng trong workspace và deploy lên Nhân Hòa. Bot không có thư mục `web/` hoặc `apps/web/`; không dùng bản sao nguồn cũ để build/deploy bot.
 
-```
-┌──────────────┐        OAuth (identify+guilds)        ┌──────────────┐
-│  Trình duyệt │ ────────────────────────────────────▶ │   Discord    │
-└──────┬───────┘                                        └──────────────┘
-       │  HTTPS
-       ▼
-┌──────────────────────┐   Bearer MIMI_API_TOKEN   ┌────────────────────────┐
-│  Next.js (server)    │ ─────────────────────────▶ │  Internal API          │
-│  - Server Components │                            │  (internalApi.js)      │
-│  - Route Handlers    │ ◀───────────────────────── │  chạy trong bot        │
-│  - Session (jose)    │        JSON (public)       └───────────┬────────────┘
-└──────────────────────┘                                        │
-                                                                ▼
-                                                    ┌────────────────────────┐
-                                                    │  Bot Discord (index.js)│
-                                                    │  musicQueues, config…  │
-                                                    └────────────────────────┘
+```text
+Discord Gateway/API ↔ index.js ↔ discordUi.js ↔ Components V2 / Modal Label
+                          │
+                          ├─ musicStore.js ↔ JSON phiên nhạc/thư viện/cấu hình DJ
+                          ├─ musicPanelUpdater.js ↔ hàng ghi panel nhạc / chống kết quả cũ
+                          ├─ communityPanels.js / profileCard.js ↔ các bảng tương tác chính
+                          ├─ modalUi.js ↔ biểu mẫu Label / field ID hiện hành
+                          ├─ antiRaid.js ↔ data/anti_raid_lockdowns.json
+                          ├─ communityEmojis.js / emojiImport.js ↔ ảnh emoji
+                          ├─ reminderUtils.js ↔ lịch nhắc nhở
+                          ├─ googleTts.js ↔ Google HTTPS / parse JSON an toàn
+                          └─ internalApi.js ↔ website / public utilities
 ```
 
-## Bot (`index.js`)
+## Khởi động và cấu hình
 
-- discord.js v14 + @discordjs/voice, phát nhạc YouTube qua yt-dlp.
-- Cấu hình lưu trong `config.json` (không dùng DB). `saveConfig()` ghi tạm `.tmp` rồi `rename` để tránh hỏng file khi ghi giữa chừng.
-- Mỗi guild có một `musicQueue` trong `Map` `musicQueues` với: `connection`, `player`, `queue`, `current`, `currentResource`, `volume`, `loop`…
-- Trong sự kiện `ready`, bot gọi `startInternalApi({...})` (bọc try/catch — lỗi API không làm sập bot).
+Bot nạp `.env` bằng `process.loadEnvFile` trước các module dùng biến môi trường. Môi trường của panel được ưu tiên; `DISCORD_TOKEN`/`DISCORD_CLIENT_ID` ưu tiên hơn trường tương ứng trong `config.json`. Token môi trường không được ghi ngược vào file. Cấu hình guild hiện có được giữ nguyên, dùng kiểu ghi tạm rồi rename.
 
-## Internal API (`internalApi.js`)
+Node >=22.12.0 là yêu cầu của `@discordjs/voice` đang khóa ở 0.19.2. Nhạc dùng voice/audio player, ffmpeg và yt-dlp; không dùng Lavalink. Install script của package có thể cần mạng và native build tools; check/test offline không yêu cầu chạy bot.
 
-- HTTP server chỉ dùng Node built-in (`http`, `crypto`) — **không thêm dependency native** (tránh vấn đề build @discordjs/opus).
-- Không khởi động nếu thiếu `MIMI_API_TOKEN`.
-- Xác thực mọi `/internal/*` bằng `Authorization: Bearer <token>` so khớp `timingSafeEqual`.
-- Rate limit theo IP (cửa sổ trượt), mỗi request có `X-Request-Id`.
-- Chuyển đổi dữ liệu bot sang dạng "public" (`publicTrack`, `publicPlayerState`) — không lộ token/ID nội bộ.
+`musicSources.js` giới hạn URL đầu vào của nhạc theo provider được hỗ trợ: YouTube, Spotify, SoundCloud/snd.sc, Bandcamp, Twitch, Vimeo, Dailymotion, Mixcloud, Audius. Link HTTP nguồn hợp lệ được nâng lên HTTPS; không nhận URL máy nội bộ, cổng riêng, credentials hoặc link file tùy ý. `/play` tôn trọng tùy chọn nguồn; tìm kiếm `auto` dùng YouTube rồi SoundCloud khi cần, hỗ trợ prefix `yt:`/`sc:`.
 
-### Endpoint
+## Giao diện Discord
 
-| Method | Path | Token | Mô tả |
-|--------|------|-------|-------|
-| GET | `/health/live` | không | Sống hay không |
-| GET | `/health/ready` | không | Đã kết nối Discord chưa |
-| GET | `/internal/status` | có | Số server, người dùng tiếp cận, phiên thoại, ping, uptime |
-| GET | `/internal/commands` | có | Danh mục lệnh slash (cache 60s) |
-| GET | `/internal/guilds/:id/settings` | có | Cấu hình guild |
-| PATCH | `/internal/guilds/:id/settings` | có | Sửa cấu hình (allowlist) |
-| GET | `/internal/guilds/:id/player` | có | Trạng thái player |
-| GET | `/internal/guilds/:id/queue` | có | Hàng chờ |
-| POST | `/internal/guilds/:id/player/:action` | có | pause / resume / skip / stop / volume |
+`uiBuilder.js` là nguồn bảng màu/footer và tiện ích chung. `discordUi.js` chuẩn hóa các đường gửi/cập nhật của client bot: `send`, `reply`, `edit`, `update`, `editReply`, `followUp`, `showModal`. Thẻ bot dùng nhận diện mint theo nhóm tính năng, dữ liệu chia mục, separator native và thao tác cuối thẻ; attachment và giới hạn đề cập mặc định được giữ. Poll/sticker dùng cơ chế riêng của Discord vì Components V2 không hỗ trợ chúng.
 
-## Website (`web/`)
+`communityPanels.js` dựng bảng nhạc và hướng dẫn riêng; `profileCard.js` dựng hồ sơ cộng đồng và cấp độ máy chủ bằng dữ liệu thật; `modalUi.js` chuyển trường nhập sang Label mà giữ field ID và điều kiện nhập. `musicPanelUpdater.js` gom các lần ghi theo queue và message, bỏ payload trùng, chỉ tạo lại bảng khi có lỗi UnknownMessage/404, kiểm tra thế hệ phát sau mọi lượt chờ. Trạng thái kết thúc chờ lượt ghi trước và kiểm tra guard để không ghi đè bài mới.
 
-Next.js 14 App Router, TypeScript strict, Tailwind. Server Components mặc định; Client Components chỉ cho phần tương tác.
+Payload do người dùng tự thiết kế dùng `mimiUi: { preserve: true }`; tùy chọn này được xóa trước API. Preview container của bộ soạn thông báo được đánh dấu bằng `preserveUi()` để giữ màu/nội dung riêng trong khi khung điều khiển dùng theme mới. WeakSet chỉ tồn tại trong tiến trình: nếu đọc lại mẫu custom sau restart, caller cần chỉ định preserve lại. [Phạm vi giao diện](UI-COVERAGE.md), [gallery minh họa](UI-PREVIEW.html).
 
-### Lớp
-- `src/lib/env.ts` — validate biến môi trường (Zod), nguồn duy nhất. Fail-fast ở production.
-- `src/lib/bot-api.ts` — client gọi Internal API (`server-only`), có timeout + retry (GET), trả `BotResult<T>`.
-- `src/lib/auth/` — `session.ts` (cookie JWT ký bằng jose), `discord.ts` (OAuth flow), `guard.ts` (kiểm tra quyền quản lý guild).
-- `src/lib/types.ts` — kiểu dữ liệu khớp output của Internal API.
+Các tin nhắn cũ có embed và tin nhắn Components V2 đều có thể đọc lại thông qua helper, để custom ID, ticket, reaction role và trang trợ giúp không bị mất trạng thái khi bot restart. Không chạy lại script regex cũ để đổi qua lại giữa embed/container.
 
-### Luồng dashboard
-1. `/api/auth/login` sinh `state`, redirect sang Discord.
-2. `/api/auth/callback` kiểm `state`, đổi code lấy token, tạo session cookie (httpOnly).
-3. `/dashboard` đọc session, lấy guilds, lọc guild người dùng quản lý được (`MANAGE_GUILD` hoặc chủ sở hữu).
-4. `/dashboard/[guildId]` xác thực lại quyền phía server, đọc settings + player từ bot.
-5. Client component gọi **route proxy** `/api/guilds/[guildId]/...` (không gọi thẳng bot). Route proxy kiểm quyền lại rồi mới chuyển tiếp — token bot không bao giờ ra client.
+`communityEmojis.js` nạp bộ custom emoji ứng dụng cho nhiều guild, tái sử dụng `mimi_*`, báo độ phủ và dùng chữ khi chưa sẵn sàng. Provision chạy nền với tối đa ba lượt; không chặn API/đăng ký lệnh. `/setupemoji` cài thêm bộ ảnh vào danh sách emoji guild theo quyền/slot. `emojiImport.js` giải nguồn, giới hạn kích thước và chặn URL nội bộ. `petUi.js` giữ helper thú cưng ngoài scope event để nút/modal và scheduler dùng chung. [Hướng dẫn emoji](EMOJIS.md).
 
-## Trạng thái suy giảm (degraded)
-- Bot chưa cấu hình API / offline / timeout → web hiển thị "Đang đồng bộ" hoặc "Ngoại tuyến", không bịa số.
-- OAuth chưa cấu hình → dashboard hiển thị "đang chờ cấu hình" thay vì lỗi.
-- Link mời/hỗ trợ chưa có → nút hiển thị trạng thái disabled thay vì link chết.
+## Dữ liệu và API
+
+`musicStore.js` giữ phiên phát, yêu thích, album và cấu hình DJ. Dữ liệu runtime ở file JSON gốc và `data/`; không chuyển file cũ sang schema/thư mục khác khi nâng cấp. `antiRaid.js` lưu bản sao quyền trước lockdown để phục hồi chính xác qua restart. `licenseStore.js` giữ kho mã tương thích và chỉ nhận mã đã phát hành; `getLicense()` tiếp tục trả quyền dùng bot miễn phí.
+
+`googleTts.js` giữ API shortText/base64 và segmentation TTS, chỉ tải Google qua HTTPS với timeout/dung lượng giới hạn; parse hai lớp JSON thay vì `eval` phản hồi vendor. [Dependency](DEPENDENCIES.md) ghi override và kiểm tra tương thích.
+
+`internalApi.js` dùng Node built-in HTTP/crypto. Không có service token thì không khởi động. `/internal/guilds/:id/*` yêu cầu Bearer token cùng khoá dashboard đúng guild. Các thao tác restart/broadcast/license admin yêu cầu POST + Bearer token, áp dụng allowlist IP. Landing `public/` là cổng Mimi cộng đồng miễn phí, đọc `/health/live`; không còn quảng cáo/mua key Shield. Chi tiết [API](API.md) và [bảo mật](SECURITY.md).
+
+## Kiểm tra
+
+`npm run check` duyệt toàn bộ JavaScript hoạt động, bỏ node_modules, data và mã legacy; chỉ parse, không import `index.js`. `npm test` chạy regression test bằng Node test runner với Discord giả lập, HTTP loopback và thư mục dữ liệu tạm. CI phải qua cả hai trước upload. Website có build/typecheck/lint riêng tại repository website.

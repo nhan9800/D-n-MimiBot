@@ -31,25 +31,26 @@ const LIBRARY_SAVE_DELAY_MS = 3000;
 // Tiện ích đọc/ghi JSON an toàn dùng chung
 // -----------------------------------------------------------------
 function loadJson(filePath, fallback) {
-    if (!fs.existsSync(filePath)) return fallback;
     try {
         const raw = fs.readFileSync(filePath, 'utf-8');
         const data = JSON.parse(raw);
-        return data == null ? fallback : data;
+        if (!data || typeof data !== 'object' || Array.isArray(data)) throw new Error('invalid_store');
+        return data;
     } catch (e) {
-        console.error(`❌ [musicStore] Không đọc được ${path.basename(filePath)}:`, e.message);
-        return fallback;
+        if (e.code === 'ENOENT') return fallback;
+        // Dừng khởi tạo để thao tác lưu kế tiếp không ghi đè kho dữ liệu đang hỏng.
+        // Chỉ nêu tên file, không đưa nội dung dữ liệu hoặc đường dẫn host vào lỗi.
+        throw new Error(`[musicStore] Không đọc được ${path.basename(filePath)}; hãy kiểm tra hoặc khôi phục bản sao dữ liệu trước khi chạy bot.`);
     }
 }
 
-function saveJson(filePath, data) {
-    const tempPath = filePath + '.tmp';
+function saveJson(filePath, data, tempPath = filePath + '.tmp') {
     try {
         fs.writeFileSync(tempPath, JSON.stringify(data, null, 2));
         fs.renameSync(tempPath, filePath);
         return true;
     } catch (e) {
-        console.error(`❌ [musicStore] Không lưu được ${path.basename(filePath)}:`, e.message);
+        console.error(`❌ [musicStore] Không lưu được ${path.basename(filePath)}.`);
         return false;
     }
 }
@@ -79,6 +80,7 @@ class MusicStore {
         this._libraryDirty = false;
         this._librarySaving = false;
         this._librarySaveTimer = null;
+        this._librarySyncGeneration = 0;
 
         // Thay đổi còn treo phải được ghi nốt trước khi tiến trình thoát (PM2 restart
         // gửi SIGINT/SIGTERM — mặc định kết thúc ngay và không chạy handler 'exit').
@@ -156,21 +158,31 @@ class MusicStore {
             if (this._librarySaving) { this._saveLibrary(); return; } // lượt ghi trước chưa xong -> hoãn thêm 1 nhịp
             this._flushLibraryAsync();
         }, LIBRARY_SAVE_DELAY_MS);
+        this._librarySaveTimer.unref?.();
     }
 
     async _flushLibraryAsync() {
         if (!this._libraryDirty || this._librarySaving) return;
         this._librarySaving = true;
         this._libraryDirty = false;
-        const tempPath = this.libraryPath + '.tmp';
+        const syncGeneration = this._librarySyncGeneration;
+        const tempPath = this.libraryPath + '.async.tmp';
         try {
             await fsp.writeFile(tempPath, JSON.stringify(this.library, null, 2));
-            await fsp.rename(tempPath, this.libraryPath);
+            // Shutdown có thể đã ghi bản mới trong lúc lượt ghi nền còn chờ I/O.
+            if (syncGeneration !== this._librarySyncGeneration) {
+                await fsp.unlink(tempPath).catch(() => {});
+                return;
+            }
+            // Kiểm tra thế hệ và rename cùng một nhịp đồng bộ, không để shutdown
+            // xen vào giữa rồi bị bản ghi nền cũ ghi đè ngược lại.
+            fs.renameSync(tempPath, this.libraryPath);
         } catch (e) {
-            this._libraryDirty = true; // ghi hỏng -> giữ cờ để lần sau thử lại
-            console.error(`❌ [musicStore] Không lưu được ${path.basename(this.libraryPath)}:`, e.message);
+            if (syncGeneration === this._librarySyncGeneration) this._libraryDirty = true;
+            console.error(`❌ [musicStore] Không lưu được ${path.basename(this.libraryPath)}.`);
         } finally {
             this._librarySaving = false;
+            if (this._libraryDirty) this._saveLibrary(); // Ghi lỗi hoặc có sửa mới: tự hẹn lượt thử lại.
         }
     }
 
@@ -180,9 +192,11 @@ class MusicStore {
             clearTimeout(this._librarySaveTimer);
             this._librarySaveTimer = null;
         }
-        if (!this._libraryDirty) return;
-        this._libraryDirty = false;
-        saveJson(this.libraryPath, this.library);
+        if (!this._libraryDirty && !this._librarySaving) return true;
+        const saved = saveJson(this.libraryPath, this.library, this.libraryPath + '.sync.tmp');
+        this._libraryDirty = !saved;
+        if (saved) this._librarySyncGeneration++;
+        return saved;
     }
 
     // Chuẩn hóa track về đúng 4 trường cần lưu (bỏ requestedBy... cho gọn file)

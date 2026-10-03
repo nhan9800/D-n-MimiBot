@@ -1,0 +1,17 @@
+* text=auto
+*.sh text eol=lf
+*.js text eol=lf
+*.html text eol=lf
+*.css text eol=lf
+*.json text eol=lf
+*.yml text eol=lf
+*.yaml text eol=lf
+*.md text eol=lf diff
+.env.example text eol=lf
+.gitignore text eol=lf
+.sftpignore text eol=lf
+*.png binary
+*.gif binary
+*.jpg binary
+*.jpeg binary
+*.webp binary
