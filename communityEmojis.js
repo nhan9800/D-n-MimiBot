@@ -169,7 +169,9 @@ async function provisionCommunityEmojis(client, options = {}) {
         const targetName = entry?.name || `mimi_${base}`;
         // Ảnh ứng dụng không sửa tại chỗ được. Tên có revision tránh dùng lại
         // artwork cũ; giữ emoji cũ để tin nhắn và reaction đã gửi vẫn hoạt động.
-        let emoji = byName.get(targetName);
+        // Nếu revision mới chưa tạo được vì giới hạn application emoji, dùng lại
+        // artwork cũ cùng key để không làm mất độ phủ giao diện trên production.
+        let emoji = byName.get(targetName) || names.map(name => byName.get(name)).find(Boolean);
         if (!emoji) {
             const file = ['gif', 'png', 'webp', 'jpg', 'jpeg'].flatMap(ext =>
                 names.map(name => `${name}.${ext}`)).find(name => files.includes(name));
