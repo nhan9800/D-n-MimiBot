@@ -32,7 +32,7 @@ test('Nạp file mimi_* và dùng lại emoji giữa các bộ giao diện', asy
         assert.equal(first.created, 2);
         assert.equal(music.music, COMMUNITY_EMOJI.music);
         assert.equal(profile.sparkle, COMMUNITY_EMOJI.sparkle);
-        assert.match(music.music, /^<:mimi_music:/);
+        assert.match(music.music, /^<:mimi_music_v2:/);
         const second = await provisionCommunityEmojis(client, { assetDir: dir, maps: [music, profile], logger });
         assert.equal(second.created, 0);
         assert.equal(created, 2);
@@ -45,10 +45,10 @@ test('Nạp file mimi_* và dùng lại emoji giữa các bộ giao diện', asy
 });
 
 test('Emoji đã có vẫn được nạp khi thư mục ảnh vắng mặt', async () => {
-    const emoji = { id: '123456789012345678', name: 'mimi_diamond', animated: true };
+    const emoji = { id: '123456789012345678', name: 'mimi_diamond_v2', animated: true };
     const client = { application: { emojis: { fetch: async () => new Map([[emoji.id, emoji]]) } } };
     await provisionCommunityEmojis(client, { assetDir: path.join(os.tmpdir(), 'mimi-no-assets'), logger });
-    assert.equal(COMMUNITY_EMOJI.diamond, '<a:mimi_diamond:123456789012345678>');
+    assert.equal(COMMUNITY_EMOJI.diamond, '<a:mimi_diamond_v2:123456789012345678>');
     Object.assign(COMMUNITY_EMOJI, DEFAULT_EMOJIS);
 });
 
@@ -223,7 +223,7 @@ test('Cài emoji vào server dùng lại tên và gom các yêu cầu chạy đ�
     fs.writeFileSync(path.join(dir, 'mimi_music.png'), 'PNG');
     fs.writeFileSync(path.join(dir, 'mimi_check.png'), 'PNG');
     let created = 0;
-    const current = new Map([['old', { id: 'old', name: 'mimi_music', animated: false }]]);
+    const current = new Map([['old', { id: 'old', name: 'mimi_music_v2', animated: false }]]);
     const guild = { id: 'test-guild', emojis: {
         async fetch() { await new Promise(resolve => setImmediate(resolve)); return current; },
         async create({ name }) { created++; const emoji = { id: String(created), name, animated: false }; current.set(emoji.id, emoji); return emoji; }

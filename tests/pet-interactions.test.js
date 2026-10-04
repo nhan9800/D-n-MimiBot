@@ -57,7 +57,7 @@ test('Nút cho ăn gọi helper module thật, cập nhật tiền/XP/cấp và 
     assert.equal(f.userData.pet.xp, 10);
     assert.equal(f.userData.pet.petDmWarnings, 0);
     const payload = f.updates[0];
-    assert.match(payload.embeds[0].toJSON().description, /Level 2/);
+    assert.match(payload.embeds[0].toJSON().description, /Cấp 2/);
     assert.equal(payload.components[0].toJSON().components[0].custom_id, 'pet_feed:pet-owner');
     assert.ok(f.saves() > 0);
 });

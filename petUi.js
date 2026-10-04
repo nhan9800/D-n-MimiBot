@@ -1,7 +1,13 @@
 'use strict';
 
 // Dùng chung cho lệnh prefix, nút/modal và scheduler; không nằm trong scope một event.
-const { EmbedBuilder, ActionRowBuilder, ButtonBuilder, ButtonStyle } = require('discord.js');
+const { EmbedBuilder, ActionRowBuilder, ButtonBuilder, ButtonStyle, escapeMarkdown } = require('discord.js');
+const { emojiForKey, toComponentEmoji, customProgressBar, decorateText } = require('./communityEmojis');
+const { markUiSurface } = require('./discordUi');
+const PET_ACCENT = 0xFB7185;
+const icon = key => emojiForKey(key);
+const label = value => escapeMarkdown(String(value || '').replace(/[\r\n\u0000-\u001f]/g, ' ').slice(0, 72));
+const count = value => Number.isFinite(Number(value)) ? Math.max(0, Math.min(Number.MAX_SAFE_INTEGER, Math.floor(Number(value)))) : 0;
 
 function applyPetDecayRealtime(pet, now = Date.now()) {
     if (!pet) return false;
@@ -19,50 +25,56 @@ function applyPetDecayRealtime(pet, now = Date.now()) {
 }
 
 function makePetProgressBar(value, max = 100, length = 10) {
-    const safeMax = max > 0 ? max : 100;
-    const pct = Math.max(0, Math.min(1, (Number(value) || 0) / safeMax));
-    const filled = Math.round(pct * length);
-    return '▰'.repeat(filled) + '▱'.repeat(length - filled);
+    return customProgressBar(value, max > 0 ? max : 100, length);
 }
 
 function getPetMood(pet) {
-    if (pet.hunger >= 80 && pet.happiness >= 80) return { text: '🌟 Cực kỳ hạnh phúc & Sung mãn', color: 0x00FFA3, desc: 'Bé đang rất no và vui vẻ! Đang mang lại vận may cho chủ nhân!' };
-    if (pet.hunger >= 50 && pet.happiness >= 50) return { text: '😊 Khỏe mạnh & Vui tươi', color: 0x2ECC71, desc: 'Bé đang cảm thấy rất thoải mái và yêu quý bạn.' };
-    if (pet.hunger >= 20 && pet.happiness >= 20) return { text: '🥺 Hơi đói & Cần quan tâm', color: 0xF39C12, desc: 'Bé bắt đầu đói bụng rồi, hãy cho bé ăn và chơi cùng nhé!' };
-    return { text: '🚨 Đói lả & Kiệt sức', color: 0xE74C3C, desc: 'Bé đang rất đói và buồn! Cần được cho ăn và chăm sóc khẩn cấp!' };
+    if (pet.hunger >= 80 && pet.happiness >= 80) return { text: 'Rạng rỡ', key: 'star', color: PET_ACCENT, desc: 'No bụng và đầy năng lượng cho một ngày bên bạn.' };
+    if (pet.hunger >= 50 && pet.happiness >= 50) return { text: 'Khỏe mạnh · Vui vẻ', key: 'heart', color: PET_ACCENT, desc: 'Một bữa ăn ngon hoặc một lần chơi sẽ khiến bé vui hơn.' };
+    if (pet.hunger >= 20 && pet.happiness >= 20) return { text: 'Cần được quan tâm', key: 'warning', status: 'warning', color: 0xF59E0B, desc: 'Bé bắt đầu đói hoặc buồn. Dành một chút thời gian chăm sóc nhé.' };
+    return { text: 'Cần chăm sóc ngay', key: 'warning', status: 'error', color: 0xF87171, desc: 'Cho bé ăn và chơi cùng để phục hồi độ no, niềm vui.' };
 }
 
 function buildPetEmbed(user, pet, notice = '') {
-    const hungerBar = makePetProgressBar(pet.hunger);
-    const happyBar = makePetProgressBar(pet.happiness);
-    const xpNeeded = pet.level * 100;
-    const xpBar = makePetProgressBar(pet.xp, xpNeeded);
-    const mood = getPetMood(pet);
-    const hungerLabel = pet.hunger >= 80 ? '🟢 No nê' : pet.hunger >= 50 ? '🟡 Vừa bụng' : pet.hunger >= 20 ? '🟠 Hơi đói' : '🔴 Rất đói';
-    const happyLabel = pet.happiness >= 80 ? '🟢 Phấn khích' : pet.happiness >= 50 ? '🟡 Vui vẻ' : pet.happiness >= 20 ? '🟠 Hơi buồn' : '🔴 Buồn chán';
-    const description = (notice ? `${notice}\n\n` : '') +
-        `**${pet.emoji || '🐾'} Tên thú cưng:** \`${pet.name}\`\n` +
-        `**⭐ Cấp độ:** \`Level ${pet.level}\`\n` +
-        `**📈 Tiến trình XP:** \`${pet.xp} / ${xpNeeded} XP\`\n` +
-        `> ${xpBar} **${Math.round(pet.xp / xpNeeded * 100)}%**\n\n` +
-        `**🎭 Tâm trạng hiện tại:** **${mood.text}**\n*${mood.desc}*`;
-    return new EmbedBuilder().setColor(mood.color)
-        .setTitle(`🐾 HỒ SƠ THÚ CƯNG — ${user.username.toUpperCase()}`).setDescription(description)
+    const hunger = Math.min(100, count(pet.hunger));
+    const happiness = Math.min(100, count(pet.happiness));
+    const level = Math.max(1, count(pet.level));
+    const xp = count(pet.xp);
+    const hungerBar = makePetProgressBar(hunger, 100, 8);
+    const happyBar = makePetProgressBar(happiness, 100, 8);
+    const xpNeeded = level * 100;
+    const xpBar = makePetProgressBar(xp, xpNeeded, 8);
+    const mood = getPetMood({ hunger, happiness });
+    const hungerLabel = pet.hunger >= 80 ? 'No nê' : pet.hunger >= 50 ? 'Vừa bụng' : pet.hunger >= 20 ? 'Hơi đói' : 'Rất đói';
+    const happyLabel = pet.happiness >= 80 ? 'Phấn khích' : pet.happiness >= 50 ? 'Vui vẻ' : pet.happiness >= 20 ? 'Hơi buồn' : 'Buồn chán';
+    const description = (notice ? `${decorateText(notice)}\n\n` : '') +
+        `${icon('level')} **Cấp ${level}** · Bạn đồng hành của **${label(user.globalName || user.username)}**\n` +
+        `${icon(mood.key)} **${mood.text}**\n${mood.desc}`;
+    const embed = new EmbedBuilder().setColor(mood.color)
+        .setTitle(`${icon(pet.type) || icon('pet')} ${label(pet.name || 'Người bạn nhỏ')}`.trim()).setDescription(description)
         .addFields(
-            { name: '🍖 Độ No', value: `> ${hungerBar}\n> **${pet.hunger}/100** (${hungerLabel})`, inline: true },
-            { name: '🎾 Vui Vẻ', value: `> ${happyBar}\n> **${pet.happiness}/100** (${happyLabel})`, inline: true })
+            { name: `${icon('meat')} Bữa ăn của bé`.trim(), value: `**${hunger}/100** · ${hungerLabel}\n${hungerBar}`, inline: true },
+            { name: `${icon('tennis')} Niềm vui mỗi ngày`.trim(), value: `**${happiness}/100** · ${happyLabel}\n${happyBar}`, inline: true },
+            { name: `${icon('xp')} Mốc tiếp theo · Cấp ${level + 1}`.trim(), value: `${xpBar}\n${xp} / ${xpNeeded} XP`, inline: false })
         .setThumbnail(user.displayAvatarURL({ extension: 'png', size: 256 }))
-        .setFooter({ text: 'Bấm nút bên dưới để chăm sóc — Chỉ số và thanh trạng thái sẽ tự động nhảy số tức thì!' }).setTimestamp();
+        .setFooter({ text: 'Chăm sóc thường xuyên · Cho ăn 10.000 xu · Chơi cùng nghỉ 60 giây' });
+    return markUiSurface(embed, { kind: 'pet', ...(mood.status ? { status: mood.status } : {}) });
 }
 
 function buildPetComponents(ownerId, pet, userData, now = Date.now()) {
     const isTired = Boolean(userData.cooldowns?.pet_play && now < userData.cooldowns.pet_play);
     const timeLeft = isTired ? Math.ceil((userData.cooldowns.pet_play - now) / 1000) : 0;
+    const button = (id, title, key, style, disabled = false) => {
+        const result = new ButtonBuilder().setCustomId(id).setLabel(title).setStyle(style).setDisabled(disabled);
+        const emoji = toComponentEmoji(icon(key));
+        if (emoji) result.setEmoji(emoji);
+        return result;
+    };
     return [new ActionRowBuilder().addComponents(
-        new ButtonBuilder().setCustomId(`pet_feed:${ownerId}`).setLabel('🍖 Cho Ăn (10k xu)').setStyle(ButtonStyle.Success).setDisabled(pet.hunger >= 100),
-        new ButtonBuilder().setCustomId(`pet_play:${ownerId}`).setLabel(isTired ? `🎾 Chơi Cùng (${timeLeft}s)` : '🎾 Chơi Cùng').setStyle(ButtonStyle.Primary).setDisabled(pet.happiness >= 100 || isTired),
-        new ButtonBuilder().setCustomId(`pet_rename:${ownerId}`).setLabel('✏️ Đổi Tên').setStyle(ButtonStyle.Secondary),
-        new ButtonBuilder().setCustomId(`pet_refresh:${ownerId}`).setLabel('🔄 Làm Mới').setStyle(ButtonStyle.Secondary)
+        button(`pet_feed:${ownerId}`, 'Cho ăn · 10k xu', 'meat', ButtonStyle.Success, pet.hunger >= 100),
+        button(`pet_play:${ownerId}`, isTired ? `Chơi cùng · ${timeLeft}s` : 'Chơi cùng', 'tennis', ButtonStyle.Primary, pet.happiness >= 100 || isTired),
+        button(`pet_rename:${ownerId}`, 'Đổi tên', 'pencil', ButtonStyle.Secondary),
+        button(`pet_refresh:${ownerId}`, 'Làm mới', 'restart', ButtonStyle.Secondary)
     )];
 }
 
@@ -135,4 +147,4 @@ function createPetPanelUpdater({ getUserData, now = Date.now, schedule = setTime
     };
 }
 
-module.exports = { applyPetDecayRealtime, makePetProgressBar, getPetMood, buildPetEmbed, buildPetComponents, createPetPanelUpdater };
+module.exports = { PET_ACCENT, applyPetDecayRealtime, makePetProgressBar, getPetMood, buildPetEmbed, buildPetComponents, createPetPanelUpdater };

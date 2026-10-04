@@ -26,14 +26,14 @@ test('Render lặp không dựng lại Map/RegExp và vẫn đọc emoji mới s
         assert.equal(tools.decorateText('🎧 Nghe nhạc `🎧` và ```js\n"✨"\n```'), ' Nghe nhạc `🎧` và ```js\n"✨"\n```');
     }
     assert.deepEqual(tools.allocations, before);
-    let emoji = { id: '123456789012345678', name: 'mimi_music', animated: false };
+    let emoji = { id: '123456789012345678', name: 'mimi_music_v2', animated: false };
     const client = { application: { emojis: { fetch: async () => new Map([[emoji.id, emoji]]) } } };
     const options = { assetDir: path.join(__dirname, 'no-emoji-assets'), logger: { info() {}, warn() {} } };
     await tools.provisionCommunityEmojis(client, options);
-    assert.equal(tools.decorateText('🎧 `🎧`'), '<:mimi_music:123456789012345678> `🎧`');
+    assert.equal(tools.decorateText('🎧 `🎧`'), '<:mimi_music_v2:123456789012345678> `🎧`');
     emoji = { ...emoji, id: '223456789012345678', animated: true };
     await tools.provisionCommunityEmojis(client, options);
-    assert.equal(tools.decorateText('🎧 `🎧`'), '<a:mimi_music:223456789012345678> `🎧`');
+    assert.equal(tools.decorateText('🎧 `🎧`'), '<a:mimi_music_v2:223456789012345678> `🎧`');
     const afterProvision = { ...tools.allocations };
     for (let i = 0; i < 1000; i++) tools.decorateText('🎧 🎧 `🎧`');
     assert.deepEqual(tools.allocations, afterProvision);

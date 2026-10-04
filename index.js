@@ -37,7 +37,7 @@ const { applyPetDecayRealtime, buildPetEmbed, buildPetComponents, createPetPanel
 const petPanels = createPetPanelUpdater({ getUserData });
 const { createMusicPanelWriter } = require('./musicPanelUpdater');
 const { startInternalApi } = require('./internalApi');
-const { COMMUNITY_EMOJI, provisionCommunityEmojis, installGuildEmojis, getEmojiCoverage, emojiForKey } = require('./communityEmojis');
+const { COMMUNITY_EMOJI, provisionCommunityEmojis, installGuildEmojis, getEmojiCoverage, emojiForKey, customProgressBar } = require('./communityEmojis');
 const { importEmojiImage, downloadPublicImage } = require('./emojiImport');
 const { validateMusicUrl } = require('./musicSources');
 const { normalizeTicketState, ticketStateFromPanel, resolveTicketState } = require('./ticketLifecycle');
@@ -732,12 +732,12 @@ function buildDisciplinePage(targetUser, gConfig, page = 1, commandAuthorId, fil
         .setCustomId(`kyluat_filter_${targetUser.id}_${currentPage}_${commandAuthorId}`)
         .setPlaceholder('🔍 Chọn loại vi phạm để lọc...')
         .addOptions(
-            new StringSelectMenuOptionBuilder().setLabel('Xem tất cả').setValue('all').setDefault(filterType === 'all'),
-            new StringSelectMenuOptionBuilder().setLabel('Cảnh cáo').setValue('warn').setDefault(filterType === 'warn'),
-            new StringSelectMenuOptionBuilder().setLabel('Mute').setValue('mute').setDefault(filterType === 'mute'),
-            new StringSelectMenuOptionBuilder().setLabel('Kick').setValue('kick').setDefault(filterType === 'kick'),
-            new StringSelectMenuOptionBuilder().setLabel('Ban').setValue('ban').setDefault(filterType === 'ban'),
-            new StringSelectMenuOptionBuilder().setLabel('Điều chỉnh Admin').setValue('admin_edit').setDefault(filterType === 'admin_edit')
+            new StringSelectMenuOptionBuilder().setLabel('📋 Xem tất cả').setValue('all').setDefault(filterType === 'all'),
+            new StringSelectMenuOptionBuilder().setLabel('⚠️ Cảnh cáo').setValue('warn').setDefault(filterType === 'warn'),
+            new StringSelectMenuOptionBuilder().setLabel('🔇 Tạm tắt tiếng').setValue('mute').setDefault(filterType === 'mute'),
+            new StringSelectMenuOptionBuilder().setLabel('👢 Đưa khỏi máy chủ').setValue('kick').setDefault(filterType === 'kick'),
+            new StringSelectMenuOptionBuilder().setLabel('🚫 Cấm vào máy chủ').setValue('ban').setDefault(filterType === 'ban'),
+            new StringSelectMenuOptionBuilder().setLabel('⚙️ Điều chỉnh quản trị').setValue('admin_edit').setDefault(filterType === 'admin_edit')
         );
 
     components.push(new ActionRowBuilder().addComponents(filterSelect));
@@ -1134,24 +1134,25 @@ function bjBuildEmbed(game, { reveal = false, resultText = null, resultColor = n
     const playerText = game.playerHand.map(bjCardLabel).join(' ');
     const dealerText = reveal
         ? game.dealerHand.map(bjCardLabel).join(' ')
-        : `${bjCardLabel(game.dealerHand[0])} 🂠`;
+        : `${bjCardLabel(game.dealerHand[0])} ${emojiForKey('cardback') || '[Úp]'}`;
 
     const embed = new EmbedBuilder()
         .setColor(resultColor || '#5865F2')
-        .setTitle('🃏 Blackjack')
+        .setTitle('🃏 Blackjack · Bàn bài của bạn')
+        .setDescription(resultText || 'Chọn **Rút bài** hoặc **Dừng** để giữ điểm hiện tại.')
         .addFields(
-            { name: `🤖 Bot${reveal ? ` (${dealerVal})` : ''}`, value: dealerText, inline: false },
-            { name: `🧑 ${game.username} (${playerVal})`, value: playerText, inline: false },
+            { name: `🧑 ${game.username} · ${playerVal} điểm`, value: playerText, inline: false },
+            { name: `🤖 Nhà cái${reveal ? ` · ${dealerVal} điểm` : ' · Một lá đang úp'}`, value: dealerText, inline: false },
+            { name: '💰 Tiền trên bàn', value: `**${game.totalBet.toLocaleString('vi-VN')} xu**${game.doubled ? ' · Đã nhân đôi cược' : ''}`, inline: false },
         )
-        .setFooter({ text: `Cược: ${game.totalBet.toLocaleString()} xu${game.doubled ? ' (đã nhân đôi)' : ''}` });
-    if (resultText) embed.setDescription(resultText);
+        .setFooter({ text: reveal ? 'Ván bài đã kết thúc · Dùng lệnh Blackjack để chơi tiếp' : 'Nhân đôi cược chỉ có ở lượt đầu · Nút dành cho người mở ván' });
     return embed;
 }
 
 function bjBuildRow(game) {
     const canDouble = game.playerHand.length === 2 && !game.doubled;
     const row = new ActionRowBuilder().addComponents(
-        new ButtonBuilder().setCustomId(`bj_hit_${game.userId}`).setLabel('🃏 Rút Bài').setStyle(ButtonStyle.Primary),
+        new ButtonBuilder().setCustomId(`bj_hit_${game.userId}`).setLabel('🃏 Rút bài').setStyle(ButtonStyle.Primary),
         new ButtonBuilder().setCustomId(`bj_stand_${game.userId}`).setLabel('✋ Dừng').setStyle(ButtonStyle.Secondary),
     );
     if (canDouble) {
@@ -1316,46 +1317,31 @@ function createMineGame(userId, guildId, bet, minesCount = 1) {
 }
 
 function buildMineEmbed(game, status = 'playing') {
-    const embed = new EmbedBuilder().setColor(0x2B2D31);
-
-    const betStr = game.bet.toLocaleString();
-    const minesStr = String(game.minesCount);
-    const cashOutValStr = game.diamondsFound > 0 ? game.currentCashOut.toLocaleString() : '0';
-    const cashOutMultStr = `(${((game.currentMultiplier || 1) + 1e-9).toFixed(2)}x)`;
-    const nextValStr = game.nextCashOut > 0 ? game.nextCashOut.toLocaleString() : '-';
-    const nextMultStr = game.nextMultiplier > 0 ? `(${((game.nextMultiplier || 1) + 1e-9).toFixed(2)}x)` : '';
-
-    let desc = '';
-    if (status === 'touched_mine') {
-        desc = `💥 <@${game.userId}> **touched a mine!**\n\n` +
-               `Bet: \`${betStr}\`   Mines: \`${minesStr}\`\n` +
-               `~~Cash Out: \`${cashOutValStr}\` \`${cashOutMultStr}\`~~\n` +
-               `~~Next: \`${nextValStr}\` \`${nextMultStr}\`~~\n` +
-               `───────────────────────────`;
-    } else if (status === 'cashed_out') {
-        desc = `💰 <@${game.userId}> **cashed out!**\n\n` +
-               `Bet: \`${betStr}\`   Mines: \`${minesStr}\`\n` +
-               `Cash Out: \`${game.currentCashOut.toLocaleString()}\` \`${cashOutMultStr}\`\n` +
-               `───────────────────────────`;
-    } else if (status === 'cleared') {
-        desc = `🎉 <@${game.userId}> **cleared the board!**\n\n` +
-               `Bet: \`${betStr}\`   Mines: \`${minesStr}\`\n` +
-               `Cash Out: \`${game.currentCashOut.toLocaleString()}\` \`${cashOutMultStr}\`\n` +
-               `───────────────────────────`;
-    } else {
-        // playing
-        const cashOutLine = game.diamondsFound > 0
-            ? `Cash Out: \`${cashOutValStr}\` \`${cashOutMultStr}\``
-            : `Cash Out: \`-\``;
-        desc = `⛏️ <@${game.userId}>'s **mines**\n\n` +
-               `Bet: \`${betStr}\`   Mines: \`${minesStr}\`\n` +
-               `${cashOutLine}\n` +
-               `Next: \`${nextValStr}\` \`${nextMultStr}\`\n` +
-               `───────────────────────────`;
-    }
-
-    embed.setDescription(desc);
-    return embed;
+    const states = {
+        playing: ['⛏️ Chọn một ô để tìm kim cương', 0x2DD4BF],
+        touched_mine: ['💥 Trúng mìn · Ván chơi kết thúc', 0xF87171],
+        cashed_out: ['💰 Đã thu thưởng', 0x22C55E],
+        cleared: ['🎉 Đã tìm hết kim cương', 0x22C55E]
+    };
+    const [headline, color] = states[status] || states.playing;
+    const currentValue = game.diamondsFound > 0 ? game.currentCashOut.toLocaleString('vi-VN') : '0';
+    const currentMultiplier = ((game.currentMultiplier || 1) + 1e-9).toFixed(2);
+    const nextValue = game.nextCashOut > 0 ? game.nextCashOut.toLocaleString('vi-VN') : '—';
+    const nextMultiplier = game.nextMultiplier > 0 ? ` · x${((game.nextMultiplier || 1) + 1e-9).toFixed(2)}` : '';
+    const embed = new EmbedBuilder()
+        .setColor(color)
+        .setTitle('⛏️ Mines · Hầm mỏ kim cương')
+        .setDescription(`**${headline}**\nNgười chơi · <@${game.userId}>`)
+        .addFields(
+            { name: '💰 Tiền cược', value: `**${game.bet.toLocaleString('vi-VN')} xu**`, inline: true },
+            { name: '💣 Mìn trong bàn', value: `**${game.minesCount}** ô`, inline: true },
+            { name: '💎 Kim cương đã tìm', value: `**${game.diamondsFound}/${game.diamondsTotal}**`, inline: true },
+            { name: status === 'touched_mine' ? '💸 Phần thưởng đã mất' : '💵 Có thể thu thưởng', value: `${status === 'touched_mine' ? '~~' : '**'}${currentValue} xu · x${currentMultiplier}${status === 'touched_mine' ? '~~' : '**'}`, inline: false }
+        );
+    if (status === 'playing') embed.addFields({ name: '📈 Nếu mở thêm một ô an toàn', value: `**${nextValue} xu${nextMultiplier}**`, inline: false });
+    return embed.setFooter({ text: status === 'playing'
+        ? 'Chọn ô theo số bên dưới · Thu thưởng sau khi tìm được kim cương'
+        : 'Dùng mimines hoặc /mines để bắt đầu một ván mới' });
 }
 
 function buildMineGridRows(game) {
@@ -1367,7 +1353,7 @@ function buildMineGridRows(game) {
         for (let c = 0; c < 3; c++) {
             const idx = r * 3 + c;
             const tile = game.grid[idx];
-            const btn = new ButtonBuilder().setCustomId(`mine_tile_${game.id}_${idx}`);
+            const btn = new ButtonBuilder().setCustomId(`mine_tile_${game.id}_${idx}`).setLabel(String(idx + 1));
 
             if (!isGameOver) {
                 if (tile.clicked) {
@@ -1375,7 +1361,7 @@ function buildMineGridRows(game) {
                         .setStyle(ButtonStyle.Success)
                         .setDisabled(true);
                 } else {
-                    btn.setLabel('\u200b')
+                    btn.setEmoji('🪨')
                         .setStyle(ButtonStyle.Secondary)
                         .setDisabled(false);
                 }
@@ -1404,10 +1390,10 @@ function buildMineGridRows(game) {
         rows.push(row);
     }
 
-    // Nút Cash Out giống 100% hình OwO
+    // Giữ custom ID và điều kiện thu thưởng; đổi nhãn theo giao diện Mimi.
     const cashOutBtn = new ButtonBuilder()
         .setCustomId(`mine_cashout_${game.id}`)
-        .setLabel('Cash Out')
+        .setLabel('Thu thưởng')
         .setEmoji('💵')
         .setStyle(ButtonStyle.Success)
         .setDisabled(isGameOver || game.diamondsFound === 0);
@@ -1463,7 +1449,7 @@ function buildHiLoControls(game, isGameOver = false) {
                 .setStyle(ButtonStyle.Danger),
             new ButtonBuilder()
                 .setCustomId('hilo_cashout')
-                .setLabel(`💰 Rút Tiền (+${currentWin.toLocaleString()} Xu)`)
+                .setLabel(`💰 Thu thưởng (${currentWin.toLocaleString('vi-VN')} xu)`)
                 .setStyle(ButtonStyle.Success)
                 .setDisabled(game.streak === 0)
         )
@@ -1472,22 +1458,29 @@ function buildHiLoControls(game, isGameOver = false) {
 
 function buildHiLoEmbed(game, statusText, statusColor = 0x5865F2) {
     const currentWin = Math.floor(game.bet * game.currentMultiplier);
-    const cardHistory = game.history.slice(-6).map(c => `\`[ ${c} ]\``).join(' ➔ ');
+    const cardHistory = game.history.slice(-6).map(formatHiLoCardLabel).join(` ${emojiForKey('arrow') || '→'} `);
     return new EmbedBuilder()
         .setColor(statusColor)
-        .setTitle('🎴 SÒNG BÀI CAO THẤP — HI-LO CASINO')
-        .setDescription(
-            `👤 **Người chơi:** <@${game.userId}>\n` +
-            `💰 **Tiền cược:** \`${game.bet.toLocaleString()} xu\`\n` +
-            `🃏 **Lá bài hiện tại:** \`[ ${game.currentCard.label} ]\` (Điểm: **${game.currentCard.v}**)\n` +
-            `🔥 **Chuỗi đoán đúng:** \`${game.streak}\` ván (Hệ số: **x${game.currentMultiplier.toFixed(2)}**)\n` +
-            `💵 **Tiền thưởng hiện tại:** \`+${currentWin.toLocaleString()} xu\`\n\n` +
-            `📜 **Lịch sử lá bài:** ${cardHistory}\n\n` +
-            `> ${statusText}\n\n` +
-            `-# Quy tắc: Điểm bài 2 < 3 < ... < 10 < J < Q < K < A (Át cao nhất = 14). Bằng điểm = Hòa giữ nguyên cược!`
+        .setTitle('🎴 HiLo · Đoán lá bài tiếp theo')
+        .setDescription(`${statusText}\n-# Bàn chơi của <@${game.userId}>`)
+        .addFields(
+            { name: '🃏 Lá bài hiện tại', value: `${formatHiLoCardLabel(game.currentCard.label)} · Điểm: **${game.currentCard.v}**`, inline: false },
+            { name: '💰 Tiền cược', value: `**${game.bet.toLocaleString('vi-VN')} xu**`, inline: true },
+            { name: '🔥 Chuỗi đoán đúng', value: `**${game.streak} ván** · x${game.currentMultiplier.toFixed(2)}`, inline: true },
+            { name: '💵 Có thể thu thưởng', value: `**${currentWin.toLocaleString('vi-VN')} xu**`, inline: false },
+            { name: '📜 Sáu lá gần nhất', value: cardHistory || 'Chưa có lịch sử.', inline: false },
         )
-        .setFooter({ text: 'MIMI BOT Gaming • Đoán Cao / Thấp' })
+        .setFooter({ text: '2 < 3 < … < 10 < J < Q < K < A · Bằng điểm giữ nguyên cược' })
         .setTimestamp();
+}
+
+function formatHiLoCardLabel(label) {
+    const match = String(label || '').match(/^([2-9]|10|J|Q|K|A)\s+([♠♥♦♣])$/);
+    if (!match) return String(label || 'Chưa có lá bài');
+    const suits = { '♠': ['spade', 'Bích'], '♥': ['heartsuit', 'Cơ'], '♦': ['diamondsuit', 'Rô'], '♣': ['club', 'Chuồn'] };
+    const [key, name] = suits[match[2]];
+    // Emoji nằm ngoài code để Discord render ảnh; hạng bài và điểm không đổi.
+    return `\`${match[1]}\` ${emojiForKey(key) || name}`;
 }
 
 // Cập nhật embed đếm ngược giveaway
@@ -1876,41 +1869,43 @@ function buildFarmPayload(user, userData) {
         if (FARM_CROPS[h]) estimatedHarvestValue += count * FARM_CROPS[h].harvestPrice;
     }
 
-    let plotsDesc = [];
+    const plotsDesc = [];
     let hasWithered = false;
     let hasReadyToWater = false;
     let hasReadyToHarvest = false;
     let hasEmptyPlot = false;
 
     const now = Date.now();
+    const icon = key => emojiForKey(key) || '';
+    const cropIcons = { lua_mi: 'wheat', ca_chua: 'tomato', bap: 'corn', dau_tay: 'strawberry', dua_hau: 'watermelon', cay_vang: 'star' };
 
     farm.plots.forEach((plot, index) => {
         updatePlotStatus(plot);
         const plotNum = index + 1;
         if (!plot.crop) {
             hasEmptyPlot = true;
-            plotsDesc.push(`**Ô ${plotNum}:** 🟫 Đất trống *(Chưa gieo hạt)*`);
+            plotsDesc.push(`### ${icon('home')} Ô ${plotNum} · Đất trống\n${icon('farm')} **Sẵn sàng gieo hạt**\n-# Chọn hạt giống từ kho để bắt đầu.`);
             return;
         }
 
         const cropInfo = FARM_CROPS[plot.crop] || { name: plot.crop, emoji: '🌱' };
         if (plot.withered) {
             hasWithered = true;
-            plotsDesc.push(`**Ô ${plotNum}:** 🥀 **${cropInfo.name}** — ⚠️ **ĐÃ KHÔ HÉO!** *(Bấm Dọn Cây Héo)*`);
+            plotsDesc.push(`### ${icon(cropIcons[plot.crop] || 'farm')} Ô ${plotNum} · ${cropInfo.name}\n${icon('wilted')} **Cây đã héo**\n-# Dọn cây héo để dành chỗ cho vụ mới.`);
             return;
         }
 
         if (plot.waterCount >= 3) {
             hasReadyToHarvest = true;
-            plotsDesc.push(`**Ô ${plotNum}:** ${cropInfo.emoji} **${cropInfo.name}** — 🌟 **ĐÃ CHÍN RỘ!** *(Sẵn sàng thu hoạch 🎉)*`);
+            plotsDesc.push(`### ${icon(cropIcons[plot.crop] || 'farm')} Ô ${plotNum} · ${cropInfo.name}\n${icon('check')} **Sẵn sàng thu hoạch** · Đã tưới 3/3 lần\n-# Thu hoạch để chuyển nông sản vào kho.`);
             return;
         }
 
-        const waterBar = '💧'.repeat(plot.waterCount) + '⚪'.repeat(3 - plot.waterCount);
+        const waterStatus = `${icon('water')} Đã tưới **${plot.waterCount}/3 lần**`;
         if (plot.waterCount === 0) {
             hasReadyToWater = true;
             const timeLeft = Math.max(0, (plot.plantedAt + cropInfo.witherGraceMs) - now);
-            plotsDesc.push(`**Ô ${plotNum}:** 🌱 **${cropInfo.name}** [${waterBar}] — 💧 **CẦN TƯỚI LẦN 1!** *(Héo sau: \`${formatDurationSec(Math.ceil(timeLeft / 1000))}\`)*`);
+            plotsDesc.push(`### ${icon(cropIcons[plot.crop] || 'farm')} Ô ${plotNum} · ${cropInfo.name}\n${waterStatus} · **Cần tưới lần đầu**\n-# Héo sau ${formatDurationSec(Math.ceil(timeLeft / 1000))} nếu chưa tưới.`);
             return;
         }
 
@@ -1918,44 +1913,47 @@ function buildFarmPayload(user, userData) {
         const cooldown = cropInfo.waterCooldownMs;
         if (elapsed < cooldown) {
             const waitLeft = Math.ceil((cooldown - elapsed) / 1000);
-            plotsDesc.push(`**Ô ${plotNum}:** 🌿 **${cropInfo.name}** [${waterBar}] (Lần ${plot.waterCount}/3) — ⏳ *Đang lớn, tưới tiếp sau:* \`${formatDurationSec(waitLeft)}\``);
+            plotsDesc.push(`### ${icon(cropIcons[plot.crop] || 'farm')} Ô ${plotNum} · ${cropInfo.name}\n${waterStatus} · **Đang lớn**\n-# ${icon('hourglass')} Có thể tưới tiếp sau ${formatDurationSec(waitLeft)}.`);
         } else {
             hasReadyToWater = true;
             const witherTime = cooldown + cropInfo.witherGraceMs;
             const timeLeft = Math.max(0, witherTime - elapsed);
-            plotsDesc.push(`**Ô ${plotNum}:** 🌿 **${cropInfo.name}** [${waterBar}] (Lần ${plot.waterCount}/3) — 💧 **ĐẾN LƯỢT TƯỚI!** *(Héo sau: \`${formatDurationSec(Math.ceil(timeLeft / 1000))}\`)*`);
+            plotsDesc.push(`### ${icon(cropIcons[plot.crop] || 'farm')} Ô ${plotNum} · ${cropInfo.name}\n${waterStatus} · **Đến lượt tưới tiếp**\n-# Héo sau ${formatDurationSec(Math.ceil(timeLeft / 1000))} nếu chưa tưới.`);
         }
     });
 
-    const embed = new EmbedBuilder()
-        .setColor('#2ECC71')
-        .setTitle(`🌾 NÔNG TRẠI MIMI — ${user.username.toUpperCase()}`)
-        .setDescription(
-            `💰 **Số dư ví:** \`${userData.balance.toLocaleString('en-US')} xu\`\n` +
-            `🏡 **Khu đất:** \`${farm.plots.length}/${MAX_FARM_PLOTS} ô\` | 🌱 **Hạt trong kho:** \`${totalSeeds} hạt\` | 🧺 **Nông sản chưa bán:** \`${totalHarvest} cái\` (~${estimatedHarvestValue.toLocaleString()} xu)\n\n` +
-            `──────────────────────────────\n` +
-            plotsDesc.join('\n') +
-            `\n──────────────────────────────\n` +
-            `💡 *Mẹo: Cây cần tưới đủ 3 lần đúng hạn để chín. Quá thời gian không tưới sẽ bị khô héo!*`
-        )
-        .setThumbnail(user.displayAvatarURL({ dynamic: true }))
-        .setFooter({ text: 'MIMI Farm • Trồng cây làm giàu cùng Mimi Bot', iconURL: client.user.displayAvatarURL() })
-        .setTimestamp();
-
     const row1 = new ActionRowBuilder().addComponents(
-        new ButtonBuilder().setCustomId('farm_water').setLabel('💧 Tưới Cây').setStyle(ButtonStyle.Success).setDisabled(!hasReadyToWater),
-        new ButtonBuilder().setCustomId('farm_plant_menu').setLabel('🌱 Gieo Hạt').setStyle(ButtonStyle.Primary).setDisabled(!hasEmptyPlot || totalSeeds === 0),
-        new ButtonBuilder().setCustomId('farm_harvest').setLabel('🌾 Thu Hoạch').setStyle(ButtonStyle.Success).setDisabled(!hasReadyToHarvest),
-        new ButtonBuilder().setCustomId('farm_clear_withered').setLabel('🧹 Dọn Héo').setStyle(ButtonStyle.Danger).setDisabled(!hasWithered)
+        new ButtonBuilder().setCustomId('farm_water').setLabel('💧 Tưới cây').setStyle(ButtonStyle.Success).setDisabled(!hasReadyToWater),
+        new ButtonBuilder().setCustomId('farm_plant_menu').setLabel('🌱 Gieo hạt').setStyle(ButtonStyle.Primary).setDisabled(!hasEmptyPlot || totalSeeds === 0),
+        new ButtonBuilder().setCustomId('farm_harvest').setLabel('🌾 Thu hoạch').setStyle(ButtonStyle.Success).setDisabled(!hasReadyToHarvest)
     );
 
     const row2 = new ActionRowBuilder().addComponents(
-        new ButtonBuilder().setCustomId('farm_shop').setLabel('🏪 Cửa Hàng Hạt & Đất').setStyle(ButtonStyle.Secondary),
-        new ButtonBuilder().setCustomId('farm_sell_all').setLabel(`🧺 Bán Hết Nông Sản (${totalHarvest})`).setStyle(ButtonStyle.Primary).setDisabled(totalHarvest === 0),
-        new ButtonBuilder().setCustomId('farm_refresh').setLabel('🔄 Làm Mới').setStyle(ButtonStyle.Secondary)
+        new ButtonBuilder().setCustomId('farm_clear_withered').setLabel('🧹 Dọn cây héo').setStyle(ButtonStyle.Danger).setDisabled(!hasWithered),
+        new ButtonBuilder().setCustomId('farm_shop').setLabel('🏪 Hạt giống & Đất').setStyle(ButtonStyle.Secondary),
+        new ButtonBuilder().setCustomId('farm_sell_all').setLabel(`🧺 Bán nông sản (${totalHarvest})`).setStyle(ButtonStyle.Primary).setDisabled(totalHarvest === 0),
+        new ButtonBuilder().setCustomId('farm_refresh').setLabel('🔄 Làm mới').setStyle(ButtonStyle.Secondary)
     );
 
-    return { embeds: [embed], components: [row1, row2] };
+    const garden = new ContainerBuilder().setId(910400).setAccentColor(0x84CC16)
+        .addSectionComponents(new SectionBuilder()
+            .addTextDisplayComponents(new TextDisplayBuilder().setContent(`## ${icon('wheat')} Nhật ký nông trại\n**${farm.plots.length}/${MAX_FARM_PLOTS} ô đất** · Vườn của ${user.username}`))
+            .setThumbnailAccessory(new ThumbnailBuilder().setURL(user.displayAvatarURL({ dynamic: true }))))
+        .addSeparatorComponents(new SeparatorBuilder().setDivider(true));
+    for (const plot of plotsDesc) garden.addTextDisplayComponents(new TextDisplayBuilder().setContent(plot));
+    garden.addSeparatorComponents(new SeparatorBuilder().setDivider(true)).addActionRowComponents(row1);
+
+    const storage = new ContainerBuilder().setId(910401).setAccentColor(0x84CC16)
+        .addTextDisplayComponents(new TextDisplayBuilder().setContent(
+            `### ${icon('basket')} Ví & Kho nông sản\n` +
+            `${icon('coin')} **${userData.balance.toLocaleString('vi-VN')} xu** trong ví\n` +
+            `${icon('farm')} **${totalSeeds} hạt giống** · ${icon('basket')} **${totalHarvest} nông sản**\n` +
+            `-# Giá trị nông sản ước tính: ${estimatedHarvestValue.toLocaleString('vi-VN')} xu.`))
+        .addSeparatorComponents(new SeparatorBuilder().setDivider(true))
+        .addActionRowComponents(row2)
+        .addTextDisplayComponents(new TextDisplayBuilder().setContent('-# Tưới đủ 3 lần đúng hạn để thu hoạch. Dùng Làm mới để xem thời gian hiện tại.'));
+    return { components: [garden, storage], flags: MessageFlags.IsComponentsV2,
+        mimiUi: { kind: 'farm', curated: true }, allowedMentions: { parse: [] } };
 }
 
 // -----------------------------------------------------------------
@@ -2513,11 +2511,14 @@ async function rebuildGuildPanels(targetGuild, gCfg) {
         try {
             await clearBotMessages(ticketChan);
             const row = new ActionRowBuilder().addComponents(
-                new ButtonBuilder().setCustomId('create_ticket_btn:Default').setLabel('📩 Tạo Ticket').setStyle(ButtonStyle.Primary),
+                new ButtonBuilder().setCustomId('create_ticket_btn:Default').setLabel('📩 Mở yêu cầu hỗ trợ').setStyle(ButtonStyle.Primary),
                 new ButtonBuilder().setLabel('🌐 Máy Chủ Hỗ Trợ').setStyle(ButtonStyle.Link).setURL('https://discord.gg/gBUHY3qph2')
             );
-            const ticketPanelEmbed = new EmbedBuilder().setColor('#5865F2').setTitle('📩 Hệ Thống Hỗ Trợ').setDescription('Nhấn vào nút bên dưới để điền Form mở Ticket ẩn.');
-            const sent = await sendToRestrictedChannel(ticketChan, embedToV2Payload(ticketPanelEmbed, { components: [row] }));
+            const ticketPanelEmbed = new EmbedBuilder().setColor('#38BDF8')
+                .setTitle('🎫 Quầy hỗ trợ · Chúng tôi sẵn sàng lắng nghe')
+                .setDescription('Mở một phòng riêng để trao đổi với đội ngũ. Điền chủ đề và mô tả trong biểu mẫu để được tiếp nhận nhanh hơn.')
+                .setFooter({ text: 'Một yêu cầu rõ ràng giúp đội ngũ hỗ trợ bạn tốt hơn' });
+            const sent = await sendToRestrictedChannel(ticketChan, embedToV2Payload(ticketPanelEmbed, { components: [row], mimiUi: { kind: 'ticket' } }));
             rebuildLog.push(sent ? `  🎫 Gửi lại nút Ticket → <#${ticketChan.id}>` : `  ❌ Gửi nút Ticket thất bại`);
         } catch (err) {
             rebuildLog.push(`  ❌ Lỗi Ticket: ${err.message}`);
@@ -2532,11 +2533,12 @@ async function rebuildGuildPanels(targetGuild, gCfg) {
         try {
             await clearBotMessages(attChan);
             const attRow = new ActionRowBuilder().addComponents(
-                new ButtonBuilder().setCustomId('check_in_btn').setLabel('🟢 Check-In').setStyle(ButtonStyle.Success),
-                new ButtonBuilder().setCustomId('check_out_btn').setLabel('🔴 Check-Out').setStyle(ButtonStyle.Danger)
+                new ButtonBuilder().setCustomId('check_in_btn').setLabel('🟢 Bắt đầu ca').setStyle(ButtonStyle.Success),
+                new ButtonBuilder().setCustomId('check_out_btn').setLabel('🔴 Kết thúc ca').setStyle(ButtonStyle.Danger)
             );
-            const attPanelEmbed = new EmbedBuilder().setColor('#2ECC71').setTitle('🕒 KHU VỰC CHẤM CÔNG TRỰC TUYẾN').setDescription('Vui lòng nhấn nút dưới đây để khai báo giờ bắt đầu làm việc và kết thúc ca.');
-            const sent = await sendToRestrictedChannel(attChan, embedToV2Payload(attPanelEmbed, { components: [attRow] }));
+            const attPanelEmbed = new EmbedBuilder().setColor('#14B8A6').setTitle('🕒 Chấm công · Ca làm của bạn')
+                .setDescription('Bấm **Bắt đầu ca** khi vào làm. Bấm **Kết thúc ca** khi hoàn thành để ghi lại thời gian làm việc.');
+            const sent = await sendToRestrictedChannel(attChan, embedToV2Payload(attPanelEmbed, { components: [attRow], mimiUi: { kind: 'attendance' } }));
             rebuildLog.push(sent ? `  🕒 Gửi lại nút Chấm Công → <#${attChan.id}>` : `  ❌ Gửi nút Chấm Công thất bại`);
         } catch (err) {
             rebuildLog.push(`  ❌ Lỗi Chấm Công: ${err.message}`);
@@ -2553,15 +2555,16 @@ async function rebuildGuildPanels(targetGuild, gCfg) {
                 await clearBotMessages(verifyChan);
                 const verifyEmbed = new EmbedBuilder()
                     .setColor('#5865F2')
-                    .setTitle('🛡️ XÁC THỰC THÀNH VIÊN')
-                    .setDescription(gCfg.verifyMessage || 'Chào mừng bạn đến với server! Vui lòng nhấn nút bên dưới để xác thực và mở khóa toàn bộ kênh.')
+                    .setTitle('🛡️ Xác thực · Bắt đầu tham gia cộng đồng')
+                    .setDescription(gCfg.verifyMessage || 'Chào mừng bạn! Xác thực để nhận vai trò thành viên và truy cập các kênh dành cho cộng đồng.')
                     .setThumbnail(targetGuild.iconURL({ dynamic: true, size: 256 }) || null)
-                    .setFooter({ text: 'Nhấn nút dưới đây để xác thực bạn không phải là Bot' });
+                    .setFooter({ text: 'Cần trợ giúp? Liên hệ đội ngũ quản trị máy chủ' });
                 const verifyRow = new ActionRowBuilder().addComponents(
-                    new ButtonBuilder().setCustomId('verify_btn').setLabel('✅ Xác Thực Ngay').setStyle(ButtonStyle.Success),
+                    new ButtonBuilder().setCustomId('verify_btn').setLabel('✅ Xác thực ngay').setStyle(ButtonStyle.Success),
                     new ButtonBuilder().setLabel('🌐 Máy Chủ Hỗ Trợ').setStyle(ButtonStyle.Link).setURL('https://discord.gg/gBUHY3qph2')
                 );
-                const sent = await sendToRestrictedChannel(verifyChan, embedToV2Payload(verifyEmbed, { components: [verifyRow] }));
+                const sent = await sendToRestrictedChannel(verifyChan, embedToV2Payload(verifyEmbed, { components: [verifyRow],
+                    mimiUi: { kind: 'setup', preserveDescription: Boolean(gCfg.verifyMessage) } }));
                 rebuildLog.push(sent ? `  🛡️ Gửi lại nút Xác Thực → <#${verifyChan.id}>` : `  ❌ Gửi nút Xác Thực thất bại`);
             } catch (err) {
                 rebuildLog.push(`  ❌ Lỗi Xác Thực: ${err.message}`);
@@ -2579,15 +2582,14 @@ async function rebuildGuildPanels(targetGuild, gCfg) {
                 await clearBotMessages(feedbackChan);
                 const infoEmbed = new EmbedBuilder()
                     .setColor('#3498DB')
-                    .setTitle('📬 KÊNH GÓP Ý')
+                    .setTitle('📬 Góc góp ý · Cùng xây dựng cộng đồng')
                     .setDescription(
-                        'Bạn muốn đóng góp ý kiến cho server?\n\n' +
-                        '• Dùng `/gopy` và chọn **Góp ý công khai** (hiển thị tên bạn)\n' +
-                        '• Hoặc chọn **Góp ý ẩn danh** để ẩn danh tính\n\n' +
-                        '> Mọi góp ý đều được ban quản trị đọc và xem xét.'
+                        'Dùng `/gopy` để gửi ý tưởng cho máy chủ.\n\n' +
+                        '**Công khai** hiển thị tên bạn; **ẩn danh** giữ riêng danh tính.\n' +
+                        'Ban quản trị sẽ đọc và xem xét các góp ý tại đây.'
                     )
                     .setTimestamp();
-                const sent = await sendToRestrictedChannel(feedbackChan, embedToV2Payload(infoEmbed));
+                const sent = await sendToRestrictedChannel(feedbackChan, embedToV2Payload(infoEmbed, { mimiUi: { kind: 'feedback' } }));
                 rebuildLog.push(sent ? `  📬 Gửi lại bảng Góp Ý → <#${feedbackChan.id}>` : `  ❌ Gửi bảng Góp Ý thất bại`);
             } catch (err) {
                 rebuildLog.push(`  ❌ Lỗi Góp Ý: ${err.message}`);
@@ -2606,18 +2608,18 @@ async function rebuildGuildPanels(targetGuild, gCfg) {
                 await clearBotMessages(vrControlChan);
                 const vrEmbed = new EmbedBuilder()
                     .setColor('#5865F2')
-                    .setTitle('🔊 HỆ THỐNG PHÒNG VOICE RIÊNG')
+                    .setTitle('🔊 Phòng thoại · Không gian của bạn')
                     .setDescription(
-                        `👉 Vào kênh thoại ${vrTriggerChan ? vrTriggerChan : '**➕ Tạo Phòng Voice**'} để **tự động được tạo một phòng voice riêng** mang tên bạn.\n\n` +
-                        `⚙️ Sau khi có phòng riêng, hãy quay lại kênh này và bấm nút **"Quản Lý Phòng Của Tôi"** để đổi tên, giới hạn thành viên, khóa/ẩn phòng, kick hoặc chuyển quyền chủ phòng.\n\n` +
-                        `🗑️ Phòng sẽ **tự động bị xóa** khi không còn ai ở bên trong.`
+                        `**1. Tạo phòng** · Vào ${vrTriggerChan ? vrTriggerChan : '**kênh Tạo phòng thoại**'} để có phòng mang tên bạn.\n\n` +
+                        '**2. Quản lý** · Đổi tên, giới hạn người tham gia, khóa hoặc ẩn phòng bằng nút bên dưới.\n\n' +
+                        '**3. Kết thúc** · Phòng tự dọn khi không còn ai bên trong.'
                     )
-                    .setFooter({ text: 'Voice Room System — Tự động & riêng tư' });
+                    .setFooter({ text: 'Chủ phòng có thể mời thành viên rời đi hoặc chuyển quyền quản lý' });
                 const vrRow = new ActionRowBuilder().addComponents(
-                    new ButtonBuilder().setCustomId('voiceroom_settings_btn').setLabel('⚙️ Quản Lý Phòng Của Tôi').setStyle(ButtonStyle.Primary),
+                    new ButtonBuilder().setCustomId('voiceroom_settings_btn').setLabel('⚙️ Quản lý phòng của tôi').setStyle(ButtonStyle.Primary),
                     new ButtonBuilder().setLabel('🌐 Máy Chủ Hỗ Trợ').setStyle(ButtonStyle.Link).setURL('https://discord.gg/gBUHY3qph2')
                 );
-                const sent = await sendToRestrictedChannel(vrControlChan, embedToV2Payload(vrEmbed, { components: [vrRow] }));
+                const sent = await sendToRestrictedChannel(vrControlChan, embedToV2Payload(vrEmbed, { components: [vrRow], mimiUi: { kind: 'voice' } }));
                 rebuildLog.push(sent ? `  🔊 Gửi lại bảng Voice Room → <#${vrControlChan.id}>` : `  ❌ Gửi bảng Voice Room thất bại`);
             } catch (err) {
                 rebuildLog.push(`  ❌ Lỗi Voice Room: ${err.message}`);
@@ -4232,8 +4234,7 @@ function getCurrentLevelExp(totalExp) {
     return { level, currentExp: Math.floor(exp), neededExp: getExpForLevel(level + 1) };
 }
 function buildLevelBar(current, needed, length = 12) {
-    const filled = Math.round((current / needed) * length);
-    return '█'.repeat(filled) + '░'.repeat(length - filled);
+    return customProgressBar(current, needed, length);
 }
 const levelExpCooldown = new Map();
 // =====================================================================
@@ -4427,7 +4428,7 @@ function buildQueueRemoveRow(mq) {
     // vị trí ở đầu để value luôn duy nhất (Discord không cho 2 option trùng value khi hàng đợi có bài lặp).
     const options = mq.queue.slice(0, 25).map((t, i) =>
         new StringSelectMenuOptionBuilder()
-            .setLabel(`${i + 1}. ${t.title}`.slice(0, 100))
+            .setLabel(`🗑️ ${i + 1}. ${t.title}`.slice(0, 100))
             .setDescription(formatDuration(t.duration))
             .setValue(`${i}|${queueTrackKey(t)}`)
     );
@@ -4460,7 +4461,7 @@ function buildFavoritesPayload(favorites) {
     );
     const options = favorites.slice(0, 25).map((t, i) =>
         new StringSelectMenuOptionBuilder()
-            .setLabel(`${i + 1}. ${t.title}`.slice(0, 100))
+            .setLabel(`💖 ${i + 1}. ${t.title}`.slice(0, 100))
             .setDescription(formatDuration(t.duration))
             .setValue(String(i))
     );
@@ -4483,7 +4484,7 @@ function buildEffectsPayload(currentKey = 'none') {
     );
     const options = Object.entries(AUDIO_EFFECTS).map(([key, ef]) =>
         new StringSelectMenuOptionBuilder()
-            .setLabel(ef.label)
+            .setLabel(`${key === 'none' ? '⏹️' : '🎛️'} ${ef.label}`)
             .setValue(key)
             .setDefault(key === cur)
     );
@@ -4537,7 +4538,7 @@ function buildAlbumDetailPayload(name, tracks) {
     );
     const options = list.slice(0, 25).map((t, i) =>
         new StringSelectMenuOptionBuilder()
-            .setLabel(`${i + 1}. ${t.title}`.slice(0, 100))
+            .setLabel(`▶️ ${i + 1}. ${t.title}`.slice(0, 100))
             .setDescription(formatDuration(t.duration))
             .setValue(String(i))
     );
@@ -7777,7 +7778,7 @@ client.on('messageCreate', async (message) => {
                         notifCh.send({ embeds: [new EmbedBuilder()
                             .setColor(0xF1C40F)
                             .setTitle('⭐ Lên Cấp Chat Server!')
-                            .setDescription(`🎉 Chúc mừng ${message.author}! Bạn đã đạt **Cấp ${lv}** trong server!\n\n\`${buildLevelBar(ce, ne)}\` ${ce}/${ne} EXP`)
+                            .setDescription(`🎉 Chúc mừng ${message.author}! Bạn đã đạt **Cấp ${lv}** trong server!\n\n${buildLevelBar(ce, ne)} ${ce}/${ne} EXP`)
                             .setThumbnail(message.author.displayAvatarURL())
                             .setTimestamp()
                         ]}).catch(() => null);
@@ -9209,7 +9210,7 @@ async function saveUserBackground(uId, url) {
         const d1 = Math.floor(Math.random() * 6) + 1;
         const d2 = Math.floor(Math.random() * 6) + 1;
         const total = d1 + d2;
-        const diceEmojis = ['', '⚀', '⚁', '⚂', '⚃', '⚄', '⚅'];
+        const diceEmojis = ['', ...Array.from({ length: 6 }, (_, face) => emojiForKey(`dice${face + 1}`) || `[${face + 1}]`)];
 
         const win = (choice === 'cao' && total >= 7) || (choice === 'thap' && total < 7) ||
                     (choice === 'le' && total % 2 !== 0) || (choice === 'chan' && total % 2 === 0);
@@ -9248,9 +9249,9 @@ async function saveUserBackground(uId, url) {
 
         const pick = (choice === 'tai' || choice === 'tài') ? 'tai' : 'xiu';
         const roll = Math.floor(Math.random() * 6) + 1;
-        const diceEmojis = ['', '⚀', '⚁', '⚂', '⚃', '⚄', '⚅'];
+        const diceEmojis = ['', ...Array.from({ length: 6 }, (_, face) => emojiForKey(`dice${face + 1}`) || `[${face + 1}]`)];
         const result = roll >= 4 ? 'tai' : 'xiu';
-        const resultLabel = result === 'tai' ? 'Tài 🔴' : 'Xỉu 🔵';
+        const resultLabel = result === 'tai' ? `Tài ${emojiForKey('error') || '[Đỏ]'}` : `Xỉu ${emojiForKey('dot_blue') || '[Xanh]'}`;
 
         if (pick === result) {
             userData.balance += bet;
@@ -9581,7 +9582,8 @@ async function saveUserBackground(uId, url) {
         const redCount = discs.filter(d => d === '🔴').length;
         const result = redCount % 2 === 0 ? 'chan' : 'le';
 
-        const discsText = discs.join(' ');
+        const discsText = discs.map(disc => disc === '🔴'
+            ? (emojiForKey('error') || '[Đỏ]') : (emojiForKey('dot_white') || '[Trắng]')).join(' ');
         const resultLabel = result === 'chan' ? `Chẵn (${redCount} đỏ)` : `Lẻ (${redCount} đỏ)`;
 
         if (choice === result) {
@@ -10651,7 +10653,7 @@ client.on('interactionCreate', async interaction => {
 
             if (!isAnon) embed.setThumbnail(interaction.user.displayAvatarURL({ dynamic: true }));
 
-            await feedbackChan.send(embedToV2Payload(embed));
+            await feedbackChan.send(embedToV2Payload(embed, { mimiUi: { kind: 'feedback', preserveDescription: true } }));
 
             const typeLabel = isAnon ? 'ẩn danh' : 'công khai';
             return interaction.editReply({ content: `✅ **Đã gửi góp ý ${typeLabel} thành công!**\nBan quản trị sẽ đọc và xem xét góp ý của bạn.` });
@@ -12479,7 +12481,7 @@ client.on('interactionCreate', async interaction => {
                 .setTimestamp();
             
             try {
-                await confChan.send({ embeds: [confEmbed] });
+                await confChan.send({ embeds: [confEmbed], mimiUi: { kind: 'feedback', preserveDescription: true } });
                 return interaction.editReply('✅ Gửi Confession thành công!');
             } catch (e) {
                 if (e.code === 50013) return interaction.editReply('❌ Bot không có quyền gửi tin nhắn vào kênh Confession. Vui lòng báo Admin cấp quyền `SendMessages` cho bot tại kênh đó!');
@@ -13273,7 +13275,7 @@ client.on('interactionCreate', async interaction => {
                 .setTimestamp();
             
             try {
-                await confChan.send({ embeds: [confEmbed] });
+                await confChan.send({ embeds: [confEmbed], mimiUi: { kind: 'feedback', preserveDescription: true } });
                 return interaction.editReply({ content: '✅ Confession của bạn đã được gửi ẩn danh!' });
             } catch (e) {
                 if (e.code === 50013) return interaction.editReply({ content: '❌ Bot không có quyền gửi tin nhắn vào kênh Confession. Vui lòng báo Admin cấp quyền `SendMessages` cho bot tại kênh đó!' });

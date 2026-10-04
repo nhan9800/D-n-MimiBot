@@ -13,12 +13,12 @@ const buttonRow = (id = 'confirm', label = 'Xác nhận') => ({ type: 1, compone
 function texts(payload) { const result = []; walkComponents(payload.components, component => { if (component.type === 10) result.push(component.content); }); return result; }
 function ids(payload) { const result = []; walkComponents(payload.components, component => { if (component.custom_id) result.push(component.custom_id); }); return result; }
 
-test('Bố cục thẻ mới có nhận diện mint, nhóm dữ liệu và hàng thao tác cuối thẻ', () => {
+test('Bố cục hồ sơ có màu riêng, dữ liệu đọc lại được và hàng thao tác cuối thẻ', () => {
     const payload = normalizePayload({ embeds: [{ title: 'Hồ sơ thành viên', color: 0x8B7CF8, author: { name: 'Lan' }, description: 'Thông tin cá nhân', fields: [{ name: 'Số dư', value: '500 xu' }, { name: 'Tiểu sử', value: 'Dòng đầu\nDòng sau' }], footer: { text: 'ID Người tạo: 123' } }], components: [buttonRow('profile_edit')] });
     const card = payload.components[0];
-    assert.equal(card.accent_color, 0x2DD4BF);
+    assert.equal(card.accent_color, 0xF59E0B);
     assert.match(card.components[0].content, /\*\*MIMI\*\*.*HỒ SƠ/);
-    assert.ok(texts(payload).includes('### Chi tiết'));
+    assert.ok(!texts(payload).includes('### Chi tiết'));
     assert.ok(texts(payload).includes('> **Số dư**\n> 500 xu'));
     assert.ok(texts(payload).includes('### Tiểu sử\nDòng đầu\nDòng sau'));
     assert.equal(card.components.at(-1).type, 1);
@@ -29,7 +29,7 @@ test('Bố cục thẻ mới có nhận diện mint, nhóm dữ liệu và hàng
 });
 
 test('Thẻ native được bố trí lại một lần, trạng thái và ID không đổi khi chuẩn hóa lặp', () => {
-    for (const [content, expectedColor] of [['## Bảng nhạc', COLORS.THEME], ['## ❌ Không thể tải bài', COLORS.ERROR], ['## ⚠️ Cần chú ý', COLORS.WARNING], ['## ✅ Đã lưu', COLORS.SUCCESS]]) {
+    for (const [content, expectedColor] of [['## Âm nhạc', 0x8B5CF6], ['## ❌ Không thể tải bài', COLORS.ERROR], ['## ⚠️ Cần chú ý', COLORS.WARNING], ['## ✅ Đã lưu', COLORS.SUCCESS]]) {
         const native = { flags: V2, components: [{ type: 17, accent_color: 0x8B7CF8, components: [buttonRow('native_action'), { type: 10, id: 77, content }, { type: 14, divider: true, spacing: 1 }, { type: 10, id: 78, content: 'Thông tin gốc' }] }] };
         const once = normalizePayload(native);
         const twice = normalizePayload(once);
@@ -37,16 +37,16 @@ test('Thẻ native được bố trí lại một lần, trạng thái và ID kh
         assert.deepEqual(twice, once);
         assert.equal(once.components[0].components.at(-1).type, 1);
         assert.equal(texts(once).filter(text => text.includes('**MIMI**')).length, 1);
-        assert.equal(texts(once).filter(text => text === '-# Bot cộng đồng miễn phí').length, 1);
+        assert.equal(texts(once).filter(text => text === '-# Bot cộng đồng miễn phí').length, 0);
         assert.ok(texts(once).includes('Thông tin gốc'));
         assert.deepEqual(ids(once), ['native_action']);
     }
     const informational = normalizePayload({ embeds: [{ title: 'Thông báo', description: 'Chi tiết' }], mimiUi: { status: 'info' } });
     assert.deepEqual(normalizePayload(informational), informational);
     const help = normalizePayload({ embeds: [{ title: 'Trợ giúp Mimi', description: 'Bài hát, hàng chờ, kinh tế, trò chơi' }] });
-    assert.ok(texts(help).some(text => text.includes('TRỢ GIÚP')));
+    assert.ok(texts(help).some(text => text.includes('SỔ TAY MIMI')));
     const shop = normalizePayload({ embeds: [{ title: 'Cửa hàng', color: 0xF1C40F, description: 'Chọn vật phẩm' }] });
-    assert.equal(shop.components[0].accent_color, COLORS.THEME);
+    assert.equal(shop.components[0].accent_color, 0xFBBF24);
     assert.ok(texts(shop).every(text => !text.includes('CẦN CHÚ Ý')));
 });
 
@@ -100,22 +100,16 @@ test('API bảng cộng đồng dùng màu và bố cục thống nhất', () =>
     const { colors, buildCommunityPanel } = require('../uiBuilder');
     assert.equal(colors.THEME, '#2dd4bf');
     const panel = buildCommunityPanel({ title: 'Cửa hàng', description: 'Chọn vật phẩm', fields: [{ name: 'Số dư', value: '500 xu' }], kind: 'economy', rows: [buttonRow('buy')] });
-    assert.equal(panel.components[0].accent_color, COLORS.THEME);
-    assert.ok(texts(panel).some(text => text.includes('KINH TẾ')));
+    assert.equal(panel.components[0].accent_color, 0xFBBF24);
+    assert.ok(texts(panel).some(text => text.includes('VÍ & VẬT PHẨM')));
     assert.deepEqual(ids(panel), ['buy']);
 });
 
 test('Thanh tiến trình và thời gian xử lý dữ liệu thiếu/không hữu hạn mà không báo hoàn tất giả', () => {
     const { generateProgressBar, formatDuration } = require('../uiBuilder');
-    assert.equal(generateProgressBar(30, 60, 4), '▰▰▱▱ 50%');
-    assert.equal(generateProgressBar(0, 0, 2), '▱▱▱▱ 0%');
-    assert.equal(generateProgressBar(100, 0, 4), '▱▱▱▱ 0%');
-    assert.equal(generateProgressBar(Infinity, 60, 4), '▱▱▱▱ 0%');
-    assert.equal(generateProgressBar(30, Infinity, 4), '▱▱▱▱ 0%');
-    assert.equal(generateProgressBar(-10, 60, 4), '▱▱▱▱ 0%');
-    assert.equal(generateProgressBar(200, 60, 4), '▰▰▰▰ 100%');
-    assert.equal(generateProgressBar(60, 60, 100).split(' ')[0].length, 24);
-    assert.equal(generateProgressBar(30, 60, NaN).split(' ')[0].length, 12);
+    assert.equal(generateProgressBar(30, 60, 4), '50%');
+    for (const [current, total] of [[0, 0], [100, 0], [Infinity, 60], [30, Infinity], [-10, 60]]) assert.equal(generateProgressBar(current, total, 4), '0%');
+    assert.equal(generateProgressBar(200, 60, 4), '100%');
     assert.equal(formatDuration(3661.9), '01:01:01');
     for (const value of [NaN, Infinity, -Infinity, -1, 'abc']) assert.equal(formatDuration(value), '00:00');
 });

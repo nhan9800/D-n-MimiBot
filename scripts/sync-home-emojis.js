@@ -19,7 +19,7 @@ function guildPlan(guild, existing) {
     const names = new Set(existing.map(emoji => emoji.name));
     const entries = [...PRIORITY.map(key => EMOJI_ASSET_MANIFEST.find(item => item.key === key)).filter(Boolean), ...EMOJI_ASSET_MANIFEST];
     const wanted = new Map(entries.map(item => [item.file, item]));
-    const files = [...wanted.keys()].filter(file => !names.has(file.slice(0, -4)));
+    const files = [...wanted.keys()].filter(file => !names.has(wanted.get(file).name));
     return { limit, staticCount, slots: Math.max(0, limit - staticCount),
         add: files.slice(0, Math.max(0, limit - staticCount)), deferred: files.slice(Math.max(0, limit - staticCount)) };
 }
@@ -76,7 +76,7 @@ async function sync(mode, configPath, outputDirectory) {
     for (const file of plan.add) {
         const image = fs.readFileSync(path.join(__dirname, '../assets/emojis', file));
         const emoji = await rest.post(Routes.guildEmojis(HOME_GUILD_ID), {
-            body: { name: file.slice(0, -4), image: `data:image/png;base64,${image.toString('base64')}`, roles: [] },
+            body: { name: EMOJI_ASSET_MANIFEST.find(item => item.file === file).name, image: `data:image/png;base64,${image.toString('base64')}`, roles: [] },
             reason: 'Cài bộ custom emoji Mimi cho server chính theo yêu cầu chủ dự án'
         });
         created.push({ id: emoji.id, name: emoji.name });

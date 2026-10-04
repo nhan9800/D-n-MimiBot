@@ -17,7 +17,7 @@ const actionRow = () => new ActionRowBuilder().addComponents(
     new ButtonBuilder().setCustomId('profile_sell_item').setLabel('Bán vật phẩm').setStyle(ButtonStyle.Secondary),
     new ButtonBuilder().setCustomId('profile_shop').setLabel('Mua sắm').setStyle(ButtonStyle.Primary));
 
-test('Hồ sơ mới có hai khối mint, tiến trình thật và giữ nguyên thao tác', () => {
+test('Hồ sơ mới có hai khối amber, tiến trình thật và giữ nguyên thao tác', () => {
     const data = { balance: 42350, level: 4, xp: 300, pet: { name: 'Moon', level: 2 },
         spouseId: '234567890123456789', inventory: { nhan_cuoi: 1 }, cancau_uses: 15, cuoc_uses: 7 };
     const before = JSON.stringify(data);
@@ -66,10 +66,10 @@ test('Thiếu avatar, ảnh cũ lỗi và chỉ số không hợp lệ vẫn cho
 });
 
 test('Thanh tiến trình giới hạn tỷ lệ nhưng không bịa thêm kinh nghiệm', () => {
-    assert.deepEqual(cardProgress(150, 100, 4), { value: 150, target: 100, percent: 100, bar: '▰▰▰▰', remaining: 0 });
-    assert.deepEqual(cardProgress(-10, NaN, 4), { value: 0, target: 0, percent: 0, bar: '▱▱▱▱', remaining: 0 });
-    assert.equal(cardProgress(10, 100, Infinity).bar.length, 4);
-    assert.equal(cardProgress(10, 100, 100000).bar.length, 24);
+    assert.deepEqual(cardProgress(150, 100, 4), { value: 150, target: 100, percent: 100, bar: '100%', remaining: 0 });
+    assert.deepEqual(cardProgress(-10, NaN, 4), { value: 0, target: 0, percent: 0, bar: '0%', remaining: 0 });
+    assert.equal(cardProgress(10, 100, Infinity).bar, '10%');
+    assert.equal(cardProgress(10, 100, 100000).bar, '10%');
 });
 
 test('Thẻ cấp độ phân biệt EXP theo máy chủ, hạng chưa có và XP cộng đồng', () => {

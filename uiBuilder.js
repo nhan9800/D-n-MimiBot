@@ -1,5 +1,6 @@
 const { EmbedBuilder } = require('discord.js');
 const { COLORS, normalizePayload, buildNoticePayload } = require('./discordUi');
+const { customProgressBar } = require('./communityEmojis');
 
 // 1. Hệ thống màu sắc giao diện (Design System Colors)
 const colors = {
@@ -35,20 +36,9 @@ function buildCommunityPanel({ title, description, fields = [], rows = [], foote
     });
 }
 
-// 3. Tiện ích tạo thanh tiến trình bằng ký tự (ProgressBar)
+// Thanh tiến trình dùng ảnh custom của ứng dụng.
 function generateProgressBar(currentSec, totalSec, barSize = 12) {
-    const size = Number.isFinite(Number(barSize)) ? Math.max(4, Math.min(24, Math.trunc(Number(barSize)))) : 12;
-    const current = Number(currentSec);
-    const total = Number(totalSec);
-    const progress = Number.isFinite(current) && Number.isFinite(total) && total > 0 ? Math.max(0, Math.min(1, current / total)) : 0;
-    const filledSize = Math.round(progress * size);
-    const emptySize = size - filledSize;
-
-    const filledBar = '▰'.repeat(filledSize);
-    const emptyBar = '▱'.repeat(emptySize);
-
-    const percentage = Math.round(progress * 100);
-    return `${filledBar}${emptyBar} ${percentage}%`;
+    return customProgressBar(currentSec, totalSec, barSize);
 }
 
 // Tiện ích định dạng giây thành chuỗi thời gian hiển thị (MM:SS hoặc HH:MM:SS)

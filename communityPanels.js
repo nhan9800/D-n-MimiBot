@@ -1,28 +1,34 @@
 'use strict';
 
-// Các bảng chính dùng dữ liệu thuần để có thể kiểm tra mà không đăng nhập Discord.
-const { formatDuration, generateProgressBar } = require('./uiBuilder');
-const { COMMUNITY_EMOJI, toComponentEmoji } = require('./communityEmojis');
-const MINT = 0x2DD4BF;
+// Bộ dựng chỉ nhận dữ liệu hiển thị; quyền, phiên phát và custom_id vẫn ở handler.
+const { formatDuration } = require('./uiBuilder');
+const { emojiForKey, toComponentEmoji, customProgressBar, plainUiText } = require('./communityEmojis');
+const MUSIC_ACCENT = 0x8B5CF6;
+const HELP_ACCENT = 0x38BDF8;
 const text = content => ({ type: 10, content });
 const divider = () => ({ type: 14, divider: true, spacing: 1 });
 const row = components => ({ type: 1, components });
-const safe = value => String(value ?? '').replace(/([\\`*_~\[\]])/g, '\\$1');
+const safe = (value, max = 160) => String(value ?? '').slice(0, max).replace(/([\\`*_~\[\]])/g, '\\$1');
 const finite = (value, fallback = 0) => Number.isFinite(Number(value)) ? Number(value) : fallback;
+const icon = key => emojiForKey(key);
+const withIcon = (key, value) => [icon(key), value].filter(Boolean).join(' ');
+const jsonRows = rows => rows.map(component => typeof component.toJSON === 'function' ? component.toJSON() : component);
 
-function emoji(key) {
-    const value = COMMUNITY_EMOJI[key];
-    return toComponentEmoji(value);
+function payload(kind, accent, components, status) {
+    return { components: [{ type: 17, id: kind === 'music' ? 910100 : 910200, accent_color: accent, components }],
+        mimiUi: { kind, curated: true, ...(status ? { status } : {}) },
+        flags: 32768, allowedMentions: { parse: [], repliedUser: false } };
 }
 
 function buildMusicControls(state) {
-    const button = (id, label, icon, style = 2, disabled = false) => ({
-        type: 2, custom_id: id, label, ...(emoji(icon) ? { emoji: emoji(icon) } : {}), style, disabled
-    });
+    const button = (id, label, key, style = 2, disabled = false) => {
+        const emoji = toComponentEmoji(icon(key));
+        return { type: 2, custom_id: id, label, ...(emoji ? { emoji } : {}), style, disabled };
+    };
     const loopLabel = state.loop === 'track' ? 'Lặp bài' : state.loop === 'queue' ? 'Lặp hàng đợi' : 'Lặp: tắt';
     return [
         row([
-            button('music_pauseresume', state.paused ? 'Tiếp tục' : 'Tạm dừng', state.paused ? 'play' : 'pause', 3),
+            button('music_pauseresume', state.paused ? 'Tiếp tục' : 'Tạm dừng', state.paused ? 'play' : 'pause', 1),
             button('music_restart', 'Phát lại', 'restart'),
             button('music_skip', 'Bài tiếp', 'skip'),
             button('music_stop', 'Kết thúc', 'stop', 4)
@@ -45,68 +51,74 @@ function buildMusicControls(state) {
             button('music_lyrics', 'Lời bài hát', 'lyrics')
         ]),
         row([{
-            type: 3, custom_id: 'music_effect_select', placeholder: 'Đổi chất âm cho cả phòng',
-            options: Object.entries(state.effects).map(([value, effect]) => ({
-                label: effect.label, value, default: value === (state.effect || 'none')
-            }))
+            type: 3, custom_id: 'music_effect_select', placeholder: 'Chọn chất âm cho phòng',
+            options: Object.entries(state.effects).map(([value, effect]) => {
+                const emoji = toComponentEmoji(icon('effect'));
+                return { label: plainUiText(effect.label).slice(0, 100), value,
+                    ...(emoji ? { emoji } : {}), default: value === (state.effect || 'none') };
+            })
         }])
     ];
 }
 
 function buildMusicDashboard(state) {
     const track = state.track;
-    if (!track) return { components: [{ type: 17, accent_color: MINT, components: [
-        text('## 🎵 Phòng nhạc đang nghỉ'),
-        text('Vào kênh thoại và dùng `/play` để bắt đầu nghe cùng mọi người.')
-    ] }], flags: 32768 };
+    if (!track) return payload('music', MUSIC_ACCENT, [
+        text(`-# ${withIcon('music', '**MIMI** • PHÒNG NHẠC')}`),
+        text('## Hẹn bạn ở bài hát tiếp theo'),
+        text('Vào kênh thoại, dùng `/play` và cùng mọi người chọn nhạc cho buổi trò chuyện.')
+    ]);
+    const queue = state.queue || [];
+    const effects = state.effects || { none: { label: 'Nguyên bản' } };
     const total = Math.max(0, finite(track.duration));
     const elapsed = Math.max(0, finite(state.elapsed));
-    const title = safe(String(track.title || 'Bài hát').slice(0, 200));
+    const title = safe(track.title || 'Bài hát', 160);
     const url = /^https?:\/\//i.test(track.url || '') ? track.url.replace(/[()\s]/g, encodeURIComponent) : null;
-    const titleText = `## ${url ? `[${title}](${url})` : title}`;
-    const details = `${safe(track.author || 'Chưa rõ nghệ sĩ')} · ${safe(track.source || 'YouTube')}\n-# Yêu cầu bởi ${safe(track.requestedBy || 'thành viên')}`;
-    const header = [text(titleText), text(details)];
-    const components = [text(`-# **MIMI** • PHÒNG NHẠC · ${state.paused ? 'TẠM DỪNG' : 'ĐANG PHÁT'}`), divider()];
+    const header = [text(`## ${url ? `[${title}](${url})` : title}`),
+        text(`${safe(track.author || 'Chưa rõ nghệ sĩ', 100)} · ${safe(track.source || 'YouTube', 30)}\n` +
+            `-# Yêu cầu bởi ${safe(track.requestedBy || 'thành viên', 80)}`)];
+    const components = [text(`-# ${withIcon('music', '**MIMI** • PHÒNG NHẠC')} · ${state.paused ? 'TẠM DỪNG' : 'ĐANG PHÁT'}`)];
     if (/^https?:\/\//i.test(track.thumbnail || '')) components.push({
         type: 9, components: header, accessory: { type: 11, media: { url: track.thumbnail } }
     });
     else components.push(...header);
     components.push(
-        text(total ? `\`${formatDuration(Math.min(elapsed, total))}\` ${generateProgressBar(elapsed, total, 12)} \`${formatDuration(total)}\`` : `🔴 Phát trực tiếp · \`${formatDuration(elapsed)}\``),
+        text(total ? `\`${formatDuration(Math.min(elapsed, total))}\` ${customProgressBar(elapsed, total, 8)} \`${formatDuration(total)}\``
+            : `${withIcon('signal', 'Phát trực tiếp')} · \`${formatDuration(elapsed)}\``),
+        text(`${withIcon('volup', `**${Math.round(Math.max(0, finite(state.volume, 1)) * 100)}%** âm lượng`)} · ` +
+            `${withIcon('queue', `**${queue.length}** bài chờ`)}\n` +
+            `${withIcon('effect', safe(effects[state.effect || 'none']?.label || 'Nguyên bản', 60))} · ` +
+            `${withIcon('loopOff', state.loop === 'track' ? 'Lặp bài' : state.loop === 'queue' ? 'Lặp hàng đợi' : 'Không lặp')}`),
         divider(),
-        text(`**${Math.round(Math.max(0, finite(state.volume, 1)) * 100)}%** âm lượng · **${state.queue.length}** bài tiếp theo\n🎚️ ${safe(state.effects[state.effect || 'none']?.label || 'Tắt')} · 🔁 ${state.loop === 'track' ? 'Lặp bài hiện tại' : state.loop === 'queue' ? 'Lặp hàng đợi' : 'Không lặp'}`),
-        divider(),
-        ...buildMusicControls(state),
-        text('-# Bot cộng đồng miễn phí')
+        ...buildMusicControls({ ...state, queue, effects }),
+        text('-# Lưu bài yêu thích hoặc chọn chất âm để nghe theo cách của bạn.')
     );
-    return { components: [{ type: 17, accent_color: state.paused ? 0xFBBF24 : MINT, components }], mimiUi: { kind: 'music', ...(state.paused ? { status: 'warning' } : {}) }, flags: 32768, allowedMentions: { parse: [] } };
+    return payload('music', state.paused ? 0xF59E0B : MUSIC_ACCENT, components, state.paused ? 'warning' : undefined);
 }
 
 function buildHelpOverview({ avatarUrl, rows = [] } = {}) {
-    const heading = [text('## 👋 Bạn muốn làm gì cùng Mimi?'), text('Chọn một danh mục bên dưới để xem cú pháp, quyền cần có và cách sử dụng.')];
-    const components = [text('-# **MIMI** • SỔ TAY CỘNG ĐỒNG'), divider()];
+    const heading = [text('## Một cộng đồng, nhiều cách vui'),
+        text('Nghe nhạc, chăm người bạn nhỏ hoặc quản lý máy chủ. Chọn một danh mục để bắt đầu.')];
+    const components = [text(`-# ${withIcon('help', '**MIMI** • KHÁM PHÁ TÍNH NĂNG')}`)];
     if (avatarUrl) components.push({ type: 9, components: heading, accessory: { type: 11, media: { url: avatarUrl } } });
     else components.push(...heading);
-    components.push(
-        divider(),
-        text('### 🎧 Chơi cùng nhau\n**Nhạc** `/play` · **Nông trại** `/farm` · **Cửa hàng** `/shop`\nTrò chơi xu, thú cưng, hồ sơ và cấp độ chat.'),
-        text('### 🛠️ Chăm sóc máy chủ\n**Khởi tạo** `/setup` · **Emoji** `/setupemoji` · **Quà tặng** `/giveawaycreate`\nTicket, xác thực, chấm công, phòng thoại và quản trị.'),
-        divider(),
-        ...rows.map(component => typeof component.toJSON === 'function' ? component.toJSON() : component),
-        text('-# Miễn phí toàn bộ tính năng · Chọn danh mục để bắt đầu')
-    );
-    return { components: [{ type: 17, accent_color: MINT, components }], flags: 32768, allowedMentions: { parse: [] } };
+    components.push(divider(),
+        text(`### ${withIcon('music', 'Hẹn nhau giải trí')}\n**Nhạc** \`/play\` · **Trò chơi** \`/mines\`\nChọn bài, lưu thư viện và thử các trò chơi xu.`),
+        text(`### ${withIcon('pet', 'Đồng hành mỗi ngày')}\n**Thú cưng** \`mipet\` · **Nông trại** \`/farm\` · **Hồ sơ** \`miprofile\`\nChăm pet, trồng cây và xây hành trình của riêng bạn.`),
+        text(`### ${withIcon('shield', 'Chăm sóc máy chủ')}\n**Khởi tạo** \`/setup\` · **Hỗ trợ** \`/setupticket\` · **Emoji** \`/setupemoji\`\nXác thực, chấm công, phòng thoại và quản trị.`),
+        divider(), ...jsonRows(rows),
+        text('-# Chọn danh mục bên dưới · Toàn bộ tính năng cộng đồng miễn phí'));
+    return payload('help', HELP_ACCENT, components);
 }
 
 function buildHelpPage(page, rows = []) {
-    const fields = page.fields.map(field => text(`**${field.name}**\n${field.value}`));
-    return { components: [{ type: 17, accent_color: MINT, components: [
-        text('-# **MIMI** • SỔ TAY CỘNG ĐỒNG'),
-        text(`## ${page.emoji} ${page.title}`), text(page.desc), divider(),
-        ...fields, divider(),
-        ...rows.map(component => typeof component.toJSON === 'function' ? component.toJSON() : component),
-        text('-# Chọn danh mục khác bên dưới để tiếp tục khám phá')
-    ] }], flags: 32768, allowedMentions: { parse: [] } };
+    const fields = (page.fields || []).map(field => text(`### ${field.name}\n${field.value}`));
+    return payload('help', HELP_ACCENT, [
+        text(`-# ${withIcon('help', '**MIMI** • SỔ TAY TÍNH NĂNG')}`),
+        text(`## ${page.emoji ? `${page.emoji} ` : ''}${page.title}`), text(page.desc), divider(),
+        ...fields, divider(), ...jsonRows(rows),
+        text('-# Bạn có thể chọn danh mục khác ngay trong menu bên dưới.')
+    ]);
 }
 
-module.exports = { buildMusicControls, buildMusicDashboard, buildHelpOverview, buildHelpPage };
+module.exports = { MUSIC_ACCENT, HELP_ACCENT, buildMusicControls, buildMusicDashboard, buildHelpOverview, buildHelpPage };

@@ -7,6 +7,11 @@ const { buildProfilePayload, buildRankPayload } = require('../profileCard');
 const { buildCommunityPanel } = require('../uiBuilder');
 const { normalizePayload, walkComponents, countComponents } = require('../discordUi');
 const { normalizeModalPayload } = require('../modalUi');
+const { buildPetEmbed, buildPetComponents } = require('../petUi');
+const { COMMUNITY_EMOJI, EMOJI_ASSET_MANIFEST } = require('../communityEmojis');
+// ID giả chỉ dùng trong preview; ảnh đúng asset sản xuất, không đăng nhập Discord.
+for (const [index, item] of EMOJI_ASSET_MANIFEST.entries()) COMMUNITY_EMOJI[item.key] = `<:${item.name}:${100000000000000000n + BigInt(index)}>`;
+const emojiAssets = Object.fromEntries(EMOJI_ASSET_MANIFEST.map(item => [item.name, `../assets/emojis/${item.file}`]));
 const samples = [];
 function add(name, payload, note = '') {
     const normalized = normalizePayload(payload);
@@ -18,12 +23,14 @@ function add(name, payload, note = '') {
 const button = (id, label, style = 2) => ({ type: 2, custom_id: id, label, style });
 const row = (...components) => ({ type: 1, components });
 const avatar = 'https://example.com/avatar.png';
-const user = { id: '123456789012345678', username: 'An', globalName: 'An Nguyễn' };
+const user = { id: '123456789012345678', username: 'An', globalName: 'An Nguyễn', displayAvatarURL: () => avatar };
 const music = { track: { title: 'Một buổi chiều cùng Mimi', author: 'Nghệ sĩ cộng đồng', url: 'https://youtube.com/watch?v=demo', thumbnail: avatar, requestedBy: 'An', duration: 245 }, elapsed: 94, paused: false, volume: 0.8, loop: 'off', autoplay: true, stay247: false, effect: 'none', queue: [{ title: 'Bài tiếp theo' }], effects: { none: { label: 'Nguyên bản' }, bassboost: { label: 'Bassboost' }, lofi: { label: 'Chill (Lofi)' }, nightcore: { label: 'Nightcore' } } };
 add('Nhạc · đang phát', buildMusicDashboard(music));
 add('Nhạc · tạm dừng', buildMusicDashboard({ ...music, paused: true }));
 add('Hồ sơ cộng đồng', buildProfilePayload({ user, data: { level: 12, balance: 128500, xp: 640, pet: { name: 'Mochi', level: 4 }, inventory: { nhan_cuoi: 1 }, cancau_uses: 16 }, xpNeeded: 1000, avatarUrl: avatar, rows: [row(button('profile_sell_item', 'Bán vật phẩm', 4), button('profile_shop', 'Mua sắm', 1))] }));
 add('Cấp độ máy chủ', buildRankPayload({ user, level: 7, currentExp: 810, neededExp: 1300, totalExp: 6480, rank: 3, guildName: 'Cộng đồng Mimi', avatarUrl: avatar }));
+const pet = { name: 'Mochi', type: 'dog', level: 4, xp: 120, hunger: 85, happiness: 70 };
+add('Pet · Chơi cùng đếm giây', { embeds: [buildPetEmbed(user, pet)], components: buildPetComponents(user.id, pet, { cooldowns: { pet_play: Date.now() + 42000 } }) }, 'Builder pet sản xuất với dữ liệu mẫu; cooldown live được scheduler cập nhật.');
 const categories = [
     ['Khởi tạo', '⚙️', 'help_setup'], ['Nhạc', '🎧', 'help_music'], ['Ticket', '🎫', 'help_ticket'],
     ['Kinh tế', '💰', 'help_economy'], ['Trò chơi', '🎮', 'help_game']
@@ -55,5 +62,5 @@ add('Lỗi & quyền', buildCommunityPanel({ title: '🚫 Bạn cần quyền qu
 samples.push({ name: 'Biểu mẫu mới', note: 'Các field ID và điều kiện nhập được giữ để handler tiếp tục hoạt động.', modal: normalizeModalPayload({ custom_id: 'afk_modal', title: 'Cài đặt AFK', components: [row({ type: 4, custom_id: 'afk_reason', label: 'Lời nhắn khi bạn vắng mặt', style: 2, placeholder: 'Ví dụ: Mình đang học, sẽ quay lại sau.', required: true })] }) });
 const docs = path.join(__dirname, '..', 'docs');
 const template = fs.readFileSync(path.join(docs, 'UI-PREVIEW.template.html'), 'utf8');
-fs.writeFileSync(path.join(docs, 'UI-PREVIEW.html'), template.replace('__MIMI_PAYLOADS__', JSON.stringify(samples).replace(/</g, '\\u003c')));
+fs.writeFileSync(path.join(docs, 'UI-PREVIEW.html'), template.replace('__MIMI_PAYLOADS__', JSON.stringify(samples).replace(/</g, '\\u003c')).replace('__MIMI_EMOJI_ASSETS__', JSON.stringify(emojiAssets)));
 console.log(`Đã dựng ${samples.length} mẫu từ payload UI, mọi tin nhắn nằm trong giới hạn Discord.`);

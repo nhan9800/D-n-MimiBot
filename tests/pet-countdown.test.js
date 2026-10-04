@@ -65,8 +65,8 @@ test('Cho ăn/đổi tên khi đang đếm giữ dữ liệu mới và một tim
     assert.equal(f.jobs.size, 1);
     await f.tick();
     const embed = f.edits.at(-1).embeds[0].toJSON();
-    assert.match(embed.description, /Bông/);
-    assert.match(embed.description, /35 \/ 100 XP/);
+    assert.match(embed.title, /Bông/);
+    assert.match(embed.fields[2].value, /35 \/ 100 XP/);
     assert.match(embed.description, /Đã đổi tên/);
     assert.match(embed.fields[0].value, /85\/100/);
     const v2 = normalizePayload(f.edits.at(-1), { edit: true });
@@ -109,7 +109,7 @@ test('Edit chậm không chồng request; thao tác mới được ghi sau tick 
     assert.equal(f.jobs.size, 0);
     release(); await tick; await updated;
     assert.equal(count, 2);
-    assert.match(f.edits.at(-1).embeds[0].toJSON().description, /Tên mới/);
+    assert.match(f.edits.at(-1).embeds[0].toJSON().title, /Tên mới/);
     assert.equal(f.jobs.size, 1);
     f.updater.stopAll();
 });

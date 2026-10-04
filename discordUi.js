@@ -14,6 +14,17 @@ const enabledClients = new WeakSet();
 const interactionReplies = new WeakMap();
 const preservedPayloads = new WeakSet();
 const preservedComponents = new WeakSet();
+const curatedComponents = new WeakSet();
+const componentThemes = new WeakMap();
+const sourceHints = new WeakMap();
+// ID bền qua JSON/Discord cache; không dùng các slot 10000 của legacy parser.
+const CURATED_SURFACES = { 9101: 'music', 9102: 'help', 9103: 'profile', 9104: 'farm', 9105: 'game' };
+
+// Metadata riêng của bot, không thêm thuộc tính lạ vào EmbedBuilder/API.
+function markUiSurface(value, hints) {
+    if (value && typeof value === 'object') sourceHints.set(value, { ...hints });
+    return value;
+}
 
 function emojiTools() {
     try { return require('./communityEmojis'); }
@@ -37,6 +48,8 @@ function cloneComponent(value) {
     if (source.options) copy.options = source.options.map(option => ({ ...option, ...(option.emoji ? { emoji: { ...option.emoji } } : {}) }));
     if (source.emoji) copy.emoji = { ...source.emoji };
     if (keep) preserveUi(copy);
+    if (curatedComponents.has(value) || curatedComponents.has(source)) curatedComponents.add(copy);
+    if (componentThemes.has(value) || componentThemes.has(source)) componentThemes.set(copy, componentThemes.get(value) || componentThemes.get(source));
     return copy;
 }
 
@@ -80,30 +93,50 @@ function textDisplay(content, id) {
 function separator() { return { type: 14, divider: true, spacing: 1 }; }
 
 const SURFACES = {
-    music: ['music', 'ÂM NHẠC'], help: ['help', 'TRỢ GIÚP'], profile: ['user', 'HỒ SƠ'],
-    economy: ['coin', 'KINH TẾ'], game: ['game', 'TRÒ CHƠI'], pet: ['pet', 'THÚ CƯNG'],
-    setup: ['settings', 'CẤU HÌNH'], ticket: ['ticket', 'HỖ TRỢ'], status: ['stats', 'TRẠNG THÁI'],
-    community: ['sparkle', 'CỘNG ĐỒNG']
+    music: ['music', 'PHÒNG NHẠC', 0x8B5CF6, 'Thư viện & chất âm'],
+    help: ['help', 'SỔ TAY MIMI', 0x38BDF8, 'Khám phá tính năng'],
+    profile: ['user', 'HỒ SƠ THÀNH VIÊN', 0xF59E0B, 'Hành trình của bạn'],
+    economy: ['coin', 'VÍ & VẬT PHẨM', 0xFBBF24, 'Tài sản & giao dịch'],
+    game: ['game', 'BÀN CHƠI', 0xA78BFA, 'Ván chơi hiện tại'],
+    pet: ['pet', 'NGƯỜI BẠN NHỎ', 0xFB7185, 'Chăm sóc & trưởng thành'],
+    farm: ['farm', 'NHẬT KÝ NÔNG TRẠI', 0x84CC16, 'Khu vườn của bạn'],
+    ticket: ['ticket', 'QUẦY HỖ TRỢ', 0x60A5FA, 'Thông tin tiếp nhận'],
+    voice: ['volup', 'PHÒNG THOẠI', 0x818CF8, 'Phòng của bạn'],
+    reminder: ['calendar', 'LỊCH CỦA BẠN', 0xF472B6, 'Mốc thời gian'],
+    attendance: ['clock', 'CA LÀM VIỆC', 0x22D3EE, 'Trạng thái ca'],
+    giveaway: ['gift', 'SỰ KIỆN CỘNG ĐỒNG', 0xE879F9, 'Phần thưởng & tham gia'],
+    moderation: ['shield', 'NHẬT KÝ MÁY CHỦ', 0xF87171, 'Đối tượng & xử lý'],
+    feedback: ['chat', 'GÓC CHIA SẺ', 0x2DD4BF, 'Thông tin bài gửi'],
+    setup: ['settings', 'TRUNG TÂM ĐIỀU KHIỂN', 0x38BDF8, 'Cài đặt hiện tại'],
+    status: ['stats', 'SỨC KHỎE MIMI', 0x34D399, 'Số liệu vận hành'],
+    community: ['sparkle', 'CỘNG ĐỒNG', 0x2DD4BF, 'Thông tin dành cho bạn']
 };
 
 function presentation(text, options = {}, color) {
     const value = String(text || '');
     const leading = value.replace(/^\s*(?:#{1,3}\s*)?/, '');
     let status = options.status;
-    if (!status && (/^(?:❌|🚫|⛔)/u.test(leading) || /(?:lỗi|thất bại|không thể|chưa thể)/iu.test(leading.slice(0, 80)))) status = 'error';
-    if (!status && (/^⚠/u.test(leading) || /(?:cảnh báo|cần chú ý)/iu.test(leading.slice(0, 80)))) status = 'warning';
-    if (!status && /^(?:✅|☑)|(?:thành công|hoàn tất|đã lưu)/iu.test(leading.slice(0, 80))) status = 'success';
-    if (!status && [COLORS.ERROR, 0xED4245, 0xE74C3C, 0xFF0000].includes(color)) status = 'error';
-    if (!status && [COLORS.WARNING, 0xFEE75C].includes(color)) status = 'warning';
-    if (!status && color === COLORS.SUCCESS) status = 'success';
-    if (!status && color === COLORS.INFO) status = 'info';
+    if (!status && !options.curated && (/^(?:❌|🚫|⛔)/u.test(leading) || /(?:lỗi|thất bại|không thể|chưa thể)/iu.test(leading.slice(0, 80)))) status = 'error';
+    if (!status && !options.curated && (/^⚠/u.test(leading) || /(?:cảnh báo|cần chú ý)/iu.test(leading.slice(0, 80)))) status = 'warning';
+    if (!status && !options.curated && /^(?:✅|☑)|(?:thành công|hoàn tất|đã lưu)/iu.test(leading.slice(0, 80))) status = 'success';
+    if (!status && !options.curated && [COLORS.ERROR, 0xED4245, 0xE74C3C, 0xFF0000].includes(color)) status = 'error';
+    if (!status && !options.curated && [COLORS.WARNING, 0xFEE75C].includes(color)) status = 'warning';
+    if (!status && !options.curated && color === COLORS.SUCCESS) status = 'success';
+    if (!status && !options.curated && color === COLORS.INFO) status = 'info';
     let kind = options.kind;
     if (!Object.hasOwn(SURFACES, kind)) {
         const rules = [
             ['ticket', /ticket|yêu cầu hỗ trợ|tiếp nhận hỗ trợ/iu],
+            ['moderation', /cảnh cáo|kỷ luật|banned|blacklist|anti.?raid|nhật ký|audit|kiểm duyệt|ban thành viên|kick thành viên/iu],
+            ['attendance', /chấm công|ca làm|vào ca|kết thúc ca/iu],
+            ['voice', /phòng thoại|kênh thoại riêng|voice room/iu],
+            ['reminder', /nhắc nhở|lịch nhắc|reminder|AFK|vắng mặt/iu],
+            ['giveaway', /giveaway|trúng thưởng|phần thưởng sự kiện/iu],
+            ['feedback', /confess|góp ý|chia sẻ|phản hồi/iu],
             ['music', /âm nhạc|bài hát|đang phát|hàng chờ|yêu thích|hiệu ứng|album|music|lyrics/iu],
             ['pet', /thú cưng|nhận nuôi|\bpet\b/iu],
-            ['game', /blackjack|hilo|mines|xì dách|trò chơi|minigame|ván bài|ô mìn/iu],
+            ['farm', /nông trại|khu vườn|gieo hạt|thu hoạch|cây trồng|tưới nước|câu cá|đào kho báu/iu],
+            ['game', /blackjack|hilo|mines|xì dách|trò chơi|minigame|ván bài|ô mìn|tài xỉu|bầu cua|xúc xắc|oẳn tù tì|đoán số|casino/iu],
             ['profile', /hồ sơ|cá nhân|profile|nhân vật/iu],
             ['economy', /kinh tế|cửa hàng|số dư|ngân hàng|\bxu\b|economy/iu],
             ['setup', /cấu hình|cài đặt|setup|xác thực|vai trò/iu],
@@ -114,11 +147,12 @@ function presentation(text, options = {}, color) {
         kind = rules.find(([, pattern]) => pattern.test(headline))?.[0] || rules.find(([, pattern]) => pattern.test(value))?.[0] || 'community';
     }
     const state = { error: ['error', 'CẦN XỬ LÝ'], warning: ['warning', 'CẦN CHÚ Ý'], success: ['check', 'HOÀN TẤT'], info: ['info', 'THÔNG TIN'] }[status];
-    const [icon, label] = SURFACES[kind];
+    const [icon, label, accent, fieldHeading] = SURFACES[kind];
     const emojis = emojiTools().COMMUNITY_EMOJI || {};
     return {
         kind, status,
-        color: COLORS[String(status || '').toUpperCase()] || COLORS.THEME,
+        color: COLORS[String(status || '').toUpperCase()] || accent,
+        fieldHeading,
         header: `-# ${emojis[state?.[0] || icon] || ''} **MIMI** • ${label}${state ? ` · ${state[1]}` : ''}`
     };
 }
@@ -155,15 +189,34 @@ function styleNativeCards(components, options = {}) {
         const priorActionLabel = children.find(child => child.type === 10 && /^-# Thao tác$/.test(child.content));
         const body = children.filter(child => child.type !== 1 && !isBrand(child) && !isManagedFooter(child) && !(child.type === 10 && /^-# Thao tác$/.test(child.content)));
         const surfaceText = [];
-        walkComponents(body, child => { if (child.type === 10) surfaceText.push(child.content); });
-        const theme = presentation(surfaceText.join('\n').slice(0, 500), options, component.accent_color);
+        walkComponents(body, child => { if (child.type === 10 && !preservedComponents.has(child)) surfaceText.push(child.content); });
+        const savedTheme = componentThemes.get(component);
+        const durableKind = CURATED_SURFACES[Math.floor(component.id / 100)];
+        const priorKind = priorBrand && Object.entries(SURFACES).find(([, surface]) => priorBrand.content.includes(`• ${surface[1]}`))?.[0];
+        const priorStatus = priorBrand && Object.entries({ error: 'CẦN XỬ LÝ', warning: 'CẦN CHÚ Ý', success: 'HOÀN TẤT', info: 'THÔNG TIN' }).find(([, label]) => priorBrand.content.endsWith(` · ${label}`))?.[0];
+        const theme = savedTheme || presentation(surfaceText.join('\n').slice(0, 500),
+            { ...(priorKind ? { kind: priorKind } : {}), ...(priorStatus ? { status: priorStatus } : {}),
+                ...(durableKind ? { kind: durableKind, curated: true,
+                    ...(durableKind === 'music' && priorBrand?.content.includes('TẠM DỪNG') ? { status: 'warning' } : {}) } : {}), ...options }, priorBrand ? undefined : component.accent_color);
+        // Các builder chuyên biệt tự sắp thứ tự ảnh/chỉ số/điều khiển.
+        if (options.curated || durableKind || curatedComponents.has(component)) {
+            const styled = { ...component, accent_color: theme.color,
+                components: priorBrand ? children : [textDisplay(theme.header, newId()), ...children] };
+            curatedComponents.add(styled);
+            componentThemes.set(styled, theme);
+            return styled;
+        }
         const footer = children.find(isManagedFooter);
         // Footer chứa ID ticket phải giữ nguyên ở đúng slot, không thay bằng câu thương hiệu.
         const hasDataFooter = body.some(child => child.type === 10 && child.id >= EMBED_BASE && child.id < EMBED_BASE + 1000 && (child.id - EMBED_BASE) % 100 === 5);
         const arranged = [priorBrand || textDisplay(theme.header, newId()), ...body];
-        if (!hasDataFooter) arranged.push(separator(), footer || textDisplay(`-# ${COMMUNITY_FOOTER}`, newId()));
-        if (rows.length) arranged.push(separator(), priorActionLabel || textDisplay('-# Thao tác', newId()), ...rows);
-        return { ...component, accent_color: theme.color, components: tidySeparators(arranged) };
+        if (rows.length) arranged.push(separator(), ...rows);
+        // Thẻ ngắn không cần thêm một khối thương hiệu lặp lại. Footer dữ liệu
+        // và footer tác giả vẫn giữ nguyên để handler đọc lại đúng trạng thái.
+        if (!hasDataFooter && footer && body.length > 5) arranged.push(separator(), footer);
+        const styled = { ...component, accent_color: theme.color, components: tidySeparators(arranged) };
+        componentThemes.set(styled, theme);
+        return styled;
     });
 }
 
@@ -175,12 +228,14 @@ function buildNoticePayload(title, description, color = COLORS.THEME, options = 
 }
 
 function embedContainer(embed, index = 0, options = {}) {
+    options = { ...options, ...(sourceHints.get(embed) || {}) };
     const data = raw(embed) || {};
     const base = EMBED_BASE + index * 100;
-    const theme = presentation(`${data.title || ''}\n${data.description || ''}`, options, data.color);
+    const theme = presentation(`${data.title || ''}\n${options.preserveDescription ? '' : data.description || ''}`, options, data.color);
     const component = { type: 17, id: base, accent_color: options.preserve && Number.isInteger(data.color) ? data.color : theme.color, components: [] };
+    componentThemes.set(component, theme);
     const text = (content, id) => options.preserve ? { type: 10, id, content: String(content || '\u200b') } : textDisplay(content, id);
-    if (!options.preserve) component.components.push(text(theme.header, base + 7));
+    if (!options.preserve) component.components.push(text(theme.header, options.preserveDescription ? 920000 + index : base + 7));
     const head = [];
     if (data.title) {
         const title = data.url ? `[${data.title}](${data.url})` : data.title;
@@ -192,20 +247,23 @@ function embedContainer(embed, index = 0, options = {}) {
         component.components.push({ type: 9, components: head.slice(0, 3), accessory: { type: 11, media: { url: data.thumbnail.url } } });
     } else component.components.push(...head);
     if (data.description) {
-        component.components.push(separator(), text(data.description, base + 3));
+        const description = options.preserveDescription
+            ? preserveUi({ type: 10, id: base + 3, content: String(data.description) })
+            : text(data.description, base + 3);
+        component.components.push(separator(), description);
     }
     if (data.fields?.length) {
         component.components.push(separator());
-        if (!options.preserve) component.components.push(text('### Chi tiết', base + 8));
+        if (!options.preserve && data.fields.length > 2) component.components.push(text(`-# ${theme.fieldHeading}`, base + 8));
         component.components.push(...data.fields.map((field, fieldIndex) => {
-            const compact = !options.preserve && String(field.value).length <= 100 && !/[\n`]/.test(field.value);
+            const compact = !options.preserve && !['game', 'farm', 'economy'].includes(theme.kind) && String(field.value).length <= 100 && !/[\n`]/.test(field.value);
             const content = options.preserve ? `**${field.name}**\n${field.value}` : compact ? `> **${field.name}**\n> ${field.value}` : `### ${field.name}\n${field.value}`;
             return text(content, base + 10 + fieldIndex);
         }));
     }
     if (data.image?.url) component.components.push({ type: 12, items: [{ media: { url: data.image.url } }] });
     // ID của footer được giữ nguyên để các nút ticket đọc trạng thái sau restart.
-    const footer = data.footer?.text || (options.preserve ? '' : COMMUNITY_FOOTER);
+    const footer = data.footer?.text || '';
     if (footer) component.components.push(separator(), text(`-# ${footer}`, base + 5));
     if (data.timestamp && Number.isFinite(Date.parse(data.timestamp))) {
         component.components.push(text(`-# <t:${Math.floor(Date.parse(data.timestamp) / 1000)}:f>`, base + 6));
@@ -301,11 +359,25 @@ function exposeAttachments(payload, components) {
 }
 
 function replaceActionRows(components, rows) {
-    const copy = components.map(cloneComponent).filter(component => component.type !== 1);
-    for (const component of copy) if (component.components) component.components = replaceActionRows(component.components, []);
-    const container = copy.find(component => component.type === 17);
-    if (container) container.components.push(...rows);
-    else copy.push(...rows);
+    let inserted = false;
+    const replace = values => {
+        const result = [];
+        for (const value of values) {
+            if (value.type === 1) {
+                if (!inserted) { result.push(...rows); inserted = true; }
+                continue;
+            }
+            if (value.components) value.components = replace(value.components);
+            result.push(value);
+        }
+        return result;
+    };
+    const copy = replace(components.map(cloneComponent));
+    if (!inserted) {
+        const container = copy.filter(component => component.type === 17).at(-1);
+        if (container) container.components.push(...rows);
+        else copy.push(...rows);
+    }
     return copy;
 }
 
@@ -414,6 +486,16 @@ function fitPayload(payload) {
     return payload;
 }
 
+function restoreProtectedDescriptions(components) {
+    walkComponents(components, component => {
+        if (component.type !== 17) return;
+        const marker = (component.components || []).find(child => child.type === 10 && child.id >= 920000 && child.id < 920100 && isBrand(child));
+        if (!marker) return;
+        const descriptionId = EMBED_BASE + (marker.id - 920000) * 100 + 3;
+        walkComponents(component.components, child => { if (child.type === 10 && child.id === descriptionId) preserveUi(child); });
+    });
+}
+
 function normalizePayload(input, context = {}) {
     // MessagePayload đã resolve, poll/sticker và các thao tác không đổi nội dung giữ nguyên.
     if (input?.resolveBody) return input;
@@ -429,6 +511,9 @@ function normalizePayload(input, context = {}) {
     const ui = { ...(source.mimiUi || {}), ...(preservedPayloads.has(source) ? { preserve: true } : {}) };
     delete payload.mimiUi;
     const supplied = (source.components || []).map(cloneComponent);
+    // Dấu nhận diện hệ thống sống qua JSON/Discord REST; chỉ giữ nguyên slot
+    // nội dung tác giả, không bảo toàn các nút/header do Mimi thiết kế.
+    restoreProtectedDescriptions(supplied);
     const embeds = Array.isArray(source.embeds) ? [...source.embeds] : [];
     const actualComponents = [];
     for (const component of supplied) {
@@ -448,7 +533,7 @@ function normalizePayload(input, context = {}) {
             const theme = presentation(content, ui);
             components.push({ type: 17, accent_color: theme.color, components: ui.preserve
                 ? [{ type: 10, content: String(content) }]
-                : [textDisplay(theme.header), textDisplay(content), separator(), textDisplay(`-# ${COMMUNITY_FOOTER}`)] });
+                : [textDisplay(theme.header), textDisplay(content)] });
         }
         components.push(...embeds.map((embed, index) => embedContainer(embed, index, ui)));
         if (actualComponents.length && actualComponents.every(component => component.type === 1) && components.length) {
@@ -471,10 +556,17 @@ function normalizePayload(input, context = {}) {
         }
     }
     // Nhận diện trạng thái từ icon gốc trước khi thay bằng emoji ứng dụng/chữ.
+    restoreProtectedDescriptions(payload.components);
     payload.components = styleNativeCards(payload.components, ui);
     walkComponents(payload.components, component => { if (component.type === 10 && !preservedComponents.has(component)) component.content = cleanText(component.content); });
     const normalizeEmoji = emojiTools().normalizeComponentEmojis;
-    if (typeof normalizeEmoji === 'function') payload.components = payload.components.map(component => preservedComponents.has(component) ? component : (normalizeEmoji([component]) || [component])[0]);
+    if (typeof normalizeEmoji === 'function') payload.components = normalizeEmoji(payload.components, {
+        preserve: component => preservedComponents.has(component),
+        cloned: (original, copy) => {
+            if (curatedComponents.has(original)) curatedComponents.add(copy);
+            if (componentThemes.has(original)) componentThemes.set(copy, componentThemes.get(original));
+        }
+    });
     exposeAttachments(payload, payload.components);
     payload.flags = numericFlags(source.flags) | V2 | (source.ephemeral ? EPHEMERAL : 0);
     delete payload.ephemeral;
@@ -539,4 +631,4 @@ function installDiscordUi(discord, client) {
     return installed;
 }
 
-module.exports = { COLORS, V2, EPHEMERAL, normalizePayload, buildNoticePayload, preserveUi, readMessageEmbed, extractActionRows, installDiscordUi, walkComponents, countComponents };
+module.exports = { COLORS, V2, EPHEMERAL, normalizePayload, buildNoticePayload, preserveUi, markUiSurface, readMessageEmbed, extractActionRows, installDiscordUi, walkComponents, countComponents };
