@@ -5,6 +5,9 @@ const assert = require('node:assert/strict');
 const fs = require('node:fs');
 const path = require('node:path');
 const vm = require('node:vm');
+const { PassThrough } = require('node:stream');
+const ytDlp = require('yt-dlp-exec');
+const { validateMusicUrl } = require('../musicSources');
 const { createMusicPanelWriter } = require('../musicPanelUpdater');
 const source = fs.readFileSync(path.join(__dirname, '..', 'index.js'), 'utf8');
 
@@ -62,6 +65,70 @@ function musicQueue(message = null) {
         playGeneration: 1, nowPlayingMessage: message, textChannel: { guild: { id: 'g1' }, send: async () => null },
         player: { state: { status: 'playing' }, stop() {} }, connection: { state: { status: 'destroyed' }, destroy() {} } };
 }
+
+test('Tùy chọn metadata tạo argv yt-dlp hợp lệ, giữ cookie và xác thực HTTPS mặc định', async () => {
+    const calls = [];
+    const context = vm.createContext({
+        YT_EXTRACTOR_ARGS: 'youtube:player_client=android,ios,mweb', YT_META_TIMEOUT_MS: 12000,
+        getCookieFilePath: () => '/tmp/cookies-test.txt', validateMusicUrl,
+        ytDlpExec: async (url, flags) => { calls.push({ url, flags }); return { title: 'Bài thử', webpage_url: 'https://soundcloud.com/artist/track' }; }
+    });
+    vm.runInContext(region('function getYtCommonOpts()', 'const YT_COMMON_OPTS'), context);
+    vm.runInContext(region('async function searchSoundcloud(', 'function getYtCommonOpts('), context);
+    vm.runInContext(region('async function resolveDirectUrl(', '// Ưu tiên: YouTube'), context);
+    const common = vm.runInContext('getYtCommonOpts()', context);
+    assert.equal(common.cookies, '/tmp/cookies-test.txt');
+    assert.equal(common.extractorArgs, 'youtube:player_client=android,ios,mweb');
+    await vm.runInContext('searchSoundcloud("Bài thử")', context);
+    await vm.runInContext('resolveDirectUrl("https://soundcloud.com/artist/track")', context);
+    for (const flags of [common, ...calls.map(call => call.flags)]) {
+        const args = ytDlp.args('https://soundcloud.com/artist/track', flags);
+        assert.ok(!args.includes('--no-no-check-certificates'), 'Không sinh tham số bị yt-dlp từ chối');
+        assert.ok(!args.includes('--no-check-certificates'), 'Giữ xác thực chứng chỉ HTTPS mặc định');
+    }
+    assert.equal(calls.length, 2);
+});
+
+test('Phát YouTube, SoundCloud và tua bài dùng argv hợp lệ trước khi khởi động audio', async () => {
+    for (const [url, seekSec] of [
+        ['https://www.youtube.com/watch?v=abcdefghijk', 0],
+        ['https://soundcloud.com/artist/track', 0],
+        ['https://www.youtube.com/watch?v=abcdefghijk', 12]
+    ]) {
+        const f = fixture();
+        const calls = []; const failures = []; const played = [];
+        const process = { stdout: new PassThrough(), stderr: new PassThrough(), catch() {}, kill() {} };
+        Object.assign(f.context, {
+            PassThrough, validateMusicUrl, getCookieFilePath: () => null,
+            persistSession() {}, spawnFfmpegAudio: () => null,
+            YT_DOWNLOAD_CLIENT_FALLBACKS: ['youtube:player_client=android,ios'],
+            ytDlpExec: { exec(url, flags) { calls.push({ url, flags }); return process; } },
+            handlePlaybackFailure: (...args) => failures.push(args)
+        });
+        Object.assign(f.context.voiceLib, {
+            demuxProbe: async stream => ({ stream, type: 'ogg' }),
+            createAudioResource: stream => ({ stream })
+        });
+        const mq = musicQueue();
+        mq.current = null;
+        mq.queue = [{ url, title: 'Bài thử', duration: 180 }];
+        Object.assign(mq.player, { play: resource => played.push(resource), once() {}, off() {} });
+        f.musicQueues.set('g1', mq);
+        await f.playNextTrack('g1', { seekSec });
+        assert.equal(failures.length, 0, 'Hàm phát thật không gặp lỗi khởi tạo');
+        assert.equal(calls.length, 1);
+        const args = ytDlp.args(calls[0].url, calls[0].flags);
+        assert.ok(!args.includes('--no-no-check-certificates'));
+        assert.ok(!args.includes('--no-check-certificates'));
+        assert.ok(args.includes('--no-playlist'));
+        assert.equal(calls[0].flags.output, '-');
+        if (seekSec) assert.equal(calls[0].flags.downloadSections, '*12-inf');
+        assert.equal(played.length, 1);
+        assert.equal(mq.current.url, url);
+        assert.equal(mq.queue.length, 0);
+        process.stdout.destroy(); process.stderr.destroy(); mq.currentBuffer.destroy();
+    }
+});
 
 test('Refresh helper định tuyến guild rõ ràng, không đệ quy hoặc cập nhật guild khác', async () => {
     const f = fixture();

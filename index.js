@@ -1973,7 +1973,7 @@ async function closeAndArchiveTicket(channel, guild, userWhoClosed, gConfig, cre
         fs.writeFileSync(logFilePath, logChatText, 'utf-8');
 
         try {
-            const fileAttachment = new AttachmentBuilder(logFilePath);
+            const fileAttachment = new AttachmentBuilder(logFilePath, { name: logFileName });
             const archiveChan = gConfig.ticketArchiveChannelId ? guild.channels.cache.get(gConfig.ticketArchiveChannelId) : null;
             const nameDisplay = userWhoClosed && userWhoClosed.tag ? userWhoClosed.tag : (typeof userWhoClosed === 'string' ? userWhoClosed : "Hệ thống");
 
@@ -3367,8 +3367,7 @@ async function searchSoundcloud(query) {
         const info = await ytDlpExec(`scsearch1:${query}`, {
             dumpSingleJson: true,
             skipDownload: true,
-            noWarnings: true,
-            noCheckCertificates: true
+            noWarnings: true
         }, { timeout: 12000 });
         const item = info?.entries?.[0] || info;
         if (!item || (!item.url && !item.webpage_url)) return null;
@@ -3385,9 +3384,10 @@ async function searchSoundcloud(query) {
 }
 
 function getYtCommonOpts() {
+    // yt-dlp-exec đổi boolean false thành --no-<flag>; noCheckCertificates:false
+    // thành --no-no-check-certificates không hợp lệ. Bỏ flag để giữ xác thực TLS mặc định.
     const opts = {
         noWarnings: true,
-        noCheckCertificates: false,
         preferFreeFormats: true,
         extractorArgs: YT_EXTRACTOR_ARGS
     };
@@ -3535,8 +3535,7 @@ async function resolveDirectUrl(url) {
         dumpSingleJson: true,
         noPlaylist: true,      // link set/album -> chỉ lấy bài đầu để tránh nhồi hàng đợi ngoài ý muốn
         skipDownload: true,
-        noWarnings: true,
-        noCheckCertificates: true
+        noWarnings: true
     }, { timeout: YT_META_TIMEOUT_MS });
     if (!info) return null;
     // Một số nguồn trả entries (playlist) -> lấy entry đầu
@@ -4915,7 +4914,6 @@ async function playNextTrack(guildId, opts = {}) {
             format: 'bestaudio/best',
             noPlaylist: true,
             noWarnings: true,
-            noCheckCertificates: false,
             quiet: true,
             noPart: true,
             socketTimeout: 30,

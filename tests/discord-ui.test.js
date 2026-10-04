@@ -4,6 +4,9 @@ const assert = require('node:assert/strict');
 const fs = require('node:fs');
 const path = require('node:path');
 const vm = require('node:vm');
+const os = require('node:os');
+const { Readable } = require('node:stream');
+const { AttachmentBuilder, MessagePayload } = require('discord.js');
 const { COLORS, normalizePayload, preserveUi, readMessageEmbed, extractActionRows, installDiscordUi, walkComponents, countComponents, V2, EPHEMERAL } = require('../discordUi');
 
 const buttonRow = (id = 'confirm', label = 'Xác nhận') => ({ type: 1, components: [{ type: 2, style: 1, custom_id: id, label }] });
@@ -239,6 +242,49 @@ test('V2 hiển thị cả ảnh và tệp, giữ nguyên dữ liệu upload', (
     assert.equal(twice.components.filter(component => component.type === 13).length, 1);
     const buffer = normalizePayload({ files: [Buffer.from('log')] });
     assert.equal(buffer.files[0].name, 'mimi-tep-1.bin');
+});
+
+test('AttachmentBuilder đường dẫn chưa có tên gửi được log và giữ metadata qua chuẩn hóa lặp', async () => {
+    const directory = fs.mkdtempSync(path.join(os.tmpdir(), 'mimi-ticket-log-'));
+    try {
+        const logPath = path.join(directory, 'Log_ticket.txt');
+        fs.writeFileSync(logPath, 'Nội dung log thử nghiệm');
+        const builder = new AttachmentBuilder(logPath, { description: 'Bản lưu ticket', title: 'Nhật ký' });
+        assert.equal(builder.name, null);
+        const output = normalizePayload({ content: 'Lưu trữ ticket', files: [builder] });
+        assert.equal(builder.name, null, 'Không đổi builder gốc đang được dùng cho người nhận khác');
+        assert.equal(output.files[0].name, 'Log_ticket.txt');
+        assert.equal(output.files[0].description, 'Bản lưu ticket');
+        assert.equal(output.files[0].title, 'Nhật ký');
+        assert.ok(output.components.some(c => c.type === 13 && c.file.url === 'attachment://Log_ticket.txt' && !c.spoiler));
+        const twice = normalizePayload(output);
+        assert.equal(twice.components.filter(c => c.type === 13).length, 1);
+        const resolved = await MessagePayload.resolveFile(twice.files[0]);
+        assert.equal(resolved.name, 'Log_ticket.txt');
+        assert.equal(resolved.data.toString(), 'Nội dung log thử nghiệm');
+    } finally { fs.rmSync(directory, { recursive: true, force: true }); }
+});
+
+test('Builder Buffer và stream chưa có tên dùng đúng tên File component và giữ dữ liệu', async () => {
+    for (const attachment of [Buffer.from('log'), Readable.from(['log'])]) {
+        const builder = new AttachmentBuilder(attachment, { description: 'Nội dung' });
+        const output = normalizePayload({ files: [builder] });
+        assert.equal(output.files[0].attachment, attachment);
+        assert.equal(output.files[0].name, 'mimi-tep-1.bin');
+        assert.equal(output.files[0].description, 'Nội dung');
+        assert.equal(builder.name, null);
+        const resolved = await MessagePayload.resolveFile(output.files[0]);
+        assert.equal(resolved.name, 'mimi-tep-1.bin');
+        assert.equal(resolved.data.toString(), 'log');
+    }
+});
+
+test('Tên SPOILER của đường dẫn hoặc builder vẫn che tệp và giữ builder đã có tên', () => {
+    const builder = new AttachmentBuilder(Buffer.from('log'), { name: 'SPOILER_log.txt' });
+    const output = normalizePayload({ files: [builder, new AttachmentBuilder('/tmp/SPOILER_report.txt')] });
+    assert.equal(output.files[0], builder);
+    for (const component of output.components.filter(c => c.type === 13)) assert.equal(component.spoiler, true);
+    assert.equal(output.files[1].name, 'SPOILER_report.txt');
 });
 
 test('Tin nhiều thẻ vẫn giữ mọi nút và không vượt 40 component', () => {

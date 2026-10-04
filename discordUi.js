@@ -276,7 +276,17 @@ function exposeAttachments(payload, components) {
         if (url) used.add(url);
         for (const item of component.items || []) if (item.media?.url) used.add(item.media.url);
     });
-    const files = (payload.files || []).map((file, index) => ({ file, name: fileName(file, index) }));
+    const files = (payload.files || []).map((file, index) => {
+        const name = fileName(file, index);
+        // AttachmentBuilder.spoiler đọc basename(name), nên name=null sẽ ném lỗi.
+        // Tạo payload có tên trước khi đọc spoiler, giữ stream/metadata và builder gốc.
+        if (Buffer.isBuffer(file) || (typeof file?.pipe === 'function' && !file.attachment)) {
+            file = { attachment: file, name };
+        } else if (file && typeof file === 'object' && !file.name) {
+            file = { ...file, name };
+        }
+        return { file, name };
+    });
     const attached = [...files, ...(payload.attachments || []).filter(file => file.name).map(file => ({ file, name: file.name }))];
     for (const item of attached) {
         const url = `attachment://${item.name}`;
@@ -287,8 +297,7 @@ function exposeAttachments(payload, components) {
             : { type: 13, file: { url }, spoiler });
         used.add(url);
     }
-    // Buffer cần tên để File component tham chiếu đúng tệp; giữ nguyên stream/builder.
-    if (files.length) payload.files = files.map(({ file, name }) => Buffer.isBuffer(file) ? { attachment: file, name } : file);
+    if (files.length) payload.files = files.map(({ file }) => file);
 }
 
 function replaceActionRows(components, rows) {
