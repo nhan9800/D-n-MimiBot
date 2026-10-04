@@ -2,12 +2,13 @@
 
 Checkpoint 04/10/2026, Asia/Saigon. Đọc cùng WORKSPACE.md và AGENTS.md khi tiếp tục. Kết quả lịch sử không thay thế xác minh mới; không lưu bí mật hoặc dữ liệu runtime.
 
-## Checkpoint đang tiếp tục — lỗi tự tắt hiệu ứng, 04/10/2026 lúc 23:15 VN
+## Checkpoint đã triển khai — lỗi tự tắt hiệu ứng, 04/10/2026 lúc 23:17 VN
 
 - User gửi ảnh báo “Đã tắt hiệu ứng để tiếp tục bài”, yêu cầu sửa tiếp. Fresh health/live200 vẫn41504bf, emoji182/182; ready200/Discordtrue. Console VibeHost có source403, FFmpeg input invalid/code183, sectionFFmpeg-11→pipe; nhiều dòng binary. Không kết luận ảnh là log cũ hoặc hosting chưa nhận UI.
 - Đã tái hiện9regression fail trước sửa: pipe/seek0 và90s với FFmpeg/Idle/player đến trước403, nguồn hết retry bị rollbacknone, execa log binary và childstream vượtmaxBuffer. `index.js`: source coordinator áp dụng cảsection/pipe, giữ quyền recovery khi chờSoundCloud, chỉ rollbacknone khi stderr xác nhậnfilter và không cóinputerror; source/timeout không đổi hiệu ứng. Retryclient giữ mốc hiện tại; dùngexeca bufferfalse và chỉ logstderr/shortMessage giới hạn.
 - Local mới:58music test, full351/351, syntax80JS, audit0, diffcheck đạt. Test childprocess thật dùngyt-dlp-exec/execa với nguồnNode sinh16KB vàmaxBuffer1KB xác minh streamđủbyte/không gomstdout; không tải nhạc/đăng nhậpDiscord. Chưa xác nhậnâm thanh/tương tácDiscord thật.
-- **Đang làm:** review/commit/pushmain, chờCI Node22 rồi triển khaiVibeHost đã được user cho phép trước. Chưa push/deploy hotfix ở checkpoint này. Bằng chứng loglọc trước sửa ở `C:/Users/ivano/Downloads/MimiBot-backups/bot-effect-rollback-2026-10-04/`; test/audit log music-effect-* trongMimiBot-backups. Bước tiếp: đối chiếuCI/commitready saurestart, lưureceipt/screenshot rồi cập nhậtcheckpoint; không gửi thử nhạc/DM/broadcast.
+- **Đã push/deploy:** main `088f2829db439c45d2fb555b2d4c4d523be6979d`; CI Node22 [37216031725](https://github.com/nhan9800/D-n-MimiBot/actions/runs/37216031725) success. VibeHost Restart sauCI, consolepull41504bf→088f282, bản dựng088f282/emoji182. Fresh health16:16:11UTC: live200/commit088f282/artwork182, ready200/Discordtrue. Console cókhôi phục1phiên, chưa cóloglỗi tại lúc quan sát; đây không phải xác minhâm thanh/đổi hiệu ứng bằngDiscordclient.
+- Bằng chứng ngoàiGit `C:/Users/ivano/Downloads/MimiBot-backups/bot-effect-rollback-2026-10-04/`: console-errors-before.txt,console-after.txt,ci-verification.json,deploy-verification.json,hosting-088f282.png,tests.log351,audit.json0. Credentialdownloadguild đãdọn. Bước tiếp khiuser thử: đọclogmới gắncommit vàeffect cụ thể; chỉ báo lỗi bộlọc khi cóstderr, kiểm403/-11/timeout riêng. Không tự gửi thử nhạc/DM/broadcast; không restart chỉ vì commitdocs.
 - Tác vụguild g3 đã **complete** lúc10:42:39UTC (17:42VN): đọcbackground-status/catalog-result/guides-verification xác nhậnapp182/182,guild182/182,122artwork,tổngguild199/static189/animated10,keptOldtrue,guide2/2. PID30568 đã kết thúc, credential downloadtạm đã được dọn. Không chạyuploadtrùng. Website/cPanel vẫn chờ riêng.
 
 ## Lịch sử triển khai catalog g3 — 04/10/2026 lúc 15:52 VN
@@ -24,7 +25,7 @@ Checkpoint 04/10/2026, Asia/Saigon. Đọc cùng WORKSPACE.md và AGENTS.md khi 
 - User yêu cầu nâng cấp bot cộng đồng, toàn bộ UI dùng custom emoji, cấu hình server chính `1517068246493429852`, cập nhật GitHub và hosting. Không hỏi lại những bước đã được cho phép. Không broadcast hoặc DM tự động.
 - Chỉ dẫn UI 04/10: **làm lại toàn bộ giao diện tính năng bot, đẹp hơn và dùng100% custom artwork từ emoji.gg/Discadia**. Bố cục/catalog đã triển khai41504bf; ứng dụng và guild đủ182/182key từ122artworkEmoji.gg theo receipt17:42VN. Basic dùng trực tiếp Discord, metadata Git/ảnh ngoàiGit; không cần hỏi lại. Discadia bị policy chặn, không đi vòng. Website vẫn chờ riêng. Yêu cầu mới23giờ: sửa tiếp tự tắt hiệu ứng nhạc.
 - Bot đúng repo `D-n-MimiBot/`, version 1.4.0. Website nằm riêng trong `Website-Mini-Bot/`; Mimi Shield ngoài phạm vi.
-- **Bản bot hiện hành đã xác minh04/10:41504bf**, version1.4.0 custom182/182 và artwork182/182, readyHTTP200/Discordtrue. Commit MD sau đó không cần restart. Chưa kiểm audio/voice hoặc nút bằng thành viên thật; không gọi offline test là E2E.
+- **Bản bot hiện hành đã xác minh04/10 23:16VN:088f282**, version1.4.0 custom182/182 và artwork182/182, readyHTTP200/Discordtrue. Commit MD sau đó không cần restart. Chưa kiểm audio/voice hoặc nút bằng thành viên thật; không gọi offline test là E2E.
 
 ## Cập nhật mipet theo yêu cầu mới — 03/10/2026
 
