@@ -96,6 +96,8 @@ jobs:
           put reminderUtils.js
           put googleTts.js
           put musicSources.js
+          put ticketLifecycle.js
+          put ticketTranscript.js
           put package.json
           put package-lock.json
           -mkdir scripts

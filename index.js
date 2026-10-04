@@ -40,6 +40,8 @@ const { startInternalApi } = require('./internalApi');
 const { COMMUNITY_EMOJI, provisionCommunityEmojis, installGuildEmojis, getEmojiCoverage, emojiForKey } = require('./communityEmojis');
 const { importEmojiImage, downloadPublicImage } = require('./emojiImport');
 const { validateMusicUrl } = require('./musicSources');
+const { normalizeTicketState, ticketStateFromPanel, resolveTicketState } = require('./ticketLifecycle');
+const { captureTicketTranscript, buildTranscriptFiles, persistTicketTranscript } = require('./ticketTranscript');
 const { parseDuration, setLongTimeout, clearLongTimeout } = require('./reminderUtils');
 const { MusicStore, MAX_ALBUMS_PER_USER, MAX_TRACKS_PER_ALBUM } = require('./musicStore');
 const { createDashboardKey, resolveDashboardSecret, DEFAULT_TTL_MS: DASHBOARD_KEY_TTL_MS } = require('./dashboardAuth');
@@ -358,6 +360,7 @@ if (!botToken) {
 }
 
 const ticketTimeouts = new Map();
+const ticketCloseJobs = new Map();
 const buttonCooldowns = new Map();
 const spamTracker = new Map();
 
@@ -1006,16 +1009,36 @@ function saveCreatedChannels() {
     try {
         fs.writeFileSync(tempPath, JSON.stringify(createdChannels, null, 2));
         fs.renameSync(tempPath, channelsPath);
+        return true;
     } catch (e) {
         console.error("❌ Không thể lưu file created_channels.json an toàn:", e);
+        return false;
     }
 }
 
-function registerCreatedChannel(channelId, guildId) {
+function registerCreatedChannel(channelId, guildId, ticketState) {
     if (!createdChannels.some(c => c.channelId === channelId)) {
-        createdChannels.push({ channelId, guildId });
+        createdChannels.push({ channelId, guildId, ...(ticketState ? { ticket: ticketState } : {}) });
         saveCreatedChannels();
     }
+}
+
+function getTicketState(channelId) {
+    return normalizeTicketState(createdChannels.find(entry => entry.channelId === channelId)?.ticket);
+}
+
+function saveTicketState(channelId, guildId, state) {
+    const ticket = normalizeTicketState(state);
+    if (!ticket) throw new Error('Trạng thái ticket không hợp lệ.');
+    let entry = createdChannels.find(item => item.channelId === channelId && item.guildId === guildId);
+    if (!entry) { entry = { channelId, guildId }; createdChannels.push(entry); }
+    const previous = entry.ticket;
+    entry.ticket = ticket;
+    if (!saveCreatedChannels()) {
+        entry.ticket = previous;
+        throw new Error('Không thể lưu trạng thái ticket; đã giữ nguyên phòng.');
+    }
+    return ticket;
 }
 
 function unregisterCreatedChannel(channelId) {
@@ -1029,14 +1052,19 @@ async function syncChannels() {
 
     for (const entry of createdChannels) {
         try {
-            const channel = client.channels.cache.get(entry.channelId) || await client.channels.fetch(entry.channelId).catch(() => null);
+            const channel = client.channels.cache.get(entry.channelId) || await client.channels.fetch(entry.channelId);
             if (channel) {
                 activeList.push(entry);
             } else {
-                console.log(`🧹 Dọn rác DB: Kênh ${entry.channelId} đã bị người dùng xóa thủ công.`);
+                activeList.push(entry); // Chưa có xác nhận UnknownChannel thì không xoá trạng thái ticket.
+                console.warn(`[Ticket] Chưa kiểm chứng được kênh ${entry.channelId}; giữ bản ghi.`);
             }
         } catch (err) {
-            console.error(`❌ Lỗi khi đồng bộ kênh ${entry.channelId}:`, err);
+            if (err.code === 10003) console.log(`Đã xác nhận kênh ${entry.channelId} không còn tồn tại.`);
+            else {
+                activeList.push(entry);
+                console.error(`Lỗi tạm khi đồng bộ kênh ${entry.channelId}; giữ bản ghi:`, err.message);
+            }
         }
     }
 
@@ -1931,135 +1959,122 @@ function buildFarmPayload(user, userData) {
 }
 
 // -----------------------------------------------------------------
-// 🔐 HÀM ĐÓNG TICKET: XÓA KÊNH TRƯỚC, SAO LƯU VÀ GỬI LOG SAU
-// -----------------------------------------------------------------
-async function closeAndArchiveTicket(channel, guild, userWhoClosed, gConfig, creatorId) {
-    let logChatText = `==== BẢN LƯU TRỮ CHAT TICKET: #${channel.name} ====\n\n`;
-    const logFileName = `Log_${channel.id}.txt`;
-    const logFilePath = path.join(__dirname, logFileName);
-    const channelNameBackup = channel.name; 
-
-    let messageArray = [];
-    try {
-        const fetchedMessages = await channel.messages.fetch({ limit: 100 }).catch(() => null);
-        if (fetchedMessages && fetchedMessages.size > 0) {
-            messageArray = Array.from(fetchedMessages.values()).reverse();
+// Lưu transcript và gửi archive trước khi xoá; lỗi gửi không được làm mất phòng.
+// Khoá theo channel để hai nút/timer cùng đóng chỉ tạo một bản lưu và một lần xoá.
+function closeAndArchiveTicket(channel, guild, userWhoClosed, gConfig, creatorId) {
+    if (ticketCloseJobs.has(channel.id)) return ticketCloseJobs.get(channel.id);
+    const job = (async () => {
+        const state = getTicketState(channel.id);
+        const ownerId = state?.creatorId || (/^\d{17,20}$/.test(String(creatorId || '')) ? creatorId : null);
+        const closedBy = userWhoClosed?.tag || (typeof userWhoClosed === 'string' ? userWhoClosed : 'Hệ thống');
+        let backupPath;
+        let stage = 'history';
+        try {
+            const me = guild.members.me || await guild.members.fetchMe();
+            const permissions = channel.permissionsFor(me);
+            if (!permissions?.has([PermissionFlagsBits.ViewChannel, PermissionFlagsBits.ReadMessageHistory])) {
+                throw new Error('Bot thiếu quyền xem kênh hoặc đọc lịch sử ticket.');
+            }
+            const transcript = await captureTicketTranscript(channel, {
+                guildName: guild.name, creatorId: ownerId, closedBy, formatTime: formatTimeVN
+            });
+            stage = 'backup';
+            backupPath = await persistTicketTranscript(path.join(__dirname, 'data', 'ticket-transcripts'), guild.id, channel.id, transcript);
+            stage = 'archive';
+            const archiveId = gConfig.ticketArchiveChannelId;
+            if (!archiveId || archiveId === channel.id) throw new Error('Kênh lưu trữ ticket chưa được cấu hình đúng.');
+            const archive = guild.channels.cache.get(archiveId) || await guild.channels.fetch(archiveId);
+            if (!archive || typeof archive.send !== 'function' || (archive.guild?.id && archive.guild.id !== guild.id)) {
+                throw new Error('Không tìm thấy kênh lưu trữ ticket của máy chủ.');
+            }
+            const files = buildTranscriptFiles(transcript);
+            let archiveMessage;
+            for (const [index, file] of files.entries()) {
+                archiveMessage = await archive.send({
+                    content: 'Bản transcript ticket #' + channel.name + ' • Đóng bởi: ' + closedBy + (files.length > 1 ? ' • Phần ' + (index + 1) + '/' + files.length : ''),
+                    files: [file], allowedMentions: { parse: [] }
+                });
+                if (!archiveMessage?.id) throw new Error('Kênh lưu trữ chưa xác nhận nhận transcript.');
+            }
+            let dmDelivered = false;
+            if (ownerId) {
+                try {
+                    const targetUser = await client.users.fetch(ownerId);
+                    for (const [index, file] of files.entries()) {
+                        await targetUser.send({
+                            content: 'Bản transcript ticket #' + channel.name + ' tại máy chủ ' + guild.name + '.' + (files.length > 1 ? ' Phần ' + (index + 1) + '/' + files.length : ''),
+                            files: [file], allowedMentions: { parse: [] }
+                        });
+                    }
+                    dmDelivered = true;
+                } catch (err) {
+                    console.warn('[Ticket] Không gửi được transcript qua DM, ticket=' + channel.id + ', code=' + (err.code || 'unknown') + ': ' + err.message);
+                    await archive.send({ content: 'Transcript đã được lưu. Không gửi được DM cho người mở ticket ' + ownerId + '; thành viên có thể đang chặn DM từ máy chủ.', allowedMentions: { parse: [] } }).catch(err => console.warn('[Ticket] Không gửi được trạng thái DM:', err.message));
+                }
+            } else console.warn('[Ticket] Chưa xác định người mở ticket ' + channel.id + '; giữ transcript tại kênh lưu trữ.');
+            if (ticketTimeouts.has(channel.id)) {
+                clearTimeout(ticketTimeouts.get(channel.id));
+                ticketTimeouts.delete(channel.id);
+            }
+            stage = 'delete';
+            await channel.delete('Đóng ticket sau khi đã lưu và gửi transcript');
+            console.log('[Ticket] Đã lưu và đóng ticket=' + channel.id + ', archive=' + archiveMessage.id + ', dm=' + dmDelivered);
+            return { closed: true, archived: true, dmDelivered, backupPath };
+        } catch (err) {
+            console.error('[Ticket] Giữ nguyên phòng ' + channel.id + ': không thể hoàn tất lưu trữ/đóng ticket, code=' + (err.code || 'unknown') + ': ' + err.message);
+            return { closed: false, error: err.message, failedStage: stage, backupPath };
         }
-    } catch (err) {
-        console.error("Lỗi khi đọc tin nhắn trước khi xóa phòng:", err);
-    }
+    })().finally(() => { if (ticketCloseJobs.get(channel.id) === job) ticketCloseJobs.delete(channel.id); });
+    ticketCloseJobs.set(channel.id, job);
+    return job;
+}
 
-    try {
-        await channel.delete('Đóng Ticket').catch(err => console.error("❌ Không thể xóa kênh:", err.message));
-    } catch (err) {
-        console.error("Lỗi khi thực hiện xóa kênh:", err);
-    }
-
+function scheduleTicketClose(channel, guild, gConfig, state) {
     if (ticketTimeouts.has(channel.id)) {
         clearTimeout(ticketTimeouts.get(channel.id));
         ticketTimeouts.delete(channel.id);
     }
-
-    process.nextTick(async () => {
-        if (messageArray.length > 0) {
-            messageArray.forEach(msg => {
-                if (msg.author.bot && (msg.embeds.length > 0 || msg.components.length > 0)) return;
-                logChatText += `[${formatTimeVN(msg.createdAt)}] ${msg.author.tag}: ${msg.content}\n`;
-            });
-        } else {
-            logChatText += `(Kênh không có tin nhắn hoặc Bot thiếu quyền đọc lịch sử tin nhắn)\n`;
-        }
-
-        fs.writeFileSync(logFilePath, logChatText, 'utf-8');
-
+    if (state.status === 'claimed' || !Number.isFinite(state.expiresAtMs)) return;
+    const timer = setTimeout(async () => {
+        if (ticketTimeouts.get(channel.id) !== timer) return;
+        ticketTimeouts.delete(channel.id);
+        const stillWaiting = () => {
+            const current = getTicketState(channel.id);
+            return current && current.status === state.status && current.creatorId === state.creatorId && current.expiresAtMs === state.expiresAtMs;
+        };
+        if (!stillWaiting()) return;
         try {
-            const fileAttachment = new AttachmentBuilder(logFilePath, { name: logFileName });
-            const archiveChan = gConfig.ticketArchiveChannelId ? guild.channels.cache.get(gConfig.ticketArchiveChannelId) : null;
-            const nameDisplay = userWhoClosed && userWhoClosed.tag ? userWhoClosed.tag : (typeof userWhoClosed === 'string' ? userWhoClosed : "Hệ thống");
-
-            if (archiveChan) {
-                await archiveChan.send({ 
-                    content: `📁 **Lưu trữ phòng:** \`#${channelNameBackup}\` (Đã xóa phòng bởi: **${nameDisplay}**)`, 
-                    files: [fileAttachment] 
-                }).catch(() => null);
-            }
-
-            if (creatorId) {
-                try {
-                    const targetUser = await client.users.fetch(creatorId);
-                    if (targetUser) {
-                        await targetUser.send({ 
-                            content: `📁 **Bản sao lưu lịch sử chat phòng \`#${channelNameBackup}\` từ Server ${guild.name} đã đóng:**\n*(Phòng đã được xóa thành công bởi thành viên: ${nameDisplay})*`, 
-                            files: [new AttachmentBuilder(logFilePath)] 
-                        }).catch(() => null);
-                    }
-                } catch (dmError) {
-                    console.error(`❌ Không thể gửi DM cho người tạo ticket (ID: ${creatorId}):`, dmError.message);
-                }
-            }
-        } catch (error) {
-            console.error("Lỗi trong quá trình gửi log chạy ngầm:", error);
-        }
-
-        if (fs.existsSync(logFilePath)) {
-            try { fs.unlinkSync(logFilePath); } catch(e){}
-        }
-    });
+            const currentChannel = guild.channels.cache.get(channel.id) || await guild.channels.fetch(channel.id);
+            if (!currentChannel || !stillWaiting()) return;
+            const reason = state.status === 'cooldown' ? 'Hết hạn chờ 12 giờ sau hủy nhận ca' : 'Hết hạn chờ nhận ca 24 giờ';
+            await closeAndArchiveTicket(currentChannel, guild, reason, gConfig, state.creatorId);
+        } catch (err) { console.error('[Ticket] Không kiểm tra được ticket đến hạn ' + channel.id + ':', err.message); }
+    }, Math.max(0, state.expiresAtMs - Date.now()));
+    timer.unref?.();
+    ticketTimeouts.set(channel.id, timer);
 }
 
 async function scanAndRescueTickets(guild, gConfig) {
-    if (!gConfig.ticketCategoryId) return;
-    const category = guild.channels.cache.get(gConfig.ticketCategoryId);
-    if (!category) return;
-
-    const ticketChannels = guild.channels.cache.filter(ch => 
-        ch.parentId === category.id && 
-        ch.type === ChannelType.GuildText &&
-        (ch.name.startsWith('🎫') || ch.name.includes('ticket-')) &&
-        ch.id !== gConfig.ticketControlChannelId &&
-        ch.id !== gConfig.ticketArchiveChannelId
-    );
-    
-    for (const [chId, chan] of ticketChannels) {
-        if (ticketTimeouts.has(chan.id)) continue; 
-
+    const ticketChannels = guild.channels.cache.filter(ch => ch.type === ChannelType.GuildText &&
+        ch.id !== gConfig.ticketControlChannelId && ch.id !== gConfig.ticketArchiveChannelId &&
+        ((ch.parentId === gConfig.ticketCategoryId && (ch.name.startsWith('🎫') || ch.name.includes('ticket-'))) ||
+        createdChannels.some(entry => entry.guildId === guild.id && entry.channelId === ch.id && entry.ticket)));
+    for (const [, channel] of ticketChannels) {
+        if (ticketTimeouts.has(channel.id) || ticketCloseJobs.has(channel.id)) continue;
         try {
-            const messages = await chan.messages.fetch({ limit: 10 }).catch(() => null);
-            if (!messages) continue;
-            
-            const setupMsg = messages.find(m => m.author.id === client.user.id && m.embeds.length > 0);
-            if (!setupMsg) {
-                const tId = setTimeout(() => closeAndArchiveTicket(chan, guild, "Hệ thống dọn phòng lỗi", gConfig, null), 60000);
-                ticketTimeouts.set(chan.id, tId);
+            const originalState = getTicketState(channel.id);
+            const state = await resolveTicketState(channel, { botId: client.user.id, savedState: originalState });
+            // Claim/reject có thể hoàn tất trong khi đang đọc lịch sử của ticket cũ.
+            if (ticketTimeouts.has(channel.id) || ticketCloseJobs.has(channel.id)) continue;
+            const latest = getTicketState(channel.id);
+            if (JSON.stringify(latest) !== JSON.stringify(originalState)) continue;
+            if (!state) {
+                console.warn('[Ticket] Chưa xác định trạng thái phòng ' + channel.id + '; giữ nguyên, không tự xoá.');
                 continue;
             }
-
-            const embed = setupMsg.embeds[0];
-            const footerText = embed.footer?.text || "";
-            const creatorId = footerText.replace('ID Người tạo: ', '').split('|')[0].trim();
-            if (!creatorId) continue;
-
-            const desc = embed.description || "";
-            
-            if (desc.includes('⏳ Đang chờ hỗ trợ') || desc.includes('⚠️ CẢNH BÁO HỆ THỐNG')) {
-                console.log(`🔍 [Cứu hộ Ticket] Phát hiện phòng ẩn chờ duyệt: #${chan.name}. Bắt đầu đếm ngoại 5 phút tự hủy.`);
-                
-                const timeoutId = setTimeout(async () => {
-                    ticketTimeouts.delete(chan.id);
-                    try {
-                        const checkChan = guild.channels.cache.get(chan.id);
-                        if (checkChan) {
-                            await checkChan.send({ content: `⏰ **Quá hạn thời gian chờ phục hồi hệ thống!** Kênh tự động hủy bảo mật.` }).catch(() => null);
-                            await closeAndArchiveTicket(checkChan, guild, "Hệ thống tự động đóng phòng (Hết hạn cứu hộ Cooldown)", gConfig, creatorId);
-                        }
-                    } catch (e) {}
-                }, 5 * 60 * 1000);
-
-                ticketTimeouts.set(chan.id, timeoutId);
-            }
-        } catch (err) {
-            console.error(`Lỗi khi quét cứu hộ kênh ${chan.name}:`, err);
-        }
+            const saved = originalState || saveTicketState(channel.id, guild.id, state);
+            scheduleTicketClose(channel, guild, gConfig, saved);
+        } catch (err) { console.error('[Ticket] Không thể phục hồi lịch ticket ' + channel.id + '; giữ nguyên phòng:', err.message); }
     }
 }
 
@@ -13212,7 +13227,7 @@ if (commandName === 'setupticket') {
 
         { id: guild.id, deny: [PermissionFlagsBits.ViewChannel] }, 
 
-        { id: client.user.id, allow: [PermissionFlagsBits.ViewChannel, PermissionFlagsBits.SendMessages, PermissionFlagsBits.ManageChannels] }
+        { id: client.user.id, allow: [PermissionFlagsBits.ViewChannel, PermissionFlagsBits.SendMessages, PermissionFlagsBits.ManageChannels, PermissionFlagsBits.ReadMessageHistory, PermissionFlagsBits.AttachFiles, PermissionFlagsBits.EmbedLinks] }
 
     ];
 
@@ -15892,102 +15907,62 @@ if (commandName === 'changelog') {
         }
 
         try {
-            if (customId === 'accept_ticket_btn') {
-                if (!member.permissions.has(PermissionFlagsBits.ManageChannels)) {
-                    await interaction.reply({ content: '❌ Bạn không có quyền tiếp nhận Ticket này!', flags: MessageFlags.Ephemeral });
-                    return;
-                }
-                if (ticketTimeouts.has(channel.id)) { clearTimeout(ticketTimeouts.get(channel.id)); ticketTimeouts.delete(channel.id); }
-
-                const originEmbed = readMessageEmbed(interaction.message); if (!originEmbed) return;
-                const creatorId = originEmbed.footer?.text?.replace('ID Người tạo: ', '').trim() || '';
-                
-                const updatedEmbed = EmbedBuilder.from(originEmbed)
-                    .setColor('#2ECC71') 
-                    .setDescription(
-                        originEmbed.description.split('\n\n• **Phân loại:**')[0] + 
-                        `\n\n• **Phân loại:** Ticket\n• **Trạng thái:** 🟢 ĐÃ TIẾP NHẬN\n• **Nhân sự hỗ trợ:** ${user}`
-                    )
-                    .setFooter({ text: `ID Người tạo: ${creatorId} | Thợ xử lý: ${user.id}` });
-
-                const updatedRow = new ActionRowBuilder().addComponents(
-                    new ButtonBuilder().setCustomId('reject_ticket_btn').setLabel('❌ Hủy Nhận').setStyle(ButtonStyle.Secondary),
-                    new ButtonBuilder().setCustomId('close_ticket_btn').setLabel('🔒 Đóng Ticket').setStyle(ButtonStyle.Danger)
-                );
-
-                await interaction.update({ embeds: [updatedEmbed], components: [updatedRow] });
-                return channel.send({ content: `🔔 <@${creatorId}> ơi, quản trị viên ${user} đã nhận xử lý ca hỗ trợ này!`, allowedMentions: { parse: [], users: [creatorId] } });
-            }
-
-            if (customId === 'reject_ticket_btn') {
-                const originEmbed = readMessageEmbed(interaction.message); if (!originEmbed) return;
-                const footerText = originEmbed?.footer?.text || "";
-                const creatorId = footerText.replace('ID Người tạo: ', '').split('|')[0].trim();
-                const staffPart = footerText.split('Thợ xử lý: ')[1];
-                const previousStaffId = staffPart ? staffPart.trim() : null;
-
-                if (user.id !== previousStaffId) {
-                    await interaction.reply({ content: '❌ Bạn không phải là người đã nhận ca này!', flags: MessageFlags.Ephemeral });
-                    return;
-                }
-
-                const cooldownTime = 12 * 60 * 60 * 1000; 
-                const targetTime = new Date(Date.now() + cooldownTime);
-                const autoCloseTimestamp = Math.floor(targetTime.getTime() / 1000);
-                const timeString = formatTimeVN(targetTime);
-                const reasonField = originEmbed.fields?.find(f => f.name.includes('Chi tiết yêu cầu'))?.value || "Không rõ";
-
-                const rolledBackEmbed = new EmbedBuilder()
-                    .setColor('#F1C40F') 
-                    .setTitle(originEmbed.title || `🎫 Kênh Ticket`)
-                    .setDescription(
-                        `${gConfig.ticketWelcomeMessage ? gConfig.ticketWelcomeMessage.replace(/\\n/g, '\n') : "Vui lòng ghi rõ nội dung cần hỗ trợ."}\n\n` +
-                        `⚠️ **CẢNH BÁO HỆ THỐNG:** Ca hỗ trợ này vừa bị hủy nhận bởi một Quản trị viên trước đó.\n` +
-                        `• **Trạng thái:** ⏳ Đang chờ người khác tiếp nhận\n` +
-                        `• **Tự động xóa phòng vào lúc:** \`${timeString}\``
-                    )
-                    .addFields({ name: '📝 Chi tiết yêu cầu mở phòng:', value: reasonField })
-                    .setFooter({ text: `ID Người tạo: ${creatorId}` });
-
-                const rolledBackRow = new ActionRowBuilder().addComponents(
-                    new ButtonBuilder().setCustomId('accept_ticket_btn').setLabel('✅ Chấp Nhận').setStyle(ButtonStyle.Success),
-                    new ButtonBuilder().setCustomId('close_ticket_btn').setLabel('🔒 Đóng Ticket').setStyle(ButtonStyle.Danger)
-                );
-
-                await interaction.update({ embeds: [rolledBackEmbed], components: [rolledBackRow] });
-
-                if (ticketTimeouts.has(channel.id)) clearTimeout(ticketTimeouts.get(channel.id));
-
-                const timeoutId = setTimeout(async () => {
-                    ticketTimeouts.delete(channel.id);
-                    const checkChan = guild.channels.cache.get(channel.id);
-                    if (checkChan) {
-                        await checkChan.send({ content: `⏰ **Đã hết thời gian chờ 12 tiếng sau khi hủy ca!** Kênh tự động hủy bảo mật.` }).catch(() => null);
-                        await closeAndArchiveTicket(checkChan, guild, "Hệ thống tự động đóng phòng (Quá hạn Cooldown 12 tiếng)", gConfig, creatorId);
-                    }
-                }, cooldownTime);
-
-                ticketTimeouts.set(channel.id, timeoutId);
-
-                return channel.send({ 
-                    content: `⚠️ **CẢNH BÁO COOLDOWN (HỦY CA)**\n• **Nhân sự vừa hủy:** ${user}\n• **Chủ phòng hỗ trợ:** <@${creatorId}>\n⏱️ **Hệ thống tự động xóa kênh:** **<t:${autoCloseTimestamp}:R>**`,
-                    allowedMentions: { parse: [], users: [creatorId] }
-                });
-            }
-
-            if (customId === 'close_ticket_btn') {
+            if (['accept_ticket_btn', 'reject_ticket_btn', 'close_ticket_btn'].includes(customId)) {
+                const savedState = getTicketState(channel.id);
                 const originEmbed = readMessageEmbed(interaction.message);
-                const footerText = originEmbed?.footer?.text || "";
-                const creatorId = footerText.replace('ID Người tạo: ', '').split('|')[0].trim();
-
-                if (user.id !== creatorId && !member.permissions.has(PermissionFlagsBits.ManageChannels)) {
-                    await interaction.reply({ content: '❌ Bạn không có quyền đóng phòng này!', flags: MessageFlags.Ephemeral });
-                    return;
+                const state = savedState || ticketStateFromPanel(interaction.message, { botId: client.user.id, channelCreatedAtMs: channel.createdTimestamp });
+                if (!state || (state.panelMessageId && state.panelMessageId !== interaction.message.id)) {
+                    return interaction.reply({ content: 'Không xác định được ticket từ bảng này. Mimi giữ nguyên phòng; hãy liên hệ quản trị viên.', flags: MessageFlags.Ephemeral });
                 }
-
-                await interaction.reply({ content: `💾 **Đang xóa phòng và lưu trữ dữ liệu vĩnh viễn...**` });
-                await closeAndArchiveTicket(channel, guild, user, gConfig, creatorId);
-                return;
+                if (ticketCloseJobs.has(channel.id)) return interaction.reply({ content: 'Mimi đang lưu transcript và đóng ticket này.', flags: MessageFlags.Ephemeral });
+                const creatorId = state.creatorId;
+                if (customId === 'accept_ticket_btn') {
+                    if (!member.permissions.has(PermissionFlagsBits.ManageChannels)) {
+                        return interaction.reply({ content: 'Bạn không có quyền tiếp nhận ticket này.', flags: MessageFlags.Ephemeral });
+                    }
+                    if (state.status === 'claimed') return interaction.reply({ content: 'Ticket này đã được tiếp nhận.', flags: MessageFlags.Ephemeral });
+                    const claimed = saveTicketState(channel.id, guild.id, { ...state, status: 'claimed', staffId: user.id, expiresAtMs: null });
+                    scheduleTicketClose(channel, guild, gConfig, claimed); // Huỷ hạn đóng trước mọi lượt chờ Discord.
+                    await interaction.deferUpdate();
+                    const updatedEmbed = new EmbedBuilder(originEmbed || {})
+                        .setColor('#2ECC71')
+                        .setDescription((originEmbed?.description || '').split('\n\n• **Phân loại:**')[0] + '\n\n• **Phân loại:** Ticket\n• **Trạng thái:** ĐÃ TIẾP NHẬN\n• **Nhân sự hỗ trợ:** <@' + user.id + '>')
+                        .setFooter({ text: 'ID Người tạo: ' + creatorId + ' | Thợ xử lý: ' + user.id });
+                    const row = new ActionRowBuilder().addComponents(
+                        new ButtonBuilder().setCustomId('reject_ticket_btn').setLabel('Hủy nhận').setStyle(ButtonStyle.Secondary),
+                        new ButtonBuilder().setCustomId('close_ticket_btn').setLabel('Đóng ticket').setStyle(ButtonStyle.Danger)
+                    );
+                    await interaction.editReply({ embeds: [updatedEmbed], components: [row] });
+                    return channel.send({ content: '<@' + creatorId + '>, quản trị viên <@' + user.id + '> đã nhận hỗ trợ bạn.', allowedMentions: { parse: [], users: [creatorId] } });
+                }
+                if (customId === 'reject_ticket_btn') {
+                    if (state.status !== 'claimed' || user.id !== state.staffId) {
+                        return interaction.reply({ content: 'Bạn không phải người đã nhận ca này.', flags: MessageFlags.Ephemeral });
+                    }
+                    const expiresAtMs = Date.now() + 12 * 60 * 60 * 1000;
+                    const waiting = saveTicketState(channel.id, guild.id, { ...state, status: 'cooldown', staffId: null, expiresAtMs });
+                    scheduleTicketClose(channel, guild, gConfig, waiting);
+                    await interaction.deferUpdate();
+                    const embed = new EmbedBuilder().setColor('#F1C40F').setTitle(originEmbed?.title || 'Ticket hỗ trợ')
+                        .setDescription((gConfig.ticketWelcomeMessage || 'Vui lòng ghi rõ nội dung cần hỗ trợ.').replace(/\\n/g, '\n') + '\n\nCa hỗ trợ vừa bị hủy nhận.\n• **Trạng thái:** Đang chờ người khác tiếp nhận\n• **Tự động xóa phòng vào lúc:** ' + formatTimeVN(expiresAtMs))
+                        .addFields({ name: 'Chi tiết yêu cầu mở phòng:', value: originEmbed?.fields?.find(f => f.name.includes('Chi tiết yêu cầu'))?.value || 'Không rõ' })
+                        .setFooter({ text: 'ID Người tạo: ' + creatorId });
+                    const row = new ActionRowBuilder().addComponents(
+                        new ButtonBuilder().setCustomId('accept_ticket_btn').setLabel('Chấp nhận').setStyle(ButtonStyle.Success),
+                        new ButtonBuilder().setCustomId('close_ticket_btn').setLabel('Đóng ticket').setStyle(ButtonStyle.Danger)
+                    );
+                    await interaction.editReply({ embeds: [embed], components: [row] });
+                    return channel.send({ content: 'Ca hỗ trợ đã được hủy nhận. Ticket chờ đến <t:' + Math.floor(expiresAtMs / 1000) + ':R> để người khác tiếp nhận.', allowedMentions: { parse: [] } });
+                }
+                if (user.id !== creatorId && !member.permissions.has(PermissionFlagsBits.ManageChannels)) {
+                    return interaction.reply({ content: 'Bạn không có quyền đóng ticket này.', flags: MessageFlags.Ephemeral });
+                }
+                await interaction.deferReply({ flags: MessageFlags.Ephemeral });
+                const result = await closeAndArchiveTicket(channel, guild, user, gConfig, creatorId);
+                return interaction.editReply({ content: result.closed
+                    ? 'Đã lưu transcript về kênh lưu trữ và đóng ticket.' + (result.dmDelivered ? ' Bản sao đã được gửi qua DM cho người mở.' : ' Không gửi được DM; bản sao vẫn ở kênh lưu trữ.')
+                    : result.failedStage === 'delete' ? 'Transcript đã được lưu và gửi, nhưng Mimi giữ nguyên phòng vì chưa xoá được kênh. Hãy kiểm tra quyền Quản lý kênh.'
+                    : 'Mimi giữ nguyên ticket vì chưa thể hoàn tất lưu/gửi transcript. Hãy kiểm tra quyền đọc lịch sử, gửi tệp và kênh lưu trữ.' }).catch(() => null);
             }
 
             // ==========================================
@@ -16202,6 +16177,7 @@ if (commandName === 'changelog') {
 
     if (interaction.isModalSubmit() && interaction.customId.startsWith('ticket_modal:')) {
         await interaction.deferReply({ flags: MessageFlags.Ephemeral });
+        if (!gConfig.isTicketSetup) return interaction.editReply({ content: 'Hệ thống ticket chưa được bật. Hãy liên hệ quản trị viên.' });
         const buttonText = interaction.customId.split(':')[1] || 'Ticket';
         const userReason = interaction.fields.getTextInputValue('ticket_reason_input');
         
@@ -16210,7 +16186,8 @@ if (commandName === 'changelog') {
         const channelName = `🎫-${cleanReasonPrefix}-${cleanUsername}`;
 
         // Giới hạn 1 người chỉ được tạo 1 ticket (kiểm tra phần đuôi tên kênh chứa tên user)
-        const existingChannel = guild.channels.cache.find(ch => ch.parentId === gConfig.ticketCategoryId && ch.name.endsWith(`-${cleanUsername}`));
+        const existingChannel = guild.channels.cache.find(ch => getTicketState(ch.id)?.creatorId === user.id ||
+            (ch.parentId === gConfig.ticketCategoryId && ch.name.endsWith(`-${cleanUsername}`)));
         if (existingChannel) {
             await interaction.editReply({ content: `⚠️ Bạn đang có một kênh hỗ trợ đang mở: ${existingChannel}. Vui lòng đóng kênh đó trước khi tạo yêu cầu mới!` });
             return;
@@ -16218,12 +16195,12 @@ if (commandName === 'changelog') {
 
         const baseOverwrites = [
             { id: guild.id, deny: [PermissionFlagsBits.ViewChannel] }, 
-            { id: user.id, allow: [PermissionFlagsBits.ViewChannel, PermissionFlagsBits.SendMessages, PermissionFlagsBits.AttachFiles] }, 
-            { id: client.user.id, allow: [PermissionFlagsBits.ViewChannel, PermissionFlagsBits.SendMessages] } 
+            { id: user.id, allow: [PermissionFlagsBits.ViewChannel, PermissionFlagsBits.SendMessages, PermissionFlagsBits.AttachFiles, PermissionFlagsBits.ReadMessageHistory] },
+            { id: client.user.id, allow: [PermissionFlagsBits.ViewChannel, PermissionFlagsBits.SendMessages, PermissionFlagsBits.ReadMessageHistory, PermissionFlagsBits.AttachFiles, PermissionFlagsBits.EmbedLinks] }
         ];
         guild.roles.cache.forEach(role => {
             if (role.id !== guild.id && role.permissions.has(PermissionFlagsBits.ManageChannels)) {
-                baseOverwrites.push({ id: role.id, allow: [PermissionFlagsBits.ViewChannel, PermissionFlagsBits.SendMessages] });
+                baseOverwrites.push({ id: role.id, allow: [PermissionFlagsBits.ViewChannel, PermissionFlagsBits.SendMessages, PermissionFlagsBits.ReadMessageHistory] });
             }
         });
 
@@ -16231,10 +16208,13 @@ if (commandName === 'changelog') {
             name: channelName, type: ChannelType.GuildText, parent: (guild.channels.cache.get(gConfig.ticketCategoryId) ? gConfig.ticketCategoryId : null), permissionOverwrites: baseOverwrites
         });
 
-        registerCreatedChannel(ticketChannel.id, guild.id);
-
         const waitTime = 24 * 60 * 60 * 1000;
-        const targetExpireTime = new Date(Date.now() + waitTime);
+        const openedAtMs = Date.now();
+        const targetExpireTime = new Date(openedAtMs + waitTime);
+        const initialTicketState = saveTicketState(ticketChannel.id, guild.id, {
+            creatorId: user.id, status: 'pending', staffId: null,
+            openedAtMs, expiresAtMs: targetExpireTime.getTime(), panelMessageId: null
+        });
         const expireTimestamp = Math.floor(targetExpireTime.getTime() / 1000);
         const expireTimeString = formatTimeVN(targetExpireTime);
 
@@ -16251,15 +16231,10 @@ if (commandName === 'changelog') {
             new ButtonBuilder().setCustomId('close_ticket_btn').setLabel('🔒 Đóng Ticket').setStyle(ButtonStyle.Danger)
         );
 
-        await ticketChannel.send({ content: `🔔 **Yêu cầu mới!** ${user} | Ban Quản Trị: ${getAdminRoleMention(guild)}`, embeds: [insideEmbed], components: [ticketRow] });
-        await ticketChannel.send({ content: `⚠️ **THÔNG BÁO CHỜ DUYỆT:** Tự động xóa sau **<t:${expireTimestamp}:R>** nếu không có admin nhận.` }).catch(() => null);
-        if (ticketTimeouts.has(ticketChannel.id)) clearTimeout(ticketTimeouts.get(ticketChannel.id));
-        const timeoutId = setTimeout(async () => {
-            ticketTimeouts.delete(ticketChannel.id);
-            const checkChan = guild.channels.cache.get(ticketChannel.id);
-            if (checkChan) await closeAndArchiveTicket(checkChan, guild, "Hệ thống tự động đóng phòng (Quá hạn duyệt 24 tiếng)", gConfig, user.id);
-        }, waitTime);
-        ticketTimeouts.set(ticketChannel.id, timeoutId);
+        const ticketPanel = await ticketChannel.send({ content: `🔔 **Yêu cầu mới!** ${user} | Ban Quản Trị: ${getAdminRoleMention(guild)}`, embeds: [insideEmbed], components: [ticketRow] });
+        const ticketState = saveTicketState(ticketChannel.id, guild.id, { ...(getTicketState(ticketChannel.id) || initialTicketState), panelMessageId: ticketPanel.id });
+        if (!ticketCloseJobs.has(ticketChannel.id)) scheduleTicketClose(ticketChannel, guild, gConfig, ticketState);
+        if (ticketState.status !== 'claimed') await ticketChannel.send({ content: `⚠️ **THÔNG BÁO CHỜ DUYỆT:** Tự động xóa sau **<t:${expireTimestamp}:R>** nếu không có admin nhận.` }).catch(() => null);
         
         await interaction.editReply({ content: `🎉 Đã tạo phòng hỗ trợ thành công: ${ticketChannel}` });
         setTimeout(() => interaction.deleteReply().catch(() => null), 5000);

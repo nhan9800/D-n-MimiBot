@@ -12,7 +12,7 @@ Mặc định workflow chỉ kiểm tra; hosting hiện dùng startup Git pull v
 
 1. Dùng Node 22, `npm ci --ignore-scripts`, `npm run check`, `npm test`.
 2. Sinh `build-info.json` với commit/branch/thời gian UTC và fingerprint các file runtime.
-3. Khi SFTP được bật, upload whitelist mã bot, module UI/emoji/nhắc nhở/thú cưng, `assets/` kèm attribution/giấy phép, `public/`, bộ kiểm tra và test.
+3. Khi SFTP được bật, upload whitelist mã bot, module UI/emoji/nhắc nhở/thú cưng/ticket (`ticketLifecycle.js`, `ticketTranscript.js`), `assets/` kèm attribution/giấy phép, `public/`, bộ kiểm tra và test.
 4. Restart bằng Pterodactyl nếu đã đặt đủ secrets.
 5. Khi có health URL, kiểm tra bot báo đúng commit mới; quá thời hạn thì workflow lỗi.
 

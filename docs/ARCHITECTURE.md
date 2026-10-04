@@ -38,6 +38,10 @@ Các tin nhắn cũ có embed và tin nhắn Components V2 đều có thể đ�
 
 `communityEmojis.js` nạp bộ custom emoji ứng dụng cho nhiều guild, tái sử dụng `mimi_*`, báo độ phủ và dùng chữ khi chưa sẵn sàng. Provision chạy nền với tối đa ba lượt; không chặn API/đăng ký lệnh. `/setupemoji` cài thêm bộ ảnh vào danh sách emoji guild theo quyền/slot. `emojiImport.js` giải nguồn, giới hạn kích thước và chặn URL nội bộ. `petUi.js` giữ helper thú cưng ngoài scope event để nút/modal và scheduler dùng chung. [Hướng dẫn emoji](EMOJIS.md).
 
+`ticketLifecycle.js` đọc panel Embed/V2 hoặc metadata `ticket` tùy chọn trong bản ghi `created_channels.json`; giữ chủ phòng, người nhận ca và hạn đóng tuyệt đối khi restart. Ticket chưa nhận chờ 24 giờ, hủy nhận chờ 12 giờ, đã nhận không tự đóng. Không suy ra việc xóa phòng khi thiếu panel/trạng thái hoặc API lỗi. Các bản ghi kênh cũ vẫn dùng được và được bổ sung metadata khi đọc được panel.
+
+`ticketTranscript.js` đọc toàn bộ lịch sử theo trang, giữ văn bản/tệp đính kèm/nội dung V2 và lưu nguyên tử vào `data/ticket-transcripts/<guild>/Log_<channel>.txt`, ngoài Git và deploy. Luồng đóng khóa theo kênh, kiểm quyền đọc lịch sử, lưu bản sao rồi gửi đủ các phần về kênh archive trước khi xóa. DM được gửi cho đúng chủ phòng; DM bị chặn được báo rõ và không làm mất bản server. Lỗi lịch sử, lưu file hoặc gửi archive giữ nguyên ticket. Bản transcript được giữ lại; sao lưu thư mục dữ liệu cùng runtime, không tự dọn trong đợt sửa này.
+
 ## Dữ liệu và API
 
 `musicStore.js` giữ phiên phát, yêu thích, album và cấu hình DJ. Dữ liệu runtime ở file JSON gốc và `data/`; không chuyển file cũ sang schema/thư mục khác khi nâng cấp. `antiRaid.js` lưu bản sao quyền trước lockdown để phục hồi chính xác qua restart. `licenseStore.js` giữ kho mã tương thích và chỉ nhận mã đã phát hành; `getLicense()` tiếp tục trả quyền dùng bot miễn phí.
