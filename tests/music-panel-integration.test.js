@@ -98,7 +98,9 @@ test('Phát YouTube, SoundCloud và tua bài dùng argv hợp lệ trước khi 
     ]) {
         const f = fixture();
         const calls = []; const failures = []; const played = [];
-        const process = { stdout: new PassThrough(), stderr: new PassThrough(), catch() {}, kill() {} };
+        const sourceCompletion = new Promise(() => {});
+        const process = { stdout: new PassThrough(), stderr: new PassThrough(),
+            then: sourceCompletion.then.bind(sourceCompletion), kill() {} };
         Object.assign(f.context, {
             PassThrough, validateMusicUrl, getCookieFilePath: () => null,
             persistSession() {}, getFfmpegPath: () => '/mock/ffmpeg', fs: { existsSync: () => true },

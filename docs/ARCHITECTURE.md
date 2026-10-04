@@ -24,6 +24,8 @@ Bot nạp `.env` bằng `process.loadEnvFile` trước các module dùng biến 
 
 Node >=22.12.0 là yêu cầu của `@discordjs/voice` đang khóa ở 0.19.2. Nhạc dùng voice/audio player, ffmpeg và yt-dlp; không dùng Lavalink. Install script của package có thể cần mạng và native build tools; check/test offline không yêu cầu chạy bot.
 
+Đổi hiệu ứng hoặc tua ưu tiên tải section tại mốc đang nghe. Nếu FFmpeg do yt-dlp chạy để tải section lỗi, bot thử một lần tải qua stdout và cắt phần đầu bằng `asetpts → atrim → asetpts` trước bộ lọc hiệu ứng; giữ bài, queue, client và mốc nguồn. Luồng pipe không quay lại section khi tắt hiệu ứng để phục hồi. EOF/lỗi đầu ra của section chờ kết quả nguồn để không bỏ bài trước khi yt-dlp báo nguyên nhân; deadline bắt đầu phát là45giây, chờ kết quả khi luồng đã phát rồi kết thúc là5giây, có guard generation và dọn timer khi đổi bài. Tua sâu qua pipe phải đọc/giải mã phần đầu bài; đây là đường phục hồi hữu hạn, không bảo đảm mọi nguồn nhạc đều phát được.
+
 `musicSources.js` giới hạn URL đầu vào của nhạc theo provider được hỗ trợ: YouTube, Spotify, SoundCloud/snd.sc, Bandcamp, Twitch, Vimeo, Dailymotion, Mixcloud, Audius. Link HTTP nguồn hợp lệ được nâng lên HTTPS; không nhận URL máy nội bộ, cổng riêng, credentials hoặc link file tùy ý. `/play` tôn trọng tùy chọn nguồn; tìm kiếm `auto` dùng YouTube rồi SoundCloud khi cần, hỗ trợ prefix `yt:`/`sc:`.
 
 ## Giao diện Discord
@@ -40,7 +42,7 @@ Các tin nhắn cũ có embed và tin nhắn Components V2 đều có thể đ�
 
 `ticketLifecycle.js` đọc panel Embed/V2 hoặc metadata `ticket` tùy chọn trong bản ghi `created_channels.json`; giữ chủ phòng, người nhận ca và hạn đóng tuyệt đối khi restart. Ticket chưa nhận chờ 24 giờ, hủy nhận chờ 12 giờ, đã nhận không tự đóng. Không suy ra việc xóa phòng khi thiếu panel/trạng thái hoặc API lỗi. Các bản ghi kênh cũ vẫn dùng được và được bổ sung metadata khi đọc được panel.
 
-`ticketTranscript.js` đọc toàn bộ lịch sử theo trang, giữ văn bản/tệp đính kèm/nội dung V2 và lưu nguyên tử vào `data/ticket-transcripts/<guild>/Log_<channel>.txt`, ngoài Git và deploy. Luồng đóng khóa theo kênh, kiểm quyền đọc lịch sử, lưu bản sao rồi gửi đủ các phần về kênh archive trước khi xóa. DM được gửi cho đúng chủ phòng; DM bị chặn được báo rõ và không làm mất bản server. Lỗi lịch sử, lưu file hoặc gửi archive giữ nguyên ticket. Bản transcript được giữ lại; sao lưu thư mục dữ liệu cùng runtime, không tự dọn trong đợt sửa này.
+`ticketTranscript.js` đọc toàn bộ lịch sử theo trang, giữ văn bản/tệp đính kèm/nội dung V2 và lưu nguyên tử vào `data/ticket-transcripts/<guild>/Log_<channel>.txt`, ngoài Git và deploy. Luồng đóng khóa theo kênh, kiểm quyền đọc lịch sử, lưu bản sao rồi gửi đủ các phần về kênh archive trước khi xóa. DM được gửi cho đúng chủ phòng; DM bị chặn được báo rõ và không làm mất bản server. Ngay trước xóa, bot đọc lại tin mới nhất: nếu có tin sau mốc transcript hoặc không kiểm tra được thì giữ phòng để đóng lại. Hai REST đọc/xóa không nguyên tử; kiểm tra này không khóa việc gửi tin trong khoảng giữa chúng. Lỗi lịch sử, lưu file hoặc gửi archive giữ nguyên ticket. Bản transcript được giữ lại; sao lưu thư mục dữ liệu cùng runtime, không tự dọn trong đợt sửa này.
 
 ## Dữ liệu và API
 

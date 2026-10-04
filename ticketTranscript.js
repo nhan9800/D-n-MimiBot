@@ -105,7 +105,8 @@ async function captureTicketTranscript(channel, { guildName = '', closedBy = 'H�
         `Số tin nhắn: ${chronological.length}`,
     ].join('\n');
     const body = chronological.length ? chronological.map(message => messageText(message, formatTime)).join('\n\n') : '(Kênh không có tin nhắn)';
-    return { buffer: Buffer.from(`${header}\n\n${body}\n`, 'utf8'), fileName: `Log_${channelId}.txt`, messageCount: chronological.length };
+    return { buffer: Buffer.from(`${header}\n\n${body}\n`, 'utf8'), fileName: `Log_${channelId}.txt`,
+        messageCount: chronological.length, latestMessageId: chronological.at(-1)?.id ?? null };
 }
 
 function validateTranscript(transcript) {

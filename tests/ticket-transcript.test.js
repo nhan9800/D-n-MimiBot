@@ -37,6 +37,7 @@ test('Transcript đọc hơn 100 tin qua mọi trang theo thứ tự thời gian
     const transcript = await captureTicketTranscript(ticket, { guildName: 'Cộng đồng Mimi', creatorId: '123', closedBy: 'Nhân viên', formatTime: () => 'Giờ VN' });
     const text = transcript.buffer.toString('utf8');
     assert.equal(transcript.messageCount, 237);
+    assert.equal(transcript.latestMessageId, '237');
     assert.equal(transcript.fileName, 'Log_456.txt');
     assert.deepEqual(ticket.fetches, [{ limit: 100 }, { limit: 100, before: '138' }, { limit: 100, before: '38' }]);
     assert.ok(text.indexOf('Tin nhắn 1\n') < text.indexOf('Tin nhắn 237\n'));
@@ -88,6 +89,7 @@ test('Tin trùng giữa các trang chỉ xuất hiện một lần', async () =>
 test('Kênh rỗng vẫn có bản lưu hợp lệ với thông tin phòng', async () => {
     const transcript = await captureTicketTranscript(channel([]));
     assert.equal(transcript.messageCount, 0);
+    assert.equal(transcript.latestMessageId, null);
     assert.match(transcript.buffer.toString(), /Kênh không có tin nhắn/);
 });
 

@@ -53,7 +53,7 @@ function controlMessage({ claimed = false } = {}) {
 }
 
 function fixture({ savedState = ticketState(), history, permissions, archiveCached = true,
-    readError, writeError, archiveError, blockedDm = false, transcript, archiveFiles } = {}) {
+    readError, latestReadError, latestResult, writeError, archiveError, blockedDm = false, transcript, archiveFiles, onArchive, onDm } = {}) {
     let clock = OPENED;
     const events = [], timers = [], errors = [], warnings = [], archivePayloads = [], dmPayloads = [], archiveFetches = [], diskWrites = [];
     const records = savedState ? [{ channelId: CHANNEL, guildId: GUILD, ticket: savedState }] : [];
@@ -66,8 +66,12 @@ function fixture({ savedState = ticketState(), history, permissions, archiveCach
         id: CHANNEL, name: '🎫-support-customer', parentId: CATEGORY, type: ChannelType.GuildText, createdTimestamp: OPENED,
         permissionsFor() { return new PermissionsBitField(permissions ?? [PermissionFlagsBits.ViewChannel, PermissionFlagsBits.ReadMessageHistory]); },
         messages: { async fetch(options) {
-            events.push('read'); readCount++;
+            events.push(options.limit === 1 ? 'history-check' : 'read'); readCount++;
             if (readError) throw readError;
+            if (options.limit === 1) {
+                if (latestReadError) throw latestReadError;
+                if (latestResult !== undefined) return latestResult;
+            }
             const available = options.before ? historyMessages.filter(message => BigInt(message.id) < BigInt(options.before)) : historyMessages;
             const page = available.sort((a, b) => BigInt(a.id) > BigInt(b.id) ? -1 : 1).slice(0, options.limit);
             return new Collection(page.map(message => [message.id, message]));
@@ -79,6 +83,7 @@ function fixture({ savedState = ticketState(), history, permissions, archiveCach
         events.push(payload.files?.length ? 'archive' : 'archive-status');
         archivePayloads.push(payload);
         if (archiveError) throw archiveError;
+        if (payload.files?.length) await onArchive?.({ historyMessages, channel, payload });
         return { id: String(BigInt(ARCHIVE) + BigInt(archivePayloads.length)) };
     } };
     const guild = {
@@ -104,7 +109,7 @@ function fixture({ savedState = ticketState(), history, permissions, archiveCach
         ...(archiveFiles ? { buildTranscriptFiles() { return archiveFiles; } } : {}),
         client: { user: { id: BOT }, users: { async fetch(id) {
             assert.equal(id, OWNER);
-            return { async send(payload) { events.push('dm'); dmPayloads.push(payload); if (blockedDm) throw Object.assign(new Error('Cannot send messages to this user'), { code: 50007 }); return { id: PANEL }; } };
+            return { async send(payload) { events.push('dm'); dmPayloads.push(payload); if (blockedDm) throw Object.assign(new Error('Cannot send messages to this user'), { code: 50007 }); await onDm?.({ historyMessages, channel, payload }); return { id: PANEL }; } };
         } } },
         formatTimeVN: value => new Date(value).toISOString(),
         setTimeout(callback, delay) { const timer = { callback, delay, due: clock + delay, cleared: false, unref() {} }; timers.push(timer); return timer; },
@@ -191,7 +196,7 @@ test('Kênh archive chưa có cache được fetch đúng guild trước khi g�
     assert.equal(result.closed, true);
     assert.equal(result.dmDelivered, true);
     assert.deepEqual(f.archiveFetches, [ARCHIVE]);
-    assert.deepEqual(f.events, ['read', 'backup', 'fetch-channel', 'archive', 'dm', 'delete']);
+    assert.deepEqual(f.events, ['read', 'backup', 'fetch-channel', 'archive', 'dm', 'history-check', 'delete']);
     const archiveText = Buffer.concat(f.archivePayloads.flatMap(payload => (payload.files || []).map(file => file.attachment))).toString('utf8');
     assert.match(archiveText, /Xin hỗ trợ ticket/);
     assert.match(archiveText, new RegExp(OWNER));
@@ -213,7 +218,7 @@ test('Người dùng chặn DM vẫn đóng được sau backup và server archi
     const result = await f.close();
     assert.equal(result.closed, true);
     assert.equal(result.dmDelivered, false);
-    assert.deepEqual(f.events, ['read', 'backup', 'archive', 'dm', 'archive-status', 'delete']);
+    assert.deepEqual(f.events, ['read', 'backup', 'archive', 'dm', 'archive-status', 'history-check', 'delete']);
     assert.ok(f.warnings.some(warning => warning.includes('50007')));
     assert.ok(f.archivePayloads[1].content.includes('Không gửi được DM'));
 });
@@ -232,9 +237,97 @@ test('Hai yêu cầu đóng đồng thời dùng cùng job, chỉ lưu/gửi/xó
     assert.equal(f.context.ticketCloseJobs.size, 0);
 });
 
+test('Tin nhắn đến trong lúc gửi archive hoặc DM giữ ticket thay vì xóa phần chưa sao lưu', async () => {
+    for (const hook of ['onArchive', 'onDm']) {
+        const lateId = String(BigInt(PANEL) + 1n);
+        const f = fixture({ [hook]({ historyMessages }) {
+            historyMessages.push({ id: lateId, author: { id: OWNER, tag: 'Khách hàng' }, content: 'Thông tin mới cần giữ', createdTimestamp: OPENED + 1000 });
+        } });
+        const result = await f.close();
+        assert.equal(result.closed, false);
+        assert.equal(result.failedStage, 'history-check');
+        assert.match(result.error, /Có tin nhắn mới/);
+        assert.ok(result.backupPath);
+        assert.equal(f.channel.deleted, undefined);
+        assert.ok(f.archivePayloads.some(payload => payload.files?.length));
+        assert.ok(f.dmPayloads.some(payload => payload.files?.length));
+        assert.equal(f.events.at(-1), 'history-check');
+        assert.equal(f.context.ticketCloseJobs.size, 0);
+        const latest = await f.channel.messages.fetch({ limit: 1 });
+        assert.equal(latest.first().id, lateId);
+    }
+});
+
+test('Ticket chụp lúc rỗng nhưng có tin mới trước khi đóng giữ lại phòng', async () => {
+    const f = fixture({ history: [], onDm({ historyMessages }) {
+        historyMessages.push({ id: PANEL, author: { id: OWNER, tag: 'Khách hàng' }, content: 'Tin đầu tiên tới muộn', createdTimestamp: OPENED + 1000 });
+    } });
+    const result = await f.close();
+    assert.equal(result.closed, false);
+    assert.equal(result.failedStage, 'history-check');
+    assert.ok(result.backupPath);
+    assert.equal(f.channel.deleted, undefined);
+});
+
+test('Kiểm tra lịch sử lần cuối lỗi, trả null hoặc ID không hợp lệ thì không xóa', async () => {
+    for (const options of [
+        { latestReadError: Object.assign(new Error('ECONNRESET'), { code: 'ECONNRESET' }) },
+        { latestResult: null },
+        { latestResult: new Collection([['bad-id', { id: 'bad-id' }]]) }
+    ]) {
+        const f = fixture(options);
+        const result = await f.close();
+        assert.equal(result.closed, false);
+        assert.equal(result.failedStage, 'history-check');
+        assert.ok(result.backupPath);
+        assert.equal(f.channel.deleted, undefined);
+        assert.ok(f.events.includes('archive'));
+        assert.equal(f.events.at(-1), 'history-check');
+    }
+});
+
+test('Lịch sử không có tin mới, kể cả rỗng, vẫn hoàn tất archive/DM rồi đóng', async () => {
+    for (const options of [{}, { history: [] }]) {
+        const f = fixture(options);
+        const result = await f.close();
+        assert.equal(result.closed, true);
+        assert.equal(result.dmDelivered, true);
+        assert.deepEqual(f.events.slice(-2), ['history-check', 'delete']);
+        assert.equal(f.channel.deleted, true);
+    }
+});
+
+test('Nút đóng giải thích tin mới hoặc lỗi kiểm tra cuối, không hiển thị lỗi nội bộ', async () => {
+    const cases = [
+        {
+            options: { onArchive({ historyMessages }) {
+                historyMessages.push({ id: String(BigInt(PANEL) + 1n), author: { id: OWNER, tag: 'Khách hàng' }, content: 'Nội dung mới', createdTimestamp: OPENED + 1000 });
+            } },
+            expected: 'Có tin nhắn mới trong lúc lưu transcript. Mimi giữ nguyên ticket; hãy đóng lại để lưu cả nội dung mới.'
+        },
+        {
+            options: { latestReadError: new Error('private upstream diagnostic') },
+            expected: 'Transcript hiện tại đã được lưu, nhưng chưa kiểm tra được tin nhắn mới nên Mimi giữ nguyên ticket. Hãy thử đóng lại.'
+        }
+    ];
+    for (const { options, expected } of cases) {
+        const f = fixture(options);
+        const notices = [];
+        const interaction = { customId: 'close_ticket_btn', message: controlMessage(),
+            async deferReply(payload) { assert.equal(payload.flags, MessageFlags.Ephemeral); },
+            async editReply(payload) { notices.push(payload.content); }
+        };
+        await f.button(interaction, { id: OWNER }, { permissions: new PermissionsBitField() });
+        assert.deepEqual(notices, [expected]);
+        assert.equal(f.channel.deleted, undefined);
+        assert.equal(notices[0].includes('private upstream diagnostic'), false);
+        assert.equal(notices[0].includes('kiểm tra quyền'), false);
+    }
+});
+
 test('Transcript lớn hơn 7 MiB gửi đầy đủ các phần tới archive và DM trước xóa', async () => {
     const buffer = Buffer.alloc(7 * 1024 * 1024 + 100, 65);
-    const f = fixture({ transcript: { buffer, fileName: `Log_${CHANNEL}.txt`, messageCount: 4000 } });
+    const f = fixture({ transcript: { buffer, fileName: `Log_${CHANNEL}.txt`, messageCount: 4000, latestMessageId: PANEL } });
     const result = await f.close();
     assert.equal(result.closed, true);
     const archiveParts = f.archivePayloads.flatMap(payload => payload.files || []);
