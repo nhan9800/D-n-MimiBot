@@ -5,6 +5,7 @@ const assert = require('node:assert/strict');
 const fs = require('node:fs');
 const path = require('node:path');
 const vm = require('node:vm');
+const os = require('node:os');
 const { EventEmitter } = require('node:events');
 const { PassThrough } = require('node:stream');
 const ytDlp = require('yt-dlp-exec');
@@ -31,7 +32,7 @@ function deferred() {
 const tick = () => new Promise(resolve => setImmediate(resolve));
 
 async function fixture({ synchronousPlaying = false, demuxProbe, searchSoundcloud } = {}) {
-    const processes = [], ffmpegs = [], resources = [], timers = [], notices = [];
+    const processes = [], ffmpegs = [], resources = [], timers = [], notices = [], logs = [];
     const musicQueues = new Map();
     const connection = new EventEmitter();
     connection.state = { status: 'ready' };
@@ -80,7 +81,7 @@ async function fixture({ synchronousPlaying = false, demuxProbe, searchSoundclou
         buildMusicNoticePayload: (title, content) => ({ title, content }),
         buildMusicNoticeContainer: (title, content) => ({ title, content }),
         musicStore: { getGuildConfig: () => ({}), clearSession() {} },
-        ytDlpExec: { exec(url, flags) { const proc = child(); proc.url = url; proc.flags = flags; processes.push(proc); return proc; } },
+        ytDlpExec: { exec(url, flags, options) { const proc = child(); Object.assign(proc, { url, flags, options }); processes.push(proc); return proc; } },
         spawn(command, args, options) {
             const proc = child();
             Object.assign(proc, { command, args, options });
@@ -104,7 +105,7 @@ async function fixture({ synchronousPlaying = false, demuxProbe, searchSoundclou
         },
         setTimeout(callback, delay) { const timer = { callback, delay, unref() {} }; timers.push(timer); return timer; },
         clearTimeout(timer) { if (timer) timer.cleared = true; },
-        console: { error() {}, warn() {}, log() {} },
+        console: { error(...args) { logs.push(args.join(' ')); }, warn() {}, log() {} },
     });
     vm.runInContext(region('function spawnFfmpegAudio(', 'function parseTimeToSeconds('), context);
     vm.runInContext(region('function killCurrentProcess(mq)', '// -----------------------------------------------------------------'), context);
@@ -118,7 +119,7 @@ async function fixture({ synchronousPlaying = false, demuxProbe, searchSoundclou
     const queued = { title: 'Bài kế tiếp', url: 'https://www.youtube.com/watch?v=lmnopqrstuv', duration: 180 };
     mq.current = current;
     mq.queue = [queued];
-    const f = { context, mq, current, queued, player, connection, musicQueues, processes, ffmpegs, resources, timers, notices };
+    const f = { context, mq, current, queued, player, connection, musicQueues, processes, ffmpegs, resources, timers, notices, logs };
     f.play = options => context.playNextTrack('g1', { replayCurrent: true, ...options });
     f.cleanup = () => {
         context.killCurrentProcess(mq);
@@ -145,6 +146,163 @@ test('Lỗi resource cũ khi đổi hiệu ứng không chuyển bài hoặc xo�
     } finally { f.cleanup(); }
 });
 
+for (const seekSec of [0, 90]) {
+    for (const downstream of ['ffmpeg', 'idle', 'player']) {
+        test(`Nguồn pipe403 sau ${downstream} không tắt hiệu ứng hoặc lấy queue (tua${seekSec}s)`, async () => {
+            const f = await fixture();
+            try {
+                f.context.YT_DOWNLOAD_CLIENT_FALLBACKS = ['youtube:player_client=android', 'youtube:player_client=ios'];
+                await f.play({ effectKey: 'bassboost', seekSec, seekTransport: 'pipe' });
+                const resource = f.mq.currentResource;
+                if (downstream === 'ffmpeg') {
+                    f.ffmpegs[0].stderr.write('Error opening input: Invalid data found when processing input\n');
+                    f.ffmpegs[0].emit('close', 183);
+                } else if (downstream === 'player') {
+                    f.player.emit('error', Object.assign(new Error('Premature close'), { resource }));
+                } else {
+                    f.player.state = { status: 'idle' };
+                    f.player.emit('idle', { status: 'buffering', resource }, f.player.state);
+                }
+                await tick();
+                assert.equal(f.processes.length, 1, 'Chờ source thay vì tắt bộ lọc');
+                await f.processes[0].rejectPlayback(new Error('HTTP Error 403: Forbidden'));
+                await tick();
+                assert.equal(f.processes.length, 2);
+                assert.equal(f.mq.current, f.current);
+                assert.equal(f.mq.effect, 'bassboost');
+                assert.equal(f.mq.seekBase, seekSec);
+                assert.deepEqual(f.mq.queue, [f.queued]);
+                assert.equal(f.processes[1].flags.extractorArgs, 'youtube:player_client=ios');
+                assert.equal(f.processes[1].flags.downloadSections, undefined);
+                assert.equal(f.notices.length, 0);
+            } finally { f.cleanup(); }
+        });
+    }
+}
+
+test('Nguồn403 hết lượt retry không giả báo bộ lọc hỏng hoặc tải lại với none', async () => {
+    const f = await fixture();
+    try {
+        f.current.scFallbackAttempted = true;
+        await f.play({ effectKey: 'eightd', seekSec: 15, seekTransport: 'pipe' });
+        await f.processes[0].rejectPlayback(new Error('HTTP Error 403: Forbidden'));
+        await tick();
+        assert.equal(f.mq.current, f.queued);
+        assert.equal(f.mq.effect, 'eightd');
+        assert.equal(f.processes.length, 2);
+        assert.equal(f.notices.filter(n => n.title === 'Đã tắt hiệu ứng để tiếp tục bài').length, 0);
+        assert.equal(f.notices.filter(n => n.title === 'Không thể phát bài này').length, 1);
+    } finally { f.cleanup(); }
+});
+
+test('Pipe đã phát rồi gặp403 giữ hiệu ứng và thử client từ vị trí đang nghe', async () => {
+    const f = await fixture({ synchronousPlaying: true });
+    try {
+        f.context.YT_DOWNLOAD_CLIENT_FALLBACKS = ['youtube:player_client=android', 'youtube:player_client=ios'];
+        await f.play({ effectKey: 'nightcore', seekSec: 60, seekTransport: 'pipe' });
+        const resource = f.mq.currentResource;
+        resource.playbackDuration = 12000;
+        f.ffmpegs[0].stderr.write('Invalid data found when processing input\nError reinitializing filters!\n');
+        f.ffmpegs[0].emit('close', 1);
+        f.player.emit('idle', { status: 'playing', resource }, { status: 'idle' });
+        await tick();
+        assert.equal(f.processes.length, 1);
+        const deadline = f.timers.find(t => !t.cleared && t.delay === 5000);
+        assert.ok(deadline);
+        await f.processes[0].rejectPlayback(new Error('HTTP Error 403: Forbidden'));
+        await tick();
+        assert.equal(f.processes.length, 2);
+        assert.equal(f.mq.seekBase, 72);
+        assert.equal(f.mq.effect, 'nightcore');
+        assert.equal(f.processes[1].flags.downloadSections, undefined);
+        assert.equal(f.ffmpegs[1].args[f.ffmpegs[1].args.indexOf('-af') + 1], pipeFilters(72, 'nightcore'));
+        assert.deepEqual(f.mq.queue, [f.queued]);
+        assert.equal(f.notices.length, 0);
+        deadline.callback(); // Callback muộn không lấy thêm bài.
+        await tick();
+        assert.equal(f.processes.length, 2);
+    } finally { f.cleanup(); }
+});
+
+test('Đang tìm nguồn thay thế không để ffmpeg/Idle nguồn cũ nuốt hàng đợi', async () => {
+    const lookup = deferred();
+    const f = await fixture({ searchSoundcloud: () => lookup.promise });
+    try {
+        await f.play({ effectKey: 'eightd', seekTransport: 'pipe' });
+        const fallback = f.processes[0].rejectPlayback(new Error('HTTP Error 403: Forbidden'));
+        await tick();
+        const resource = f.mq.currentResource;
+        f.ffmpegs[0].stderr.write('Error opening input: Invalid data found when processing input\n');
+        f.ffmpegs[0].emit('close', 183);
+        f.player.emit('error', Object.assign(new Error('Premature close'), { resource }));
+        f.player.emit('idle', { status: 'buffering', resource }, { status: 'idle' });
+        await tick();
+        assert.equal(f.processes.length, 1);
+        assert.equal(f.mq.current, f.current);
+        assert.deepEqual(f.mq.queue, [f.queued]);
+        lookup.resolve({ url: 'https://soundcloud.com/artist/replacement' });
+        await fallback;
+        await tick();
+        assert.equal(f.processes.length, 2);
+        assert.equal(f.processes[1].url, 'https://soundcloud.com/artist/replacement');
+        assert.equal(f.mq.effect, 'eightd');
+        assert.equal(f.mq.current, f.current);
+        assert.deepEqual(f.mq.queue, [f.queued]);
+        assert.equal(f.notices.filter(n => n.title === 'Đã tắt hiệu ứng để tiếp tục bài').length, 0);
+    } finally { lookup.resolve(null); f.cleanup(); }
+});
+
+test('EOF sạch ở pipe vẫn settle và chuyển đúng một bài, không tắt hiệu ứng', async () => {
+    const f = await fixture({ synchronousPlaying: true });
+    try {
+        await f.play({ effectKey: 'bassboost', seekTransport: 'pipe' });
+        const resource = f.mq.currentResource;
+        f.player.emit('idle', { status: 'playing', resource }, { status: 'idle' });
+        await tick();
+        assert.equal(f.processes.length, 1);
+        await f.processes[0].resolvePlayback();
+        await tick();
+        assert.equal(f.mq.current, f.queued);
+        assert.equal(f.processes.length, 2);
+        assert.equal(f.mq.effect, 'bassboost');
+        assert.equal(f.notices.length, 0);
+    } finally { f.cleanup(); }
+});
+
+test('Lỗi execa chỉ ghi chẩn đoán ngắn, không đưa audio binary vào console', async () => {
+    const f = await fixture();
+    try {
+        f.current.scFallbackAttempted = true;
+        await f.play({ effectKey: 'bassboost', seekTransport: 'pipe' });
+        await f.processes[0].rejectPlayback(Object.assign(new Error('Command failed\nAUDIO_BINARY_SENTINEL'), {
+            shortMessage: 'Command failed with exit code 1', stdout: 'AUDIO_BINARY_SENTINEL', stderr: '', exitCode: 1
+        }));
+        await tick();
+        assert.ok(f.logs.some(x => x.includes('Command failed with exit code 1')));
+        assert.ok(f.logs.every(x => !x.includes('AUDIO_BINARY_SENTINEL')));
+    } finally { f.cleanup(); }
+});
+
+test('Luồng tải thật vượt maxBuffer nhỏ vẫn truyền đủ audio, không bị gom thành chuỗi', async () => {
+    const f = await fixture();
+    const tmp = fs.mkdtempSync(path.join(os.tmpdir(), 'mimi-music-stream-'));
+    try {
+        await f.play({ effectKey: 'bassboost' });
+        const script = path.join(tmp, 'source.cjs');
+        fs.writeFileSync(script, "process.stdout.write(Buffer.alloc(16384, 0xa5)); process.stderr.write('source done');");
+        const exec = ytDlp.create(process.execPath);
+        await assert.rejects(exec.exec(script, {}, { maxBuffer: 1024 }), /maxBuffer/);
+        const proc = exec.exec(script, {}, { ...f.processes[0].options, maxBuffer: 1024 });
+        let bytes = 0, stderr = '';
+        proc.stdout.on('data', chunk => { bytes += chunk.length; assert.ok(Buffer.isBuffer(chunk)); });
+        proc.stderr.on('data', chunk => { stderr += chunk.toString(); });
+        const result = await proc;
+        assert.equal(bytes, 16384);
+        assert.equal(stderr, 'source done');
+        assert.equal(result.stdout, undefined);
+    } finally { f.cleanup(); fs.rmSync(tmp, { recursive: true, force: true }); }
+});
+
 test('Idle của resource cũ bị bỏ qua cả khi transition mới đã xong', async () => {
     const f = await fixture({ synchronousPlaying: true });
     try {
@@ -165,6 +323,7 @@ test('Idle thật của resource hiện tại vẫn tự chuyển sang bài tron
     const f = await fixture({ synchronousPlaying: true });
     try {
         await f.play();
+        await f.processes[0].resolvePlayback();
         const oldState = f.player.state;
         f.player.state = { status: 'idle' };
         f.player.emit('idle', oldState, f.player.state);
@@ -289,7 +448,7 @@ test('Hiệu ứng lỗi khôi phục chính bài một lần với hiệu ứng
     try {
         await f.play({ effectKey: 'bassboost' });
         const failedResource = f.mq.currentResource;
-        f.ffmpegs[0].emit('error', new Error('Không thể chạy bộ lọc'));
+        f.ffmpegs[0].stderr.write("No such filter: 'bass'\nError initializing filters\n");
         f.ffmpegs[0].emit('close', 1);
         f.player.emit('error', Object.assign(new Error('Resource bộ lọc đã đóng'), { resource: failedResource }));
         await tick();
@@ -301,7 +460,7 @@ test('Hiệu ứng lỗi khôi phục chính bài một lần với hiệu ứng
     } finally { f.cleanup(); }
 });
 
-test('Resource hiệu ứng kết thúc trước Playing được khôi phục thay vì treo transition', async () => {
+test('Resource kết thúc trước Playing chờ source và không tự quy lỗi bộ lọc', async () => {
     const f = await fixture();
     try {
         await f.play({ effectKey: 'bassboost' });
@@ -310,9 +469,14 @@ test('Resource hiệu ứng kết thúc trước Playing được khôi phục t
         f.player.emit('idle', oldState, f.player.state);
         await tick();
         assert.equal(f.mq.current, f.current);
-        assert.equal(f.mq.effect, 'none');
+        assert.equal(f.mq.effect, 'bassboost');
         assert.deepEqual(f.mq.queue, [f.queued]);
+        assert.equal(f.processes.length, 1);
+        await f.processes[0].resolvePlayback();
+        await tick();
+        assert.equal(f.mq.current, f.queued);
         assert.equal(f.processes.length, 2);
+        assert.equal(f.notices.filter(n => n.title === 'Đã tắt hiệu ứng để tiếp tục bài').length, 0);
         assert.equal(f.connection.destroyed, undefined);
     } finally { f.cleanup(); }
 });
@@ -322,7 +486,8 @@ test('Khôi phục hiệu ứng giữ mốc tua và không lặp vô hạn nếu
     try {
         await f.play({ effectKey: 'bassboost', seekSec: 15 });
         await f.processes[0].resolvePlayback(); // Source sạch: lỗi sau đây thuộc bộ lọc cục bộ.
-        f.ffmpegs[0].emit('error', new Error('Lỗi bộ lọc'));
+        f.ffmpegs[0].stderr.write('Error reinitializing filters!\n');
+        f.ffmpegs[0].emit('close', 1);
         await tick();
         assert.equal(f.mq.current, f.current);
         assert.equal(f.mq.effect, 'none');
@@ -395,7 +560,8 @@ test('Pipe lỗi bộ lọc vẫn khôi phục none qua pipe, giữ client và k
         await f.play({ effectKey: 'bassboost', seekSec: 75, clientAttempt: 1 });
         await f.processes[0].rejectPlayback(new Error('ERROR: ffmpeg exited with code -11'));
         await tick();
-        f.ffmpegs[1].emit('error', new Error('Bộ lọc vẫn bị lỗi'));
+        f.ffmpegs[1].stderr.write('Error initializing filter apulsator\n');
+        f.ffmpegs[1].emit('close', 1);
         await tick();
         assert.equal(f.processes.length, 3);
         assert.equal(f.mq.current, f.current);
@@ -850,7 +1016,7 @@ test('Thiếu binary hiệu ứng giữ nguyên audio, process, bài, queue và 
     } finally { f.cleanup(); }
 });
 
-test('Timeout transition khôi phục hiệu ứng một lần và không để callback cũ ảnh hưởng lượt mới', async () => {
+test('Timeout tải không tắt hiệu ứng và callback cũ không ảnh hưởng lượt mới', async () => {
     const f = await fixture();
     try {
         await f.play({ effectKey: 'bassboost' });
@@ -858,9 +1024,10 @@ test('Timeout transition khôi phục hiệu ứng một lần và không để 
         assert.ok(oldTimer);
         oldTimer.callback();
         await tick();
-        assert.equal(f.mq.current, f.current);
-        assert.equal(f.mq.effect, 'none');
-        assert.deepEqual(f.mq.queue, [f.queued]);
+        assert.equal(f.mq.current, f.queued);
+        assert.equal(f.mq.effect, 'bassboost');
+        assert.deepEqual(f.mq.queue, []);
+        assert.equal(f.notices.filter(n => n.title === 'Đã tắt hiệu ứng để tiếp tục bài').length, 0);
         assert.equal(f.processes.length, 2);
         assert.equal(oldTimer.cleared, true);
         assert.equal(f.player.listenerCount('playing'), 1);

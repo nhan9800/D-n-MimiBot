@@ -4938,6 +4938,7 @@ async function playNextTrack(guildId, opts = {}) {
     const isCurrentPlayback = () => musicQueues.get(guildId) === mq && mq.playGeneration === genId && mq.current === next;
     let failureStarted = false;
     let sourcePending = false;
+    let sourceRecovering = false;
     let playbackStarted = false;
     let deferredFailure = null;
     let deferredEnd = false;
@@ -4946,19 +4947,20 @@ async function playNextTrack(guildId, opts = {}) {
         if (sourceSettlementTimer) { clearTimeout(sourceSettlementTimer); sourceSettlementTimer = null; }
         if (mq.clearPlaybackEnd === clearPlaybackEnd) mq.clearPlaybackEnd = null;
     };
-    const failPlayback = (shortErr, { force = false } = {}) => {
-        if (!isCurrentPlayback() || failureStarted) return;
-        // Đầu ra section có thể đóng trước khi Promise yt-dlp báo nguyên nhân (-11/403).
-        // Chờ kết quả source trước khi lỗi Idle/ffmpeg cục bộ lấy mất bài hoặc tắt hiệu ứng.
-        // Chỉ giữ lỗi của resource đã tạo (đã có deadline); lỗi khởi tạo vẫn xử lý ngay.
-        if (!force && seekSec > 0 && seekTransport === 'section' && sourcePending && mq.currentResource) {
+    const failPlayback = (shortErr, { force = false, filterFailure = false } = {}) => {
+        if (!isCurrentPlayback() || failureStarted || (sourceRecovering && !force)) return;
+        // Cả section lẫn pipe có thể đóng đầu ra trước khi yt-dlp báo403/-11.
+        // Ưu tiên nguyên nhân tải; lỗi input/Idle/timeout không chứng minh bộ lọc hỏng.
+        // Lỗi filter đã được FFmpeg xác nhận không cần chờ source đang bị backpressure.
+        if (!force && !filterFailure && sourcePending && mq.currentResource) {
             deferredFailure ??= shortErr;
             if (playbackStarted) armSourceSettlementDeadline();
             return;
         }
         failureStarted = true;
-        if (opts.replayCurrent && effectKey !== 'none' && !opts.effectRecovery) {
+        if (filterFailure && opts.replayCurrent && effectKey !== 'none' && !opts.effectRecovery) {
             const resumeSec = Math.max(seekSec, getPlaybackSec(mq));
+            console.warn(`[Music] Khôi phục không hiệu ứng ở server ${guildId} (${effectKey}): ${shortErr}`);
             mq.textChannel?.send(buildMusicNoticePayload('Đã tắt hiệu ứng để tiếp tục bài',
                 'Bộ xử lý hiệu ứng gặp lỗi. Mimi thử phát tiếp bài hiện tại và giữ hàng đợi.', 0xF1C40F)).catch(() => null);
             return playNextTrack(guildId, {
@@ -4973,7 +4975,7 @@ async function playNextTrack(guildId, opts = {}) {
     };
     mq.onPlaybackFailure = failPlayback;
     const advancePlayback = () => {
-        if (!isCurrentPlayback() || failureStarted) return;
+        if (!isCurrentPlayback() || failureStarted || sourceRecovering) return;
         failureStarted = true;
         return playNextTrack(guildId).catch(err => console.error('[Music] Lỗi chuyển bài:', err?.message));
     };
@@ -4988,11 +4990,11 @@ async function playNextTrack(guildId, opts = {}) {
     };
     mq.clearPlaybackEnd = clearPlaybackEnd;
     mq.onPlaybackEnd = () => {
-        if (!isCurrentPlayback() || failureStarted) return;
+        if (!isCurrentPlayback() || failureStarted || sourceRecovering) return;
         if (!playbackStarted) return failPlayback('Luồng âm thanh kết thúc trước khi phát được.');
         // EOF audio có thể tới trước close/reject của yt-dlp. Giữ resource/vị trí đang
-        // nghe tối đa5giây để phân biệt hết bài thật với section ffmpeg bị crash.
-        if (seekSec > 0 && seekTransport === 'section' && sourcePending) {
+        // nghe tối đa5giây để phân biệt hết bài thật với lỗi tải, ở cả hai transport.
+        if (sourcePending) {
             deferredEnd = true;
             armSourceSettlementDeadline();
             return;
@@ -5028,7 +5030,12 @@ async function playNextTrack(guildId, opts = {}) {
             ytdlOpts.downloadSections = `*${seekSec}-inf`;
             ytdlOpts.ffmpegLocation = ffmpegPath;
         }
-        const ytdlProcess = ytDlpExec.exec(validateMusicUrl(next.url), ytdlOpts, { stdio: ['ignore', 'pipe', 'pipe'] });
+        // Đây là audio streaming, không phải kết quả JSON. Execa mặc định gom stdout
+        // thành chuỗi tới maxBuffer100MB: mix dài bị kill, audio binary tràn vào err.message.
+        // Đọc stderr có giới hạn bên dưới; stdout chỉ đi qua buffer/player với backpressure.
+        const ytdlProcess = ytDlpExec.exec(validateMusicUrl(next.url), ytdlOpts, {
+            stdio: ['ignore', 'pipe', 'pipe'], buffer: false
+        });
 
         let stderrBuffer = '';
         ytdlProcess.stderr?.on('data', (chunk) => {
@@ -5052,10 +5059,15 @@ async function playNextTrack(guildId, opts = {}) {
         }, async (err) => {
             if (!isCurrentPlayback() || failureStarted) return;
             sourcePending = false;
+            sourceRecovering = true;
             deferredFailure = null;
             deferredEnd = false;
             clearPlaybackEnd();
-            const rawErr = stderrBuffer || err.message || '';
+            // message của execa có thể kèm toàn bộ stdout nhị phân. Chỉ dùng stderr,
+            // shortMessage hoặc lỗi thường không có thuộc tính stdout.
+            const rawErr = (stderrBuffer || err.stderr || err.shortMessage
+                || (Object.hasOwn(err, 'stdout') ? `yt-dlp thoát với mã ${err.exitCode ?? err.code ?? 'không rõ'}` : err.message)
+                || 'Không rõ lỗi tải nhạc').slice(-4000);
             console.error(`❌ [Music] yt-dlp lỗi khi phát "${next.title}" ở server ${guildId}:`, rawErr);
 
             cleanupOrphanedMusicFragments();
@@ -5078,7 +5090,10 @@ async function playNextTrack(guildId, opts = {}) {
                 }).catch(e => console.error('[Music] Không thể phát lại qua pipe:', e?.message || e));
             }
 
-            if (/ffmpeg|ffprobe/i.test(rawErr)) return failPlayback(rawErr.slice(-300));
+            if (/ffmpeg|ffprobe/i.test(rawErr)) {
+                sourceRecovering = false;
+                return failPlayback(rawErr.slice(-300));
+            }
 
             const isRetryable = /403|forbidden|Requested format is not available|Sign in to confirm you|bot|confirm you’re not a bot|needs_auth|login|Unable to download|No such file|Frag|timeout|IncompleteRead|HTTP Error 5|Connection reset|timed out|network/i.test(rawErr);
             const nextAttempt = clientAttempt + 1;
@@ -5088,7 +5103,7 @@ async function playNextTrack(guildId, opts = {}) {
                     ...opts,
                     replayCurrent: true,
                     expectedTrack: next,
-                    seekSec,
+                    seekSec: Math.max(seekSec, getPlaybackSec(mq)),
                     effectKey,
                     clientAttempt: nextAttempt
                 }).catch(e => console.error(`❌ [Music] Lỗi khi thử lại client cho "${next.title}":`, e?.message || e));
@@ -5126,6 +5141,7 @@ async function playNextTrack(guildId, opts = {}) {
             }
 
             const shortErr = (rawErr.split('\n').filter(Boolean).pop() || 'Không rõ lỗi').slice(0, 300);
+            sourceRecovering = false;
             return failPlayback(shortErr);
         }).catch(err => {
             // Bắt cả lỗi từ handler settlement; không để Promise của tiến trình thành
@@ -5168,7 +5184,9 @@ async function playNextTrack(guildId, opts = {}) {
                 ff.on('close', (code) => {
                     if (!isCurrentPlayback() || code === 0) return;
                     console.error(`❌ [Music] ffmpeg thoát ở server ${guildId}:`, code, ffErr);
-                    failPlayback((ffErr || `ffmpeg thoát với mã ${code}`).slice(-300));
+                    const inputFailure = /Error opening input|Invalid data found|Error during demuxing|HTTP (?:error|Error)|Input\/output error/i.test(ffErr);
+                    const filterFailure = !inputFailure && /No such filter|Error (?:initializing|reinitializing) (?:complex )?filters?|Error applying option.*filter|Unable to parse option value.*(?:atempo|asetrate|bass|treble|tremolo|apulsator|dynaudnorm)/i.test(ffErr);
+                    failPlayback((ffErr || `ffmpeg thoát với mã ${code}`).slice(-300), { filterFailure });
                 });
                 if (!isCurrentPlayback()) {
                     try { ff.kill('SIGKILL'); } catch { /* bỏ qua */ }

@@ -2,7 +2,15 @@
 
 Checkpoint 04/10/2026, Asia/Saigon. Đọc cùng WORKSPACE.md và AGENTS.md khi tiếp tục. Kết quả lịch sử không thay thế xác minh mới; không lưu bí mật hoặc dữ liệu runtime.
 
-## Checkpoint đang tiếp tục — catalog g3, 04/10/2026 lúc 15:52 VN
+## Checkpoint đang tiếp tục — lỗi tự tắt hiệu ứng, 04/10/2026 lúc 23:15 VN
+
+- User gửi ảnh báo “Đã tắt hiệu ứng để tiếp tục bài”, yêu cầu sửa tiếp. Fresh health/live200 vẫn41504bf, emoji182/182; ready200/Discordtrue. Console VibeHost có source403, FFmpeg input invalid/code183, sectionFFmpeg-11→pipe; nhiều dòng binary. Không kết luận ảnh là log cũ hoặc hosting chưa nhận UI.
+- Đã tái hiện9regression fail trước sửa: pipe/seek0 và90s với FFmpeg/Idle/player đến trước403, nguồn hết retry bị rollbacknone, execa log binary và childstream vượtmaxBuffer. `index.js`: source coordinator áp dụng cảsection/pipe, giữ quyền recovery khi chờSoundCloud, chỉ rollbacknone khi stderr xác nhậnfilter và không cóinputerror; source/timeout không đổi hiệu ứng. Retryclient giữ mốc hiện tại; dùngexeca bufferfalse và chỉ logstderr/shortMessage giới hạn.
+- Local mới:58music test, full351/351, syntax80JS, audit0, diffcheck đạt. Test childprocess thật dùngyt-dlp-exec/execa với nguồnNode sinh16KB vàmaxBuffer1KB xác minh streamđủbyte/không gomstdout; không tải nhạc/đăng nhậpDiscord. Chưa xác nhậnâm thanh/tương tácDiscord thật.
+- **Đang làm:** review/commit/pushmain, chờCI Node22 rồi triển khaiVibeHost đã được user cho phép trước. Chưa push/deploy hotfix ở checkpoint này. Bằng chứng loglọc trước sửa ở `C:/Users/ivano/Downloads/MimiBot-backups/bot-effect-rollback-2026-10-04/`; test/audit log music-effect-* trongMimiBot-backups. Bước tiếp: đối chiếuCI/commitready saurestart, lưureceipt/screenshot rồi cập nhậtcheckpoint; không gửi thử nhạc/DM/broadcast.
+- Tác vụguild g3 đã **complete** lúc10:42:39UTC (17:42VN): đọcbackground-status/catalog-result/guides-verification xác nhậnapp182/182,guild182/182,122artwork,tổngguild199/static189/animated10,keptOldtrue,guide2/2. PID30568 đã kết thúc, credential downloadtạm đã được dọn. Không chạyuploadtrùng. Website/cPanel vẫn chờ riêng.
+
+## Lịch sử triển khai catalog g3 — 04/10/2026 lúc 15:52 VN
 
 - Mã giao diện đã push main `41504bf547188cb3b9c850430beb0282ea647090`, CI [37189865479](https://github.com/nhan9800/D-n-MimiBot/actions/runs/37189865479) success. VibeHost đã kéo đúng commit. Lần login đầu gặp Gateway522 và Shard0; restart phục hồi, không sửa intents/credentials. Health lúc08:48:41UTC: live200, custom182/182, artworkEmoji.gg182/182; ready200/Discordtrue. Console/screenshot bản mới đã lưu, không gọi đây là audio/member E2E.
 - Catalog122 artwork ánh xạ182 key, tất cả nguồn/tác giả/giấy phép/signature/dimensions/hash kiểm trước upload. 119PNG/3GIF, 2379306bytes; Basic ngoài Git, metadata Git và cache ignored. Các nguồn gỡ/403/đòi đăng nhập bị loại; Discadia bị policy chặn, không đi vòng. Startup không tải ảnh; /setupemoji dùng catalog g3. Mặt số1–6, progress xanh/trắng đúng; chặn fallback cũ sai nghĩa, thiếu ảnh giữ số/phần trăm.
@@ -14,7 +22,7 @@ Checkpoint 04/10/2026, Asia/Saigon. Đọc cùng WORKSPACE.md và AGENTS.md khi 
 ## Yêu cầu và ưu tiên hiện tại
 
 - User yêu cầu nâng cấp bot cộng đồng, toàn bộ UI dùng custom emoji, cấu hình server chính `1517068246493429852`, cập nhật GitHub và hosting. Không hỏi lại những bước đã được cho phép. Không broadcast hoặc DM tự động.
-- Chỉ dẫn mới nhất 04/10: **làm lại toàn bộ giao diện tính năng bot, đẹp hơn và dùng100% custom artwork từ emoji.gg/Discadia**. Bố cục và catalog đã triển khai41504bf; ứng dụng đủ182/182key từ122artworkEmoji.gg. Guild picker50/122 ảnh, còn tác vụ nền theo quota. Basic dùng trực tiếp Discord, metadata Git/ảnh ngoàiGit; không cần hỏi lại. Discadia bị policy chặn, không đi vòng. Website vẫn chờ riêng.
+- Chỉ dẫn UI 04/10: **làm lại toàn bộ giao diện tính năng bot, đẹp hơn và dùng100% custom artwork từ emoji.gg/Discadia**. Bố cục/catalog đã triển khai41504bf; ứng dụng và guild đủ182/182key từ122artworkEmoji.gg theo receipt17:42VN. Basic dùng trực tiếp Discord, metadata Git/ảnh ngoàiGit; không cần hỏi lại. Discadia bị policy chặn, không đi vòng. Website vẫn chờ riêng. Yêu cầu mới23giờ: sửa tiếp tự tắt hiệu ứng nhạc.
 - Bot đúng repo `D-n-MimiBot/`, version 1.4.0. Website nằm riêng trong `Website-Mini-Bot/`; Mimi Shield ngoài phạm vi.
 - **Bản bot hiện hành đã xác minh04/10:41504bf**, version1.4.0 custom182/182 và artwork182/182, readyHTTP200/Discordtrue. Commit MD sau đó không cần restart. Chưa kiểm audio/voice hoặc nút bằng thành viên thật; không gọi offline test là E2E.
 
