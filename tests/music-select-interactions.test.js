@@ -10,7 +10,7 @@ const { MusicStore } = require('../musicStore');
 const source = fs.readFileSync(path.join(__dirname, '../index.js'), 'utf8');
 
 // Chạy handler thật với I/O giả lập, không login bot hoặc ghi dữ liệu người dùng.
-function fixture({ userId = 'owner', dj = false, admin = false, voiceId = 'voice', queue } = {}) {
+function fixture({ userId = 'owner', dj = false, admin = false, voiceId = 'voice', queue, onDefer } = {}) {
     const start = source.indexOf("client.on('interactionCreate', async interaction => {");
     const end = source.indexOf('// 🔑 ĐĂNG NHẬP BOT', start);
     assert.ok(start > 0 && end > start);
@@ -35,7 +35,7 @@ function fixture({ userId = 'owner', dj = false, admin = false, voiceId = 'voice
         buildOwnershipRejectPayload: notice, buildMusicNoticePayload: notice,
         buildMusicNoticeContainer: notice, buildQueueRemoveRow: () => [], buildQueueListText: () => 'queue',
         buildEffectsPayload: key => ({ effect: key }), AUDIO_EFFECTS: { none: {}, bass: {} },
-        playNextTrack: async (id, options) => { playback.push({ id, ...options }); },
+        playNextTrack: async (id, options) => { playback.push({ id, ...options }); mq.effect = options.effectKey; },
         buttonCooldowns: new Map(), setTimeout: () => ({ unref() {} }), clearTimeout() {},
         console: { error: (...args) => errors.push(args) }
     });
@@ -47,6 +47,7 @@ function fixture({ userId = 'owner', dj = false, admin = false, voiceId = 'voice
         isStringSelectMenu: () => true, isButton: () => false, isModalSubmit: () => false,
         async reply(payload) { replies.push(payload); this.replied = true; },
         async update(payload) { updates.push(payload); this.replied = true; },
+        async deferUpdate() { this.deferred = true; onDefer?.(mq); },
         async editReply(payload) { replies.push(payload); }
     };
     return { mq, replies, updates, errors, saved, playback, async run(customId, value) {
@@ -111,8 +112,19 @@ test('DJ cùng voice đổi hiệu ứng và phát lại từ tiến độ hiệ
     assert.equal(f.playback[0].seekSec, 17);
     assert.equal(f.playback[0].replayCurrent, true);
     assert.equal(f.playback[0].effectKey, 'bass');
+    assert.equal(f.playback[0].expectedTrack, f.mq.current);
     const invalid = fixture();
     await invalid.run('music_effect_select', 'unknown');
     assert.equal(invalid.mq.effect, 'none');
     assert.equal(invalid.playback.length, 0);
+});
+
+test('Menu hiệu ứng chờ xác nhận không phát lại bài mới hoặc ghi hiệu ứng vào lượt mới', async () => {
+    const f = fixture({ onDefer(mq) {
+        mq.current = { title: 'Bài mới', url: 'https://example.com/new' };
+        mq.playGeneration = 2;
+    } });
+    await f.run('music_effect_select', 'bass');
+    assert.equal(f.playback.length, 0);
+    assert.equal(f.mq.effect, 'none');
 });

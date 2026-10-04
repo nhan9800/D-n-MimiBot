@@ -5,6 +5,7 @@ const assert = require('node:assert/strict');
 const fs = require('node:fs');
 const path = require('node:path');
 const vm = require('node:vm');
+const { EventEmitter } = require('node:events');
 const { PassThrough } = require('node:stream');
 const ytDlp = require('yt-dlp-exec');
 const { validateMusicUrl } = require('../musicSources');
@@ -100,19 +101,21 @@ test('Phát YouTube, SoundCloud và tua bài dùng argv hợp lệ trước khi 
         const process = { stdout: new PassThrough(), stderr: new PassThrough(), catch() {}, kill() {} };
         Object.assign(f.context, {
             PassThrough, validateMusicUrl, getCookieFilePath: () => null,
-            persistSession() {}, spawnFfmpegAudio: () => null,
+            persistSession() {}, getFfmpegPath: () => '/mock/ffmpeg', fs: { existsSync: () => true },
+            spawnFfmpegAudio: () => Object.assign(new EventEmitter(), { stdout: new PassThrough(), stderr: new PassThrough(), kill() {} }),
             YT_DOWNLOAD_CLIENT_FALLBACKS: ['youtube:player_client=android,ios'],
             ytDlpExec: { exec(url, flags) { calls.push({ url, flags }); return process; } },
             handlePlaybackFailure: (...args) => failures.push(args)
         });
         Object.assign(f.context.voiceLib, {
+            StreamType: { Raw: 'raw' },
             demuxProbe: async stream => ({ stream, type: 'ogg' }),
             createAudioResource: stream => ({ stream })
         });
         const mq = musicQueue();
         mq.current = null;
         mq.queue = [{ url, title: 'Bài thử', duration: 180 }];
-        Object.assign(mq.player, { play: resource => played.push(resource), once() {}, off() {} });
+        Object.assign(mq.player, { play: resource => played.push(resource), on() {}, off() {} });
         f.musicQueues.set('g1', mq);
         await f.playNextTrack('g1', { seekSec });
         assert.equal(failures.length, 0, 'Hàm phát thật không gặp lỗi khởi tạo');
@@ -122,11 +125,16 @@ test('Phát YouTube, SoundCloud và tua bài dùng argv hợp lệ trước khi 
         assert.ok(!args.includes('--no-check-certificates'));
         assert.ok(args.includes('--no-playlist'));
         assert.equal(calls[0].flags.output, '-');
-        if (seekSec) assert.equal(calls[0].flags.downloadSections, '*12-inf');
+        if (seekSec) {
+            assert.equal(calls[0].flags.downloadSections, '*12-inf');
+            assert.equal(calls[0].flags.ffmpegLocation, '/mock/ffmpeg');
+            assert.ok(args.includes('--ffmpeg-location'));
+        }
         assert.equal(played.length, 1);
         assert.equal(mq.current.url, url);
         assert.equal(mq.queue.length, 0);
         process.stdout.destroy(); process.stderr.destroy(); mq.currentBuffer.destroy();
+        mq.currentFfmpeg?.stdout.destroy(); mq.currentFfmpeg?.stderr.destroy();
     }
 });
 
