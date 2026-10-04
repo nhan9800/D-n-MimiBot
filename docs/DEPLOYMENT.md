@@ -48,7 +48,7 @@ Mở repository `Website-Mini-Bot`, dùng hướng dẫn/package scripts ở đ�
 
 - `/health/live` báo commit mới; `/health/ready` trả 200 sau khi kết nối Discord.
 - Kiểm tra một guild thử nghiệm: lệnh trợ giúp/setup, quyền role xác thực, ticket và player/nút nhạc.
-- `/health/live` phải báo `emojiCoverage.complete: true` và đủ 172 key. Khi thiếu emoji, bot dùng chữ và thử lại hữu hạn; không fallback Unicode trang trí. Bộ picker guild bị giới hạn slot riêng với bộ ứng dụng.
+- `/health/live` phải báo `emojiCoverage.complete: true` và đủ 182 key; `emojiCoverage.artwork.complete: true` xác nhận đúng artwork g3 từ Emoji.gg. Custom ID cũ đủ số lượng chưa chứng minh artwork đã thay. Khi thiếu emoji, bot dùng chữ và thử lại hữu hạn; không fallback Unicode trang trí. Bộ picker guild bị giới hạn slot riêng với bộ ứng dụng.
 - Kiểm tra API chưa xác thực bị từ chối, dashboard đúng guild hoạt động, dữ liệu runtime không bị upload ghi đè.
 
 Các bước Discord/âm thanh cần môi trường thật; test offline không thay thế kiểm tra này. Script `scripts/auto-update-bot.sh` dành cho VPS có PM2: dừng khi có thay đổi local, pull fast-forward, cài package và chạy check/test rồi mới restart.
@@ -56,3 +56,9 @@ Các bước Discord/âm thanh cần môi trường thật; test offline không 
 Ngày 03/10/2026 đã đọc VibeHost Mimi Music `9d9f7a18`: startup chọn Node 24, auto-pull `main`, cài `npm ci` khi hash lockfile đổi. URL Git cũ chuyển hướng tới cùng repository `nhan9800/D-n-MimiBot`. Runtime/config không nằm trong Git. Đây là cơ chế hosting đã đọc, chưa tự chứng minh bản mới chạy.
 
 GitHub hiện thiếu `SFTP_SERVER`, `SFTP_USERNAME`, `SFTP_KNOWN_HOSTS`; không bỏ xác minh SSH để vượt thiếu cấu hình. Có thể triển khai bằng cơ chế kéo Git đã cấu hình trên host, sau backup/preflight và đối chiếu health. `buildInfo.js` chỉ tin metadata CI có fingerprint khớp; nếu host kéo Git, dùng HEAD khi file runtime sạch, không nhận `build-info.json` ignored cũ là mã đang chạy. Restart không tự phát hoặc xóa thông báo cập nhật.
+
+## Đồng bộ artwork catalog g3
+
+Xem [nguồn và giấy phép](../assets/emojis/SOURCES.md). `emojiCatalog.js` và `assets/emojis/catalog.json` nằm trong whitelist/fingerprint runtime. Ảnh Basic/cache `.emoji-cache/` không đưa vào Git/SFTP/artifact công khai. Đồng bộ `scripts/sync-catalog-emojis.js inspect|apply|verify` dùng token từ file ngoài Git, cố định ứng dụng Mimi/server chính; tải và kiểm đủ hash trước upload. Cài artwork mới trước triển khai để runtime ưu tiên `_g3` ngay khi khởi động. 122 artwork phủ182key; slot static/animated được kiểm riêng, giữ toàn bộ ID emoji cũ.
+
+Sau receipt emoji hoàn chỉnh, dùng `scripts/refresh-home-guild-panels.js inspect|apply|verify` để PATCH bốn panel mặc định hiện có. Script kiểm guild/tác giả/mẫu/nút và giữ ID, liên kết, trạng thái, ảnh, attachment; không reset server hoặc gửi broadcast. Hai guide được sửa tại tin đã có qua `publish-home-guild-guides.js --apply`, từ mapping snapshot ngoài Git. Không coi các receipt REST là đã thử nút/voice bằng tài khoản thành viên.

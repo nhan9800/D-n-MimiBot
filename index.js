@@ -32,6 +32,7 @@ const { spawn } = require('child_process');
 const { colors, buildBaseEmbed, generateProgressBar } = require('./uiBuilder');
 const { normalizePayload, readMessageEmbed, extractActionRows, installDiscordUi, preserveUi } = require('./discordUi');
 const { buildMusicDashboard, buildHelpOverview, buildHelpPage } = require('./communityPanels');
+const { buildStandardSetupPanel, isDefaultVerifyMessage } = require('./communitySetupPanels');
 const { buildProfilePayload, buildRankPayload } = require('./profileCard');
 const { applyPetDecayRealtime, buildPetEmbed, buildPetComponents, createPetPanelUpdater } = require('./petUi');
 const petPanels = createPetPanelUpdater({ getUserData });
@@ -2510,15 +2511,7 @@ async function rebuildGuildPanels(targetGuild, gCfg) {
     if (ticketChan) {
         try {
             await clearBotMessages(ticketChan);
-            const row = new ActionRowBuilder().addComponents(
-                new ButtonBuilder().setCustomId('create_ticket_btn:Default').setLabel('📩 Mở yêu cầu hỗ trợ').setStyle(ButtonStyle.Primary),
-                new ButtonBuilder().setLabel('🌐 Máy Chủ Hỗ Trợ').setStyle(ButtonStyle.Link).setURL('https://discord.gg/gBUHY3qph2')
-            );
-            const ticketPanelEmbed = new EmbedBuilder().setColor('#38BDF8')
-                .setTitle('🎫 Quầy hỗ trợ · Chúng tôi sẵn sàng lắng nghe')
-                .setDescription('Mở một phòng riêng để trao đổi với đội ngũ. Điền chủ đề và mô tả trong biểu mẫu để được tiếp nhận nhanh hơn.')
-                .setFooter({ text: 'Một yêu cầu rõ ràng giúp đội ngũ hỗ trợ bạn tốt hơn' });
-            const sent = await sendToRestrictedChannel(ticketChan, embedToV2Payload(ticketPanelEmbed, { components: [row], mimiUi: { kind: 'ticket' } }));
+            const sent = await sendToRestrictedChannel(ticketChan, buildStandardSetupPanel('ticket'));
             rebuildLog.push(sent ? `  🎫 Gửi lại nút Ticket → <#${ticketChan.id}>` : `  ❌ Gửi nút Ticket thất bại`);
         } catch (err) {
             rebuildLog.push(`  ❌ Lỗi Ticket: ${err.message}`);
@@ -2532,13 +2525,7 @@ async function rebuildGuildPanels(targetGuild, gCfg) {
     if (attChan) {
         try {
             await clearBotMessages(attChan);
-            const attRow = new ActionRowBuilder().addComponents(
-                new ButtonBuilder().setCustomId('check_in_btn').setLabel('🟢 Bắt đầu ca').setStyle(ButtonStyle.Success),
-                new ButtonBuilder().setCustomId('check_out_btn').setLabel('🔴 Kết thúc ca').setStyle(ButtonStyle.Danger)
-            );
-            const attPanelEmbed = new EmbedBuilder().setColor('#14B8A6').setTitle('🕒 Chấm công · Ca làm của bạn')
-                .setDescription('Bấm **Bắt đầu ca** khi vào làm. Bấm **Kết thúc ca** khi hoàn thành để ghi lại thời gian làm việc.');
-            const sent = await sendToRestrictedChannel(attChan, embedToV2Payload(attPanelEmbed, { components: [attRow], mimiUi: { kind: 'attendance' } }));
+            const sent = await sendToRestrictedChannel(attChan, buildStandardSetupPanel('attendance'));
             rebuildLog.push(sent ? `  🕒 Gửi lại nút Chấm Công → <#${attChan.id}>` : `  ❌ Gửi nút Chấm Công thất bại`);
         } catch (err) {
             rebuildLog.push(`  ❌ Lỗi Chấm Công: ${err.message}`);
@@ -2563,8 +2550,9 @@ async function rebuildGuildPanels(targetGuild, gCfg) {
                     new ButtonBuilder().setCustomId('verify_btn').setLabel('✅ Xác thực ngay').setStyle(ButtonStyle.Success),
                     new ButtonBuilder().setLabel('🌐 Máy Chủ Hỗ Trợ').setStyle(ButtonStyle.Link).setURL('https://discord.gg/gBUHY3qph2')
                 );
-                const sent = await sendToRestrictedChannel(verifyChan, embedToV2Payload(verifyEmbed, { components: [verifyRow],
-                    mimiUi: { kind: 'setup', preserveDescription: Boolean(gCfg.verifyMessage) } }));
+                const sent = await sendToRestrictedChannel(verifyChan, isDefaultVerifyMessage(gCfg.verifyMessage)
+                    ? buildStandardSetupPanel('verify', { thumbnail: targetGuild.iconURL({ dynamic: true, size: 256 }) || null })
+                    : embedToV2Payload(verifyEmbed, { components: [verifyRow], mimiUi: { kind: 'setup', preserveDescription: true } }));
                 rebuildLog.push(sent ? `  🛡️ Gửi lại nút Xác Thực → <#${verifyChan.id}>` : `  ❌ Gửi nút Xác Thực thất bại`);
             } catch (err) {
                 rebuildLog.push(`  ❌ Lỗi Xác Thực: ${err.message}`);
@@ -2606,20 +2594,7 @@ async function rebuildGuildPanels(targetGuild, gCfg) {
         if (vrControlChan) {
             try {
                 await clearBotMessages(vrControlChan);
-                const vrEmbed = new EmbedBuilder()
-                    .setColor('#5865F2')
-                    .setTitle('🔊 Phòng thoại · Không gian của bạn')
-                    .setDescription(
-                        `**1. Tạo phòng** · Vào ${vrTriggerChan ? vrTriggerChan : '**kênh Tạo phòng thoại**'} để có phòng mang tên bạn.\n\n` +
-                        '**2. Quản lý** · Đổi tên, giới hạn người tham gia, khóa hoặc ẩn phòng bằng nút bên dưới.\n\n' +
-                        '**3. Kết thúc** · Phòng tự dọn khi không còn ai bên trong.'
-                    )
-                    .setFooter({ text: 'Chủ phòng có thể mời thành viên rời đi hoặc chuyển quyền quản lý' });
-                const vrRow = new ActionRowBuilder().addComponents(
-                    new ButtonBuilder().setCustomId('voiceroom_settings_btn').setLabel('⚙️ Quản lý phòng của tôi').setStyle(ButtonStyle.Primary),
-                    new ButtonBuilder().setLabel('🌐 Máy Chủ Hỗ Trợ').setStyle(ButtonStyle.Link).setURL('https://discord.gg/gBUHY3qph2')
-                );
-                const sent = await sendToRestrictedChannel(vrControlChan, embedToV2Payload(vrEmbed, { components: [vrRow], mimiUi: { kind: 'voice' } }));
+                const sent = await sendToRestrictedChannel(vrControlChan, buildStandardSetupPanel('voice', { triggerChannelId: vrTriggerChan?.id }));
                 rebuildLog.push(sent ? `  🔊 Gửi lại bảng Voice Room → <#${vrControlChan.id}>` : `  ❌ Gửi bảng Voice Room thất bại`);
             } catch (err) {
                 rebuildLog.push(`  ❌ Lỗi Voice Room: ${err.message}`);
@@ -2707,7 +2682,9 @@ async function setupVerifySystem(guild, gConfig) {
             new ButtonBuilder().setCustomId('verify_btn').setLabel('✅ Xác Thực Ngay').setStyle(ButtonStyle.Success),
             new ButtonBuilder().setLabel('🌐 Máy Chủ Hỗ Trợ').setStyle(ButtonStyle.Link).setURL('https://discord.gg/gBUHY3qph2')
         );
-        await verifyChannel.send(embedToV2Payload(verifyEmbed, { components: [verifyRow] }));
+        await verifyChannel.send(isDefaultVerifyMessage(gConfig.verifyMessage)
+            ? buildStandardSetupPanel('verify', { thumbnail: guild.iconURL({ dynamic: true, size: 256 }) || null })
+            : embedToV2Payload(verifyEmbed, { components: [verifyRow], mimiUi: { kind: 'setup', preserveDescription: true } }));
 
         gConfig.isVerifySetup = true;
         saveConfig();
@@ -3870,6 +3847,7 @@ function startAppEmojiProvisioning() {
             catch { console.warn('🎨 Chưa thể nạp trọn bộ emoji ứng dụng; Mimi tiếp tục bằng chữ.'); }
             const coverage = getEmojiCoverage();
             console.info(`🎨 Emoji ứng dụng: ${coverage.available}/${coverage.required} biểu cảm sẵn sàng (lượt ${attempt + 1}/3).`);
+            if (coverage.artwork) console.info(`🎨 Artwork Emoji.gg: ${coverage.artwork.available}/${coverage.artwork.required} nhóm biểu tượng.`);
             if (coverage.complete) return coverage;
             if (attempt < retryDelays.length) await new Promise(resolve => {
                 const timer = setTimeout(resolve, retryDelays[attempt]);
@@ -10792,23 +10770,8 @@ client.on('interactionCreate', async interaction => {
             if (!gConfig.voiceRooms) gConfig.voiceRooms = {};
             saveConfig();
 
-            const vrEmbed = new EmbedBuilder()
-                .setColor('#5865F2')
-                .setTitle('🔊 HỆ THỐNG PHÒNG VOICE RIÊNG')
-                .setDescription(
-                    `👉 Vào kênh thoại ${triggerChan} để **tự động được tạo một phòng voice riêng** mang tên bạn.\n\n` +
-                    `⚙️ Sau khi có phòng riêng, hãy quay lại kênh này và bấm nút **"Quản Lý Phòng Của Tôi"** để đổi tên, giới hạn thành viên, khóa/ẩn phòng, kick hoặc chuyển quyền chủ phòng.\n\n` +
-                    `🗑️ Phòng sẽ **tự động bị xóa** khi không còn ai ở bên trong.`
-                )
-                .setFooter({ text: 'Voice Room System — Tự động & riêng tư' });
-
-            const vrRow = new ActionRowBuilder().addComponents(
-                new ButtonBuilder().setCustomId('voiceroom_settings_btn').setLabel('⚙️ Quản Lý Phòng Của Tôi').setStyle(ButtonStyle.Primary),
-                new ButtonBuilder().setLabel('🌐 Máy Chủ Hỗ Trợ').setStyle(ButtonStyle.Link).setURL(SUPPORT_LINK)
-            );
-
             await clearBotMessages(controlChan);
-            await controlChan.send(embedToV2Payload(vrEmbed, { components: [vrRow] }));
+            await controlChan.send(buildStandardSetupPanel('voice', { triggerChannelId: triggerChan.id }));
 
             return interaction.editReply({ content: `✅ Đã **BẬT** hệ thống Voice Room!\n• Vào thoại: ${triggerChan}\n• Điều khiển: ${controlChan}` });
         }
@@ -12658,16 +12621,7 @@ client.on('interactionCreate', async interaction => {
             gConfig.weeklyReportChannelId = reportChan.id;
 
             await clearBotMessages(attendanceChan);
-            const attRow = new ActionRowBuilder().addComponents(
-                new ButtonBuilder().setCustomId('check_in_btn').setLabel('🟢 Check-In').setStyle(ButtonStyle.Success),
-                new ButtonBuilder().setCustomId('check_out_btn').setLabel('🔴 Check-Out').setStyle(ButtonStyle.Danger)
-            );
-            const attEmbed = new EmbedBuilder()
-                .setColor('#2ECC71')
-                .setTitle('🕒 KHU VỰC CHẤM CÔNG TRỰC TUYẾN')
-                .setDescription('Vui lòng nhấn nút dưới đây để khai báo giờ bắt đầu làm việc và kết thúc ca.');
-            
-            await attendanceChan.send(embedToV2Payload(attEmbed, { components: [attRow] }));
+            await attendanceChan.send(buildStandardSetupPanel('attendance'));
             saveConfig();
             return interaction.editReply({ content: '🟢 **Đã khởi tạo hệ thống chấm công độc lập!**\nKênh chấm công và lịch sử đã được tạo/cập nhật.' });
         }

@@ -7,6 +7,7 @@ const { REST, Routes } = require('discord.js');
 const { HOME_GUILD_ID, BOT_ID } = require('./plan-home-guild');
 const { decorateText } = require('../communityEmojis');
 const { loadApplicationEmojis } = require('./sync-home-emojis');
+const { CATALOG_ASSETS } = require('../emojiCatalog');
 
 function card(surface, content) {
     return { flags: 32768, allowed_mentions: { parse: [], replied_user: false }, components: [{
@@ -32,7 +33,8 @@ function buildGuide(channels) {
 
 function buildEmojiGuide(emojis) {
     const tag = emoji => `<${emoji.animated ? 'a' : ''}:${emoji.name}:${emoji.id}>`;
-    const mimi = emojis.filter(emoji => emoji.name.startsWith('mimi_')).slice(0, 24);
+    const catalogNames = new Set(CATALOG_ASSETS.map(entry => entry.name));
+    const mimi = emojis.filter(emoji => catalogNames.has(emoji.name)).slice(0, 24);
     const other = emojis.filter(emoji => !emoji.name.startsWith('mimi_')).slice(0, 10);
     return card('BỘ BIỂU CẢM', [
         '## Thêm chút Mimi vào cuộc trò chuyện',
@@ -40,6 +42,7 @@ function buildEmojiGuide(emojis) {
         `### Nhận diện Mimi\n${mimi.map(emoji => `${tag(emoji)} \`${emoji.name}\``).join('  ')}`,
         `### Biểu cảm cộng đồng\n${other.map(emoji => `${tag(emoji)} \`${emoji.name}\``).join('  ')}`,
         `Máy chủ hiện có **${emojis.length} custom emoji**. Đây là một vài biểu cảm; mở bộ chọn emoji để xem toàn bộ.`,
+        '[Nguồn, tác giả và giấy phép bộ Mimi](https://github.com/nhan9800/D-n-MimiBot/blob/main/assets/emojis/SOURCES.md)',
         '### Cùng dùng thật vui\nBạn có thể thử emoji ngay tại kênh này. Tránh gửi hàng loạt tin hoặc ping người khác để thử. Biểu cảm của máy chủ và emoji ứng dụng của bot được quản lý riêng.',
     ].join('\n\n'));
 }
@@ -49,7 +52,7 @@ function contentOf(message) {
         .filter(item => item.type === 10).map(item => item.content || '').join('\n');
 }
 
-async function publish(rest, mapping, emojis) {
+async function publish(rest, mapping, emojis, options = {}) {
     const jobs = [
         ['guide', buildGuide(mapping.channels), 'MIMI** • HƯỚNG DẪN'],
         ['emoji', buildEmojiGuide(emojis), 'MIMI** • BỘ BIỂU CẢM'],
@@ -61,6 +64,7 @@ async function publish(rest, mapping, emojis) {
         if (channel.guild_id !== HOME_GUILD_ID) throw new Error('Kênh không thuộc server chính.');
         const messages = await rest.get(Routes.channelMessages(channelId), { query: new URLSearchParams({ limit: '30' }) });
         const old = messages.find(message => message.author?.id === BOT_ID && contentOf(message).includes(marker));
+        if (!old && options.requireExisting) throw new Error('Không tìm thấy thẻ cũ; chưa gửi thêm tin.');
         const message = old
             ? await rest.patch(Routes.channelMessage(channelId, old.id), { body })
             : await rest.post(Routes.channelMessages(channelId), { body });
@@ -79,10 +83,11 @@ if (require.main === module) {
         const rest = new REST({ version: '10', timeout: 20000 }).setToken(token);
         const user = await rest.get(Routes.user());
         if (user.id !== BOT_ID) throw new Error('Sai bot.');
-        await loadApplicationEmojis(rest);
+        const coverage = await loadApplicationEmojis(rest);
+        if (!coverage.artwork.complete) throw new Error('Catalog chưa đủ; chưa sửa thẻ.');
         const { mapping } = JSON.parse(fs.readFileSync(path.join(backupDir, 'result.json'), 'utf8'));
         const emojis = await rest.get(Routes.guildEmojis(HOME_GUILD_ID));
-        const results = await publish(rest, mapping, emojis);
+        const results = await publish(rest, mapping, emojis, { requireExisting: true });
         fs.writeFileSync(path.join(backupDir, 'guides-result.json'), JSON.stringify(results, null, 2) + '\n', { mode: 0o600 });
         console.log(JSON.stringify(results));
     };

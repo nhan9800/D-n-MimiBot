@@ -14,6 +14,9 @@ const { createHash } = require('node:crypto');
 
 const RUNTIME_FILES = ['assets/emojis/sources.json', 'index.js', 'internalApi.js', 'buildInfo.js', 'licenseStore.js', 'licenseScheduler.js', 'antiRaid.js', 'musicStore.js', 'uiBuilder.js', 'discordUi.js', 'communityPanels.js', 'modalUi.js', 'profileCard.js', 'musicPanelUpdater.js', 'dashboardAuth.js', 'communityEmojis.js', 'emojiImport.js', 'reminderUtils.js', 'googleTts.js', 'musicSources.js', 'petUi.js', 'ticketLifecycle.js', 'ticketTranscript.js', 'package.json', 'package-lock.json'];
 
+RUNTIME_FILES.push('emojiCatalog.js', 'assets/emojis/catalog.json');
+RUNTIME_FILES.push('communitySetupPanels.js');
+
 function runtimeFingerprint(directory = __dirname) {
     const hash = createHash('sha256');
     for (const name of RUNTIME_FILES) {

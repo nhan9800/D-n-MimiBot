@@ -8,10 +8,12 @@ const { buildCommunityPanel } = require('../uiBuilder');
 const { normalizePayload, walkComponents, countComponents } = require('../discordUi');
 const { normalizeModalPayload } = require('../modalUi');
 const { buildPetEmbed, buildPetComponents } = require('../petUi');
-const { COMMUNITY_EMOJI, EMOJI_ASSET_MANIFEST } = require('../communityEmojis');
+const { COMMUNITY_EMOJI } = require('../communityEmojis');
+const { CATALOG_ASSETS } = require('../emojiCatalog');
+const { buildStandardSetupPanel } = require('../communitySetupPanels');
 // ID giả chỉ dùng trong preview; ảnh đúng asset sản xuất, không đăng nhập Discord.
-for (const [index, item] of EMOJI_ASSET_MANIFEST.entries()) COMMUNITY_EMOJI[item.key] = `<:${item.name}:${100000000000000000n + BigInt(index)}>`;
-const emojiAssets = Object.fromEntries(EMOJI_ASSET_MANIFEST.map(item => [item.name, `../assets/emojis/${item.file}`]));
+for (const [index, item] of CATALOG_ASSETS.entries()) for (const key of item.keys) COMMUNITY_EMOJI[key] = `<${item.format === 'gif' ? 'a' : ''}:${item.name}:${100000000000000000n + BigInt(index)}>`;
+const emojiAssets = Object.fromEntries(CATALOG_ASSETS.map(item => [item.name, item.url]));
 const samples = [];
 function add(name, payload, note = '') {
     const normalized = normalizePayload(payload);
@@ -60,6 +62,7 @@ add('Thành công', buildCommunityPanel({ title: '✅ Đã lưu cấu hình', de
 add('Cảnh báo', buildCommunityPanel({ title: '⚠️ Cần vào kênh thoại', description: 'Vào cùng kênh thoại với Mimi rồi thử lại.', status: 'warning' }));
 add('Lỗi & quyền', buildCommunityPanel({ title: '🚫 Bạn cần quyền quản lý máy chủ', description: 'Nhờ quản trị viên thực hiện thao tác này.', status: 'error' }));
 samples.push({ name: 'Biểu mẫu mới', note: 'Các field ID và điều kiện nhập được giữ để handler tiếp tục hoạt động.', modal: normalizeModalPayload({ custom_id: 'afk_modal', title: 'Cài đặt AFK', components: [row({ type: 4, custom_id: 'afk_reason', label: 'Lời nhắn khi bạn vắng mặt', style: 2, placeholder: 'Ví dụ: Mình đang học, sẽ quay lại sau.', required: true })] }) });
+for (const [type, name] of [['verify', 'Panel xác thực'], ['ticket', 'Panel mở ticket'], ['voice', 'Panel tạo voice'], ['attendance', 'Panel chấm công']]) add(name, buildStandardSetupPanel(type, { triggerChannelId: '1526890047175917568' }), 'Panel mặc định dùng cùng bộ dựng với bot và thao tác refresh tin hiện có.');
 const docs = path.join(__dirname, '..', 'docs');
 const template = fs.readFileSync(path.join(docs, 'UI-PREVIEW.template.html'), 'utf8');
 fs.writeFileSync(path.join(docs, 'UI-PREVIEW.html'), template.replace('__MIMI_PAYLOADS__', JSON.stringify(samples).replace(/</g, '\\u003c')).replace('__MIMI_EMOJI_ASSETS__', JSON.stringify(emojiAssets)));

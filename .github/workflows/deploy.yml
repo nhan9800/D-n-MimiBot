@@ -85,6 +85,7 @@ jobs:
           put musicStore.js
           put uiBuilder.js
           put communityPanels.js
+          put communitySetupPanels.js
           put modalUi.js
           put profileCard.js
           put petUi.js
@@ -92,6 +93,7 @@ jobs:
           put dashboardAuth.js
           put communityEmojis.js
           put emojiImport.js
+          put emojiCatalog.js
           put discordUi.js
           put reminderUtils.js
           put googleTts.js

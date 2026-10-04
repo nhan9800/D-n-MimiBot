@@ -54,8 +54,11 @@ test('HiLo render đúng bốn chất bài bằng custom ngoài code, giữ đi�
     assert.doesNotMatch(body, /[♠♥♦♣]/u);
     assert.match(body, /Điểm: \*\*13\*\*/);
     assert.match(body, /x2\.10/);
-    const history = body.split(/Lịch sử(?: lá bài)?:/u)[1] || body;
-    assert.doesNotMatch(history.split('\n\n')[0], /`2`/);
+    const historyNode = nodes(payload).find(node => node.type === 10 && node.content.includes('Sáu lá gần nhất'));
+    assert.ok(historyNode, 'Có trường lịch sử sáu lá trong payload thực');
+    const history = historyNode.content.split('Sáu lá gần nhất')[1];
+    assert.doesNotMatch(history, /`2`/);
+    for (const rank of ['3', '4', '5', 'Q', 'A', 'K']) assert.ok(history.includes('`' + rank + '`'), `Giữ lá ${rank}`);
     customOutsideCode(body);
     assert.equal(JSON.stringify(game), before);
     assert.ok(ui.countComponents(payload.components) <= 40);

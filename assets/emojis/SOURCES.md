@@ -1,5 +1,27 @@
 # Nguồn bộ emoji Mimi
 
+## Bộ đang dùng — catalog g3, 04/10/2026
+
+**122 artwork Emoji.gg ánh xạ 182 semantic key** của bot. Nhạc dùng điều khiển nét trắng; quản trị dùng icon xanh bạc; pet/farm dùng ảnh pixel. Key cùng nhóm chức năng có thể dùng chung artwork. Mặt số 1–6 và segment xanh/trắng có nguồn riêng đúng ý nghĩa. Không tuyên bố có 182 ảnh khác nhau.
+
+[catalog.json](catalog.json) lưu URL trang/ảnh, tác giả, giấy phép, ngày kiểm tra, định dạng PNG/GIF, kích thước, dung lượng và SHA256 của từng artwork. Ảnh giữ nguyên, không sửa hoặc nhận quyền sở hữu. Các tác giả CC-BY-4.0: **Lawyn** (Settings, Warning, Error, Ok) và **Juox** (arrow_right); đường dẫn từng trang và nguồn ghi trong catalog. Giấy phép [CC-BY-4.0](https://creativecommons.org/licenses/by/4.0/) cho phép dùng cùng attribution này.
+
+Ảnh Basic dùng theo [điều kiện Emoji.gg](https://emoji.gg/licenses): miễn phí truy cập emoji trên Discord. **Không phân phối lại ảnh Basic vào Git hoặc artifact công khai.** Công cụ đồng bộ tải trực tiếp nguồn đã pin, kiểm hash, lưu cache ngoài Git rồi upload Discord. `emojiCatalog.js` không tải ảnh khi dựng tin hoặc login; runtime ưu tiên tên `_g3` đã cài vào ứng dụng. Giữ emoji cũ để tin nhắn/reaction đã gửi còn hoạt động. Bộ PNG CC-BY dưới đây chỉ là fallback tương thích cũ; không phải artwork catalog mới.
+
+Đồng bộ có snapshot/receipt, không xóa emoji, kiểm slot riêng tĩnh/động và dừng nếu nguồn thay đổi hoặc bị chặn:
+
+```text
+node scripts/sync-catalog-emojis.js inspect <config-path> <receipt-directory>
+node scripts/sync-catalog-emojis.js apply <config-path> <receipt-directory>
+node scripts/sync-catalog-emojis.js verify <config-path> <receipt-directory>
+```
+
+`/setupemoji` thêm bộ g3 vào server có đủ quyền/slot. Giao diện bot dùng emoji ứng dụng ở mọi server. Trường Discord chỉ hỗ trợ chữ (modal title/label/placeholder/slash choice) giữ chữ; thiếu emoji chỉ giữ thông tin chữ/số. Coverage phân biệt custom ID với đúng artwork catalog trong `/health/live`.
+
+Discadia bị chặn trong công cụ hiện tại nên chưa có artwork được xác minh từ nguồn đó; không đi vòng hoặc giả nguồn. Trang đã gỡ/đòi đăng nhập/ảnh bị403 được loại khỏi bộ đã chọn.
+
+## Bộ đóng gói cũ — lịch sử và fallback
+
 Đối chiếu và tải ngày **03/10/2026**: **170 PNG cho 172 key**. Bộ PNG được đóng gói trong repository để Mimi nạp thành custom emoji của ứng dụng; không tải từ catalog trong lúc dựng từng tin nhắn. Mỗi file có nguồn, tác giả, giấy phép, kích thước, số bytes và SHA256 tại [sources.json](sources.json). Danh sách key/file dùng thực tế được xuất từ `communityEmojis.js` dưới tên `EMOJI_ASSET_MANIFEST`.
 
 ## Artwork và attribution

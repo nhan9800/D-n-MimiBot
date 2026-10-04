@@ -5,6 +5,7 @@ const assert = require('node:assert/strict');
 const fs = require('node:fs');
 const path = require('node:path');
 const vm = require('node:vm');
+const { createRequire } = require('node:module');
 
 function isolatedEmojis() {
     const allocations = { maps: 0, regexps: 0 };
@@ -12,7 +13,7 @@ function isolatedEmojis() {
     class CountedRegExp extends RegExp { constructor(...args) { super(...args); allocations.regexps++; } }
     const module = { exports: {} };
     const context = vm.createContext({
-        module, exports: module.exports, require, __dirname: path.join(__dirname, '..'),
+        module, exports: module.exports, require: createRequire(path.join(__dirname, '../communityEmojis.js')), __dirname: path.join(__dirname, '..'),
         Map: CountedMap, RegExp: CountedRegExp,
     });
     vm.runInContext(fs.readFileSync(path.join(__dirname, '..', 'communityEmojis.js'), 'utf8'), context);

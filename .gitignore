@@ -41,3 +41,4 @@ coverage/
 restart.trigger
 
 data/
+.emoji-cache/

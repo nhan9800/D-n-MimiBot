@@ -2,6 +2,7 @@
 
 const fs = require('node:fs');
 const path = require('node:path');
+const { CATALOG_ASSETS, CATALOG_BY_KEY, loadCatalogImage } = require('./emojiCatalog');
 
 // Một bộ biểu cảm cho toàn bộ cộng đồng; không phụ thuộc emoji của một server.
 const CORE_EMOJIS = {
@@ -61,6 +62,9 @@ const ASSET_ALIASES = Object.freeze({
     dice1: 'one', dice2: 'two', dice3: 'three', dice4: 'seven', dice5: 'number', dice6: 'dice',
     bar_full: 'verify', bar_empty: 'warning', dot_white: 'dot', dot_blue: 'dot'
 });
+// Bộ cũ chưa có mặt 4–6/segment đúng nghĩa. Thiếu catalog thì giữ chữ/số,
+// không dùng ảnh số 7, icon cảnh báo hoặc dấu tick để biểu diễn dữ liệu.
+const CATALOG_ONLY_KEYS = new Set(['dice4', 'dice5', 'dice6', 'bar_full', 'bar_empty', 'dot_white', 'dot_blue']);
 const LEGACY_NAMES = Object.freeze({
     tsm_fire: 'fire', starxoay: 'sparkle', tickgreen: 'check', dotyellow: 'warning',
     chamxanh: 'dot', mimi_diamond: 'diamond', mimi_arrow2: 'arrow', muiten: 'arrow',
@@ -122,9 +126,15 @@ function customProgressBar(current, total, size = 8) {
 
 function getEmojiCoverage() {
     const missing = REQUIRED_EMOJI_KEYS.filter(key => !emojiForKey(key));
+    const artworkMissing = REQUIRED_EMOJI_KEYS.filter(key => {
+        const source = CATALOG_BY_KEY.get(key);
+        return !source || !emojiForKey(key).startsWith(`<${source.format === 'gif' ? 'a' : ''}:${source.name}:`);
+    });
     return { total: REQUIRED_EMOJI_KEYS.length, custom: REQUIRED_EMOJI_KEYS.length - missing.length,
         required: REQUIRED_EMOJI_KEYS.length, available: REQUIRED_EMOJI_KEYS.length - missing.length,
-        missing, complete: missing.length === 0 };
+        missing, complete: missing.length === 0,
+        artwork: { source: 'Emoji.gg', required: REQUIRED_EMOJI_KEYS.length,
+            available: REQUIRED_EMOJI_KEYS.length - artworkMissing.length, missing: artworkMissing, complete: artworkMissing.length === 0 } };
 }
 
 function plainUiText(text) {
@@ -171,11 +181,13 @@ async function provisionCommunityEmojis(client, options = {}) {
         // artwork cũ; giữ emoji cũ để tin nhắn và reaction đã gửi vẫn hoạt động.
         // Nếu revision mới chưa tạo được vì giới hạn application emoji, dùng lại
         // artwork cũ cùng key để không làm mất độ phủ giao diện trên production.
-        let emoji = byName.get(targetName) || names.map(name => byName.get(name)).find(Boolean);
+        const artwork = CATALOG_BY_KEY.get(key);
+        const catalogEmoji = artwork && byName.get(artwork.name);
+        let emoji = catalogEmoji || (!CATALOG_ONLY_KEYS.has(key) && (byName.get(targetName) || names.map(name => byName.get(name)).find(Boolean)));
         if (!emoji) {
             const file = ['gif', 'png', 'webp', 'jpg', 'jpeg'].flatMap(ext =>
                 names.map(name => `${name}.${ext}`)).find(name => files.includes(name));
-            if (file && options.createMissing !== false) {
+            if (file && options.createMissing !== false && !CATALOG_ONLY_KEYS.has(key)) {
                 try {
                     const attachment = fs.readFileSync(path.join(assetDir, file));
                     if (!attachment.length || attachment.length > 256 * 1024) throw new Error('size');
@@ -204,6 +216,29 @@ async function provisionCommunityEmojis(client, options = {}) {
 function installGuildEmojis(guild, options = {}) {
     if (guildInstalls.has(guild.id)) return guildInstalls.get(guild.id);
     const job = (async () => {
+        if (!options.assetDir) {
+            const current = await guild.emojis.fetch();
+            const names = new Set([...current.values()].map(emoji => emoji.name));
+            const result = { created: [], reused: [], failed: [] };
+            for (const [index, entry] of CATALOG_ASSETS.entries()) {
+                if (names.has(entry.name)) { result.reused.push(entry.name); continue; }
+                try {
+                    const attachment = await loadCatalogImage(entry);
+                    const emoji = await guild.emojis.create({ attachment, name: entry.name, reason: options.reason || 'Cài bộ emoji cộng đồng Mimi từ Emoji.gg' });
+                    names.add(entry.name); result.created.push(emojiTag(emoji));
+                } catch (error) {
+                    result.failed.push({ name: entry.name, reason: error.code === 30008 ? 'Máy chủ hết chỗ emoji.' : 'Không thể thêm emoji này.' });
+                    if (error.code === 30008 || error.code === 50013) {
+                        for (const pending of CATALOG_ASSETS.slice(index + 1)) {
+                            if (names.has(pending.name)) result.reused.push(pending.name);
+                            else result.failed.push({ name: pending.name, reason: error.code === 30008 ? 'Máy chủ hết chỗ emoji.' : 'Bot thiếu quyền thêm emoji.' });
+                        }
+                        break;
+                    }
+                }
+            }
+            return result;
+        }
         const dir = options.assetDir || path.join(__dirname, 'assets', 'emojis');
         const files = fs.readdirSync(dir).filter(file => /^mimi_[a-z0-9_]+\.(gif|png|webp|jpe?g)$/i.test(file)).sort();
         const current = await guild.emojis.fetch();

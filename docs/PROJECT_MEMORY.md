@@ -2,12 +2,19 @@
 
 Checkpoint 04/10/2026, Asia/Saigon. Đọc cùng WORKSPACE.md và AGENTS.md khi tiếp tục. Kết quả lịch sử không thay thế xác minh mới; không lưu bí mật hoặc dữ liệu runtime.
 
+## Bước đang làm — catalog g3, 04/10 lúc 15:43 VN
+
+- Hoàn thiện local122artworkEmoji.gg/182key, author/license/hash/signature/dimensions tất cảđượckiểm; ảnh Basic ngoàiGit, metadata Git. Cácnguồn bịgỡ/403/đòiđăngnhập loại, khôngđivòng; Discadia chưaxácminh. .emoji-cache ignored. Bổsungcoverage.artwork phânbiệt đủcustom với đúngcatalog. Startup khôngtảiảnh; /setupemoji dùngcatalog trực tiếp, giữemoji cũ.
+- Mặt1–6/source đúng, segmentxanh/trắng; fallbackcũ sai mặt4/5/6/bar/dot bịchặn, thiếucatalog giữsố/phầntrăm. Rebuild4panelmặcđịnh bằngmodulechung/index/script, kiểmcontrols/media/attachments/customcopy và giữID; preview31mẫu. Regressions testHiLo đọcđúngfieldhistorythật, VMrequireperformance sửađúngcontext.
+- Fullsuite339/339,cúpháp80JS,audit0,diffcheck đạt ởlầnđãchạy. Targeted18/18 sauđó đạt; CI/chưacommit/push/deploycatalog tạicheckpointnày. Đồng bộ RESTapply đangchạy PIDsession59585, snapshotplan/progressngoàiGit tại C:/Users/ivano/Downloads/MimiBot-backups/catalog-ui-2026-10-04/. Appbanđầu353, guild77(70static7animated), tier3 slotsđủ119static3gifmới. Checked122ảnh/2379306bytes. Khôngxóaemoji hoặc runtime.
+- Tiếp: đợi sync receipt/verify, fullfinalchecks, commit/pushmainCI. Refresh4panel+2guide hiệncó khôngping, RestartVibeHostdeployđúngcommit, health/livecustom182/artwork182 vàreadyDiscordtrue. Lưureceipt/screenshot; xóaexactcredentialdownload tạm khi RESTxong, khôngđụngruntimeconfig. Cậpnhật memory/topWORKSPACE kếtquảmới; audio/DiscordmemberQA vẫnchưađạt.
+
 ## Yêu cầu và ưu tiên hiện tại
 
 - User yêu cầu nâng cấp bot cộng đồng, toàn bộ UI dùng custom emoji, cấu hình server chính `1517068246493429852`, cập nhật GitHub và hosting. Không hỏi lại những bước đã được cho phép. Không broadcast hoặc DM tự động.
-- Chỉ dẫn mới nhất 04/10: **làm lại toàn bộ giao diện tính năng bot, đẹp hơn và dùng 100% custom artwork từ emoji.gg/Discadia**. Audit phát hiện bộ cũ169Twemoji/1emoji.gg/0Discadia, chưa đáp ứng nguồn/diện mạo. Đang thay artwork và bố cục, chưa push/deploy đợt UI này. Website vẫn chờ riêng.
+- Chỉ dẫn mới nhất 04/10: **làm lại toàn bộ giao diện tính năng bot, đẹp hơn và dùng 100% custom artwork từ emoji.gg/Discadia**. Bố cục đã triển khai e3faad5; đang hoàn thiện catalog g3 122artwork/182keys thật từEmoji.gg, chưa push/deploy catalog. Basic dùng trực tiếp Discord, metadata Git/ảnh ngoàiGit; không cần hỏi lại. Discadia bịpolicychặn, không đi vòng. Website vẫn chờ riêng.
 - Bot đúng repo `D-n-MimiBot/`, version 1.4.0. Website nằm riêng trong `Website-Mini-Bot/`; Mimi Shield ngoài phạm vi.
-- **Bản bot hiện hành đã xác minh ngày 04/10 lúc 13:16 VN: 3879f76**, gồm sửa ticket993af78, giữ tin mới khi đóng và phục hồi nhạc FFmpeg -11. Console pull đúng commit, health/ready Discordtrue; CI Node22 success, 295/295 test. Chưa thử đóng ticket/DM hoặc nghe voice thật sau deploy; không gọi offline test là E2E.
+- **Bản bot hiện hành đã xác minh đầu lượt 04/10: e3faad5**, version1.4.0 custom182/182, readyHTTP200/Discordtrue. Local/origin4f275de docs-only. Chưa kiểm audio/voice hoặc nút bằng thànhviên thật; không gọi offline test là E2E.
 
 ## Cập nhật mipet theo yêu cầu mới — 03/10/2026
 

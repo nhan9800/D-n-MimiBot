@@ -18,7 +18,8 @@ const curatedComponents = new WeakSet();
 const componentThemes = new WeakMap();
 const sourceHints = new WeakMap();
 // ID bền qua JSON/Discord cache; không dùng các slot 10000 của legacy parser.
-const CURATED_SURFACES = { 9101: 'music', 9102: 'help', 9103: 'profile', 9104: 'farm', 9105: 'game' };
+const CURATED_SURFACES = { 9101: 'music', 9102: 'help', 9103: 'profile', 9104: 'farm', 9105: 'game',
+    9106: 'setup', 9107: 'ticket', 9108: 'voice', 9109: 'attendance' };
 
 // Metadata riêng của bot, không thêm thuộc tính lạ vào EmbedBuilder/API.
 function markUiSurface(value, hints) {

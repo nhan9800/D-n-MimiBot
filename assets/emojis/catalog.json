@@ -1,0 +1,2384 @@
+{
+  "revision": "g3",
+  "use": "Discord cộng đồng miễn phí; không phân phối lại ảnh Basic",
+  "assets": [
+    {
+      "name": "mimi_music_g3",
+      "keys": [
+        "music",
+        "disc"
+      ],
+      "page": "https://emoji.gg/emoji/7125-spotify-headphones",
+      "url": "https://cdn3.emoji.gg/emojis/7125-spotify-headphones.png",
+      "source": "Emoji.gg",
+      "author": "Jay",
+      "license": "Basic",
+      "licenseUrl": "https://emoji.gg/licenses",
+      "verifiedAt": "2026-10-04",
+      "modified": false,
+      "format": "png",
+      "width": 256,
+      "height": 256,
+      "bytes": 16730,
+      "sha256": "f2ce73f4996e1e3dfc75c8ada5026528244d1f4dde17f57af9311f2c1aa90822"
+    },
+    {
+      "name": "mimi_play_g3",
+      "keys": [
+        "play"
+      ],
+      "page": "https://emoji.gg/emoji/4218-play",
+      "url": "https://cdn3.emoji.gg/emojis/4218-play.png",
+      "source": "Emoji.gg",
+      "author": "JH",
+      "license": "Basic",
+      "licenseUrl": "https://emoji.gg/licenses",
+      "verifiedAt": "2026-10-04",
+      "modified": false,
+      "format": "png",
+      "width": 32,
+      "height": 32,
+      "bytes": 308,
+      "sha256": "ff3ed374fcae4c88082ccf637ffb54b42a9cd9bcb6eee0819a544cd73e6f1662"
+    },
+    {
+      "name": "mimi_pause_g3",
+      "keys": [
+        "pause"
+      ],
+      "page": "https://emoji.gg/emoji/1797-pause",
+      "url": "https://cdn3.emoji.gg/emojis/1797-pause.png",
+      "source": "Emoji.gg",
+      "author": "JH",
+      "license": "Basic",
+      "licenseUrl": "https://emoji.gg/licenses",
+      "verifiedAt": "2026-10-04",
+      "modified": false,
+      "format": "png",
+      "width": 32,
+      "height": 32,
+      "bytes": 186,
+      "sha256": "6e213b68f7d97dec47f3634c1e98f1a60274783ee1ce6dc7cf88fe8682d36108"
+    },
+    {
+      "name": "mimi_skip_g3",
+      "keys": [
+        "skip"
+      ],
+      "page": "https://emoji.gg/emoji/4218-next",
+      "url": "https://cdn3.emoji.gg/emojis/4218-next.png",
+      "source": "Emoji.gg",
+      "author": "JH",
+      "license": "Basic",
+      "licenseUrl": "https://emoji.gg/licenses",
+      "verifiedAt": "2026-10-04",
+      "modified": false,
+      "format": "png",
+      "width": 32,
+      "height": 32,
+      "bytes": 403,
+      "sha256": "4dda794a85a1c7c787e3c405ce2b42d2393941bbd519159e790bb7a3ba5e2a29"
+    },
+    {
+      "name": "mimi_loopoff_g3",
+      "keys": [
+        "loopOff",
+        "loopTrack",
+        "loopQueue",
+        "arrowhorizontal"
+      ],
+      "page": "https://emoji.gg/emoji/6129-spotify-repeat",
+      "url": "https://cdn3.emoji.gg/emojis/6129-spotify-repeat.png",
+      "source": "Emoji.gg",
+      "author": "Jay",
+      "license": "Basic",
+      "licenseUrl": "https://emoji.gg/licenses",
+      "verifiedAt": "2026-10-04",
+      "modified": false,
+      "format": "png",
+      "width": 256,
+      "height": 256,
+      "bytes": 13311,
+      "sha256": "39fc9ce1ef9368952cd7cd248f2bfaf0227d95b0838acaba8ee7480140296d80"
+    },
+    {
+      "name": "mimi_voldown_g3",
+      "keys": [
+        "voldown",
+        "volup"
+      ],
+      "page": "https://emoji.gg/emoji/7125-spotify-volume",
+      "url": "https://cdn3.emoji.gg/emojis/7125-spotify-volume.png",
+      "source": "Emoji.gg",
+      "author": "Jay",
+      "license": "Basic",
+      "licenseUrl": "https://emoji.gg/licenses",
+      "verifiedAt": "2026-10-04",
+      "modified": false,
+      "format": "png",
+      "width": 256,
+      "height": 256,
+      "bytes": 18254,
+      "sha256": "74ab04c47515ff75d1a87239b1908c7a79802833ff4726a2a84b3b3574479935"
+    },
+    {
+      "name": "mimi_fav_g3",
+      "keys": [
+        "fav",
+        "heart",
+        "heartsuit"
+      ],
+      "page": "https://emoji.gg/emoji/985872-heart",
+      "url": "https://cdn3.emoji.gg/emojis/985872-heart.png",
+      "source": "Emoji.gg",
+      "author": "audibert",
+      "license": "Basic",
+      "licenseUrl": "https://emoji.gg/licenses",
+      "verifiedAt": "2026-10-04",
+      "modified": false,
+      "format": "png",
+      "width": 212,
+      "height": 212,
+      "bytes": 32604,
+      "sha256": "cd48cc93f4e80dfbd9f7a5ff1f2fb4b96ab0bfc201bc7b802156682f22da5e0d"
+    },
+    {
+      "name": "mimi_lyrics_g3",
+      "keys": [
+        "lyrics"
+      ],
+      "page": "https://emoji.gg/emoji/308605-microphone",
+      "url": "https://cdn3.emoji.gg/emojis/308605-microphone.png",
+      "source": "Emoji.gg",
+      "author": "Gjester0101",
+      "license": "Basic",
+      "licenseUrl": "https://emoji.gg/licenses",
+      "verifiedAt": "2026-10-04",
+      "modified": false,
+      "format": "png",
+      "width": 256,
+      "height": 256,
+      "bytes": 8312,
+      "sha256": "24406c2c0c8bc37cb6f0a0fc0374284d960c286bd8e8111cac0cfd0664403155"
+    },
+    {
+      "name": "mimi_seekback_g3",
+      "keys": [
+        "seekback",
+        "arrowleft"
+      ],
+      "page": "https://emoji.gg/emoji/518471-lastpage",
+      "url": "https://cdn3.emoji.gg/emojis/518471-lastpage.png",
+      "source": "Emoji.gg",
+      "author": "frontleftfender",
+      "license": "Basic",
+      "licenseUrl": "https://emoji.gg/licenses",
+      "verifiedAt": "2026-10-04",
+      "modified": false,
+      "format": "png",
+      "width": 128,
+      "height": 128,
+      "bytes": 4244,
+      "sha256": "5e5c5770508d254be27e2223b3767df6ebf0c4d0a4212092db5fe98f238f653e"
+    },
+    {
+      "name": "mimi_seekfwd_g3",
+      "keys": [
+        "seekfwd"
+      ],
+      "page": "https://emoji.gg/emoji/7532-forward",
+      "url": "https://cdn3.emoji.gg/emojis/7532-forward.png",
+      "source": "Emoji.gg",
+      "author": "JH",
+      "license": "Basic",
+      "licenseUrl": "https://emoji.gg/licenses",
+      "verifiedAt": "2026-10-04",
+      "modified": false,
+      "format": "png",
+      "width": 32,
+      "height": 32,
+      "bytes": 406,
+      "sha256": "c5a6baae80358f109ce3f52ce92bf4fe48db99050ba3f6e04fc444cb2cf87ee3"
+    },
+    {
+      "name": "mimi_restart_g3",
+      "keys": [
+        "restart",
+        "arrowback"
+      ],
+      "page": "https://emoji.gg/emoji/4903-spotify-refresh",
+      "url": "https://cdn3.emoji.gg/emojis/4903-spotify-refresh.png",
+      "source": "Emoji.gg",
+      "author": "Jay",
+      "license": "Basic",
+      "licenseUrl": "https://emoji.gg/licenses",
+      "verifiedAt": "2026-10-04",
+      "modified": false,
+      "format": "png",
+      "width": 256,
+      "height": 256,
+      "bytes": 15694,
+      "sha256": "d17db548857342a315913f977ab64e7ded90ec4467c18a7d9341c813a9132c65"
+    },
+    {
+      "name": "mimi_shuffle_g3",
+      "keys": [
+        "shuffle"
+      ],
+      "page": "https://emoji.gg/emoji/3959-spotify-shuffle",
+      "url": "https://cdn3.emoji.gg/emojis/3959-spotify-shuffle.png",
+      "source": "Emoji.gg",
+      "author": "Jay",
+      "license": "Basic",
+      "licenseUrl": "https://emoji.gg/licenses",
+      "verifiedAt": "2026-10-04",
+      "modified": false,
+      "format": "png",
+      "width": 256,
+      "height": 256,
+      "bytes": 20587,
+      "sha256": "8964d0157a5cf97034992b418a9ff51e08ca6fd3fc71fd52a563e703d9235560"
+    },
+    {
+      "name": "mimi_level_g3",
+      "keys": [
+        "level",
+        "goldmedal",
+        "silvermedal",
+        "bronzemedal"
+      ],
+      "page": "https://emoji.gg/emoji/918267-trophy",
+      "url": "https://cdn3.emoji.gg/emojis/918267-trophy.png",
+      "source": "Emoji.gg",
+      "author": "audibert",
+      "license": "Basic",
+      "licenseUrl": "https://emoji.gg/licenses",
+      "verifiedAt": "2026-10-04",
+      "modified": false,
+      "format": "png",
+      "width": 212,
+      "height": 212,
+      "bytes": 33831,
+      "sha256": "b364a4b0e12a8667c8db271a018317e2190e1f8935fb9728e8eaf1dd292316b9"
+    },
+    {
+      "name": "mimi_crown_g3",
+      "keys": [
+        "crown"
+      ],
+      "page": "https://emoji.gg/emoji/276530-crown",
+      "url": "https://cdn3.emoji.gg/emojis/276530-crown.png",
+      "source": "Emoji.gg",
+      "author": "Jakub",
+      "license": "Basic",
+      "licenseUrl": "https://emoji.gg/licenses",
+      "verifiedAt": "2026-10-04",
+      "modified": false,
+      "format": "png",
+      "width": 128,
+      "height": 128,
+      "bytes": 7990,
+      "sha256": "f3cc0ba724c7e0db2ecc79d697360de01174886e17fd2754464b4fac98d37c9c"
+    },
+    {
+      "name": "mimi_coin_g3",
+      "keys": [
+        "coin",
+        "transfer",
+        "bank"
+      ],
+      "page": "https://emoji.gg/emoji/249884-cash",
+      "url": "https://cdn3.emoji.gg/emojis/249884-cash.png",
+      "source": "Emoji.gg",
+      "author": "Keksy",
+      "license": "Basic",
+      "licenseUrl": "https://emoji.gg/licenses",
+      "verifiedAt": "2026-10-04",
+      "modified": false,
+      "format": "png",
+      "width": 473,
+      "height": 473,
+      "bytes": 14785,
+      "sha256": "5279bac3aa369d23d0e669e29ad27fa9ea61a12edcfc5d8f0684e258b416a568"
+    },
+    {
+      "name": "mimi_info_g3",
+      "keys": [
+        "info"
+      ],
+      "page": "https://emoji.gg/emoji/685951-info",
+      "url": "https://cdn3.emoji.gg/emojis/685951-info.png",
+      "source": "Emoji.gg",
+      "author": "Renato Aranega",
+      "license": "Basic",
+      "licenseUrl": "https://emoji.gg/licenses",
+      "verifiedAt": "2026-10-04",
+      "modified": false,
+      "format": "png",
+      "width": 100,
+      "height": 100,
+      "bytes": 2768,
+      "sha256": "7521bc90de7b814014aa8e8c447d3e15c23bdf7430599efa71945698d76e92fb"
+    },
+    {
+      "name": "mimi_check_g3",
+      "keys": [
+        "check",
+        "save"
+      ],
+      "page": "https://emoji.gg/emoji/4569-ok",
+      "url": "https://cdn3.emoji.gg/emojis/4569-ok.png",
+      "source": "Emoji.gg",
+      "author": "Lawyn",
+      "license": "CC-BY-4.0",
+      "licenseUrl": "https://emoji.gg/licenses",
+      "verifiedAt": "2026-10-04",
+      "modified": false,
+      "format": "png",
+      "width": 512,
+      "height": 512,
+      "bytes": 8170,
+      "sha256": "2f50699c4b9ba07e6eef09c9e3b3c2071074738120f6cbd141a714aad9164a16"
+    },
+    {
+      "name": "mimi_error_g3",
+      "keys": [
+        "error",
+        "brokenheart",
+        "skull"
+      ],
+      "page": "https://emoji.gg/emoji/4934-error",
+      "url": "https://cdn3.emoji.gg/emojis/4934-error.png",
+      "source": "Emoji.gg",
+      "author": "Lawyn",
+      "license": "CC-BY-4.0",
+      "licenseUrl": "https://emoji.gg/licenses",
+      "verifiedAt": "2026-10-04",
+      "modified": false,
+      "format": "png",
+      "width": 512,
+      "height": 512,
+      "bytes": 8376,
+      "sha256": "d4f6794e9cd8d8640ec1b0d63b919edd86c526513526d3b5b70bebc87b8c29b5"
+    },
+    {
+      "name": "mimi_warning_g3",
+      "keys": [
+        "warning"
+      ],
+      "page": "https://emoji.gg/emoji/8649-warning",
+      "url": "https://cdn3.emoji.gg/emojis/8649-warning.png",
+      "source": "Emoji.gg",
+      "author": "Lawyn",
+      "license": "CC-BY-4.0",
+      "licenseUrl": "https://emoji.gg/licenses",
+      "verifiedAt": "2026-10-04",
+      "modified": false,
+      "format": "png",
+      "width": 512,
+      "height": 512,
+      "bytes": 7556,
+      "sha256": "acaba7698f857cb696aa2f3096c5c33e4ac1c95c1a765d7a482cd41ecf92e904"
+    },
+    {
+      "name": "mimi_settings_g3",
+      "keys": [
+        "settings",
+        "effect"
+      ],
+      "page": "https://emoji.gg/emoji/9081-settings",
+      "url": "https://cdn3.emoji.gg/emojis/9081-settings.png",
+      "source": "Emoji.gg",
+      "author": "Lawyn",
+      "license": "CC-BY-4.0",
+      "licenseUrl": "https://emoji.gg/licenses",
+      "verifiedAt": "2026-10-04",
+      "modified": false,
+      "format": "png",
+      "width": 512,
+      "height": 512,
+      "bytes": 15563,
+      "sha256": "b57ef1963199bafec2463440b85254fb7302163697d5afcea2cb2b3f69c7dc68"
+    },
+    {
+      "name": "mimi_help_g3",
+      "keys": [
+        "help",
+        "bulb"
+      ],
+      "page": "https://emoji.gg/emoji/401776-book",
+      "url": "https://cdn3.emoji.gg/emojis/401776-book.png",
+      "source": "Emoji.gg",
+      "author": "Gjester0101",
+      "license": "Basic",
+      "licenseUrl": "https://emoji.gg/licenses",
+      "verifiedAt": "2026-10-04",
+      "modified": false,
+      "format": "png",
+      "width": 256,
+      "height": 256,
+      "bytes": 5468,
+      "sha256": "716232b58bd54166b528418be553c70f670aba302b4db6c050cb0496484be9e0"
+    },
+    {
+      "name": "mimi_ticket_g3",
+      "keys": [
+        "ticket"
+      ],
+      "page": "https://emoji.gg/emoji/828044-ticket",
+      "url": "https://cdn3.emoji.gg/emojis/828044-ticket.png",
+      "source": "Emoji.gg",
+      "author": "audibert",
+      "license": "Basic",
+      "licenseUrl": "https://emoji.gg/licenses",
+      "verifiedAt": "2026-10-04",
+      "modified": false,
+      "format": "png",
+      "width": 212,
+      "height": 212,
+      "bytes": 28387,
+      "sha256": "94948712e532240f62919e6d6f98d882a1119124999fcc03f06775835ce990d5"
+    },
+    {
+      "name": "mimi_shield_g3",
+      "keys": [
+        "shield"
+      ],
+      "page": "https://emoji.gg/emoji/998200-shield",
+      "url": "https://cdn3.emoji.gg/emojis/998200-shield.png",
+      "source": "Emoji.gg",
+      "author": "Jakub",
+      "license": "Basic",
+      "licenseUrl": "https://emoji.gg/licenses",
+      "verifiedAt": "2026-10-04",
+      "modified": false,
+      "format": "png",
+      "width": 128,
+      "height": 128,
+      "bytes": 6107,
+      "sha256": "499c4b4b606bc727623842098fbe5ad8804f8c772d45238a16221a38d9cc2b1c"
+    },
+    {
+      "name": "mimi_fire_g3",
+      "keys": [
+        "fire"
+      ],
+      "page": "https://emoji.gg/emoji/828044-fire",
+      "url": "https://cdn3.emoji.gg/emojis/828044-fire.png",
+      "source": "Emoji.gg",
+      "author": "audibert",
+      "license": "Basic",
+      "licenseUrl": "https://emoji.gg/licenses",
+      "verifiedAt": "2026-10-04",
+      "modified": false,
+      "format": "png",
+      "width": 212,
+      "height": 212,
+      "bytes": 27513,
+      "sha256": "ea2a98f30d8a678d0f39e474fdae73d2cc3084609eb5faac3871b945261d928d"
+    },
+    {
+      "name": "mimi_game_g3",
+      "keys": [
+        "game",
+        "tennis"
+      ],
+      "page": "https://emoji.gg/emoji/875408-controller",
+      "url": "https://cdn3.emoji.gg/emojis/875408-controller.png",
+      "source": "Emoji.gg",
+      "author": "Messi",
+      "license": "Basic",
+      "licenseUrl": "https://emoji.gg/licenses",
+      "verifiedAt": "2026-10-04",
+      "modified": false,
+      "format": "png",
+      "width": 500,
+      "height": 500,
+      "bytes": 17312,
+      "sha256": "93504b42cc157fda57158c31642bd37250bf8a58155ffc60dfb628c85642b44c"
+    },
+    {
+      "name": "mimi_gift_g3",
+      "keys": [
+        "gift"
+      ],
+      "page": "https://emoji.gg/emoji/463819-giveaway",
+      "url": "https://cdn3.emoji.gg/emojis/463819-giveaway.png",
+      "source": "Emoji.gg",
+      "author": "Gjester0101",
+      "license": "Basic",
+      "licenseUrl": "https://emoji.gg/licenses",
+      "verifiedAt": "2026-10-04",
+      "modified": false,
+      "format": "png",
+      "width": 256,
+      "height": 256,
+      "bytes": 6934,
+      "sha256": "9328af0122fa09c67a98bb5100b34433e979c8b7af7f496983a80ded36ea4ac5"
+    },
+    {
+      "name": "mimi_clock_g3",
+      "keys": [
+        "clock"
+      ],
+      "page": "https://emoji.gg/emoji/779372-clock",
+      "url": "https://cdn3.emoji.gg/emojis/779372-clock.png",
+      "source": "Emoji.gg",
+      "author": "Gjester0101",
+      "license": "Basic",
+      "licenseUrl": "https://emoji.gg/licenses",
+      "verifiedAt": "2026-10-04",
+      "modified": false,
+      "format": "png",
+      "width": 256,
+      "height": 256,
+      "bytes": 10817,
+      "sha256": "bf793b830b7ad5f67b77011dc8edfb8d39d81bedd49ce78f7c51aa51cc735343"
+    },
+    {
+      "name": "mimi_calendar_g3",
+      "keys": [
+        "calendar"
+      ],
+      "page": "https://emoji.gg/emoji/530749-calendar",
+      "url": "https://cdn3.emoji.gg/emojis/530749-calendar.png",
+      "source": "Emoji.gg",
+      "author": "Jakub",
+      "license": "Basic",
+      "licenseUrl": "https://emoji.gg/licenses",
+      "verifiedAt": "2026-10-04",
+      "modified": false,
+      "format": "png",
+      "width": 128,
+      "height": 128,
+      "bytes": 7356,
+      "sha256": "e69c3000756ed69da8de159b9ab7901e96b71aa0bd9f2b4959577c3d90c98c21"
+    },
+    {
+      "name": "mimi_timer_g3",
+      "keys": [
+        "timer",
+        "hourglass"
+      ],
+      "page": "https://emoji.gg/emoji/41158-timer",
+      "url": "https://cdn3.emoji.gg/emojis/41158-timer.png",
+      "source": "Emoji.gg",
+      "author": "Gjester0101",
+      "license": "Basic",
+      "licenseUrl": "https://emoji.gg/licenses",
+      "verifiedAt": "2026-10-04",
+      "modified": false,
+      "format": "png",
+      "width": 379,
+      "height": 379,
+      "bytes": 8802,
+      "sha256": "a0edd24d79cecbb89ece8b2ac5fb82007df4c00fb7e4eb503c458ab2ca6367d6"
+    },
+    {
+      "name": "mimi_link_g3",
+      "keys": [
+        "link"
+      ],
+      "page": "https://emoji.gg/emoji/206806-link",
+      "url": "https://cdn3.emoji.gg/emojis/206806-link.png",
+      "source": "Emoji.gg",
+      "author": "Apurbo Ghosh",
+      "license": "Basic",
+      "licenseUrl": "https://emoji.gg/licenses",
+      "verifiedAt": "2026-10-04",
+      "modified": false,
+      "format": "png",
+      "width": 128,
+      "height": 128,
+      "bytes": 3317,
+      "sha256": "c6aee2d76e5f677f7129a17d06de3b2c0994d99b563b27c7e8d6d4059ce2c973"
+    },
+    {
+      "name": "mimi_bell_g3",
+      "keys": [
+        "bell"
+      ],
+      "page": "https://emoji.gg/emoji/944992-bell",
+      "url": "https://cdn3.emoji.gg/emojis/944992-bell.png",
+      "source": "Emoji.gg",
+      "author": "Keksy",
+      "license": "Basic",
+      "licenseUrl": "https://emoji.gg/licenses",
+      "verifiedAt": "2026-10-04",
+      "modified": false,
+      "format": "png",
+      "width": 473,
+      "height": 473,
+      "bytes": 11388,
+      "sha256": "1646707e8d16af117193955436c13942e2ef8323f570d1dbb0b01a874178296c"
+    },
+    {
+      "name": "mimi_search_g3",
+      "keys": [
+        "search"
+      ],
+      "page": "https://emoji.gg/emoji/3421-spotify-search",
+      "url": "https://cdn3.emoji.gg/emojis/3421-spotify-search.png",
+      "source": "Emoji.gg",
+      "author": "Jay",
+      "license": "Basic",
+      "licenseUrl": "https://emoji.gg/licenses",
+      "verifiedAt": "2026-10-04",
+      "modified": false,
+      "format": "png",
+      "width": 256,
+      "height": 256,
+      "bytes": 17467,
+      "sha256": "64311dfb973bc9616185fbb0edfa87385b1ed001ca445facf45cc8df9721887b"
+    },
+    {
+      "name": "mimi_cart_g3",
+      "keys": [
+        "cart",
+        "basket"
+      ],
+      "page": "https://emoji.gg/emoji/435031-shoppingcart",
+      "url": "https://cdn3.emoji.gg/emojis/435031-shoppingcart.png",
+      "source": "Emoji.gg",
+      "author": "Gjester0101",
+      "license": "Basic",
+      "licenseUrl": "https://emoji.gg/licenses",
+      "verifiedAt": "2026-10-04",
+      "modified": false,
+      "format": "png",
+      "width": 256,
+      "height": 256,
+      "bytes": 7613,
+      "sha256": "2043a79c7cf5927e8e7ba36375127cf30e05fa67946f8cd0f45aa692504f57d0"
+    },
+    {
+      "name": "mimi_pencil_g3",
+      "keys": [
+        "pencil"
+      ],
+      "page": "https://emoji.gg/emoji/904340-pencil",
+      "url": "https://cdn3.emoji.gg/emojis/904340-pencil.png",
+      "source": "Emoji.gg",
+      "author": "Messi",
+      "license": "Basic",
+      "licenseUrl": "https://emoji.gg/licenses",
+      "verifiedAt": "2026-10-04",
+      "modified": false,
+      "format": "png",
+      "width": 100,
+      "height": 100,
+      "bytes": 1778,
+      "sha256": "7cdc8285a64f7f0786836888820d966c4030fccadc2b4c5068fc3c4ac050b64f"
+    },
+    {
+      "name": "mimi_bot_g3",
+      "keys": [
+        "bot"
+      ],
+      "page": "https://emoji.gg/emoji/158897-bot",
+      "url": "https://cdn3.emoji.gg/emojis/158897-bot.png",
+      "source": "Emoji.gg",
+      "author": "audibert",
+      "license": "Basic",
+      "licenseUrl": "https://emoji.gg/licenses",
+      "verifiedAt": "2026-10-04",
+      "modified": false,
+      "format": "png",
+      "width": 212,
+      "height": 212,
+      "bytes": 38892,
+      "sha256": "402eaed7382e3cb395e655ae2534430350e5046665dc72274e7106819ae0e30d"
+    },
+    {
+      "name": "mimi_tools_g3",
+      "keys": [
+        "tools"
+      ],
+      "page": "https://emoji.gg/emoji/400377-tools",
+      "url": "https://cdn3.emoji.gg/emojis/400377-tools.png",
+      "source": "Emoji.gg",
+      "author": "audibert",
+      "license": "Basic",
+      "licenseUrl": "https://emoji.gg/licenses",
+      "verifiedAt": "2026-10-04",
+      "modified": false,
+      "format": "png",
+      "width": 212,
+      "height": 212,
+      "bytes": 46657,
+      "sha256": "8f280a8ef35482a891a247e1c130489b70cd6a6a4afcda546020981a5a00c898"
+    },
+    {
+      "name": "mimi_palette_g3",
+      "keys": [
+        "palette"
+      ],
+      "page": "https://emoji.gg/emoji/312424-paint",
+      "url": "https://cdn3.emoji.gg/emojis/312424-paint.png",
+      "source": "Emoji.gg",
+      "author": "audibert",
+      "license": "Basic",
+      "licenseUrl": "https://emoji.gg/licenses",
+      "verifiedAt": "2026-10-04",
+      "modified": false,
+      "format": "png",
+      "width": 239,
+      "height": 239,
+      "bytes": 21837,
+      "sha256": "c82e95bf45aae2ea4633b0c5a9791ff9b67f5917806ca863497777de0b5ff677"
+    },
+    {
+      "name": "mimi_diamond_g3",
+      "keys": [
+        "diamond"
+      ],
+      "page": "https://emoji.gg/emoji/16218-booster",
+      "url": "https://cdn3.emoji.gg/emojis/16218-booster.png",
+      "source": "Emoji.gg",
+      "author": "audibert",
+      "license": "Basic",
+      "licenseUrl": "https://emoji.gg/licenses",
+      "verifiedAt": "2026-10-04",
+      "modified": false,
+      "format": "png",
+      "width": 212,
+      "height": 212,
+      "bytes": 28734,
+      "sha256": "52c60cec238581fe962eb63eef24c12bf885f2330ef2c6c96f0d80328c1378ac"
+    },
+    {
+      "name": "mimi_celebrate_g3",
+      "keys": [
+        "celebrate",
+        "flag"
+      ],
+      "page": "https://emoji.gg/emoji/592053-event",
+      "url": "https://cdn3.emoji.gg/emojis/592053-event.png",
+      "source": "Emoji.gg",
+      "author": "audibert",
+      "license": "Basic",
+      "licenseUrl": "https://emoji.gg/licenses",
+      "verifiedAt": "2026-10-04",
+      "modified": false,
+      "format": "png",
+      "width": 239,
+      "height": 239,
+      "bytes": 40788,
+      "sha256": "8f83154392acb3e801de95457fa5c980add83572cee3c34676758811c1198c0d"
+    },
+    {
+      "name": "mimi_leaf_g3",
+      "keys": [
+        "leaf",
+        "farm",
+        "tractor"
+      ],
+      "page": "https://emoji.gg/emoji/950972-embaixador",
+      "url": "https://cdn3.emoji.gg/emojis/950972-embaixador.png",
+      "source": "Emoji.gg",
+      "author": "audibert",
+      "license": "Basic",
+      "licenseUrl": "https://emoji.gg/licenses",
+      "verifiedAt": "2026-10-04",
+      "modified": false,
+      "format": "png",
+      "width": 212,
+      "height": 212,
+      "bytes": 38739,
+      "sha256": "3df4c7214b1f7901a2c8320a75651ffe94b98255066a406ce32f098e8524643b"
+    },
+    {
+      "name": "mimi_lock_g3",
+      "keys": [
+        "lock"
+      ],
+      "page": "https://emoji.gg/emoji/182447-lock",
+      "url": "https://cdn3.emoji.gg/emojis/182447-lock.png",
+      "source": "Emoji.gg",
+      "author": "Jakub",
+      "license": "Basic",
+      "licenseUrl": "https://emoji.gg/licenses",
+      "verifiedAt": "2026-10-04",
+      "modified": false,
+      "format": "png",
+      "width": 128,
+      "height": 128,
+      "bytes": 6456,
+      "sha256": "155eea649fa8a08a48b065ed7b987cee1900cc2c58adbd7c0879bdb0709bdbcc"
+    },
+    {
+      "name": "mimi_hand_g3",
+      "keys": [
+        "hand",
+        "welcome"
+      ],
+      "page": "https://emoji.gg/emoji/946710-wave",
+      "url": "https://cdn3.emoji.gg/emojis/946710-wave.png",
+      "source": "Emoji.gg",
+      "author": "Jakub",
+      "license": "Basic",
+      "licenseUrl": "https://emoji.gg/licenses",
+      "verifiedAt": "2026-10-04",
+      "modified": false,
+      "format": "png",
+      "width": 128,
+      "height": 128,
+      "bytes": 10388,
+      "sha256": "5e192b8fcdce803bdb3e309ffa705f1c4d8bccad2805803d4ca3d2219a49fbc7"
+    },
+    {
+      "name": "mimi_dot_g3",
+      "keys": [
+        "dot"
+      ],
+      "page": "https://emoji.gg/emoji/8181-green-dot",
+      "url": "https://cdn3.emoji.gg/emojis/8181-green-dot.png",
+      "source": "Emoji.gg",
+      "author": "j",
+      "license": "Basic",
+      "licenseUrl": "https://emoji.gg/licenses",
+      "verifiedAt": "2026-10-04",
+      "modified": false,
+      "format": "png",
+      "width": 128,
+      "height": 128,
+      "bytes": 2797,
+      "sha256": "64f3145971bd4e946b14840ec02f27ae7645e09552ef46c117a0f9c30bb33e93"
+    },
+    {
+      "name": "mimi_dice1_g3",
+      "keys": [
+        "dice1",
+        "one"
+      ],
+      "page": "https://emoji.gg/emoji/5880-number-one",
+      "url": "https://cdn3.emoji.gg/emojis/5880-number-one.png",
+      "source": "Emoji.gg",
+      "author": ": ♡・𝑀𝑒𝓁",
+      "license": "Basic",
+      "licenseUrl": "https://emoji.gg/licenses",
+      "verifiedAt": "2026-10-04",
+      "modified": false,
+      "format": "png",
+      "width": 32,
+      "height": 32,
+      "bytes": 1985,
+      "sha256": "a05c5c4001dc65754c0a80708110d725f3551049c5f9e50985b25d6d19beb363"
+    },
+    {
+      "name": "mimi_dice2_g3",
+      "keys": [
+        "dice2",
+        "two"
+      ],
+      "page": "https://emoji.gg/emoji/8991-number-two",
+      "url": "https://cdn3.emoji.gg/emojis/8991-number-two.png",
+      "source": "Emoji.gg",
+      "author": ": ♡・𝑀𝑒𝓁",
+      "license": "Basic",
+      "licenseUrl": "https://emoji.gg/licenses",
+      "verifiedAt": "2026-10-04",
+      "modified": false,
+      "format": "png",
+      "width": 32,
+      "height": 32,
+      "bytes": 2030,
+      "sha256": "8c545f200777e80ae4845443ed7617593ff1a15906ce661171f1fc35cc176249"
+    },
+    {
+      "name": "mimi_dice3_g3",
+      "keys": [
+        "dice3",
+        "three"
+      ],
+      "page": "https://emoji.gg/emoji/2873-number-three",
+      "url": "https://cdn3.emoji.gg/emojis/2873-number-three.png",
+      "source": "Emoji.gg",
+      "author": ": ♡・𝑀𝑒𝓁",
+      "license": "Basic",
+      "licenseUrl": "https://emoji.gg/licenses",
+      "verifiedAt": "2026-10-04",
+      "modified": false,
+      "format": "png",
+      "width": 32,
+      "height": 32,
+      "bytes": 2052,
+      "sha256": "7d31bd1190c30b969b2a7548edbb46d2c35fcf9f792ce065d617bb0ad01fe962"
+    },
+    {
+      "name": "mimi_dice4_g3",
+      "keys": [
+        "dice4"
+      ],
+      "page": "https://emoji.gg/emoji/9869-number-four",
+      "url": "https://cdn3.emoji.gg/emojis/9869-number-four.png",
+      "source": "Emoji.gg",
+      "author": ": ♡・𝑀𝑒𝓁",
+      "license": "Basic",
+      "licenseUrl": "https://emoji.gg/licenses",
+      "verifiedAt": "2026-10-04",
+      "modified": false,
+      "format": "png",
+      "width": 32,
+      "height": 32,
+      "bytes": 2026,
+      "sha256": "e7388076cb5919e5b071d5e6aa644cd1e1c43fc1ce50956193c352267bb153c2"
+    },
+    {
+      "name": "mimi_dice5_g3",
+      "keys": [
+        "dice5"
+      ],
+      "page": "https://emoji.gg/emoji/4522-number-five",
+      "url": "https://cdn3.emoji.gg/emojis/4522-number-five.png",
+      "source": "Emoji.gg",
+      "author": ": ♡・𝑀𝑒𝓁",
+      "license": "Basic",
+      "licenseUrl": "https://emoji.gg/licenses",
+      "verifiedAt": "2026-10-04",
+      "modified": false,
+      "format": "png",
+      "width": 32,
+      "height": 32,
+      "bytes": 2072,
+      "sha256": "b940ce9f0540d162e0b85dbf4be8eea2c67bd6c2a7cb46767acd0bab420e4950"
+    },
+    {
+      "name": "mimi_dice6_g3",
+      "keys": [
+        "dice6"
+      ],
+      "page": "https://emoji.gg/emoji/6787-number-six",
+      "url": "https://cdn3.emoji.gg/emojis/6787-number-six.png",
+      "source": "Emoji.gg",
+      "author": ": ♡・𝑀𝑒𝓁",
+      "license": "Basic",
+      "licenseUrl": "https://emoji.gg/licenses",
+      "verifiedAt": "2026-10-04",
+      "modified": false,
+      "format": "png",
+      "width": 32,
+      "height": 32,
+      "bytes": 2007,
+      "sha256": "01814fa41a3949d05a989bfdc377d28151d6883bc3991b7223782837a2bbf9f9"
+    },
+    {
+      "name": "mimi_seven_g3",
+      "keys": [
+        "seven"
+      ],
+      "page": "https://emoji.gg/emoji/1865-number-seven",
+      "url": "https://cdn3.emoji.gg/emojis/1865-number-seven.png",
+      "source": "Emoji.gg",
+      "author": ": ♡・𝑀𝑒𝓁",
+      "license": "Basic",
+      "licenseUrl": "https://emoji.gg/licenses",
+      "verifiedAt": "2026-10-04",
+      "modified": false,
+      "format": "png",
+      "width": 32,
+      "height": 32,
+      "bytes": 2019,
+      "sha256": "ff19856c389b432f012fe6999624fea5e591471af2067e81b4d6a2b1817eb329"
+    },
+    {
+      "name": "mimi_dot_blue_g3",
+      "keys": [
+        "dot_blue",
+        "bar_full"
+      ],
+      "page": "https://emoji.gg/emoji/9733-blue-dot",
+      "url": "https://cdn3.emoji.gg/emojis/9733-blue-dot.png",
+      "source": "Emoji.gg",
+      "author": "j",
+      "license": "Basic",
+      "licenseUrl": "https://emoji.gg/licenses",
+      "verifiedAt": "2026-10-04",
+      "modified": false,
+      "format": "png",
+      "width": 128,
+      "height": 128,
+      "bytes": 2785,
+      "sha256": "bec7129d3b9418da1031c568b537dfa62c3303a01b16934bdf84c760ef36060f"
+    },
+    {
+      "name": "mimi_dot_white_g3",
+      "keys": [
+        "dot_white",
+        "bar_empty"
+      ],
+      "page": "https://emoji.gg/emoji/6740-white-dot",
+      "url": "https://cdn3.emoji.gg/emojis/6740-white-dot.png",
+      "source": "Emoji.gg",
+      "author": "j",
+      "license": "Basic",
+      "licenseUrl": "https://emoji.gg/licenses",
+      "verifiedAt": "2026-10-04",
+      "modified": false,
+      "format": "png",
+      "width": 128,
+      "height": 128,
+      "bytes": 3602,
+      "sha256": "728e2d346fe9896627e0a676cc1b3a21c0c54a808b5f62c5b53c5b1d9b87f0dd"
+    },
+    {
+      "name": "mimi_dog_g3",
+      "keys": [
+        "dog",
+        "pet"
+      ],
+      "page": "https://emoji.gg/emoji/4779-stardewdog",
+      "url": "https://cdn3.emoji.gg/emojis/4779-stardewdog.png",
+      "source": "Emoji.gg",
+      "author": "Lauraindacorner",
+      "license": "Basic",
+      "licenseUrl": "https://emoji.gg/licenses",
+      "verifiedAt": "2026-10-04",
+      "modified": false,
+      "format": "png",
+      "width": 60,
+      "height": 48,
+      "bytes": 377,
+      "sha256": "ee7c0ce6e39bad87811ae4589d4a93e46441a24332b5c7e115aaf0b165edfc56"
+    },
+    {
+      "name": "mimi_cat_g3",
+      "keys": [
+        "cat"
+      ],
+      "page": "https://emoji.gg/emoji/4205-stardewcat",
+      "url": "https://cdn3.emoji.gg/emojis/4205-stardewcat.png",
+      "source": "Emoji.gg",
+      "author": "Lauraindacorner",
+      "license": "Basic",
+      "licenseUrl": "https://emoji.gg/licenses",
+      "verifiedAt": "2026-10-04",
+      "modified": false,
+      "format": "png",
+      "width": 52,
+      "height": 40,
+      "bytes": 352,
+      "sha256": "bbe53cb16e98520df4c4a6c59f7b246c8e191a92436aaeff941335b28687c8c8"
+    },
+    {
+      "name": "mimi_rabbit_g3",
+      "keys": [
+        "rabbit"
+      ],
+      "page": "https://emoji.gg/emoji/7062-stardewrabbit",
+      "url": "https://cdn3.emoji.gg/emojis/7062-stardewrabbit.png",
+      "source": "Emoji.gg",
+      "author": "Lauraindacorner",
+      "license": "Basic",
+      "licenseUrl": "https://emoji.gg/licenses",
+      "verifiedAt": "2026-10-04",
+      "modified": false,
+      "format": "png",
+      "width": 48,
+      "height": 48,
+      "bytes": 413,
+      "sha256": "c569dab2eedfe30a6be312133e56f012c13de6d9ebcc3a1f7e77a09358c33111"
+    },
+    {
+      "name": "mimi_parrot_g3",
+      "keys": [
+        "parrot"
+      ],
+      "page": "https://emoji.gg/emoji/1979-stardewparrot",
+      "url": "https://cdn3.emoji.gg/emojis/1979-stardewparrot.png",
+      "source": "Emoji.gg",
+      "author": "Lauraindacorner",
+      "license": "Basic",
+      "licenseUrl": "https://emoji.gg/licenses",
+      "verifiedAt": "2026-10-04",
+      "modified": false,
+      "format": "png",
+      "width": 39,
+      "height": 63,
+      "bytes": 470,
+      "sha256": "c1dc7112e135f3556062754e86731aad791bd21a6932cf14d32abb746b82fbc3"
+    },
+    {
+      "name": "mimi_corn_g3",
+      "keys": [
+        "corn"
+      ],
+      "page": "https://emoji.gg/emoji/1224-stardewcorn",
+      "url": "https://cdn3.emoji.gg/emojis/1224-stardewcorn.png",
+      "source": "Emoji.gg",
+      "author": "Lauraindacorner",
+      "license": "Basic",
+      "licenseUrl": "https://emoji.gg/licenses",
+      "verifiedAt": "2026-10-04",
+      "modified": false,
+      "format": "png",
+      "width": 48,
+      "height": 48,
+      "bytes": 373,
+      "sha256": "f0086e8952af4d3b3e7d34bf66d36f3ec66e483a3349747302988c8c58bccc5d"
+    },
+    {
+      "name": "mimi_strawberry_g3",
+      "keys": [
+        "strawberry"
+      ],
+      "page": "https://emoji.gg/emoji/3233-stardewstrawb",
+      "url": "https://cdn3.emoji.gg/emojis/3233-stardewstrawb.png",
+      "source": "Emoji.gg",
+      "author": "Lauraindacorner",
+      "license": "Basic",
+      "licenseUrl": "https://emoji.gg/licenses",
+      "verifiedAt": "2026-10-04",
+      "modified": false,
+      "format": "png",
+      "width": 48,
+      "height": 48,
+      "bytes": 421,
+      "sha256": "2aec5a91a1747fc45d33726f212e562b7efd2ddd48ec01f51ceac5d5bea03374"
+    },
+    {
+      "name": "mimi_watermelon_g3",
+      "keys": [
+        "watermelon"
+      ],
+      "page": "https://emoji.gg/emoji/9062-stardewmelon",
+      "url": "https://cdn3.emoji.gg/emojis/9062-stardewmelon.png",
+      "source": "Emoji.gg",
+      "author": "Lauraindacorner",
+      "license": "Basic",
+      "licenseUrl": "https://emoji.gg/licenses",
+      "verifiedAt": "2026-10-04",
+      "modified": false,
+      "format": "png",
+      "width": 48,
+      "height": 48,
+      "bytes": 343,
+      "sha256": "842d68d89d543b9304e845939bc8e3c4e69975e835a4cf32d1e2f60e17e831df"
+    },
+    {
+      "name": "mimi_bomb_g3",
+      "keys": [
+        "bomb"
+      ],
+      "page": "https://emoji.gg/emoji/7752-stardewbomb",
+      "url": "https://cdn3.emoji.gg/emojis/7752-stardewbomb.png",
+      "source": "Emoji.gg",
+      "author": "Lauraindacorner",
+      "license": "Basic",
+      "licenseUrl": "https://emoji.gg/licenses",
+      "verifiedAt": "2026-10-04",
+      "modified": false,
+      "format": "png",
+      "width": 48,
+      "height": 42,
+      "bytes": 385,
+      "sha256": "3556313201bd219985756b07853078bfa342a251c8277e1db52ae843ec35c53f"
+    },
+    {
+      "name": "mimi_ring_g3",
+      "keys": [
+        "ring"
+      ],
+      "page": "https://emoji.gg/emoji/7190-stardewwedding",
+      "url": "https://cdn3.emoji.gg/emojis/7190-stardewwedding.png",
+      "source": "Emoji.gg",
+      "author": "Lauraindacorner",
+      "license": "Basic",
+      "licenseUrl": "https://emoji.gg/licenses",
+      "verifiedAt": "2026-10-04",
+      "modified": false,
+      "format": "png",
+      "width": 48,
+      "height": 48,
+      "bytes": 337,
+      "sha256": "a996b4f092b80bd74d5e3fea2d29062375da70b3fca5ead9d30ed569cbaab92e"
+    },
+    {
+      "name": "mimi_cherry_g3",
+      "keys": [
+        "cherry"
+      ],
+      "page": "https://emoji.gg/emoji/8827-stardewcherry",
+      "url": "https://cdn3.emoji.gg/emojis/8827-stardewcherry.png",
+      "source": "Emoji.gg",
+      "author": "Lauraindacorner",
+      "license": "Basic",
+      "licenseUrl": "https://emoji.gg/licenses",
+      "verifiedAt": "2026-10-04",
+      "modified": false,
+      "format": "png",
+      "width": 48,
+      "height": 48,
+      "bytes": 363,
+      "sha256": "09b7cd26736537db627f92cedaba5866b52c47b96c35c83bb54fc567582111b7"
+    },
+    {
+      "name": "mimi_grape_g3",
+      "keys": [
+        "grape"
+      ],
+      "page": "https://emoji.gg/emoji/10435-fruitygrapes",
+      "url": "https://cdn3.emoji.gg/emojis/10435-fruitygrapes.png",
+      "source": "Emoji.gg",
+      "author": "emily &Theta;ゝ&Theta;",
+      "license": "Basic",
+      "licenseUrl": "https://emoji.gg/licenses",
+      "verifiedAt": "2026-10-04",
+      "modified": false,
+      "format": "png",
+      "width": 640,
+      "height": 640,
+      "bytes": 101431,
+      "sha256": "53cb67b5b02daecb92edf4b26c6fe800e688b15ff50c226c373287af76380d13"
+    },
+    {
+      "name": "mimi_coffee_g3",
+      "keys": [
+        "coffee"
+      ],
+      "page": "https://emoji.gg/emoji/6432-stardewcoffee",
+      "url": "https://cdn3.emoji.gg/emojis/6432-stardewcoffee.png",
+      "source": "Emoji.gg",
+      "author": "Lauraindacorner",
+      "license": "Basic",
+      "licenseUrl": "https://emoji.gg/licenses",
+      "verifiedAt": "2026-10-04",
+      "modified": false,
+      "format": "png",
+      "width": 48,
+      "height": 48,
+      "bytes": 383,
+      "sha256": "5fcdf9c55282dd307d41a050ffffb8548a69a70a0bb79c5584fa9b379cc042d0"
+    },
+    {
+      "name": "mimi_cake_g3",
+      "keys": [
+        "cake"
+      ],
+      "page": "https://emoji.gg/emoji/7784-stardewpinkcake",
+      "url": "https://cdn3.emoji.gg/emojis/7784-stardewpinkcake.png",
+      "source": "Emoji.gg",
+      "author": "Lauraindacorner",
+      "license": "Basic",
+      "licenseUrl": "https://emoji.gg/licenses",
+      "verifiedAt": "2026-10-04",
+      "modified": false,
+      "format": "png",
+      "width": 48,
+      "height": 48,
+      "bytes": 488,
+      "sha256": "aa608a61e030179df8d78e334e42d9861a199c7e6dfd14f17cd636e9505c7f72"
+    },
+    {
+      "name": "mimi_scroll_g3",
+      "keys": [
+        "scroll"
+      ],
+      "page": "https://emoji.gg/emoji/8082-stardewscroll",
+      "url": "https://cdn3.emoji.gg/emojis/8082-stardewscroll.png",
+      "source": "Emoji.gg",
+      "author": "Lauraindacorner",
+      "license": "Basic",
+      "licenseUrl": "https://emoji.gg/licenses",
+      "verifiedAt": "2026-10-04",
+      "modified": false,
+      "format": "png",
+      "width": 48,
+      "height": 48,
+      "bytes": 377,
+      "sha256": "c0c90362ed3c9dbeb00a34c024c1cdd3efe3e36fc22b30874eecc029246656c1"
+    },
+    {
+      "name": "mimi_pufferfish_g3",
+      "keys": [
+        "pufferfish"
+      ],
+      "page": "https://emoji.gg/emoji/4255-stardewpuffer",
+      "url": "https://cdn3.emoji.gg/emojis/4255-stardewpuffer.png",
+      "source": "Emoji.gg",
+      "author": "Lauraindacorner",
+      "license": "Basic",
+      "licenseUrl": "https://emoji.gg/licenses",
+      "verifiedAt": "2026-10-04",
+      "modified": false,
+      "format": "png",
+      "width": 48,
+      "height": 48,
+      "bytes": 483,
+      "sha256": "afd06ec30aca335294b2ac370c3be151764e68339d0e906e2000016b5ae90178"
+    },
+    {
+      "name": "mimi_chicken_g3",
+      "keys": [
+        "chicken"
+      ],
+      "page": "https://emoji.gg/emoji/4833-stardewgchick",
+      "url": "https://cdn3.emoji.gg/emojis/4833-stardewgchick.png",
+      "source": "Emoji.gg",
+      "author": "Lauraindacorner",
+      "license": "Basic",
+      "licenseUrl": "https://emoji.gg/licenses",
+      "verifiedAt": "2026-10-04",
+      "modified": false,
+      "format": "png",
+      "width": 48,
+      "height": 48,
+      "bytes": 410,
+      "sha256": "80719a766ac9ceebd7fad6750e8120c5810da6f539cb475e0a9b3e63651e1830"
+    },
+    {
+      "name": "mimi_rocket_g3",
+      "keys": [
+        "rocket"
+      ],
+      "page": "https://emoji.gg/emoji/574809-rocket",
+      "url": "https://cdn3.emoji.gg/emojis/574809-rocket.png",
+      "source": "Emoji.gg",
+      "author": "audibert",
+      "license": "Basic",
+      "licenseUrl": "https://emoji.gg/licenses",
+      "verifiedAt": "2026-10-04",
+      "modified": false,
+      "format": "png",
+      "width": 212,
+      "height": 212,
+      "bytes": 38655,
+      "sha256": "8f40529dff3e7e2c0f772dd0f8053edcfaec80a43425ecdbd105445099de79b2"
+    },
+    {
+      "name": "mimi_stop_g3",
+      "keys": [
+        "stop"
+      ],
+      "page": "https://emoji.gg/emoji/8693-stop",
+      "url": "https://cdn3.emoji.gg/emojis/8693-stop.gif",
+      "source": "Emoji.gg",
+      "author": "Clover Cutie",
+      "license": "Basic",
+      "licenseUrl": "https://emoji.gg/licenses",
+      "verifiedAt": "2026-10-04",
+      "modified": false,
+      "format": "gif",
+      "width": 128,
+      "height": 128,
+      "bytes": 221503,
+      "sha256": "ea18aeb79c6784765430631c4435147ad96832c9379e3554de5a00397c67cb5f"
+    },
+    {
+      "name": "mimi_queue_g3",
+      "keys": [
+        "queue",
+        "note",
+        "id",
+        "folder",
+        "paperclip"
+      ],
+      "page": "https://emoji.gg/emoji/696872-description",
+      "url": "https://cdn3.emoji.gg/emojis/696872-description.png",
+      "source": "Emoji.gg",
+      "author": "Jakub",
+      "license": "Basic",
+      "licenseUrl": "https://emoji.gg/licenses",
+      "verifiedAt": "2026-10-04",
+      "modified": false,
+      "format": "png",
+      "width": 128,
+      "height": 128,
+      "bytes": 6518,
+      "sha256": "407dc3f95163e85308a6663aa7487f2e8ad0fd7ea308a2e46a3d42270e3d2dfa"
+    },
+    {
+      "name": "mimi_autoplay_g3",
+      "keys": [
+        "autoplay"
+      ],
+      "page": "https://emoji.gg/emoji/6834-radio",
+      "url": "https://cdn3.emoji.gg/emojis/6834-radio.png",
+      "source": "Emoji.gg",
+      "author": "Rouxl",
+      "license": "Basic",
+      "licenseUrl": "https://emoji.gg/licenses",
+      "verifiedAt": "2026-10-04",
+      "modified": false,
+      "format": "png",
+      "width": 138,
+      "height": 72,
+      "bytes": 4620,
+      "sha256": "09f08086e13a935cd94973c8e15500b2c8c8f1c52687e7a5e56a5047709f1990"
+    },
+    {
+      "name": "mimi_stay247_g3",
+      "keys": [
+        "stay247"
+      ],
+      "page": "https://emoji.gg/emoji/757292-chalkinfinity",
+      "url": "https://cdn3.emoji.gg/emojis/757292-chalkinfinity.png",
+      "source": "Emoji.gg",
+      "author": "emily &Theta;ゝ&Theta;",
+      "license": "Basic",
+      "licenseUrl": "https://emoji.gg/licenses",
+      "verifiedAt": "2026-10-04",
+      "modified": false,
+      "format": "png",
+      "width": 1000,
+      "height": 1000,
+      "bytes": 143909,
+      "sha256": "c77c8a2b9504f6051f4831d120e6b96bb14ed3a1039838674f801b8d6bef745c"
+    },
+    {
+      "name": "mimi_user_g3",
+      "keys": [
+        "user",
+        "users",
+        "roles",
+        "police"
+      ],
+      "page": "https://emoji.gg/emoji/208998-modifyuser",
+      "url": "https://cdn3.emoji.gg/emojis/208998-modifyuser.png",
+      "source": "Emoji.gg",
+      "author": "xchasex",
+      "license": "Basic",
+      "licenseUrl": "https://emoji.gg/licenses",
+      "verifiedAt": "2026-10-04T08:36:16.569Z",
+      "modified": false,
+      "format": "png",
+      "width": 100,
+      "height": 100,
+      "bytes": 2135,
+      "sha256": "d9de646729d4dea571d198c6231370869a639f40ca4359d5258a7cd5d78b379d"
+    },
+    {
+      "name": "mimi_image_g3",
+      "keys": [
+        "image"
+      ],
+      "page": "https://emoji.gg/emoji/95178-camera",
+      "url": "https://cdn3.emoji.gg/emojis/95178-camera.png",
+      "source": "Emoji.gg",
+      "author": "Jakub",
+      "license": "Basic",
+      "licenseUrl": "https://emoji.gg/licenses",
+      "verifiedAt": "2026-10-04",
+      "modified": false,
+      "format": "png",
+      "width": 128,
+      "height": 128,
+      "bytes": 7963,
+      "sha256": "4c99ed15c61ecfe56496b1eb97cbbf12617d0bd445344f8240c9ecc793c70044"
+    },
+    {
+      "name": "mimi_sparkle_g3",
+      "keys": [
+        "sparkle",
+        "star",
+        "fresh"
+      ],
+      "page": "https://emoji.gg/emoji/985872-star",
+      "url": "https://cdn3.emoji.gg/emojis/985872-star.png",
+      "source": "Emoji.gg",
+      "author": "audibert",
+      "license": "Basic",
+      "licenseUrl": "https://emoji.gg/licenses",
+      "verifiedAt": "2026-10-04",
+      "modified": false,
+      "format": "png",
+      "width": 212,
+      "height": 212,
+      "bytes": 28549,
+      "sha256": "93082f926992c4b3d5581ef0fb6a629b76da52c1c8613684cce5efc4c7e40be5"
+    },
+    {
+      "name": "mimi_ban_g3",
+      "keys": [
+        "ban",
+        "kick"
+      ],
+      "page": "https://emoji.gg/emoji/329572-ban",
+      "url": "https://cdn3.emoji.gg/emojis/329572-ban.png",
+      "source": "Emoji.gg",
+      "author": "Jakub",
+      "license": "Basic",
+      "licenseUrl": "https://emoji.gg/licenses",
+      "verifiedAt": "2026-10-04",
+      "modified": false,
+      "format": "png",
+      "width": 128,
+      "height": 128,
+      "bytes": 8107,
+      "sha256": "c1488f66bff5083fd04f08b3c027cf2774b79814b3653be0694640dd6f65874d"
+    },
+    {
+      "name": "mimi_dice_g3",
+      "keys": [
+        "dice",
+        "casino",
+        "number"
+      ],
+      "page": "https://emoji.gg/emoji/19305-purpledice",
+      "url": "https://cdn3.emoji.gg/emojis/19305-purpledice.png",
+      "source": "Emoji.gg",
+      "author": "kate",
+      "license": "Basic",
+      "licenseUrl": "https://emoji.gg/licenses",
+      "verifiedAt": "2026-10-04",
+      "modified": false,
+      "format": "png",
+      "width": 128,
+      "height": 128,
+      "bytes": 20007,
+      "sha256": "c02f334d68a58fefe390aecd4ffb90209039e0cf7e52818c88d3a024c340c8a4"
+    },
+    {
+      "name": "mimi_box_g3",
+      "keys": [
+        "box",
+        "backpack",
+        "antique"
+      ],
+      "page": "https://emoji.gg/emoji/7344-stardewtreasure",
+      "url": "https://cdn3.emoji.gg/emojis/7344-stardewtreasure.png",
+      "source": "Emoji.gg",
+      "author": "Lauraindacorner",
+      "license": "Basic",
+      "licenseUrl": "https://emoji.gg/licenses",
+      "verifiedAt": "2026-10-04",
+      "modified": false,
+      "format": "png",
+      "width": 48,
+      "height": 48,
+      "bytes": 597,
+      "sha256": "93675f7b9738be820efe19693fe53ed166bd9ade53b2722bc5008a05e72dfc3f"
+    },
+    {
+      "name": "mimi_mail_g3",
+      "keys": [
+        "mail",
+        "inbox",
+        "chat"
+      ],
+      "page": "https://emoji.gg/emoji/416391-mail",
+      "url": "https://cdn3.emoji.gg/emojis/416391-mail.png",
+      "source": "Emoji.gg",
+      "author": "Gjester0101",
+      "license": "Basic",
+      "licenseUrl": "https://emoji.gg/licenses",
+      "verifiedAt": "2026-10-04",
+      "modified": false,
+      "format": "png",
+      "width": 256,
+      "height": 256,
+      "bytes": 6480,
+      "sha256": "03e81e9a3b20cde29110472e1d15eb0cef33a95d50a5b59f2e42b093936b5bf2"
+    },
+    {
+      "name": "mimi_outbox_g3",
+      "keys": [
+        "outbox"
+      ],
+      "page": "https://emoji.gg/emoji/537744-openedmail",
+      "url": "https://cdn3.emoji.gg/emojis/537744-openedmail.png",
+      "source": "Emoji.gg",
+      "author": "Gjester0101",
+      "license": "Basic",
+      "licenseUrl": "https://emoji.gg/licenses",
+      "verifiedAt": "2026-10-04",
+      "modified": false,
+      "format": "png",
+      "width": 256,
+      "height": 256,
+      "bytes": 8209,
+      "sha256": "aadf9b1140a3b36171634a114d136417091591da33f62043dc7933767882dfcd"
+    },
+    {
+      "name": "mimi_megaphone_g3",
+      "keys": [
+        "megaphone"
+      ],
+      "page": "https://emoji.gg/emoji/1882-megaphone",
+      "url": "https://cdn3.emoji.gg/emojis/1882-megaphone.png",
+      "source": "Emoji.gg",
+      "author": "Gjester0101",
+      "license": "Basic",
+      "licenseUrl": "https://emoji.gg/licenses",
+      "verifiedAt": "2026-10-04",
+      "modified": false,
+      "format": "png",
+      "width": 379,
+      "height": 379,
+      "bytes": 6259,
+      "sha256": "4c32a76bc5e6e2efa1d2f0627ae57838f9ac21f275d516ad9e4a9a396bc28719"
+    },
+    {
+      "name": "mimi_unlock_g3",
+      "keys": [
+        "unlock"
+      ],
+      "page": "https://emoji.gg/emoji/206932-unlock",
+      "url": "https://cdn3.emoji.gg/emojis/206932-unlock.png",
+      "source": "Emoji.gg",
+      "author": "moonypies",
+      "license": "Basic",
+      "licenseUrl": "https://emoji.gg/licenses",
+      "verifiedAt": "2026-10-04T08:26:38.013Z",
+      "modified": false,
+      "format": "png",
+      "width": 128,
+      "height": 128,
+      "bytes": 1925,
+      "sha256": "06480f09bb1decd0cebbc5aca3b9531e0a65d43ef150f87bbb0805a1dac40eff"
+    },
+    {
+      "name": "mimi_mute_g3",
+      "keys": [
+        "mute",
+        "nophone"
+      ],
+      "page": "https://emoji.gg/emoji/324948-microphoneoff",
+      "url": "https://cdn3.emoji.gg/emojis/324948-microphoneoff.png",
+      "source": "Emoji.gg",
+      "author": "Gjester0101",
+      "license": "Basic",
+      "licenseUrl": "https://emoji.gg/licenses",
+      "verifiedAt": "2026-10-04",
+      "modified": false,
+      "format": "png",
+      "width": 256,
+      "height": 256,
+      "bytes": 8656,
+      "sha256": "2ae737b9037821ef49f8c2be6d7f0a6c81ebde28476dedc05d084dff2b6173c6"
+    },
+    {
+      "name": "mimi_tomato_g3",
+      "keys": [
+        "tomato"
+      ],
+      "page": "https://emoji.gg/emoji/7974_Tomato",
+      "url": "https://cdn3.emoji.gg/emojis/7974_Tomato.png",
+      "source": "Emoji.gg",
+      "author": "DragaoNinja",
+      "license": "Basic",
+      "licenseUrl": "https://emoji.gg/licenses",
+      "verifiedAt": "2026-10-04",
+      "modified": false,
+      "format": "png",
+      "width": 100,
+      "height": 100,
+      "bytes": 4444,
+      "sha256": "e8e2ae25812948a1f6b55246b95c8b1377a05a3b895cfdb07630b4a7196d8b88"
+    },
+    {
+      "name": "mimi_pin_g3",
+      "keys": [
+        "pin"
+      ],
+      "page": "https://emoji.gg/emoji/716587-pin",
+      "url": "https://cdn3.emoji.gg/emojis/716587-pin.png",
+      "source": "Emoji.gg",
+      "author": "Jakub",
+      "license": "Basic",
+      "licenseUrl": "https://emoji.gg/licenses",
+      "verifiedAt": "2026-10-04T08:26:42.696Z",
+      "modified": false,
+      "format": "png",
+      "width": 128,
+      "height": 128,
+      "bytes": 6704,
+      "sha256": "f52dc75716aa56ddb79653e32b44bebf4535a6879f44fe9a7cf5fe8d77d35684"
+    },
+    {
+      "name": "mimi_home_g3",
+      "keys": [
+        "home",
+        "building",
+        "door"
+      ],
+      "page": "https://emoji.gg/emoji/13860-house",
+      "url": "https://cdn3.emoji.gg/emojis/13860-house.png",
+      "source": "Emoji.gg",
+      "author": "Gjester0101",
+      "license": "Basic",
+      "licenseUrl": "https://emoji.gg/licenses",
+      "verifiedAt": "2026-10-04",
+      "modified": false,
+      "format": "png",
+      "width": 379,
+      "height": 379,
+      "bytes": 6072,
+      "sha256": "c90a40937b082d19329eed402a8446116249742d0576b300166d1f1e4a59cf18"
+    },
+    {
+      "name": "mimi_scales_g3",
+      "keys": [
+        "scales"
+      ],
+      "page": "https://emoji.gg/emoji/998896-gavel",
+      "url": "https://cdn3.emoji.gg/emojis/998896-gavel.png",
+      "source": "Emoji.gg",
+      "author": "𝔉𝔯𝔬𝔰𝔱𝔶 ❄",
+      "license": "Basic",
+      "licenseUrl": "https://emoji.gg/licenses",
+      "verifiedAt": "2026-10-04",
+      "modified": false,
+      "format": "png",
+      "width": 379,
+      "height": 379,
+      "bytes": 7887,
+      "sha256": "898652a0b850928132b1de737d0d415e65326d0fbda7e02ef534a6a0c073cc93"
+    },
+    {
+      "name": "mimi_handshake_g3",
+      "keys": [
+        "handshake"
+      ],
+      "page": "https://emoji.gg/emoji/600404-handshake",
+      "url": "https://cdn3.emoji.gg/emojis/600404-handshake.png",
+      "source": "Emoji.gg",
+      "author": "Jakub",
+      "license": "Basic",
+      "licenseUrl": "https://emoji.gg/licenses",
+      "verifiedAt": "2026-10-04",
+      "modified": false,
+      "format": "png",
+      "width": 128,
+      "height": 128,
+      "bytes": 9201,
+      "sha256": "29f9be7bd078c9a9d8526bd339db7b865639423a3bbe8e0053970a6b5d1f9fb0"
+    },
+    {
+      "name": "mimi_dolphin_g3",
+      "keys": [
+        "dolphin"
+      ],
+      "page": "https://emoji.gg/emoji/83532-dolphin",
+      "url": "https://cdn3.emoji.gg/emojis/83532-dolphin.png",
+      "source": "Emoji.gg",
+      "author": "anji !",
+      "license": "Basic",
+      "licenseUrl": "https://emoji.gg/licenses",
+      "verifiedAt": "2026-10-04",
+      "modified": false,
+      "format": "png",
+      "width": 500,
+      "height": 500,
+      "bytes": 122159,
+      "sha256": "bce390771bfbb522ed27cde74243962de1961a7ab7da36a5ece1aef4f07dcf34"
+    },
+    {
+      "name": "mimi_shark_g3",
+      "keys": [
+        "shark"
+      ],
+      "page": "https://emoji.gg/emoji/43967-bluesharkplush",
+      "url": "https://cdn3.emoji.gg/emojis/43967-bluesharkplush.png",
+      "source": "Emoji.gg",
+      "author": "anji !",
+      "license": "Basic",
+      "licenseUrl": "https://emoji.gg/licenses",
+      "verifiedAt": "2026-10-04",
+      "modified": false,
+      "format": "png",
+      "width": 500,
+      "height": 500,
+      "bytes": 224636,
+      "sha256": "fc6cad3fb6378e5682077e0365ce17ea1df7fb3caf4c74306835e1b625d2835e"
+    },
+    {
+      "name": "mimi_fish_g3",
+      "keys": [
+        "fish",
+        "fishing"
+      ],
+      "page": "https://emoji.gg/emoji/66326-bluefish",
+      "url": "https://cdn3.emoji.gg/emojis/66326-bluefish.png",
+      "source": "Emoji.gg",
+      "author": "anji !",
+      "license": "Basic",
+      "licenseUrl": "https://emoji.gg/licenses",
+      "verifiedAt": "2026-10-04",
+      "modified": false,
+      "format": "png",
+      "width": 500,
+      "height": 500,
+      "bytes": 87269,
+      "sha256": "7592ed3024bedd98f8c02e9dc82f0b1ddb7aa2b23b0c50f7288f147395fc3860"
+    },
+    {
+      "name": "mimi_tropicalfish_g3",
+      "keys": [
+        "tropicalfish"
+      ],
+      "page": "https://emoji.gg/emoji/7355-koifish",
+      "url": "https://cdn3.emoji.gg/emojis/7355-koifish.png",
+      "source": "Emoji.gg",
+      "author": "Clover Cutie",
+      "license": "Basic",
+      "licenseUrl": "https://emoji.gg/licenses",
+      "verifiedAt": "2026-10-04",
+      "modified": false,
+      "format": "png",
+      "width": 50,
+      "height": 50,
+      "bytes": 3618,
+      "sha256": "e8f950314fe72b837f1a6f195b9eaf332a3bb24c0f8b8969514dc044b4861bf3"
+    },
+    {
+      "name": "mimi_crab_g3",
+      "keys": [
+        "crab"
+      ],
+      "page": "https://emoji.gg/emoji/6366-cowboycrab",
+      "url": "https://cdn3.emoji.gg/emojis/6366-cowboycrab.png",
+      "source": "Emoji.gg",
+      "author": "Clover Cutie",
+      "license": "Basic",
+      "licenseUrl": "https://emoji.gg/licenses",
+      "verifiedAt": "2026-10-04",
+      "modified": false,
+      "format": "png",
+      "width": 112,
+      "height": 112,
+      "bytes": 16959,
+      "sha256": "eb0390b7fbca762ee170291e4cd9e4016c8e14b20915a29b295bb62873de2731"
+    },
+    {
+      "name": "mimi_sword_g3",
+      "keys": [
+        "sword"
+      ],
+      "page": "https://emoji.gg/emoji/7851-stardewgalaxy",
+      "url": "https://cdn3.emoji.gg/emojis/7851-stardewgalaxy.png",
+      "source": "Emoji.gg",
+      "author": "Lauraindacorner",
+      "license": "Basic",
+      "licenseUrl": "https://emoji.gg/licenses",
+      "verifiedAt": "2026-10-04T08:35:11.944Z",
+      "modified": false,
+      "format": "png",
+      "width": 48,
+      "height": 48,
+      "bytes": 364,
+      "sha256": "bd1718a1e5828e46bfd0884b0941694fcccb6e20f59e0b68e923792904aefade"
+    },
+    {
+      "name": "mimi_wilted_g3",
+      "keys": [
+        "wilted"
+      ],
+      "page": "https://emoji.gg/emoji/3668-stardewfrose",
+      "url": "https://cdn3.emoji.gg/emojis/3668-stardewfrose.png",
+      "source": "Emoji.gg",
+      "author": "Lauraindacorner",
+      "license": "Basic",
+      "licenseUrl": "https://emoji.gg/licenses",
+      "verifiedAt": "2026-10-04T08:35:16.789Z",
+      "modified": false,
+      "format": "png",
+      "width": 48,
+      "height": 48,
+      "bytes": 387,
+      "sha256": "4539984e3283594f49b26110bccacf95cc1ab72925139f3de4f1be16618369b8"
+    },
+    {
+      "name": "mimi_lemon_g3",
+      "keys": [
+        "lemon"
+      ],
+      "page": "https://emoji.gg/emoji/17265-neon-lemon",
+      "url": "https://cdn3.emoji.gg/emojis/17265-neon-lemon.png",
+      "source": "Emoji.gg",
+      "author": "Copper 🦧",
+      "license": "Basic",
+      "licenseUrl": "https://emoji.gg/licenses",
+      "verifiedAt": "2026-10-04",
+      "modified": false,
+      "format": "png",
+      "width": 350,
+      "height": 350,
+      "bytes": 60949,
+      "sha256": "9d27c4362aa34561357a7852ff02f90462a20ac1e6a5f3dc18d4bf0e77a0f529"
+    },
+    {
+      "name": "mimi_arrow_g3",
+      "keys": [
+        "arrow",
+        "pointright"
+      ],
+      "page": "https://emoji.gg/emoji/6032-arrow-right",
+      "url": "https://cdn3.emoji.gg/emojis/6032-arrow-right.png",
+      "source": "Emoji.gg",
+      "author": "Juox",
+      "license": "CC-BY-4.0",
+      "licenseUrl": "https://emoji.gg/licenses",
+      "verifiedAt": "2026-10-04",
+      "modified": false,
+      "format": "png",
+      "width": 128,
+      "height": 128,
+      "bytes": 22580,
+      "sha256": "fe00f60eab02b481c04bbf87d4d54aaa9a73884d52699bab4adbaf2473c4b623"
+    },
+    {
+      "name": "mimi_spade_g3",
+      "keys": [
+        "spade",
+        "card"
+      ],
+      "page": "https://emoji.gg/emoji/5448-playing-card-spades-sign",
+      "url": "https://cdn3.emoji.gg/emojis/5448-playing-card-spades-sign.png",
+      "source": "Emoji.gg",
+      "author": ".Tenebris Dominus",
+      "license": "Basic",
+      "licenseUrl": "https://emoji.gg/licenses",
+      "verifiedAt": "2026-10-04",
+      "modified": false,
+      "format": "png",
+      "width": 200,
+      "height": 200,
+      "bytes": 3025,
+      "sha256": "052ac6130dd2adfb21143b5b38c3b819ab88d1107257017b145e02ad54756155"
+    },
+    {
+      "name": "mimi_club_g3",
+      "keys": [
+        "club"
+      ],
+      "page": "https://emoji.gg/emoji/1791-playing-card-clubs-sign",
+      "url": "https://cdn3.emoji.gg/emojis/1791-playing-card-clubs-sign.png",
+      "source": "Emoji.gg",
+      "author": ".Tenebris Dominus",
+      "license": "Basic",
+      "licenseUrl": "https://emoji.gg/licenses",
+      "verifiedAt": "2026-10-04",
+      "modified": false,
+      "format": "png",
+      "width": 200,
+      "height": 200,
+      "bytes": 3041,
+      "sha256": "b24942396dcf01f6a68d0e34ae9ad8493b76d091073aa6ceb0f2d87a47a86438"
+    },
+    {
+      "name": "mimi_diamondsuit_g3",
+      "keys": [
+        "diamondsuit"
+      ],
+      "page": "https://emoji.gg/emoji/206402-diamondshape",
+      "url": "https://cdn3.emoji.gg/emojis/206402-diamondshape.png",
+      "source": "Emoji.gg",
+      "author": "LOUYD",
+      "license": "Basic",
+      "licenseUrl": "https://emoji.gg/licenses",
+      "verifiedAt": "2026-10-04",
+      "modified": false,
+      "format": "png",
+      "width": 128,
+      "height": 128,
+      "bytes": 10669,
+      "sha256": "45ad006112d4a2df9a3c3424dd0280a7426bacf825d5ddf17a9f932913d64a4c"
+    },
+    {
+      "name": "mimi_cardback_g3",
+      "keys": [
+        "cardback"
+      ],
+      "page": "https://emoji.gg/emoji/16218-suport",
+      "url": "https://cdn3.emoji.gg/emojis/16218-suport.png",
+      "source": "Emoji.gg",
+      "author": "audibert",
+      "license": "Basic",
+      "licenseUrl": "https://emoji.gg/licenses",
+      "verifiedAt": "2026-10-04",
+      "modified": false,
+      "format": "png",
+      "width": 212,
+      "height": 212,
+      "bytes": 27279,
+      "sha256": "a4e9181c4a756a95d9a20f49ee0477f5d6ffe2e2dba74e001b4bd4f41e935500"
+    },
+    {
+      "name": "mimi_clear_g3",
+      "keys": [
+        "clear",
+        "broom"
+      ],
+      "page": "https://emoji.gg/emoji/919063-trashcan",
+      "url": "https://cdn3.emoji.gg/emojis/919063-trashcan.png",
+      "source": "Emoji.gg",
+      "author": "daisy ✮⋆˙",
+      "license": "Basic",
+      "licenseUrl": "https://emoji.gg/licenses",
+      "verifiedAt": "2026-10-04",
+      "modified": false,
+      "format": "png",
+      "width": 56,
+      "height": 56,
+      "bytes": 2300,
+      "sha256": "28bcca5d7a88922042143e378b7f57f1cc7e2e481d67a7eceeb4587b1b70d5bf"
+    },
+    {
+      "name": "mimi_xp_g3",
+      "keys": [
+        "xp",
+        "stats",
+        "signal"
+      ],
+      "page": "https://emoji.gg/emoji/4260-bar-chart",
+      "url": "https://cdn3.emoji.gg/emojis/4260-bar-chart.png",
+      "source": "Emoji.gg",
+      "author": "MalfunctionedSword",
+      "license": "Basic",
+      "licenseUrl": "https://emoji.gg/licenses",
+      "verifiedAt": "2026-10-04",
+      "modified": false,
+      "format": "png",
+      "width": 24,
+      "height": 24,
+      "bytes": 161,
+      "sha256": "578c365651d11293170163397a742c961d36e9a4050b8f0ac2a06c4b40f3bba7"
+    },
+    {
+      "name": "mimi_globe_g3",
+      "keys": [
+        "globe"
+      ],
+      "page": "https://emoji.gg/emoji/699570-socialsicon",
+      "url": "https://cdn3.emoji.gg/emojis/699570-socialsicon.png",
+      "source": "Emoji.gg",
+      "author": "Ean da b0t",
+      "license": "Basic",
+      "licenseUrl": "https://emoji.gg/licenses",
+      "verifiedAt": "2026-10-04T08:35:36.944Z",
+      "modified": false,
+      "format": "png",
+      "width": 100,
+      "height": 100,
+      "bytes": 3077,
+      "sha256": "f2b4bed763ab780482cd937ec2a950fd89c43ef9ab13cb269dd7a995afef4a2c"
+    },
+    {
+      "name": "mimi_pickaxe_g3",
+      "keys": [
+        "pickaxe"
+      ],
+      "page": "https://emoji.gg/emoji/514931-stonepickaxe",
+      "url": "https://cdn3.emoji.gg/emojis/514931-stonepickaxe.png",
+      "source": "Emoji.gg",
+      "author": "! typo ,",
+      "license": "Basic",
+      "licenseUrl": "https://emoji.gg/licenses",
+      "verifiedAt": "2026-10-04",
+      "modified": false,
+      "format": "png",
+      "width": 225,
+      "height": 225,
+      "bytes": 27523,
+      "sha256": "af27f1f1056f77309af62f6a89278981de60560c008ab8ea8857ca731d5e6845"
+    },
+    {
+      "name": "mimi_wheat_g3",
+      "keys": [
+        "wheat"
+      ],
+      "page": "https://emoji.gg/emoji/1886_MCwheat",
+      "url": "https://cdn3.emoji.gg/emojis/1886_MCwheat.png",
+      "source": "Emoji.gg",
+      "author": "al.exe",
+      "license": "Basic",
+      "licenseUrl": "https://emoji.gg/licenses",
+      "verifiedAt": "2026-10-04",
+      "modified": false,
+      "format": "png",
+      "width": 128,
+      "height": 128,
+      "bytes": 8031,
+      "sha256": "9ecdea5cd3c9d505dd58e464b5b2cc75f4fa9c31e710503e909f508f8e5bb65b"
+    },
+    {
+      "name": "mimi_water_g3",
+      "keys": [
+        "water"
+      ],
+      "page": "https://emoji.gg/emoji/8605-stardewsweat",
+      "url": "https://cdn3.emoji.gg/emojis/8605-stardewsweat.png",
+      "source": "Emoji.gg",
+      "author": "Lauraindacorner",
+      "license": "Basic",
+      "licenseUrl": "https://emoji.gg/licenses",
+      "verifiedAt": "2026-10-04T08:35:41.638Z",
+      "modified": false,
+      "format": "png",
+      "width": 74,
+      "height": 71,
+      "bytes": 823,
+      "sha256": "3eaaffb2240b07c6108d1cee828e34a67fcd0e5cfdf39aa2bf3bce294132bbd0"
+    },
+    {
+      "name": "mimi_plus_g3",
+      "keys": [
+        "plus"
+      ],
+      "page": "https://emoji.gg/emoji/4481-plus",
+      "url": "https://cdn3.emoji.gg/emojis/4481-plus.png",
+      "source": "Emoji.gg",
+      "author": "Lynnux",
+      "license": "Basic",
+      "licenseUrl": "https://emoji.gg/licenses",
+      "verifiedAt": "2026-10-04",
+      "modified": false,
+      "format": "png",
+      "width": 128,
+      "height": 128,
+      "bytes": 3883,
+      "sha256": "789f701ce18b058808036dc054b541c025a3d9d222f563808613bdd0daddd875"
+    },
+    {
+      "name": "mimi_sad_g3",
+      "keys": [
+        "sad"
+      ],
+      "page": "https://emoji.gg/emoji/8723-stardewunsure",
+      "url": "https://cdn3.emoji.gg/emojis/8723-stardewunsure.png",
+      "source": "Emoji.gg",
+      "author": "Lauraindacorner",
+      "license": "Basic",
+      "licenseUrl": "https://emoji.gg/licenses",
+      "verifiedAt": "2026-10-04",
+      "modified": false,
+      "format": "png",
+      "width": 74,
+      "height": 71,
+      "bytes": 684,
+      "sha256": "23351fa19779b1ae36bc21e7148ac85c88de08d620a0977bf04f5e190b2ade01"
+    },
+    {
+      "name": "mimi_mermaid_g3",
+      "keys": [
+        "mermaid"
+      ],
+      "page": "https://emoji.gg/emoji/1523-mermaid",
+      "url": "https://cdn3.emoji.gg/emojis/1523-mermaid.gif",
+      "source": "Emoji.gg",
+      "author": "Clover Cutie",
+      "license": "Basic",
+      "licenseUrl": "https://emoji.gg/licenses",
+      "verifiedAt": "2026-10-04",
+      "modified": false,
+      "format": "gif",
+      "width": 50,
+      "height": 50,
+      "bytes": 2718,
+      "sha256": "ef4262f596faf565b79f4b275ad880fbcf50779727fcb29bb6076173463bb313"
+    },
+    {
+      "name": "mimi_meat_g3",
+      "keys": [
+        "meat",
+        "bowl"
+      ],
+      "page": "https://emoji.gg/emoji/42076-doodlemeat",
+      "url": "https://cdn3.emoji.gg/emojis/42076-doodlemeat.png",
+      "source": "Emoji.gg",
+      "author": "emily &Theta;ゝ&Theta;",
+      "license": "Basic",
+      "licenseUrl": "https://emoji.gg/licenses",
+      "verifiedAt": "2026-10-04",
+      "modified": false,
+      "format": "png",
+      "width": 640,
+      "height": 640,
+      "bytes": 124691,
+      "sha256": "3fbb2a605307d98af68ebd829f47432a591b44176fb3ad27a249e8c4fc50caa3"
+    },
+    {
+      "name": "mimi_eye_g3",
+      "keys": [
+        "eye"
+      ],
+      "page": "https://emoji.gg/emoji/946480-eye",
+      "url": "https://cdn3.emoji.gg/emojis/946480-eye.png",
+      "source": "Emoji.gg",
+      "author": "Jakub",
+      "license": "Basic",
+      "licenseUrl": "https://emoji.gg/licenses",
+      "verifiedAt": "2026-10-04",
+      "modified": false,
+      "format": "png",
+      "width": 128,
+      "height": 128,
+      "bytes": 7487,
+      "sha256": "88c4f2e958c06813dc7a8dd4e32800e3aa4dd82217e0d5513ff8b3b52eef492c"
+    },
+    {
+      "name": "mimi_fist_g3",
+      "keys": [
+        "fist"
+      ],
+      "page": "https://emoji.gg/emoji/9782-pixel-raised-fist",
+      "url": "https://cdn3.emoji.gg/emojis/9782-pixel-raised-fist.png",
+      "source": "Emoji.gg",
+      "author": "Yvan713",
+      "license": "Basic",
+      "licenseUrl": "https://emoji.gg/licenses",
+      "verifiedAt": "2026-10-04",
+      "modified": false,
+      "format": "png",
+      "width": 511,
+      "height": 511,
+      "bytes": 71383,
+      "sha256": "9e1d30bdf8cbd4ebc8e8ee821770280b59cf6151930390a375a3a87fe3346f6f"
+    },
+    {
+      "name": "mimi_victory_g3",
+      "keys": [
+        "victory",
+        "scissors"
+      ],
+      "page": "https://emoji.gg/emoji/205483-scissors",
+      "url": "https://cdn3.emoji.gg/emojis/205483-scissors.gif",
+      "source": "Emoji.gg",
+      "author": "tikka ♡₊ ⊹",
+      "license": "Basic",
+      "licenseUrl": "https://emoji.gg/licenses",
+      "verifiedAt": "2026-10-04",
+      "modified": false,
+      "format": "gif",
+      "width": 128,
+      "height": 128,
+      "bytes": 2468,
+      "sha256": "d9da38d8314f335f1046c3878acf785d5888e330e0efc483b1cadf92d1929cab"
+    },
+    {
+      "name": "mimi_pointdown_g3",
+      "keys": [
+        "pointdown",
+        "down"
+      ],
+      "page": "https://emoji.gg/emoji/6891-arrow-down",
+      "url": "https://cdn3.emoji.gg/emojis/6891-arrow-down.png",
+      "source": "Emoji.gg",
+      "author": "MineClub",
+      "license": "Basic",
+      "licenseUrl": "https://emoji.gg/licenses",
+      "verifiedAt": "2026-10-04",
+      "modified": false,
+      "format": "png",
+      "width": 112,
+      "height": 112,
+      "bytes": 262,
+      "sha256": "e537f30df71899bc2ab9ebf65cc16ef610db276d3975dd16f8fd9a795330b2bb"
+    },
+    {
+      "name": "mimi_stone_g3",
+      "keys": [
+        "stone"
+      ],
+      "page": "https://emoji.gg/emoji/7664-stardewomni",
+      "url": "https://cdn3.emoji.gg/emojis/7664-stardewomni.png",
+      "source": "Emoji.gg",
+      "author": "Lauraindacorner",
+      "license": "Basic",
+      "licenseUrl": "https://emoji.gg/licenses",
+      "verifiedAt": "2026-10-04T08:35:46.588Z",
+      "modified": false,
+      "format": "png",
+      "width": 48,
+      "height": 48,
+      "bytes": 539,
+      "sha256": "3cb52b587d5f98c621864d16b768146aae05c9cd857795f8e86d8c0dd2710e81"
+    },
+    {
+      "name": "mimi_up_g3",
+      "keys": [
+        "up"
+      ],
+      "page": "https://emoji.gg/emoji/200094-uparrow",
+      "url": "https://cdn3.emoji.gg/emojis/200094-uparrow.png",
+      "source": "Emoji.gg",
+      "author": "xchasex",
+      "license": "Basic",
+      "licenseUrl": "https://emoji.gg/licenses",
+      "verifiedAt": "2026-10-04",
+      "modified": false,
+      "format": "png",
+      "width": 200,
+      "height": 200,
+      "bytes": 41318,
+      "sha256": "4d3cf4d1ccb92cd654b69ba25d60be66d81f9779a2b4f90171f22056737c4bc6"
+    },
+    {
+      "name": "mimi_pear_g3",
+      "keys": [
+        "pear"
+      ],
+      "page": "https://emoji.gg/emoji/509265-fruitypear",
+      "url": "https://cdn3.emoji.gg/emojis/509265-fruitypear.png",
+      "source": "Emoji.gg",
+      "author": "emily &Theta;ゝ&Theta;",
+      "license": "Basic",
+      "licenseUrl": "https://emoji.gg/licenses",
+      "verifiedAt": "2026-10-04T08:35:52.383Z",
+      "modified": false,
+      "format": "png",
+      "width": 640,
+      "height": 640,
+      "bytes": 93732,
+      "sha256": "3c4a9c5bb705b57886a07cfd28110833594be5c8b26cd88c7dffd6c3be6e53f1"
+    },
+    {
+      "name": "mimi_shrimp_g3",
+      "keys": [
+        "shrimp"
+      ],
+      "page": "https://emoji.gg/emoji/869718-blurpleshrimp",
+      "url": "https://cdn3.emoji.gg/emojis/869718-blurpleshrimp.png",
+      "source": "Emoji.gg",
+      "author": "Fawn",
+      "license": "Basic",
+      "licenseUrl": "https://emoji.gg/licenses",
+      "verifiedAt": "2026-10-04",
+      "modified": false,
+      "format": "png",
+      "width": 128,
+      "height": 128,
+      "bytes": 12948,
+      "sha256": "882bb6e14497fc08b167c76c545d17c06c50282aeed49cf85376a00be8190098"
+    },
+    {
+      "name": "mimi_deer_g3",
+      "keys": [
+        "deer"
+      ],
+      "page": "https://emoji.gg/emoji/622783-deer",
+      "url": "https://cdn3.emoji.gg/emojis/622783-deer.png",
+      "source": "Emoji.gg",
+      "author": "Brii ❦",
+      "license": "Basic",
+      "licenseUrl": "https://emoji.gg/licenses",
+      "verifiedAt": "2026-10-04",
+      "modified": false,
+      "format": "png",
+      "width": 500,
+      "height": 500,
+      "bytes": 66309,
+      "sha256": "27c76a5e51757743a2e8e7f14e7f14c1271cdbfbf307ea6021a3b9442d8121e0"
+    },
+    {
+      "name": "mimi_bankcard_g3",
+      "keys": [
+        "bankcard"
+      ],
+      "page": "https://emoji.gg/emoji/91003-creditcard",
+      "url": "https://cdn3.emoji.gg/emojis/91003-creditcard.png",
+      "source": "Emoji.gg",
+      "author": "kate",
+      "license": "Basic",
+      "licenseUrl": "https://emoji.gg/licenses",
+      "verifiedAt": "2026-10-04",
+      "modified": false,
+      "format": "png",
+      "width": 128,
+      "height": 128,
+      "bytes": 24025,
+      "sha256": "dc21387ded3c24fa9bb616fb236c477f74801be2b7f112aff59e8abe4b6f1ccc"
+    }
+  ]
+}

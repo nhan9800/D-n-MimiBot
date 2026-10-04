@@ -5,6 +5,7 @@ const fs = require('node:fs');
 const path = require('node:path');
 const { REST, Routes } = require('discord.js');
 const { normalizePayload } = require('../discordUi');
+const { rebuildStandardSetupPanel, standardPanelType, controlSignature, controlIds } = require('../communitySetupPanels');
 const { HOME_GUILD_ID, BOT_ID } = require('./plan-home-guild');
 const { loadApplicationEmojis } = require('./sync-home-emojis');
 const PANEL_CHANNELS = Object.freeze([
@@ -23,20 +24,21 @@ async function inspectPanels(rest) {
         const channel = await rest.get(Routes.channel(channelId));
         if (channel.guild_id !== HOME_GUILD_ID) throw new Error('Kênh panel không thuộc server chính.');
         const messages = await rest.get(Routes.channelMessages(channelId), { query: new URLSearchParams({ limit: '50' }) });
-        const message = messages.find(item => item.author?.id === BOT_ID && hasControls(item.components));
+        const message = messages.find(item => item.author?.id === BOT_ID && standardPanelType(item));
         if (message) matches.push({ channelId, message });
     }
     return matches;
 }
 
 function panelPayload(message) {
+    const rebuilt = rebuildStandardSetupPanel(message);
+    if (!rebuilt) throw new Error('Không sửa bảng không thuộc mẫu mặc định của Mimi.');
     const payload = {
-        content: message.content || '', embeds: message.embeds || [], components: message.components || [],
+        ...rebuilt,
         attachments: (message.attachments || []).map(item => ({ id: item.id, filename: item.filename })),
-        allowedMentions: { parse: [], repliedUser: false },
     };
-    if ((message.flags & 32768) !== 0) payload.flags = message.flags;
-    const next = normalizePayload(payload);
+    payload.flags = (message.flags || 0) | 32768;
+    const next = normalizePayload(payload, { edit: true, message });
     // Dùng REST raw, không qua manager chuyển camelCase sang snake_case.
     delete next.allowedMentions;
     next.allowed_mentions = { parse: [], replied_user: false };
@@ -45,10 +47,23 @@ function panelPayload(message) {
 
 async function refreshPanels(rest, panels, onResult = () => {}) {
     for (const { channelId, message } of panels) {
+        if (!PANEL_CHANNELS.includes(channelId) || message.author?.id !== BOT_ID || !standardPanelType(message)
+            || !/^\d{17,20}$/.test(String(message.id || ''))) throw new Error('Backup ngoài phạm vi bảng mặc định.');
+        const channel = await rest.get(Routes.channel(channelId));
+        if (channel.guild_id !== HOME_GUILD_ID) throw new Error('Kênh panel không thuộc server chính.');
         const current = await rest.get(Routes.channelMessage(channelId, message.id));
         if (current.author?.id !== BOT_ID) throw new Error('Không sửa tin của người khác.');
+        if (standardPanelType(current) !== standardPanelType(message)
+            || controlSignature(current.components) !== controlSignature(message.components)) {
+            throw new Error('Bảng hoặc nút đã thay đổi từ bản sao lưu; cần kiểm tra lại.');
+        }
         const updated = await rest.patch(Routes.channelMessage(channelId, message.id), { body: panelPayload(current) });
-        await onResult({ channelId, messageId: updated.id, flags: updated.flags });
+        if (updated.id !== message.id || updated.author?.id !== BOT_ID
+            || controlSignature(updated.components) !== controlSignature(current.components)) {
+            throw new Error('Kết quả cập nhật bảng không giữ nguyên tin nhắn hoặc chức năng.');
+        }
+        await onResult({ channelId, messageId: updated.id, type: standardPanelType(updated), flags: updated.flags,
+            controlsPreserved: true, attachmentsPreserved: JSON.stringify(updated.attachments?.map(item => item.id) || []) === JSON.stringify(current.attachments?.map(item => item.id) || []) });
     }
 }
 
@@ -72,30 +87,21 @@ if (require.main === module) {
             const panels = JSON.parse(fs.readFileSync(backupPath, 'utf8'));
             if (panels.some(item => !PANEL_CHANNELS.includes(item.channelId) || item.message.author?.id !== BOT_ID)) throw new Error('Backup ngoài phạm vi panel.');
             if (mode === 'apply') {
-                await loadApplicationEmojis(rest);
+                const coverage = await loadApplicationEmojis(rest);
+                if (!coverage.artwork?.complete) throw new Error('Chưa tải đủ artwork catalog mới; không sửa panel.');
                 await refreshPanels(rest, panels, result => console.log(JSON.stringify(result)));
             }
             else {
-                const controls = input => {
-                    const ids = [];
-                    const visit = value => {
-                        if (!value || typeof value !== 'object') return;
-                        if (value.custom_id) ids.push(value.custom_id);
-                        for (const child of Object.values(value)) {
-                            if (Array.isArray(child)) child.forEach(visit);
-                            else if (child && typeof child === 'object') visit(child);
-                        }
-                    };
-                    visit(input);
-                    return ids.sort();
-                };
                 const results = [];
                 for (const { channelId, message } of panels) {
                     const current = await rest.get(Routes.channelMessage(channelId, message.id));
-                    const sameControls = JSON.stringify(controls(message.components)) === JSON.stringify(controls(current.components));
+                    const sameControls = JSON.stringify(controlIds(message.components)) === JSON.stringify(controlIds(current.components))
+                        && controlSignature(message.components) === controlSignature(current.components);
                     const branded = JSON.stringify(current.components).includes('**MIMI**');
-                    const pass = current.author?.id === BOT_ID && Boolean(current.flags & 32768) && sameControls && branded;
-                    results.push({ channelId, messageId: message.id, controlsPreserved: sameControls, branded, pass });
+                    const rebuilt = current.components?.some(item => [910600, 910700, 910800, 910900].includes(item.id));
+                    const sameAttachments = JSON.stringify(message.attachments?.map(item => item.id) || []) === JSON.stringify(current.attachments?.map(item => item.id) || []);
+                    const pass = current.author?.id === BOT_ID && Boolean(current.flags & 32768) && sameControls && branded && rebuilt && sameAttachments;
+                    results.push({ channelId, messageId: message.id, controlsPreserved: sameControls, branded, rebuilt, attachmentsPreserved: sameAttachments, pass });
                 }
                 fs.writeFileSync(path.join(path.dirname(backupPath), 'panels-verification.json'), JSON.stringify(results, null, 2) + '\n', { mode: 0o600 });
                 console.log(JSON.stringify(results));

@@ -1,5 +1,7 @@
 # Phạm vi giao diện Mimi 1.4.0
 
+Đợt catalog 04/10/2026: toàn bộ182semantickey có artwork Emoji.gg g3 (122ảnh nguồn); metadata/giấy phép/hash tại assets/emojis/catalog.json. Preview31mẫu dùng đúng URL artwork mới, gồm4panel mặc định từ communitySetupPanels.js. Modal label/title/placeholder và slash choice chỉ hỗ trợ chữ theo Discord API; nội dung/emoji tự thiết kế của thành viên được bảo toàn. Artwork cũ vẫn giữ ID để reaction và tin đã gửi hoạt động.
+
 Rà soát mã nguồn ngày 02/10/2026 cho bot cộng đồng trong repository này. Website Next.js ở `Website-Mini-Bot` là dự án riêng. Tài liệu ghi các bề mặt đã tìm thấy, cách giao diện mới được áp dụng và phần đã kiểm chứng bằng dữ liệu giả hoặc máy chủ loopback. Không đăng nhập Discord, gửi thông báo tới server hay triển khai hosting trong đợt kiểm tra này.
 
 ## Quy tắc hiển thị chung

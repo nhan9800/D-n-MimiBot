@@ -3,6 +3,7 @@ const test = require('node:test');
 const assert = require('node:assert/strict');
 const { guildPlan, loadApplicationEmojis } = require('../scripts/sync-home-emojis');
 const { EMOJI_ASSET_MANIFEST } = require('../communityEmojis');
+const { CATALOG_ASSETS } = require('../emojiCatalog');
 const { buildEmojiGuide, buildGuide } = require('../scripts/publish-home-guild-guides');
 
 test('Bộ server ưu tiên nút nhạc, giữ emoji cũ và tuân số slot tĩnh', () => {
@@ -26,13 +27,12 @@ test('Nạp mapping chỉ đọc không tạo emoji hoặc sửa tin khi ứng d
     await assert.rejects(loadApplicationEmojis({ async get() { reads++; return { items: [] }; } }), /Chưa tải đủ/);
     assert.equal(reads, 1);
     let id = 1000000000000000000n;
-    const files = [...new Set(EMOJI_ASSET_MANIFEST.map(item => item.file))];
     const coverage = await loadApplicationEmojis({ async get() {
-        return { items: files.map(file => ({ name: EMOJI_ASSET_MANIFEST.find(item => item.file === file).name, id: String(id++), animated: false })) };
+        return { items: CATALOG_ASSETS.map(item => ({ name: item.name, id: String(id++), animated: item.format === 'gif' })) };
     } });
     assert.equal(coverage.complete, true);
     const guide = JSON.stringify(buildGuide({ rules: '1', verify: '2', chat: '3', musicRequests: '4', botCommands: '5', emoji: '6', ticket: '7' }));
-    assert.match(guide, /<:mimi_music_v2:/);
+    assert.match(guide, /<:mimi_music_g3:/);
     assert.ok(!guide.includes('🎧'));
 });
 

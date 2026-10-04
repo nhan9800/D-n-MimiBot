@@ -10,6 +10,7 @@ Discord Gateway/API ↔ index.js ↔ discordUi.js ↔ Components V2 / Modal Labe
                           ├─ musicStore.js ↔ JSON phiên nhạc/thư viện/cấu hình DJ
                           ├─ musicPanelUpdater.js ↔ hàng ghi panel nhạc / chống kết quả cũ
                           ├─ communityPanels.js / profileCard.js ↔ các bảng tương tác chính
+                          ├─ communitySetupPanels.js ↔ xác thực / hỗ trợ / voice / chấm công mặc định
                           ├─ modalUi.js ↔ biểu mẫu Label / field ID hiện hành
                           ├─ antiRaid.js ↔ data/anti_raid_lockdowns.json
                           ├─ communityEmojis.js / emojiImport.js ↔ ảnh emoji
@@ -33,6 +34,8 @@ Node >=22.12.0 là yêu cầu của `@discordjs/voice` đang khóa ở 0.19.2. N
 `uiBuilder.js` là nguồn bảng màu/footer và tiện ích chung. `discordUi.js` chuẩn hóa các đường gửi/cập nhật của client bot: `send`, `reply`, `edit`, `update`, `editReply`, `followUp`, `showModal`. Thẻ bot dùng nhận diện mint theo nhóm tính năng, dữ liệu chia mục, separator native và thao tác cuối thẻ; attachment và giới hạn đề cập mặc định được giữ. Poll/sticker dùng cơ chế riêng của Discord vì Components V2 không hỗ trợ chúng.
 
 `communityPanels.js` dựng bảng nhạc và hướng dẫn riêng; `profileCard.js` dựng hồ sơ cộng đồng và cấp độ máy chủ bằng dữ liệu thật; `modalUi.js` chuyển trường nhập sang Label mà giữ field ID và điều kiện nhập. `musicPanelUpdater.js` gom các lần ghi theo queue và message, bỏ payload trùng, chỉ tạo lại bảng khi có lỗi UnknownMessage/404, kiểm tra thế hệ phát sau mọi lượt chờ. Trạng thái kết thúc chờ lượt ghi trước và kiểm tra guard để không ghi đè bài mới.
+
+`communitySetupPanels.js` dựng riêng bốn bảng khởi tạo mặc định, dùng chung cho setup/rebuild và cập nhật tin có sẵn. Các container có ID bền để adapter không sắp lại bố cục sau khi đọc từ Discord. Nội dung xác thực do quản trị viên viết vẫn được bảo toàn. Script refresh chỉ nhận mẫu mặc định đã biết, kiểm đúng guild/tác giả và so sánh ID, URL, style, trạng thái nút trước khi PATCH; giữ message ID, thumbnail, ảnh và attachment, không sửa mẫu tự thiết kế hoặc ticket category khác.
 
 Payload do người dùng tự thiết kế dùng `mimiUi: { preserve: true }`; tùy chọn này được xóa trước API. Preview container của bộ soạn thông báo được đánh dấu bằng `preserveUi()` để giữ màu/nội dung riêng trong khi khung điều khiển dùng theme mới. WeakSet chỉ tồn tại trong tiến trình: nếu đọc lại mẫu custom sau restart, caller cần chỉ định preserve lại. [Phạm vi giao diện](UI-COVERAGE.md), [gallery minh họa](UI-PREVIEW.html).
 
