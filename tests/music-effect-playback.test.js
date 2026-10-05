@@ -9,6 +9,7 @@ const os = require('node:os');
 const { EventEmitter } = require('node:events');
 const { PassThrough } = require('node:stream');
 const ytDlp = require('yt-dlp-exec');
+const { StartupAudioBuffer } = require('../musicBuffer');
 const source = fs.readFileSync(path.join(__dirname, '..', 'index.js'), 'utf8');
 
 // Chạy hàm phát thật trong VM, không import bootstrap hoặc kết nối Discord/nguồn nhạc.
@@ -67,7 +68,7 @@ async function fixture({ synchronousPlaying = false, demuxProbe, searchSoundclou
         return proc;
     };
     const context = vm.createContext({
-        musicQueues, PassThrough,
+        musicQueues, PassThrough, StartupAudioBuffer,
         fs: { existsSync: () => true },
         getFfmpegPath: () => '/mock/ffmpeg',
         getPlaybackSec: mq => (mq.seekBase || 0) + Math.floor((mq.currentResource?.playbackDuration || 0) / 1000),
@@ -95,7 +96,7 @@ async function fixture({ synchronousPlaying = false, demuxProbe, searchSoundclou
             NoSubscriberBehavior: { Pause: 'pause' },
             StreamType: { Raw: 'raw', Opus: 'opus' },
             joinVoiceChannel: () => connection,
-            createAudioPlayer: () => player,
+            createAudioPlayer: options => { player.behaviors = options.behaviors; return player; },
             entersState: async object => object,
             demuxProbe: demuxProbe || (async stream => ({ stream, type: 'opus' })),
             createAudioResource(stream, options) {
@@ -1013,6 +1014,29 @@ test('Thiếu binary hiệu ứng giữ nguyên audio, process, bài, queue và 
         assert.equal(f.mq.playGeneration, generation);
         assert.equal(f.mq.effect, 'none');
         assert.equal(f.processes.length, 1);
+    } finally { f.cleanup(); }
+});
+
+test('Luồng hiệu ứng dùng đệmPCM và skip dọn cả timer/bytes của lượt cũ', async () => {
+    const f = await fixture();
+    try {
+        await f.play({ effectKey: 'bassboost' });
+        assert.equal(f.player.behaviors.maxMissedFrames, 50, 'Không kết thúc ngay vì thiếu100ms frame');
+        const buffer = f.mq.currentPcmBuffer;
+        assert.ok(buffer instanceof StartupAudioBuffer);
+        assert.equal(buffer.readableHighWaterMark, 576000);
+        assert.equal(buffer.targetBytes, 96000);
+        assert.equal(f.mq.currentResource.playStream, buffer);
+        assert.ok(f.ffmpegs[0].args.includes('-filter_threads'));
+        buffer.write(Buffer.alloc(1000));
+        assert.ok(buffer.startTimer);
+        await f.play({ effectKey: 'none' });
+        assert.equal(buffer.destroyed, true);
+        assert.equal(buffer.startTimer, null);
+        assert.equal(buffer.startBytes, 0);
+        assert.equal(f.mq.currentPcmBuffer, null);
+        assert.equal(f.mq.currentBuffer.targetBytes, 32768);
+        assert.deepEqual(f.mq.queue, [f.queued]);
     } finally { f.cleanup(); }
 });
 

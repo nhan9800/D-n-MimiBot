@@ -11,6 +11,7 @@ const { buildPetEmbed, buildPetComponents } = require('../petUi');
 const { COMMUNITY_EMOJI } = require('../communityEmojis');
 const { CATALOG_ASSETS } = require('../emojiCatalog');
 const { buildStandardSetupPanel } = require('../communitySetupPanels');
+const { buildBlackjackPayload } = require('../blackjackUi');
 // ID giả chỉ dùng trong preview; ảnh đúng asset sản xuất, không đăng nhập Discord.
 for (const [index, item] of CATALOG_ASSETS.entries()) for (const key of item.keys) COMMUNITY_EMOJI[key] = `<${item.format === 'gif' ? 'a' : ''}:${item.name}:${100000000000000000n + BigInt(index)}>`;
 const emojiAssets = Object.fromEntries(CATALOG_ASSETS.map(item => [item.name, item.url]));
@@ -29,6 +30,11 @@ const user = { id: '123456789012345678', username: 'An', globalName: 'An Nguyễ
 const music = { track: { title: 'Một buổi chiều cùng Mimi', author: 'Nghệ sĩ cộng đồng', url: 'https://youtube.com/watch?v=demo', thumbnail: avatar, requestedBy: 'An', duration: 245 }, elapsed: 94, paused: false, volume: 0.8, loop: 'off', autoplay: true, stay247: false, effect: 'none', queue: [{ title: 'Bài tiếp theo' }], effects: { none: { label: 'Nguyên bản' }, bassboost: { label: 'Bassboost' }, lofi: { label: 'Chill (Lofi)' }, nightcore: { label: 'Nightcore' } } };
 add('Nhạc · đang phát', buildMusicDashboard(music));
 add('Nhạc · tạm dừng', buildMusicDashboard({ ...music, paused: true }));
+const blackjack = { userId: user.id, username: 'An Nguyễn', totalBet: 25000, doubled: false,
+    playerHand: [{ r: 'A', s: '♠' }, { r: '6', s: '♥' }], dealerHand: [{ r: '6', s: '♦' }, { r: 'K', s: '♣' }] };
+add('Xì dách · đến lượt bạn', buildBlackjackPayload(blackjack, { playerValue: 17, dealerValue: 16 }), 'Payload sản xuất; lá úp và điểm nhà cái được giấu.');
+add('Xì dách · thắng', buildBlackjackPayload({ ...blackjack, playerHand: [{ r: 'K', s: '♠' }, { r: '9', s: '♥' }], dealerHand: [{ r: '7', s: '♦' }, { r: 'K', s: '♣' }] }, { playerValue: 19, dealerValue: 17, reveal: true, resultText: '🎉 **THẮNG!** +**25.000 xu**\nSố dư: **153.500 xu**', resultColor: '#57F287' }));
+add('Xì dách · quắc', buildBlackjackPayload({ ...blackjack, playerHand: [{ r: 'K', s: '♠' }, { r: '6', s: '♥' }, { r: 'K', s: '♦' }] }, { playerValue: 26, dealerValue: 16, reveal: true, resultText: '💸 **QUẮC!** Bạn vượt quá 21 điểm.\nMất **25.000 xu**', resultColor: '#ED4245' }));
 add('Hồ sơ cộng đồng', buildProfilePayload({ user, data: { level: 12, balance: 128500, xp: 640, pet: { name: 'Mochi', level: 4 }, inventory: { nhan_cuoi: 1 }, cancau_uses: 16 }, xpNeeded: 1000, avatarUrl: avatar, rows: [row(button('profile_sell_item', 'Bán vật phẩm', 4), button('profile_shop', 'Mua sắm', 1))] }));
 add('Cấp độ máy chủ', buildRankPayload({ user, level: 7, currentExp: 810, neededExp: 1300, totalExp: 6480, rank: 3, guildName: 'Cộng đồng Mimi', avatarUrl: avatar }));
 const pet = { name: 'Mochi', type: 'dog', level: 4, xp: 120, hunger: 85, happiness: 70 };

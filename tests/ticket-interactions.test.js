@@ -36,7 +36,7 @@ function controlPanel({ v2 = true, creatorId = OWNER, staffId } = {}) {
 
 // Chạy toàn bộ dispatcher thật, mock Discord/storage để không đăng nhập bot,
 // gửi tin thật hoặc thay dữ liệu runtime của máy chủ.
-function fixture({ v2 = true, state = pending(), mode = 'button', panelOptions = {}, onUi, onDefer, closeInProgress = false, closeResult = { closed: true, archived: true, dmDelivered: true } } = {}) {
+function fixture({ v2 = true, state = pending(), mode = 'button', panelOptions = {}, roles, onUi, onDefer, closeInProgress = false, closeResult = { closed: true, archived: true, dmDelivered: true } } = {}) {
     const source = fs.readFileSync(path.join(__dirname, '../index.js'), 'utf8');
     const start = source.indexOf("client.on('interactionCreate', async interaction => {");
     const end = source.indexOf('// 🔑 ĐĂNG NHẬP BOT', start);
@@ -70,8 +70,8 @@ function fixture({ v2 = true, state = pending(), mode = 'button', panelOptions =
         }
     };
     const guild = {
-        id: GUILD, name: 'Cộng đồng Mimi', members: { me: { id: BOT } },
-        roles: { cache: new discord.Collection([['1535000000000000009', { id: '1535000000000000009', permissions: { has: () => true } }]]) },
+        id: GUILD, ownerId: STAFF, name: 'Cộng đồng Mimi', members: { me: { id: BOT } },
+        roles: { cache: new discord.Collection((roles || [{ id: '1535000000000000009', position: 1, permissions: { has: () => true } }]).map(role => [role.id, role])) },
         channels: { cache: new discord.Collection([[CATEGORY, { id: CATEGORY }], ...(mode === 'create' ? [] : [[CHANNEL, ticketChannel]])]),
             async create(options) { created.push(options); this.cache.set(CHANNEL, ticketChannel); events.push('channel:create'); return ticketChannel; }
         }
@@ -101,7 +101,8 @@ function fixture({ v2 = true, state = pending(), mode = 'button', panelOptions =
             return interaction;
         }
     };
-    vm.runInNewContext(source.slice(start, end), {
+    const roleHelper = source.match(/^function getAdminRoleMention\(guild\) \{[^]*?^\}/m)[0];
+    vm.runInNewContext(`${roleHelper}\n${source.slice(start, end)}`, {
         ...discord, readMessageEmbed, extractActionRows, normalizeTicketState, resolveTicketState, ticketStateFromPanel,
         client: { user: { id: BOT }, on(event, fn) { if (event === 'interactionCreate') handler = fn; } },
         getGuildConfig: () => config, getTicketState: channelId => records.get(channelId) || null,
@@ -119,7 +120,6 @@ function fixture({ v2 = true, state = pending(), mode = 'button', panelOptions =
         Date: class extends Date { static now() { return NOW; } },
         formatTimeVN: value => new Date(value).toISOString(),
         removeAccentsAndSpaces: value => value.normalize('NFD').replace(/[\u0300-\u036f]/g, '').replace(/[^a-z0-9]/gi, '').toLowerCase(),
-        getAdminRoleMention: () => 'Ban quản trị',
         closeAndArchiveTicket: async (channel, _guild, user, _config, creatorId) => { closed.push({ channelId: channel.id, closerId: user.id, creatorId }); return closeResult; },
         console: { error: (...args) => errors.push(args), warn() {}, log() {} }
     });
@@ -145,6 +145,36 @@ test('Tạo ticket lưu chủ phòng và hạn 24 giờ trước khi gửi panel
     const owner = f.created[0].permissionOverwrites.find(item => item.id === OWNER);
     for (const permission of [discord.PermissionFlagsBits.ViewChannel, discord.PermissionFlagsBits.SendMessages, discord.PermissionFlagsBits.ReadMessageHistory, discord.PermissionFlagsBits.AttachFiles]) assert.ok(bot.allow.includes(permission));
     assert.ok(owner.allow.includes(discord.PermissionFlagsBits.ReadMessageHistory));
+});
+
+test('Ticket mới thật sự cho phép ping đúng role BQT qua transportV2, bỏ role bot', async () => {
+    const staffRole = '1517081002269343854';
+    const f = fixture({ state: null, mode: 'create', roles: [
+        { id: '1535000000000000010', managed: true, position: 99, permissions: { has: () => true } },
+        { id: staffRole, managed: false, position: 2, permissions: { has: () => true } },
+        { id: '1535000000000000011', managed: false, position: 1, permissions: { has: () => false } }
+    ] });
+    await f.run('ticket_modal:Ticket', { modal: true });
+    const payload = normalizePayload(f.sends[0]);
+    assert.equal(payload.flags & 32768, 32768);
+    assert.deepEqual([...payload.allowedMentions.roles], [staffRole]);
+    assert.deepEqual([...payload.allowedMentions.users], []);
+    assert.deepEqual([...payload.allowedMentions.parse], []);
+    const text = []; require('../discordUi').walkComponents(payload.components, c => { if (c.type === 10) text.push(c.content); });
+    assert.match(text.join('\n'), new RegExp(`<@&${staffRole}>`));
+    assert.match(text.join('\n'), /chờ BQT xác nhận/);
+    assert.doesNotMatch(text.join('\n'), /<@&1535000000000000010>|@everyone|@here/);
+    assert.equal(f.sends.filter(p => p.allowedMentions?.roles?.length).length, 1, 'Chỉ ping khi tạo ticket');
+});
+
+test('Guild không có role BQT dùng owner cụ thể, không ping everyone hoặc nội dung khách', async () => {
+    const f = fixture({ state: null, mode: 'create', roles: [] });
+    await f.run('ticket_modal:Ticket', { modal: true });
+    const payload = normalizePayload(f.sends[0]);
+    assert.deepEqual([...payload.allowedMentions.roles], []);
+    assert.deepEqual([...payload.allowedMentions.users], [STAFF]);
+    assert.deepEqual([...payload.allowedMentions.parse], []);
+    assert.equal(payload.allowedMentions.repliedUser, false);
 });
 
 test('Nhận ca trong lúc tạo panel đang await không bị ghi đè thành pending hoặc đặt lại hạn 24 giờ', async () => {

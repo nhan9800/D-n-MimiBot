@@ -27,12 +27,14 @@ fs.watchFile(triggerFile, { interval: 2000 }, (curr, prev) => {
 
 const https = require('https');
 const crypto = require('crypto');
-const { PassThrough, Readable, pipeline: streamPipeline } = require('stream');
+const { Readable, pipeline: streamPipeline } = require('stream');
 const { spawn } = require('child_process');
 const { colors, buildBaseEmbed, generateProgressBar } = require('./uiBuilder');
 const { normalizePayload, readMessageEmbed, extractActionRows, installDiscordUi, preserveUi } = require('./discordUi');
 const { buildMusicDashboard, buildHelpOverview, buildHelpPage } = require('./communityPanels');
 const { buildStandardSetupPanel, isDefaultVerifyMessage } = require('./communitySetupPanels');
+const { buildBlackjackPayload } = require('./blackjackUi');
+const { StartupAudioBuffer } = require('./musicBuffer');
 const { buildProfilePayload, buildRankPayload } = require('./profileCard');
 const { applyPetDecayRealtime, buildPetEmbed, buildPetComponents, createPetPanelUpdater } = require('./petUi');
 const petPanels = createPetPanelUpdater({ getUserData });
@@ -465,14 +467,14 @@ function getGuildConfig(guildId) {
 }
 
 function getAdminRoleMention(guild) {
-    if (!guild || !guild.roles) return '@everyone';
+    if (!guild?.roles?.cache) return 'Ban quản trị';
     
     const adminRoles = guild.roles.cache.filter(role => 
-        role.id !== guild.id && 
+        role.id !== guild.id && !role.managed && !role.tags?.botId &&
         role.permissions.has(PermissionFlagsBits.ManageChannels)
     );
     
-    if (adminRoles.size === 0) return '@everyone';
+    if (adminRoles.size === 0) return guild.ownerId ? `<@${guild.ownerId}>` : 'Ban quản trị';
 
     const top3Roles = Array.from(adminRoles.values())
         .sort((a, b) => b.position - a.position)
@@ -1104,11 +1106,6 @@ function bjDraw(deck) {
     return deck.pop();
 }
 
-function bjCardLabel(card) {
-    // Chỉ hạng bài là mã; chất bài nằm ngoài để giao diện thay bằng emoji ứng dụng.
-    return `\`${card.r}\`${card.s}`;
-}
-
 function bjHandValue(hand) {
     let total = 0;
     let aces = 0;
@@ -1122,44 +1119,17 @@ function bjHandValue(hand) {
 }
 
 function bjIsXiban(hand) {
-    return hand.length === 2 && hand[0].rank === 'A' && hand[1].rank === 'A';
+    return hand.length === 2 && hand[0].r === 'A' && hand[1].r === 'A';
 }
 
 function bjIsXilat(hand) {
     return hand.length === 2 && bjHandValue(hand) === 21;
 }
 
-function bjBuildEmbed(game, { reveal = false, resultText = null, resultColor = null } = {}) {
-    const playerVal = bjHandValue(game.playerHand);
-    const dealerVal = bjHandValue(game.dealerHand);
-    const playerText = game.playerHand.map(bjCardLabel).join(' ');
-    const dealerText = reveal
-        ? game.dealerHand.map(bjCardLabel).join(' ')
-        : `${bjCardLabel(game.dealerHand[0])} ${emojiForKey('cardback') || '[Úp]'}`;
-
-    const embed = new EmbedBuilder()
-        .setColor(resultColor || '#5865F2')
-        .setTitle('🃏 Blackjack · Bàn bài của bạn')
-        .setDescription(resultText || 'Chọn **Rút bài** hoặc **Dừng** để giữ điểm hiện tại.')
-        .addFields(
-            { name: `🧑 ${game.username} · ${playerVal} điểm`, value: playerText, inline: false },
-            { name: `🤖 Nhà cái${reveal ? ` · ${dealerVal} điểm` : ' · Một lá đang úp'}`, value: dealerText, inline: false },
-            { name: '💰 Tiền trên bàn', value: `**${game.totalBet.toLocaleString('vi-VN')} xu**${game.doubled ? ' · Đã nhân đôi cược' : ''}`, inline: false },
-        )
-        .setFooter({ text: reveal ? 'Ván bài đã kết thúc · Dùng lệnh Blackjack để chơi tiếp' : 'Nhân đôi cược chỉ có ở lượt đầu · Nút dành cho người mở ván' });
-    return embed;
-}
-
-function bjBuildRow(game) {
-    const canDouble = game.playerHand.length === 2 && !game.doubled;
-    const row = new ActionRowBuilder().addComponents(
-        new ButtonBuilder().setCustomId(`bj_hit_${game.userId}`).setLabel('🃏 Rút bài').setStyle(ButtonStyle.Primary),
-        new ButtonBuilder().setCustomId(`bj_stand_${game.userId}`).setLabel('✋ Dừng').setStyle(ButtonStyle.Secondary),
-    );
-    if (canDouble) {
-        row.addComponents(new ButtonBuilder().setCustomId(`bj_double_${game.userId}`).setLabel('💰 Nhân Đôi Cược').setStyle(ButtonStyle.Success));
-    }
-    return [row];
+function bjBuildPayload(game, options = {}) {
+    return buildBlackjackPayload(game, {
+        playerValue: bjHandValue(game.playerHand), dealerValue: bjHandValue(game.dealerHand), ...options
+    });
 }
 
 // Bot rút bài theo luật chuẩn: rút tới khi đạt tối thiểu 17 điểm, dừng ở mọi mức 17
@@ -1240,8 +1210,7 @@ async function bjEndGame(game, message, outcomeOverride = null) {
     saveEconomy();
     resultText += `\nSố dư: **${userData.balance.toLocaleString()} xu**`;
 
-    const embed = bjBuildEmbed(game, { reveal: true, resultText, resultColor });
-    return message.edit({ embeds: [embed], components: [] }).catch(() => null);
+    return message.edit(bjBuildPayload(game, { reveal: true, resultText, resultColor })).catch(() => null);
 }
 
 // Hàm kiểm tra và phân giải số tiền cược hợp lệ (dùng chung toàn bot)
@@ -4241,7 +4210,7 @@ function getFfmpegPath() {
 // Trả về tiến trình ffmpeg (có .stdout là luồng PCM). Ném lỗi nếu spawn thất bại.
 function spawnFfmpegAudio(inputStream, { pipeSeekSec = 0, effectKey = 'none' } = {}) {
     const args = [];
-    args.push('-i', 'pipe:0');
+    args.push('-threads', '1', '-filter_threads', '1', '-i', 'pipe:0');
     // stdin không seek được: cắt phần đầu trong filtergraph, TRƯỚC bộ lọc đổi tốc độ.
     // -ss output cắt sau hiệu ứng nên sẽ lệch mốc với Nightcore/Sped. Chuẩn hoá timestamp
     // đầu vào và phần được giữ về 0; nguồn section không cắt thêm một lần.
@@ -4572,7 +4541,11 @@ function killCurrentProcess(mq) {
         try { mq.currentFfmpeg.kill('SIGKILL'); } catch { /* đã thoát rồi thì bỏ qua */ }
     }
     mq.currentFfmpeg = null;
-    // Hủy bộ đệm PassThrough của bài cũ (nếu có) để giải phóng bộ nhớ ngay
+    if (mq.currentPcmBuffer) {
+        mq.currentPcmBuffer.destroy();
+        mq.currentPcmBuffer = null;
+    }
+    // Hủy bộ đệm nguồn của bài cũ (nếu có) để giải phóng bộ nhớ ngay
     if (mq?.currentBuffer) {
         try { mq.currentBuffer.destroy(); } catch { /* đã hủy rồi thì bỏ qua */ }
         mq.currentBuffer = null;
@@ -5153,11 +5126,11 @@ async function playNextTrack(guildId, opts = {}) {
 
         mq.currentProcess = ytdlProcess;
 
-        // Chèn bộ đệm PassThrough (~4MB) giữa yt-dlp và AudioPlayer.
+        // Chèn bộ đệm nguồn (~4MB) giữa yt-dlp và AudioPlayer.
         // yt-dlp tải nhanh và đổ dữ liệu vào đây; player đọc ra với nhịp ổn định.
         // Khi mạng/host chậm 1 nhịp, player vẫn còn dữ liệu trong buffer để phát tiếp,
         // tránh hiện tượng "đói stream" gây giật/văng ngang.
-        const audioBuffer = new PassThrough({ highWaterMark: 1 << 22 });
+        const audioBuffer = new StartupAudioBuffer({ highWaterMark: 1 << 22, prebufferBytes: 32 << 10, maxWaitMs: 1500 });
         ytdlProcess.stdout.pipe(audioBuffer);
         // Nếu stdout lỗi thì hủy buffer để không treo tiến trình
         ytdlProcess.stdout.on('error', () => audioBuffer.destroy());
@@ -5193,7 +5166,14 @@ async function playNextTrack(guildId, opts = {}) {
                     try { ytdlProcess.kill('SIGKILL'); } catch { /* bỏ qua */ }
                     return;
                 }
-                resource = voiceLib.createAudioResource(ff.stdout, { inputType: voiceLib.StreamType.Raw, inlineVolume: true });
+                // PCM48k/stereo/s16 =192KB/s. Nạp trước0.5giây và giữ đệm3giây
+                // để nguồn/host chậm một nhịp không làm encoder lập tức đói frame.
+                const pcmBuffer = new StartupAudioBuffer({ highWaterMark: 192000 * 3, prebufferBytes: 96000, maxWaitMs: 1000 });
+                mq.currentPcmBuffer = pcmBuffer;
+                ff.stdout.on('error', error => pcmBuffer.destroy(error));
+                pcmBuffer.on('error', error => failPlayback((error.message || 'Lỗi bộ đệm âm thanh').slice(0, 300)));
+                ff.stdout.pipe(pcmBuffer);
+                resource = voiceLib.createAudioResource(pcmBuffer, { inputType: voiceLib.StreamType.Raw, inlineVolume: true });
             }
         } else {
             // ⚡ ĐƯỜNG OPUS PASSTHROUGH (mặc định, nhẹ CPU): demuxProbe nhận đúng loại rồi truyền thẳng.
@@ -5209,8 +5189,7 @@ async function playNextTrack(guildId, opts = {}) {
                 try { ytdlProcess.kill('SIGKILL'); } catch { /* bỏ qua */ }
                 return;
             }
-            // 🔊 LUÔN bật inlineVolume để nút Tăng/Giảm âm CHỈNH TỨC THÌ (setVolume) mà KHÔNG phải
-            // phát lại bài từ đầu. Đánh đổi: inlineVolume tốn CPU hơn truyền thẳng; chấp nhận để chỉnh âm mượt.
+            // Opus passthrough giữ CPU thấp; không giải mã/mã hóa lại khi không có hiệu ứng.
             resource = voiceLib.createAudioResource(probe.stream, { inputType: probe.type, inlineVolume: false });
         }
         if (!isCurrentPlayback()) { try { resource.playStream?.destroy(); } catch {} return; }
@@ -5388,7 +5367,7 @@ async function getOrCreateMusicQueue(guild, voiceChannel, textChannel) {
         selfDeaf: true
     });
 
-    const player = voiceLib.createAudioPlayer({ behaviors: { noSubscriber: voiceLib.NoSubscriberBehavior.Pause } });
+    const player = voiceLib.createAudioPlayer({ behaviors: { noSubscriber: voiceLib.NoSubscriberBehavior.Pause, maxMissedFrames: 50 } });
     connection.subscribe(player);
 
     // Âm lượng mặc định lấy từ cấu hình server (nếu admin đã đặt qua /dj amluong), mặc định 100%.
@@ -5400,7 +5379,7 @@ async function getOrCreateMusicQueue(guild, voiceChannel, textChannel) {
         connection, player,
         voiceChannelId: voiceChannel.id,
         textChannel,
-        queue: [], current: null, currentResource: null, currentProcess: null, currentBuffer: null,
+        queue: [], current: null, currentResource: null, currentProcess: null, currentBuffer: null, currentPcmBuffer: null,
         volume: startVolume, loop: 'off', // âm lượng mặc định theo cấu hình server (xem playNextTrack)
         pendingReplay: false,   // cờ báo lần playNextTrack tới là "phát lại để đổi âm lượng", không phải chuyển bài
         nowPlayingMessage: null, idleTimeout: null,
@@ -9640,11 +9619,7 @@ async function saveUserBackground(uId, url) {
 
         let sent;
         try {
-            sent = await message.reply({
-                embeds: [bjBuildEmbed(game)],
-                components: instantEnd ? [] : bjBuildRow(game),
-                allowedMentions: { repliedUser: false }
-            });
+            sent = await message.reply(bjBuildPayload(game, { interactive: !instantEnd }));
         } catch (err) {
             blackjackGames.delete(userId);
             userData.balance += bet;
@@ -15417,7 +15392,7 @@ if (commandName === 'changelog') {
                     return bjEndGame(game, interaction.message, null);
                 }
 
-                await interaction.update({ embeds: [bjBuildEmbed(game)], components: bjBuildRow(game) }).catch(() => null);
+                await interaction.update(bjBuildPayload(game)).catch(() => null);
                 game.timeoutHandle = setTimeout(() => { bjEndGame(game, interaction.message).catch(() => null); }, 60_000);
                 return;
             }
@@ -16334,7 +16309,14 @@ if (commandName === 'changelog') {
             new ButtonBuilder().setCustomId('close_ticket_btn').setLabel('🔒 Đóng Ticket').setStyle(ButtonStyle.Danger)
         );
 
-        const ticketPanel = await ticketChannel.send({ content: `🔔 **Yêu cầu mới!** ${user} | Ban Quản Trị: ${getAdminRoleMention(guild)}`, embeds: [insideEmbed], components: [ticketRow] });
+        const staffMention = getAdminRoleMention(guild);
+        const staffRoles = [...staffMention.matchAll(/<@&(\d+)>/g)].map(match => match[1]);
+        const staffUsers = [...staffMention.matchAll(/<@(\d+)>/g)].map(match => match[1]);
+        const ticketPanel = await ticketChannel.send({
+            content: `🔔 **Yêu cầu mới — chờ BQT xác nhận**\n${staffMention}, vui lòng **Chấp nhận** để tiếp nhận đơn của ${user}.`,
+            embeds: [insideEmbed], components: [ticketRow],
+            allowedMentions: { parse: [], roles: staffRoles, users: staffUsers, repliedUser: false }
+        });
         const ticketState = saveTicketState(ticketChannel.id, guild.id, { ...(getTicketState(ticketChannel.id) || initialTicketState), panelMessageId: ticketPanel.id });
         if (!ticketCloseJobs.has(ticketChannel.id)) scheduleTicketClose(ticketChannel, guild, gConfig, ticketState);
         if (ticketState.status !== 'claimed') await ticketChannel.send({ content: `⚠️ **THÔNG BÁO CHỜ DUYỆT:** Tự động xóa sau **<t:${expireTimestamp}:R>** nếu không có admin nhận.` }).catch(() => null);

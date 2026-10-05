@@ -122,9 +122,11 @@ test('Emoji chưa nạp không dùng Unicode reaction; vẫn đặt trực tiế
     assert.equal(direct.data.balance, 5300);
 });
 
-test('Blackjack giữ rank trong code nhưng suit ngoài code để custom renderer xử lý', () => {
-    const fn = source.match(/function bjCardLabel\(card\) \{[\s\S]*?\n\}/)?.[0];
-    assert.ok(fn);
-    const label = vm.runInNewContext(`${fn}; bjCardLabel`);
-    assert.equal(label({ r: 'A', s: '♠' }), '`A`♠');
+test('Blackjack thiếu emoji vẫn đọc được hạng và tên chất, không dùng Unicode thay thế', () => {
+    const { cardLabel } = require('../blackjackUi');
+    const { COMMUNITY_EMOJI } = require('../communityEmojis');
+    const before = COMMUNITY_EMOJI.spade;
+    COMMUNITY_EMOJI.spade = '';
+    try { assert.equal(cardLabel({ r: 'A', s: '♠' }), '**A** Bích'); }
+    finally { COMMUNITY_EMOJI.spade = before; }
 });

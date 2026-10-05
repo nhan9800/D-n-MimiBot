@@ -86,6 +86,8 @@ jobs:
           put uiBuilder.js
           put communityPanels.js
           put communitySetupPanels.js
+          put blackjackUi.js
+          put musicBuffer.js
           put modalUi.js
           put profileCard.js
           put petUi.js

@@ -1,6 +1,8 @@
 # Phạm vi giao diện Mimi 1.4.0
 
-Đợt catalog 04/10/2026: toàn bộ182semantickey có artwork Emoji.gg g3 (122ảnh nguồn); metadata/giấy phép/hash tại assets/emojis/catalog.json. Preview31mẫu dùng đúng URL artwork mới, gồm4panel mặc định từ communitySetupPanels.js. Modal label/title/placeholder và slash choice chỉ hỗ trợ chữ theo Discord API; nội dung/emoji tự thiết kế của thành viên được bảo toàn. Artwork cũ vẫn giữ ID để reaction và tin đã gửi hoạt động.
+Đợt catalog 04/10/2026: toàn bộ182semantickey có artwork Emoji.gg g3 (122ảnh nguồn); metadata/giấy phép/hash tại assets/emojis/catalog.json. Preview34mẫu dùng đúng URL artwork mới, gồm4panel mặc định từ communitySetupPanels.js và3 trạng thái bàn xì dách từ blackjackUi.js. Modal label/title/placeholder và slash choice chỉ hỗ trợ chữ theo Discord API; nội dung/emoji tự thiết kế của thành viên được bảo toàn. Artwork cũ vẫn giữ ID để reaction và tin đã gửi hoạt động.
+
+Cập nhật 05/10/2026: xì dách có bàn riêng màu xanh, chia bài người chơi/nhà cái, chất bài và nút custom, giấu lá thứ hai và tổng điểm nhà cái đến khi dừng. Kết quả lật bài, ghi lời/lỗ và bỏ nút. Ticket mới ping tối đa ba role quản trị có quyền quản lý kênh, loại role bot; danh sách allowedMentions tường minh. Nếu không có role phù hợp, chỉ ping chủ server. Các tin ticket tiếp theo không tự ping lại.
 
 Rà soát mã nguồn ngày 02/10/2026 cho bot cộng đồng trong repository này. Website Next.js ở `Website-Mini-Bot` là dự án riêng. Tài liệu ghi các bề mặt đã tìm thấy, cách giao diện mới được áp dụng và phần đã kiểm chứng bằng dữ liệu giả hoặc máy chủ loopback. Không đăng nhập Discord, gửi thông báo tới server hay triển khai hosting trong đợt kiểm tra này.
 
@@ -30,7 +32,7 @@ Các lệnh vẫn có `new EmbedBuilder()` trong handler vì đó là đầu và
 | Ví, kho, shop và kết hôn | `midaily`, `mishop`, `mikho`, `mibando`, mua vật phẩm, kết hôn/ly hôn, xác nhận giao dịch | Thẻ chia số dư, vật phẩm và kết quả thao tác. Không đổi giá, ownership, số lượt hay điều kiện giao dịch chỉ để làm đẹp UI. |
 | Thú cưng | `buildPetEmbed`, `buildPetComponents`, nhận nuôi/chăm sóc/đổi tên | Tên, cấp, sức khỏe và nút thao tác giữ dữ liệu; biểu mẫu đổi tên được chuyển sang Label. |
 | Nông trại và hoạt động tìm đồ | `buildFarmPayload`, trồng/tưới/thu hoạch, câu cá, tìm đồ/đào cổ vật | Hạng mục, số lượng, thời gian và phần thưởng giữ nguyên; bảng hành động và báo lỗi đều được chuẩn hóa. |
-| Minigame | `bjBuildEmbed`, `buildMineEmbed`, `buildMineGridRows`, `buildHiLoEmbed`, `buildHiLoControls`, tài xỉu/đoán số/cancel | Giữ bàn chơi, nút và kết quả, cả trạng thái kết thúc/hủy/thiếu tiền/cấm chơi. Không thay emoji có ý nghĩa trò chơi bằng trang trí không tương đương. |
+| Minigame | `bjBuildPayload`, `blackjackUi.buildBlackjackPayload`, `buildMineEmbed`, `buildMineGridRows`, `buildHiLoEmbed`, `buildHiLoControls`, tài xỉu/đoán số/cancel | Xì dách có bàn riêng; giữ custom ID, số cược, bài ẩn và payout. Giữ bàn chơi, nút và kết quả các trò còn lại, cả trạng thái kết thúc/hủy/thiếu tiền/cấm chơi. Không thay emoji có ý nghĩa trò chơi bằng trang trí không tương đương. |
 | Giveaway và sự kiện | `updateGiveawayEmbed`, tạo/kết thúc/quay lại giveaway, bảng tham gia và công bố | Giữ phần thưởng, mốc giờ, số người thắng, ID bản tin và mention người thắng có chủ đích. |
 | Ticket | `rebuildGuildPanels`, `/setupticket`, `/addnutticket`, `create_ticket_btn:*`, các nút tiếp nhận/đóng/mở lại | Panel mặc định theo Mimi; panel do admin soạn được bảo toàn. Footer lưu người tạo/người xử lý và các nút phải đọc được sau restart. |
 | Xác thực | `/setupverify`, bảng xác thực, trạng thái nhận role và lỗi quyền | Hiển thị đúng luồng xác thực hiện hành; giữ role đích, phản hồi riêng và điều kiện của từng server. |

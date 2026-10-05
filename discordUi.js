@@ -19,7 +19,7 @@ const componentThemes = new WeakMap();
 const sourceHints = new WeakMap();
 // ID bền qua JSON/Discord cache; không dùng các slot 10000 của legacy parser.
 const CURATED_SURFACES = { 9101: 'music', 9102: 'help', 9103: 'profile', 9104: 'farm', 9105: 'game',
-    9106: 'setup', 9107: 'ticket', 9108: 'voice', 9109: 'attendance' };
+    9106: 'setup', 9107: 'ticket', 9108: 'voice', 9109: 'attendance', 9110: 'blackjack' };
 
 // Metadata riêng của bot, không thêm thuộc tính lạ vào EmbedBuilder/API.
 function markUiSurface(value, hints) {
@@ -99,6 +99,7 @@ const SURFACES = {
     profile: ['user', 'HỒ SƠ THÀNH VIÊN', 0xF59E0B, 'Hành trình của bạn'],
     economy: ['coin', 'VÍ & VẬT PHẨM', 0xFBBF24, 'Tài sản & giao dịch'],
     game: ['game', 'BÀN CHƠI', 0xA78BFA, 'Ván chơi hiện tại'],
+    blackjack: ['cardback', 'BÀN XÌ DÁCH', 0x10B981, 'Bài trên bàn'],
     pet: ['pet', 'NGƯỜI BẠN NHỎ', 0xFB7185, 'Chăm sóc & trưởng thành'],
     farm: ['farm', 'NHẬT KÝ NÔNG TRẠI', 0x84CC16, 'Khu vườn của bạn'],
     ticket: ['ticket', 'QUẦY HỖ TRỢ', 0x60A5FA, 'Thông tin tiếp nhận'],

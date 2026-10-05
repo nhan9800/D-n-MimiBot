@@ -7,6 +7,7 @@ const path = require('node:path');
 const vm = require('node:vm');
 const { EventEmitter } = require('node:events');
 const { PassThrough } = require('node:stream');
+const { StartupAudioBuffer } = require('../musicBuffer');
 const ytDlp = require('yt-dlp-exec');
 const { validateMusicUrl } = require('../musicSources');
 const { createMusicPanelWriter } = require('../musicPanelUpdater');
@@ -102,7 +103,7 @@ test('Phát YouTube, SoundCloud và tua bài dùng argv hợp lệ trước khi 
         const process = { stdout: new PassThrough(), stderr: new PassThrough(),
             then: sourceCompletion.then.bind(sourceCompletion), kill() {} };
         Object.assign(f.context, {
-            PassThrough, validateMusicUrl, getCookieFilePath: () => null,
+            PassThrough, StartupAudioBuffer, validateMusicUrl, getCookieFilePath: () => null,
             persistSession() {}, getFfmpegPath: () => '/mock/ffmpeg', fs: { existsSync: () => true },
             spawnFfmpegAudio: () => Object.assign(new EventEmitter(), { stdout: new PassThrough(), stderr: new PassThrough(), kill() {} }),
             YT_DOWNLOAD_CLIENT_FALLBACKS: ['youtube:player_client=android,ios'],

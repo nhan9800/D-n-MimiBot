@@ -1,6 +1,16 @@
 # Bộ nhớ dự án Mimi
 
-Checkpoint 04/10/2026, Asia/Saigon. Đọc cùng WORKSPACE.md và AGENTS.md khi tiếp tục. Kết quả lịch sử không thay thế xác minh mới; không lưu bí mật hoặc dữ liệu runtime.
+Checkpoint 05/10/2026, Asia/Saigon. Đọc cùng WORKSPACE.md và AGENTS.md khi tiếp tục. Kết quả lịch sử không thay thế xác minh mới; không lưu bí mật hoặc dữ liệu runtime.
+
+## Đang hoàn thiện — ping BQT, bàn xì dách và giảm giật nhạc, 05/10/2026
+
+- Yêu cầu mới: ticket tạo phải tag BQT để nhận đơn; làm đẹp xì dách; nhạc thỉnh thoảng giật. Fresh health trước sửa vẫn commit088f282, live/ready200 và Discordtrue, custom/artwork182/182. Console mới có nguồn nhạc `Connection reset by peer`, retry YouTube và sectionFFmpeg-11 chuyển sang pipe. Không kết luận mọi lần giật đều do CPU hay hiệu ứng.
+- `index.js`: ticket đầu khai báo allowedMentions với role quản trị có ManageChannels, tối đa3 role, bỏ managed/bot role; không còn bị lớp UI mặc định chặn ping. Nếu không có role phù hợp, chỉ mention chủ server; không ping everyone. Giữ nhận đơn/24giờ/transcript và dữ liệu cũ.
+- `blackjackUi.js`: bàn V2 riêng màu xanh, chia bài/điểm/cược, giấu bài và điểm nhà cái, custom suit/control từ catalog g3; kết quả lật bài, bỏ nút. Giữ customID/payout. Sửa `bjIsXiban` đọc `.r` theo deck thật để hai Át được nhận đúng. Thêm surface9110, whitelist SFTP và runtime fingerprint.
+- `musicBuffer.js`: Transform nạp trước32KB nguồn, PCM0.5giây với HWM3giây, deadline khi nguồn chậm và backpressure; destroy dọn timer/byte. FFmpeg giới hạn decoder/filter thread, player chịu thiếu50frame ngắn trước kết thúc. Giữ Opus passthrough, coordinator hiệu ứng/retry thế hệ cũ. Không thêm dependency.
+- Local đã đạt362/362 test, cú pháp84JS, audit0, diffcheck đạt. Test gồm stream thật/backpressure/EOF/destroy, handler ticket tạo thật qua VM với transportV2, bài ẩn/nút/payout xì bàn, pipeline PCM và giữ các regression hiệu ứng. Preview34 mẫu; browser đã kiểm3 trạng thái xì dách, không thiếu ảnh, active3nút/kết quả0nút, bài và điểm đúng. Tab cũ bị kẹt trang lỗi dataURL sau server4186 dừng; đã chạy lại loopback và tab mới cùng browser nạp đúng preview.
+- **Chưa commit/push/deploy bản này**; hosting vẫn088f282 trước sửa. Chưa nghe audio hoặc xác minh ping/nút bằng Discord client thật. Bằng chứng test ngoàiGit: `ticket-blackjack-music-full-2026-10-05.log`, auditJSON tương ứng trong MimiBot-backups; ảnh preview trong `bot-ticket-blackjack-music-2026-10-05/`.
+- Tiếp theo: chốt visualQA/diff, commitpushmain, chờCI, restart VibeHost sau CI; đối chiếu healthcommit/ready và lưu receipt. Cập nhật checkpoint đã deploy, không restart lần nữa chỉ vì docs. Website/cPanel vẫn chờ riêng.
 
 ## Checkpoint đã triển khai — lỗi tự tắt hiệu ứng, 04/10/2026 lúc 23:17 VN
 
