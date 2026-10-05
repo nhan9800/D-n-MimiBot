@@ -2,6 +2,15 @@
 
 Checkpoint 05/10/2026, Asia/Saigon. Đọc cùng WORKSPACE.md và AGENTS.md khi tiếp tục. Kết quả lịch sử không thay thế xác minh mới; không lưu bí mật hoặc dữ liệu runtime.
 
+## Đang triển khai — giật khi bật Bassboost, 05/10/2026 lúc 19:28 VN
+
+- User xác nhận “boosrbass bị ấy”, ưu tiên Bassboost. Browser VibeHost mới cho thấy đang9a72d70, uptime1h50m/CPU7.73%/RAM179MiB; console cósectionFFmpeg-11 ở guild1425088892494811248 rồipipe fallback. Không coi lỗi guild khác hoặcCPU trung bình là nguyên nhân chắc chắn. Health lần đầu timeout7s, không có bằng chứng bot tắt.
+- Đo FFmpeg6.1.1 thật với nguồn tổng hợp8giây theo tốc độ thực: filter cũ `bass=g=15,dynaudnorm=f=200` firstbyte6457ms/maxstdoutgap214ms; filter mới firstbyte28ms/maxgap48ms. Đều1536000byte, khôngclip100%. Đo OpusScript thật với burstPCM12giây/chunk64KB: chặn loop154.3ms→1.61ms khi chia7680byte/lượt và nhường eventloop; đủ600packet. Đây là đo local/synthetic, không phải audioDiscord/CPUhosting.
+- Đã sửa `index.js`: Bassboost8dB/110Hz với limiter ngắn0.63/headroom150%, bỏdynaudnorm chờ lâu. `musicBuffer.js`: PcmFrameChunker chia2frame/lượt, backpressure, EOFgiữbyte vàstopcallbackđúng1lần; monitorresource ghi codec, underrun vàlateReads tối đa1dòng/30s khi có lỗi. Không tínhpause/buffering/EOF/generationcũ; timer/listenerđược dọn. Giữvolume/seek/queue/quyềnDJ.
+- Đã đạt368/368test, syntax84JS, audit0, diffcheck. Tests thêm chunk/yield/slowconsumer/EOF/destroy kể cảstopngaytrongconsumer, monitorpacket/counters/pause/cleanup. Whitelist/fingerprint đã cómusicBuffer.js, không thêmmodule/dependency/runtime schema. Chưa push/deploy bản Bassboost này; đangchốtdiff/commitCI trước restart.
+- Bằng chứng ngoàiGit `C:/Users/ivano/Downloads/MimiBot-backups/bassboost-stutter-2026-10-05/`: filter-probe.cjs/json, encoder-probe.cjs/json, tests.log368,audit.json0. Binary local node_modules/ffmpeg-static có PE bị cắt80599568byte (sectioncuối đòi82797568), không chạy; đã tải bản82797568byte từ đúng releaseb6.1.1 của dependency vào backup để đo, không thay binary host hoặc sourceGit. Tài liệu MUSIC-DIAGNOSTICS.md giải thích giới hạn và log.
+- Tiếp theo: push main/chờ CI/restart, fresh console/healthđúngcommit, đọc logMusicAudio từ phiên khôi phục; lưu receipt/ảnh rồi cập nhật checkpoint hoàn tất. Chưa ngheBassboost bằng Discordclientthật; không kết luận mọi lần giật đã hết.
+
 ## Đã triển khai — ping BQT, bàn xì dách và bộ đệm nhạc, 05/10/2026 lúc 17:21 VN
 
 - Yêu cầu mới: ticket tạo phải tag BQT để nhận đơn; làm đẹp xì dách; nhạc thỉnh thoảng giật. Fresh health trước sửa vẫn commit088f282, live/ready200 và Discordtrue, custom/artwork182/182. Console mới có nguồn nhạc `Connection reset by peer`, retry YouTube và sectionFFmpeg-11 chuyển sang pipe. Không kết luận mọi lần giật đều do CPU hay hiệu ứng.

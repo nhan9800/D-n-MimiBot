@@ -34,7 +34,7 @@ const { normalizePayload, readMessageEmbed, extractActionRows, installDiscordUi,
 const { buildMusicDashboard, buildHelpOverview, buildHelpPage } = require('./communityPanels');
 const { buildStandardSetupPanel, isDefaultVerifyMessage } = require('./communitySetupPanels');
 const { buildBlackjackPayload } = require('./blackjackUi');
-const { StartupAudioBuffer } = require('./musicBuffer');
+const { StartupAudioBuffer, PcmFrameChunker, monitorMusicResource } = require('./musicBuffer');
 const { buildProfilePayload, buildRankPayload } = require('./profileCard');
 const { applyPetDecayRealtime, buildPetEmbed, buildPetComponents, createPetPanelUpdater } = require('./petUi');
 const petPanels = createPetPanelUpdater({ getUserData });
@@ -4188,7 +4188,9 @@ const levelExpCooldown = new Map();
 
 const AUDIO_EFFECTS = {
     none:      { label: 'Tắt',            af: null },
-    bassboost: { label: 'Bassboost',      af: 'bass=g=15,dynaudnorm=f=200' },
+    // Limiter ngắn, không dùng dynaudnorm phải chờ ~6giây audio tương lai.
+    // Chừa headroom cho nút âm lượng tối đa150%, tránh bass lớn bị clip.
+    bassboost: { label: 'Bassboost',      af: 'bass=g=8:f=110:w=0.6,alimiter=limit=0.63:attack=5:release=80:level=0:latency=1' },
     nightcore: { label: 'Nightcore',      af: 'asetrate=48000*1.25,aresample=48000,atempo=1.0' },
     lofi:      { label: 'Chill (Lofi)',   af: 'atempo=0.9,bass=g=5,treble=g=-3,aresample=48000' },
     vaporwave: { label: 'Vaporwave',      af: 'asetrate=48000*0.85,aresample=48000,atempo=1.0' },
@@ -4526,6 +4528,8 @@ function startProgressUpdater(guildId) {
 
 // Dừng tiến trình yt-dlp con hiện tại (nếu có) để tránh rò rỉ tiến trình khi skip/stop/rời kênh
 function killCurrentProcess(mq) {
+    mq.clearAudioDiagnostics?.();
+    mq.clearAudioDiagnostics = null;
     mq.clearPlaybackTransition?.();
     mq.clearPlaybackEnd?.();
     mq.onPlaybackFailure = null;
@@ -4544,6 +4548,10 @@ function killCurrentProcess(mq) {
     if (mq.currentPcmBuffer) {
         mq.currentPcmBuffer.destroy();
         mq.currentPcmBuffer = null;
+    }
+    if (mq.currentPcmChunker) {
+        mq.currentPcmChunker.destroy();
+        mq.currentPcmChunker = null;
     }
     // Hủy bộ đệm nguồn của bài cũ (nếu có) để giải phóng bộ nhớ ngay
     if (mq?.currentBuffer) {
@@ -5173,7 +5181,11 @@ async function playNextTrack(guildId, opts = {}) {
                 ff.stdout.on('error', error => pcmBuffer.destroy(error));
                 pcmBuffer.on('error', error => failPlayback((error.message || 'Lỗi bộ đệm âm thanh').slice(0, 300)));
                 ff.stdout.pipe(pcmBuffer);
-                resource = voiceLib.createAudioResource(pcmBuffer, { inputType: voiceLib.StreamType.Raw, inlineVolume: true });
+                const pcmChunker = new PcmFrameChunker({ highWaterMark: 15360 });
+                mq.currentPcmChunker = pcmChunker;
+                pcmChunker.on('error', error => failPlayback((error.message || 'Lỗi chia frame âm thanh').slice(0, 300)));
+                pcmBuffer.pipe(pcmChunker);
+                resource = voiceLib.createAudioResource(pcmChunker, { inputType: voiceLib.StreamType.Raw, inlineVolume: true });
             }
         } else {
             // ⚡ ĐƯỜNG OPUS PASSTHROUGH (mặc định, nhẹ CPU): demuxProbe nhận đúng loại rồi truyền thẳng.
@@ -5195,6 +5207,13 @@ async function playNextTrack(guildId, opts = {}) {
         if (!isCurrentPlayback()) { try { resource.playStream?.destroy(); } catch {} return; }
         if (resource.volume) resource.volume.setVolume(mq.volume);
         mq.currentResource = resource;
+        const codec = resource.encoder?.constructor?.type || (useFfmpeg ? 'unknown' : 'passthrough/ffmpeg');
+        console.log(`[MusicAudio] server=${guildId} effect=${effectKey} codec=${codec} transport=${seekTransport}`);
+        mq.clearAudioDiagnostics = monitorMusicResource(resource, {
+            player: mq.player,
+            active: () => isCurrentPlayback() && mq.player.state.status === voiceLib.AudioPlayerStatus.Playing,
+            report: stats => console.warn(`[MusicAudio] server=${guildId} effect=${effectKey} codec=${codec} underruns=${stats.underruns} lateReads=${stats.lateReads} maxGapMs=${stats.maxGapMs}`)
+        });
         // Đăng ký trước play(): resource đã có dữ liệu có thể phát Playing ngay trong lời gọi này.
         // Chỉ resource mới được mở cờ; listener/timer cũ phải được gỡ khi skip/stop/đổi hiệu ứng.
         let transitionSafety;

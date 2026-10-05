@@ -49,4 +49,91 @@ class StartupAudioBuffer extends Transform {
     }
 }
 
-module.exports = { StartupAudioBuffer };
+// Encoder Opus xử lý mỗi chunk đồng bộ. Chia tối đa2frame/lượt và nhường
+// eventloop giữa các lượt để giảm việc encoder chặn timer gửi voice20ms.
+class PcmFrameChunker extends Transform {
+    constructor({ maxChunkBytes = 7680, ...options } = {}) {
+        super(options);
+        if (!Number.isInteger(maxChunkBytes) || maxChunkBytes < 4 || maxChunkBytes % 4) throw new RangeError('Chunk PCM phải là số byte nguyên chia hết cho4');
+        this.maxChunkBytes = maxChunkBytes;
+        this.pending = null;
+        this.turn = null;
+    }
+
+    _transform(chunk, _encoding, callback) {
+        this.pending = { chunk, offset: 0, callback };
+        this.scheduleTurn();
+    }
+
+    scheduleTurn() {
+        if (this.turn || this.destroyed || !this.pending) return;
+        this.turn = setImmediate(() => {
+            this.turn = null;
+            if (this.destroyed || !this.pending) return;
+            const item = this.pending;
+            const end = Math.min(item.offset + this.maxChunkBytes, item.chunk.length);
+            const canContinue = this.push(item.chunk.subarray(item.offset, end));
+            if (this.destroyed || this.pending !== item) return;
+            item.offset = end;
+            if (end === item.chunk.length) {
+                this.pending = null;
+                item.callback();
+            } else if (canContinue) this.scheduleTurn();
+        });
+    }
+
+    _read(size) {
+        super._read(size);
+        this.scheduleTurn();
+    }
+
+    _destroy(error, callback) {
+        if (this.turn) clearImmediate(this.turn);
+        this.turn = null;
+        const pending = this.pending;
+        this.pending = null;
+        pending?.callback(error);
+        callback(error);
+    }
+}
+
+// Chỉ đo nhịp đọc, không sửa packet/âm lượng. Log khi có thiếu frame hoặc
+// eventloop trễ nhiều lần; không ghi title/URL/token hoặc log mỗi20ms.
+function monitorMusicResource(resource, { active, report, player, now = () => performance.now(), setTimer = setInterval, clearTimer = clearInterval, intervalMs = 30000 } = {}) {
+    if (typeof resource?.read !== 'function') return () => {};
+    const originalRead = resource.read;
+    let previousTime = null, packets = 0, underruns = 0, lateReads = 0, maxGapMs = 0;
+    const read = function (...args) {
+        const packet = originalRead.apply(this, args);
+        if (!active() || !resource.started || resource.silenceRemaining >= 0) { previousTime = null; return packet; }
+        const time = now();
+        if (previousTime !== null) {
+            const gap = time - previousTime;
+            if (gap > 50) { lateReads++; maxGapMs = Math.max(maxGapMs, gap); }
+        }
+        previousTime = time;
+        if (packet) packets++; else underruns++;
+        return packet;
+    };
+    resource.read = read;
+    const resetClock = () => { previousTime = null; };
+    player?.on?.('stateChange', resetClock);
+    const timer = setTimer(() => {
+        if (active() && (underruns >= 3 || lateReads >= 3)) report({ packets, underruns, lateReads, maxGapMs: Math.round(maxGapMs) });
+        packets = underruns = lateReads = maxGapMs = 0;
+    }, intervalMs);
+    timer.unref?.();
+    let cleaned = false;
+    const cleanup = () => {
+        if (cleaned) return;
+        cleaned = true;
+        clearTimer(timer);
+        if (resource.read === read) resource.read = originalRead;
+        player?.off?.('stateChange', resetClock);
+        resource.playStream?.off('close', cleanup);
+    };
+    resource.playStream?.once('close', cleanup);
+    return cleanup;
+}
+
+module.exports = { StartupAudioBuffer, PcmFrameChunker, monitorMusicResource };

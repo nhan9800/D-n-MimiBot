@@ -9,7 +9,7 @@ const os = require('node:os');
 const { EventEmitter } = require('node:events');
 const { PassThrough } = require('node:stream');
 const ytDlp = require('yt-dlp-exec');
-const { StartupAudioBuffer } = require('../musicBuffer');
+const { StartupAudioBuffer, PcmFrameChunker, monitorMusicResource } = require('../musicBuffer');
 const source = fs.readFileSync(path.join(__dirname, '..', 'index.js'), 'utf8');
 
 // Chạy hàm phát thật trong VM, không import bootstrap hoặc kết nối Discord/nguồn nhạc.
@@ -68,7 +68,7 @@ async function fixture({ synchronousPlaying = false, demuxProbe, searchSoundclou
         return proc;
     };
     const context = vm.createContext({
-        musicQueues, PassThrough, StartupAudioBuffer,
+        musicQueues, PassThrough, StartupAudioBuffer, PcmFrameChunker, monitorMusicResource,
         fs: { existsSync: () => true },
         getFfmpegPath: () => '/mock/ffmpeg',
         getPlaybackSec: mq => (mq.seekBase || 0) + Math.floor((mq.currentResource?.playbackDuration || 0) / 1000),
@@ -1026,7 +1026,10 @@ test('Luồng hiệu ứng dùng đệmPCM và skip dọn cả timer/bytes của
         assert.ok(buffer instanceof StartupAudioBuffer);
         assert.equal(buffer.readableHighWaterMark, 576000);
         assert.equal(buffer.targetBytes, 96000);
-        assert.equal(f.mq.currentResource.playStream, buffer);
+        const chunker = f.mq.currentPcmChunker;
+        assert.ok(chunker instanceof PcmFrameChunker);
+        assert.equal(chunker.maxChunkBytes, 7680);
+        assert.equal(f.mq.currentResource.playStream, chunker);
         assert.ok(f.ffmpegs[0].args.includes('-filter_threads'));
         buffer.write(Buffer.alloc(1000));
         assert.ok(buffer.startTimer);
@@ -1034,6 +1037,8 @@ test('Luồng hiệu ứng dùng đệmPCM và skip dọn cả timer/bytes của
         assert.equal(buffer.destroyed, true);
         assert.equal(buffer.startTimer, null);
         assert.equal(buffer.startBytes, 0);
+        assert.equal(chunker.destroyed, true);
+        assert.equal(chunker.turn, null);
         assert.equal(f.mq.currentPcmBuffer, null);
         assert.equal(f.mq.currentBuffer.targetBytes, 32768);
         assert.deepEqual(f.mq.queue, [f.queued]);
