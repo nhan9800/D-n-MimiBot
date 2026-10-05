@@ -2,15 +2,16 @@
 
 Checkpoint 05/10/2026, Asia/Saigon. Đọc cùng WORKSPACE.md và AGENTS.md khi tiếp tục. Kết quả lịch sử không thay thế xác minh mới; không lưu bí mật hoặc dữ liệu runtime.
 
-## Đang hoàn thiện — ping BQT, bàn xì dách và giảm giật nhạc, 05/10/2026
+## Đã triển khai — ping BQT, bàn xì dách và bộ đệm nhạc, 05/10/2026 lúc 17:21 VN
 
 - Yêu cầu mới: ticket tạo phải tag BQT để nhận đơn; làm đẹp xì dách; nhạc thỉnh thoảng giật. Fresh health trước sửa vẫn commit088f282, live/ready200 và Discordtrue, custom/artwork182/182. Console mới có nguồn nhạc `Connection reset by peer`, retry YouTube và sectionFFmpeg-11 chuyển sang pipe. Không kết luận mọi lần giật đều do CPU hay hiệu ứng.
 - `index.js`: ticket đầu khai báo allowedMentions với role quản trị có ManageChannels, tối đa3 role, bỏ managed/bot role; không còn bị lớp UI mặc định chặn ping. Nếu không có role phù hợp, chỉ mention chủ server; không ping everyone. Giữ nhận đơn/24giờ/transcript và dữ liệu cũ.
 - `blackjackUi.js`: bàn V2 riêng màu xanh, chia bài/điểm/cược, giấu bài và điểm nhà cái, custom suit/control từ catalog g3; kết quả lật bài, bỏ nút. Giữ customID/payout. Sửa `bjIsXiban` đọc `.r` theo deck thật để hai Át được nhận đúng. Thêm surface9110, whitelist SFTP và runtime fingerprint.
 - `musicBuffer.js`: Transform nạp trước32KB nguồn, PCM0.5giây với HWM3giây, deadline khi nguồn chậm và backpressure; destroy dọn timer/byte. FFmpeg giới hạn decoder/filter thread, player chịu thiếu50frame ngắn trước kết thúc. Giữ Opus passthrough, coordinator hiệu ứng/retry thế hệ cũ. Không thêm dependency.
 - Local đã đạt362/362 test, cú pháp84JS, audit0, diffcheck đạt. Test gồm stream thật/backpressure/EOF/destroy, handler ticket tạo thật qua VM với transportV2, bài ẩn/nút/payout xì bàn, pipeline PCM và giữ các regression hiệu ứng. Preview34 mẫu; browser đã kiểm3 trạng thái xì dách, không thiếu ảnh, active3nút/kết quả0nút, bài và điểm đúng. Tab cũ bị kẹt trang lỗi dataURL sau server4186 dừng; đã chạy lại loopback và tab mới cùng browser nạp đúng preview.
-- **Chưa commit/push/deploy bản này**; hosting vẫn088f282 trước sửa. Chưa nghe audio hoặc xác minh ping/nút bằng Discord client thật. Bằng chứng test ngoàiGit: `ticket-blackjack-music-full-2026-10-05.log`, auditJSON tương ứng trong MimiBot-backups; ảnh preview trong `bot-ticket-blackjack-music-2026-10-05/`.
-- Tiếp theo: chốt visualQA/diff, commitpushmain, chờCI, restart VibeHost sau CI; đối chiếu healthcommit/ready và lưu receipt. Cập nhật checkpoint đã deploy, không restart lần nữa chỉ vì docs. Website/cPanel vẫn chờ riêng.
+- **Đã push/deploy:** main `9a72d70afe3f88aedb63cabbfc39da826d134c65`; CI Node22 [37295886478](https://github.com/nhan9800/D-n-MimiBot/actions/runs/37295886478) success. Restart VibeHost sau CI, consolepull088f282→9a72d70 và bản dựng9a72d70. Fresh health10:21:02UTC: live200/commit9a72d70/custom182/artwork182, ready200/Discordtrue. Console startup khôi phục1phiên và1nhắc nhở, chưa có lỗi lúc quan sát. Chưa nghe audio hoặc xác minh ping/nút bằng Discord client thật; không khẳng định mạng nguồn đã hết reset hoặc mọi lần giật đã hết.
+- Bằng chứng ngoàiGit `C:/Users/ivano/Downloads/MimiBot-backups/bot-ticket-blackjack-music-2026-10-05/`: tests.log362, audit.json0, ci-status.json, health-before.json, deploy-verification.json, console-before/after.txt, hosting-9a72d70.png, blackjack-preview/win/bust.png và blackjack-ui-verification.json. Không có credential trong các receipt. Server preview loopback4186 đang phục vụ docs/UI-PREVIEW.html, tab mới3 được giữ làm deliverable.
+- Tiếp theo khi user dùng: đối chiếu lỗi mới với commit9a72d70 và bài/hiệu ứng cụ thể; kiểm thời điểm networkreset so với thiếu frame. Ticket mới ping đúng staff allowlist, không ping lại ticket cũ. Mở bàn xì dách mới để dùng layout mới. Chưa cần restart/upload emoji thêm; commit docs sau triển khai không đổi runtime. Website/cPanel vẫn chờ riêng.
 
 ## Checkpoint đã triển khai — lỗi tự tắt hiệu ứng, 04/10/2026 lúc 23:17 VN
 
@@ -33,9 +34,9 @@ Checkpoint 05/10/2026, Asia/Saigon. Đọc cùng WORKSPACE.md và AGENTS.md khi 
 ## Yêu cầu và ưu tiên hiện tại
 
 - User yêu cầu nâng cấp bot cộng đồng, toàn bộ UI dùng custom emoji, cấu hình server chính `1517068246493429852`, cập nhật GitHub và hosting. Không hỏi lại những bước đã được cho phép. Không broadcast hoặc DM tự động.
-- Chỉ dẫn UI 04/10: **làm lại toàn bộ giao diện tính năng bot, đẹp hơn và dùng100% custom artwork từ emoji.gg/Discadia**. Bố cục/catalog đã triển khai41504bf; ứng dụng và guild đủ182/182key từ122artworkEmoji.gg theo receipt17:42VN. Basic dùng trực tiếp Discord, metadata Git/ảnh ngoàiGit; không cần hỏi lại. Discadia bị policy chặn, không đi vòng. Website vẫn chờ riêng. Yêu cầu mới23giờ: sửa tiếp tự tắt hiệu ứng nhạc.
+- Chỉ dẫn UI 04/10: **làm lại toàn bộ giao diện tính năng bot, đẹp hơn và dùng100% custom artwork từ emoji.gg/Discadia**. Bố cục/catalog đã triển khai41504bf; ứng dụng và guild đủ182/182key từ122artworkEmoji.gg theo receipt17:42VN. Basic dùng trực tiếp Discord, metadata Git/ảnh ngoàiGit; không cần hỏi lại. Discadia bị policy chặn, không đi vòng. Website vẫn chờ riêng. Yêu cầu mới05/10: ticket ping BQT, làm đẹp xì dách và giảm giật nhạc; đã triển khai9a72d70, cần xác minh trải nghiệm Discord thật khi user sử dụng.
 - Bot đúng repo `D-n-MimiBot/`, version 1.4.0. Website nằm riêng trong `Website-Mini-Bot/`; Mimi Shield ngoài phạm vi.
-- **Bản bot hiện hành đã xác minh04/10 23:16VN:088f282**, version1.4.0 custom182/182 và artwork182/182, readyHTTP200/Discordtrue. Commit MD sau đó không cần restart. Chưa kiểm audio/voice hoặc nút bằng thành viên thật; không gọi offline test là E2E.
+- **Bản bot hiện hành đã xác minh05/10 17:21VN:9a72d70**, version1.4.0 custom182/182 và artwork182/182, readyHTTP200/Discordtrue. Commit MD sau đó không cần restart. Chưa kiểm audio/voice hoặc nút bằng thành viên thật; không gọi offline test là E2E.
 
 ## Cập nhật mipet theo yêu cầu mới — 03/10/2026
 
