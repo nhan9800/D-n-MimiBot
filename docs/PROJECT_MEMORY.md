@@ -2,14 +2,16 @@
 
 Checkpoint 05/10/2026, Asia/Saigon. Đọc cùng WORKSPACE.md và AGENTS.md khi tiếp tục. Kết quả lịch sử không thay thế xác minh mới; không lưu bí mật hoặc dữ liệu runtime.
 
-## Đang triển khai — giật khi bật Bassboost, 05/10/2026 lúc 19:28 VN
+## Đã triển khai — sửa Bassboost sau phép đo, 05/10/2026 lúc 19:31 VN
 
 - User xác nhận “boosrbass bị ấy”, ưu tiên Bassboost. Browser VibeHost mới cho thấy đang9a72d70, uptime1h50m/CPU7.73%/RAM179MiB; console cósectionFFmpeg-11 ở guild1425088892494811248 rồipipe fallback. Không coi lỗi guild khác hoặcCPU trung bình là nguyên nhân chắc chắn. Health lần đầu timeout7s, không có bằng chứng bot tắt.
 - Đo FFmpeg6.1.1 thật với nguồn tổng hợp8giây theo tốc độ thực: filter cũ `bass=g=15,dynaudnorm=f=200` firstbyte6457ms/maxstdoutgap214ms; filter mới firstbyte28ms/maxgap48ms. Đều1536000byte, khôngclip100%. Đo OpusScript thật với burstPCM12giây/chunk64KB: chặn loop154.3ms→1.61ms khi chia7680byte/lượt và nhường eventloop; đủ600packet. Đây là đo local/synthetic, không phải audioDiscord/CPUhosting.
 - Đã sửa `index.js`: Bassboost8dB/110Hz với limiter ngắn0.63/headroom150%, bỏdynaudnorm chờ lâu. `musicBuffer.js`: PcmFrameChunker chia2frame/lượt, backpressure, EOFgiữbyte vàstopcallbackđúng1lần; monitorresource ghi codec, underrun vàlateReads tối đa1dòng/30s khi có lỗi. Không tínhpause/buffering/EOF/generationcũ; timer/listenerđược dọn. Giữvolume/seek/queue/quyềnDJ.
-- Đã đạt368/368test, syntax84JS, audit0, diffcheck. Tests thêm chunk/yield/slowconsumer/EOF/destroy kể cảstopngaytrongconsumer, monitorpacket/counters/pause/cleanup. Whitelist/fingerprint đã cómusicBuffer.js, không thêmmodule/dependency/runtime schema. Chưa push/deploy bản Bassboost này; đangchốtdiff/commitCI trước restart.
+- Đã đạt368/368test, syntax84JS, audit0, diffcheck. Tests thêm chunk/yield/slowconsumer/EOF/destroy kể cảstopngaytrongconsumer, monitorpacket/counters/pause/cleanup. Whitelist/fingerprint đã cómusicBuffer.js, không thêmmodule/dependency/runtime schema.
 - Bằng chứng ngoàiGit `C:/Users/ivano/Downloads/MimiBot-backups/bassboost-stutter-2026-10-05/`: filter-probe.cjs/json, encoder-probe.cjs/json, tests.log368,audit.json0. Binary local node_modules/ffmpeg-static có PE bị cắt80599568byte (sectioncuối đòi82797568), không chạy; đã tải bản82797568byte từ đúng releaseb6.1.1 của dependency vào backup để đo, không thay binary host hoặc sourceGit. Tài liệu MUSIC-DIAGNOSTICS.md giải thích giới hạn và log.
-- Tiếp theo: push main/chờ CI/restart, fresh console/healthđúngcommit, đọc logMusicAudio từ phiên khôi phục; lưu receipt/ảnh rồi cập nhật checkpoint hoàn tất. Chưa ngheBassboost bằng Discordclientthật; không kết luận mọi lần giật đã hết.
+- **Đã push/deploy:** `716046bcb35af1cd745e1f50e4b21457cd6d729c`; CI Node22 [37309976942](https://github.com/nhan9800/D-n-MimiBot/actions/runs/37309976942) success. Restart sauCI, consolepull9a72d70→716046b vàbản dựng716046b. Fresh health12:31:25UTC: live200/commit716046b/custom182/artwork182, ready200/Discordtrue. Startup tự cập nhật yt-dlp; không cólogkhôi phụcphiên, chưa cóMusicAudio vì chưa mở bài mới. Không kích hoạt nhạc/tin Discord để test.
+- Receiptci-verification.json, deploy-verification.json, console-before/after.txt, hosting-716046b.png cùngfolderbackup. Không có credential. Usertab4 hosting được giữ, không đổi startup/config/quyền; chỉ restart code đã được phép.
+- Tiếp theo khiuserbậtBassboost: đọcMusicAudio với guild/effect/codec vàunderruns/lateReads/maxGapMs, ghép lognguồn. Hiện chưa ngheBassboost bằng Discordclient hoặc biếtcodec thực của lượt mới; không kết luận mọi lần giật đã hết. Không restart thêm vì commitdocs. Website/cPanel vẫn chờ riêng.
 
 ## Đã triển khai — ping BQT, bàn xì dách và bộ đệm nhạc, 05/10/2026 lúc 17:21 VN
 
@@ -45,7 +47,7 @@ Checkpoint 05/10/2026, Asia/Saigon. Đọc cùng WORKSPACE.md và AGENTS.md khi 
 - User yêu cầu nâng cấp bot cộng đồng, toàn bộ UI dùng custom emoji, cấu hình server chính `1517068246493429852`, cập nhật GitHub và hosting. Không hỏi lại những bước đã được cho phép. Không broadcast hoặc DM tự động.
 - Chỉ dẫn UI 04/10: **làm lại toàn bộ giao diện tính năng bot, đẹp hơn và dùng100% custom artwork từ emoji.gg/Discadia**. Bố cục/catalog đã triển khai41504bf; ứng dụng và guild đủ182/182key từ122artworkEmoji.gg theo receipt17:42VN. Basic dùng trực tiếp Discord, metadata Git/ảnh ngoàiGit; không cần hỏi lại. Discadia bị policy chặn, không đi vòng. Website vẫn chờ riêng. Yêu cầu mới05/10: ticket ping BQT, làm đẹp xì dách và giảm giật nhạc; đã triển khai9a72d70, cần xác minh trải nghiệm Discord thật khi user sử dụng.
 - Bot đúng repo `D-n-MimiBot/`, version 1.4.0. Website nằm riêng trong `Website-Mini-Bot/`; Mimi Shield ngoài phạm vi.
-- **Bản bot hiện hành đã xác minh05/10 17:21VN:9a72d70**, version1.4.0 custom182/182 và artwork182/182, readyHTTP200/Discordtrue. Commit MD sau đó không cần restart. Chưa kiểm audio/voice hoặc nút bằng thành viên thật; không gọi offline test là E2E.
+- **Bản bot hiện hành đã xác minh05/10 19:31VN:716046b**, version1.4.0 custom182/182 và artwork182/182, readyHTTP200/Discordtrue. Commit MD sau đó không cần restart. Chưa kiểm audio/voice hoặc nút bằng thành viên thật; không gọi offline test là E2E.
 
 ## Cập nhật mipet theo yêu cầu mới — 03/10/2026
 
