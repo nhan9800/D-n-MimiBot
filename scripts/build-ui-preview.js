@@ -12,6 +12,7 @@ const { COMMUNITY_EMOJI } = require('../communityEmojis');
 const { CATALOG_ASSETS } = require('../emojiCatalog');
 const { buildStandardSetupPanel } = require('../communitySetupPanels');
 const { buildBlackjackPayload } = require('../blackjackUi');
+const { buildMemberNotice } = require('../communityCommands');
 // ID giả chỉ dùng trong preview; ảnh đúng asset sản xuất, không đăng nhập Discord.
 for (const [index, item] of CATALOG_ASSETS.entries()) for (const key of item.keys) COMMUNITY_EMOJI[key] = `<${item.format === 'gif' ? 'a' : ''}:${item.name}:${100000000000000000n + BigInt(index)}>`;
 const emojiAssets = Object.fromEntries(CATALOG_ASSETS.map(item => [item.name, item.url]));
@@ -37,6 +38,10 @@ add('Xì dách · thắng', buildBlackjackPayload({ ...blackjack, playerHand: [{
 add('Xì dách · quắc', buildBlackjackPayload({ ...blackjack, playerHand: [{ r: 'K', s: '♠' }, { r: '6', s: '♥' }, { r: 'K', s: '♦' }] }, { playerValue: 26, dealerValue: 16, reveal: true, resultText: '💸 **QUẮC!** Bạn vượt quá 21 điểm.\nMất **25.000 xu**', resultColor: '#ED4245' }));
 add('Hồ sơ cộng đồng', buildProfilePayload({ user, data: { level: 12, balance: 128500, xp: 640, pet: { name: 'Mochi', level: 4 }, inventory: { nhan_cuoi: 1 }, cancau_uses: 16 }, xpNeeded: 1000, avatarUrl: avatar, rows: [row(button('profile_sell_item', 'Bán vật phẩm', 4), button('profile_shop', 'Mua sắm', 1))] }));
 add('Cấp độ máy chủ', buildRankPayload({ user, level: 7, currentExp: 810, neededExp: 1300, totalExp: 6480, rank: 3, guildName: 'Cộng đồng Mimi', avatarUrl: avatar }));
+add('Level Voice riêng', buildRankPayload({ user, level: 4, currentExp: 240, neededExp: 500, totalExp: 2240, rank: 2, kind: 'voice', voiceTimeMs: 6720000, guildName: 'Cộng đồng Mimi', avatarUrl: avatar }));
+const sampleMember = { id: user.id, user, guild: { name: 'Cộng đồng Mimi', memberCount: 248, premiumSubscriptionCount: 14 } };
+add('Cảm ơn Boost', buildMemberNotice('boost', sampleMember));
+add('Tạm biệt thành viên', buildMemberNotice('goodbye', sampleMember));
 const pet = { name: 'Mochi', type: 'dog', level: 4, xp: 120, hunger: 85, happiness: 70 };
 add('Pet · Chơi cùng đếm giây', { embeds: [buildPetEmbed(user, pet)], components: buildPetComponents(user.id, pet, { cooldowns: { pet_play: Date.now() + 42000 } }) }, 'Builder pet sản xuất với dữ liệu mẫu; cooldown live được scheduler cập nhật.');
 const categories = [

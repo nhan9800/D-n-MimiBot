@@ -1,5 +1,13 @@
 # CHANGELOG.md — NHẬT KÝ THAY ĐỔI
 
+## Cộng đồng — 2026-10-06
+
+- Ticket mở và Hủy nhận tag 3 vai trò BQT theo `/ticketroles`; đổi vai trò trong cấu hình có hiệu lực cho lượt tiếp theo.
+- EXP Chat nhận cách nhau 10 giây; Voice có EXP, thời gian và công tắc riêng, loại bot/kênh AFK. `/level` và `/toplv` chọn bảng Chat hoặc Voice.
+- `/invites` kiểm tra nguồn tham gia và thành viên theo người mời; chỉ ghi nhận dữ liệu từ lúc chạy, giữ Không xác định khi metadata thiếu hoặc nhiều lời mời không phân biệt được.
+- `/boostsetup` cảm ơn Boost và `/goodbye` tạm biệt hỗ trợ bật/tắt, chọn kênh, nội dung và ảnh; giữ cấu hình Welcome và dữ liệu cũ.
+- Bổ sung hướng dẫn và 37 mẫu UI từ payload thật; các tính năng mới dùng transport custom emoji hiện có.
+
 ## [1.4.0] - 2026-10-02
 
 - Bổ sung ngày 03/10: 172 key custom emoji dùng 170 PNG có attribution/giấy phép CC-BY 4.0, giữ ý nghĩa số/hướng/chất bài/RPS. Nút/menu dùng emoji object; các field Discord không hỗ trợ custom dùng chữ; báo độ phủ và retry nền thay Unicode dự phòng.

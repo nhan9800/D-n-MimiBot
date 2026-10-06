@@ -110,19 +110,22 @@ function buildProfilePayload({ user = {}, data = {}, xpNeeded = 0, avatarUrl,
 }
 
 function buildRankPayload({ user = {}, level = 0, currentExp = 0, neededExp = 0,
-    totalExp = 0, guildName = '', rank = null, avatarUrl, rows = [] } = {}) {
+    totalExp = 0, guildName = '', rank = null, avatarUrl, rows = [], kind = 'chat', voiceTimeMs = 0 } = {}) {
+    const voice = kind === 'voice';
     const progress = cardProgress(currentExp, neededExp);
-    const card = new ContainerBuilder().setId(910302).setAccentColor(PROFILE_ACCENT);
-    card.addTextDisplayComponents(text(`-# ${icon('level')} **MIMI** • CẤP ĐỘ MÁY CHỦ${guildName ? ` · ${label(guildName, '', 100)}` : ''}`));
+    const card = new ContainerBuilder().setId(910302).setAccentColor(voice ? 0x8B5CF6 : PROFILE_ACCENT);
+    card.addTextDisplayComponents(text(`-# ${icon(voice ? 'volup' : 'level')} **MIMI** • CẤP ĐỘ ${voice ? 'VOICE' : 'CHAT'}${guildName ? ` · ${label(guildName, '', 100)}` : ''}`));
     avatarHeader(card, `## ${label(user.globalName || user.username)}\n` +
         `**Cấp ${format(level)}** · ${count(rank) ? `Hạng **#${format(rank)}**` : 'Chưa vào bảng xếp hạng'}`, avatarUrl);
     card.addSeparatorComponents(divider()).addTextDisplayComponents(
-        text(`## ${icon('stats')} ${format(totalExp)} EXP\n-# Đã tích lũy khi trò chuyện tại máy chủ này`),
+        text(`## ${icon('stats')} ${format(totalExp)} EXP\n-# ${voice ? `Treo Voice · ${format(Math.floor(count(voiceTimeMs) / 60000))} phút đã ghi nhận` : 'Đã tích lũy khi trò chuyện tại máy chủ này'}`),
         text(`### ${icon('xp')} Mốc tiếp theo · Cấp ${format(count(level) + 1)}\n` +
             `${progress.bar}\n` +
             `${format(progress.value)} / ${format(progress.target)} EXP · ${progress.target ? `Còn **${format(progress.remaining)} EXP**` : 'Chưa có mốc EXP tiếp theo'}`));
     addRows(card, rows);
-    card.addSeparatorComponents(divider()).addTextDisplayComponents(text('-# Nhận EXP khi trò chuyện · Mỗi lần ghi nhận cách nhau ít nhất 60 giây\n-# Xem bảng xếp hạng máy chủ với `/leaderboard`'));
+    card.addSeparatorComponents(divider()).addTextDisplayComponents(text(voice
+        ? '-# EXP Voice riêng · Không tính bot hoặc kênh AFK\n-# Xem top Voice với `/toplv loai:Voice`'
+        : '-# Nhận EXP khi trò chuyện · Mỗi lần ghi nhận cách nhau ít nhất 10 giây\n-# Xem bảng xếp hạng máy chủ với `/leaderboard`'));
     return payload([card]);
 }
 

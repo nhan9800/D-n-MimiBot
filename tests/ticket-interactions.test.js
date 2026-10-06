@@ -36,7 +36,7 @@ function controlPanel({ v2 = true, creatorId = OWNER, staffId } = {}) {
 
 // Chạy toàn bộ dispatcher thật, mock Discord/storage để không đăng nhập bot,
 // gửi tin thật hoặc thay dữ liệu runtime của máy chủ.
-function fixture({ v2 = true, state = pending(), mode = 'button', panelOptions = {}, roles, onUi, onDefer, closeInProgress = false, closeResult = { closed: true, archived: true, dmDelivered: true } } = {}) {
+function fixture({ v2 = true, state = pending(), mode = 'button', panelOptions = {}, roles, configPatch = {}, onUi, onDefer, closeInProgress = false, closeResult = { closed: true, archived: true, dmDelivered: true } } = {}) {
     const source = fs.readFileSync(path.join(__dirname, '../index.js'), 'utf8');
     const start = source.indexOf("client.on('interactionCreate', async interaction => {");
     const end = source.indexOf('// 🔑 ĐĂNG NHẬP BOT', start);
@@ -76,8 +76,8 @@ function fixture({ v2 = true, state = pending(), mode = 'button', panelOptions =
             async create(options) { created.push(options); this.cache.set(CHANNEL, ticketChannel); events.push('channel:create'); return ticketChannel; }
         }
     };
-    const config = { isTicketSetup: true, ticketCategoryId: CATEGORY, ticketArchiveChannelId: '1535000000000000004' };
-    const f = { records, saved, replies, updates, sends, closed, errors, created, cancelled, scheduled, events, ticketTimeouts, previousTimer, ticketChannel,
+    const config = { isTicketSetup: true, ticketCategoryId: CATEGORY, ticketArchiveChannelId: '1535000000000000004', ...configPatch };
+    const f = { config, records, saved, replies, updates, sends, closed, errors, created, cancelled, scheduled, events, ticketTimeouts, previousTimer, ticketChannel,
         get interaction() { return interaction; },
         async run(customId, { userId = OWNER, admin = false, modal = false } = {}) {
             buttonCooldowns.clear();
@@ -175,6 +175,22 @@ test('Guild không có role BQT dùng owner cụ thể, không ping everyone ho�
     assert.deepEqual([...payload.allowedMentions.users], [STAFF]);
     assert.deepEqual([...payload.allowedMentions.parse], []);
     assert.equal(payload.allowedMentions.repliedUser, false);
+});
+
+test('Hủy nhận tag 3 role từ config mới, giữ allowlist qua transportV2 và không ping khách', async () => {
+    const ids = ['1535000000000000101', '1535000000000000102', '1535000000000000103', '1535000000000000104'];
+    const roles = ids.map((id, i) => ({ id, position: i, permissions: { has: () => true } }));
+    const f = fixture({ state: pending({ status: 'claimed', staffId: STAFF, expiresAtMs: null }), roles,
+        configPatch: { ticketStaffRoleIds: ids.slice(0, 3) } });
+    // Chọn lại vai trò ngay trước khi Hủy nhận; không sử dụng danh sách cũ trong panel.
+    f.config.ticketStaffRoleIds = ids.slice(1);
+    await f.run('reject_ticket_btn', { userId: STAFF, admin: true });
+    const payload = normalizePayload(f.sends.at(-1));
+    assert.deepEqual([...payload.allowedMentions.roles], ids.slice(1));
+    assert.deepEqual([...payload.allowedMentions.users], []);
+    assert.deepEqual([...payload.allowedMentions.parse], []);
+    const allText = JSON.stringify(payload.components);
+    assert.ok(allText.includes(`<@&${ids[3]}>`)); assert.ok(!allText.includes(`<@&${ids[0]}>`));
 });
 
 test('Nhận ca trong lúc tạo panel đang await không bị ghi đè thành pending hoặc đặt lại hạn 24 giờ', async () => {

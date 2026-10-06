@@ -88,6 +88,8 @@ jobs:
           put communitySetupPanels.js
           put blackjackUi.js
           put musicBuffer.js
+          put communityFeatures.js
+          put communityCommands.js
           put modalUi.js
           put profileCard.js
           put petUi.js

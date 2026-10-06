@@ -102,7 +102,7 @@ test('Lệnh thay đổi quyền/cấu hình máy chủ mặc định giới h�
     const protectedNames = [
         'antiraid', 'addrole', 'removerole', 'clear', 'kick', 'ban', 'mute', 'unmute',
         'setup', 'setupverify', 'setupattendance', 'resetverify', 'resetsetup',
-        'reactionrole-add', 'reactionrole-remove', 'levelsetup', 'dj', 'dashboard'
+        'reactionrole-add', 'reactionrole-remove', 'levelsetup', 'dj', 'dashboard', 'ticketroles', 'boostsetup', 'goodbye'
     ];
     for (const name of protectedNames) {
         const command = commands.find(command => command.name === name);

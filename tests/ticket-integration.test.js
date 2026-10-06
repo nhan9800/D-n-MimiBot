@@ -119,6 +119,7 @@ function fixture({ savedState = ticketState(), history, permissions, archiveCach
     vm.runInContext(region('function saveCreatedChannels()', 'async function syncChannels()'), context);
     vm.runInContext(region('async function syncChannels()', '// -----------------------------------------------------------------'), context);
     vm.runInContext(region('function closeAndArchiveTicket(', 'async function clearBotMessages('), context);
+    vm.runInContext(region('function getAdminRoleMention(', 'let communitySaveTimer ='), context);
     const buttons = region("            if (['accept_ticket_btn', 'reject_ticket_btn', 'close_ticket_btn'].includes(customId))", '            // ==========================================');
     vm.runInContext('async function handleTicketButton(interaction, channel, guild, gConfig, user, member) { const customId = interaction.customId;\n' + buttons + '\n}', context);
     return {

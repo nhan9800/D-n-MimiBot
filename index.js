@@ -4,7 +4,7 @@ const {
     ButtonBuilder, ButtonStyle, AttachmentBuilder, ModalBuilder, TextInputBuilder, TextInputStyle,
     Partials, StringSelectMenuBuilder, StringSelectMenuOptionBuilder,
     ContainerBuilder, TextDisplayBuilder, SectionBuilder, SeparatorBuilder, ThumbnailBuilder, MessageFlags,
-    MediaGalleryBuilder, MediaGalleryItemBuilder
+    MediaGalleryBuilder, MediaGalleryItemBuilder, MessageType
 } = require('discord.js');
 // Polyfill for removed SeparatorSpacingSize
 const SeparatorSpacingSize = { Small: 1, Medium: 1, Large: 2 };
@@ -45,6 +45,8 @@ const { importEmojiImage, downloadPublicImage } = require('./emojiImport');
 const { validateMusicUrl } = require('./musicSources');
 const { normalizeTicketState, ticketStateFromPanel, resolveTicketState } = require('./ticketLifecycle');
 const { captureTicketTranscript, buildTranscriptFiles, persistTicketTranscript } = require('./ticketTranscript');
+const { awardChatXp, VoiceXpTracker, InviteTracker, inviteSnapshot, isNewBoost, voiceEnabled } = require('./communityFeatures');
+const { handleCommunityCommand, buildMemberNotice } = require('./communityCommands');
 const { parseDuration, setLongTimeout, clearLongTimeout } = require('./reminderUtils');
 const { MusicStore, MAX_ALBUMS_PER_USER, MAX_TRACKS_PER_ALBUM } = require('./musicStore');
 const { createDashboardKey, resolveDashboardSecret, DEFAULT_TTL_MS: DASHBOARD_KEY_TTL_MS } = require('./dashboardAuth');
@@ -376,6 +378,7 @@ const client = new Client({
         GatewayIntentBits.GuildMessageReactions,
         GatewayIntentBits.GuildModeration,
         GatewayIntentBits.GuildVoiceStates,
+        GatewayIntentBits.GuildInvites,
         GatewayIntentBits.DirectMessages
     ],
     partials: [Partials.Message, Partials.Channel, Partials.Reaction, Partials.User]
@@ -468,6 +471,14 @@ function getGuildConfig(guildId) {
 
 function getAdminRoleMention(guild) {
     if (!guild?.roles?.cache) return 'Ban quản trị';
+
+    const configured = getGuildConfig(guild.id).ticketStaffRoleIds;
+    if (Array.isArray(configured)) {
+        const selected = [...new Set(configured)].slice(0, 3).map(id => guild.roles.cache.get(id))
+            .filter(role => role && role.id !== guild.id && !role.managed && !role.tags?.botId);
+        return selected.length ? selected.map(role => `<@&${role.id}>`).join(', ')
+            : guild.ownerId ? `<@${guild.ownerId}>` : 'Ban quản trị';
+    }
     
     const adminRoles = guild.roles.cache.filter(role => 
         role.id !== guild.id && !role.managed && !role.tags?.botId &&
@@ -482,6 +493,112 @@ function getAdminRoleMention(guild) {
 
     return top3Roles.map(r => `<@&${r.id}>`).join(', ');
 }
+
+let communitySaveTimer = null;
+function scheduleCommunitySave() {
+    if (!communitySaveTimer) communitySaveTimer = setTimeout(() => {
+        communitySaveTimer = null; saveConfig();
+    }, 1000).unref();
+}
+const voiceXpTracker = new VoiceXpTracker({ getConfig: getGuildConfig, changed: scheduleCommunitySave });
+const inviteTracker = new InviteTracker({ getConfig: getGuildConfig, save: saveConfig, fetchSnapshot: async guild => {
+    const invites = await guild.invites.fetch();
+    const vanity = guild.vanityURLCode ? await guild.fetchVanityData() : null;
+    return inviteSnapshot(invites, vanity);
+} });
+
+async function announceVoiceLevel(guild, awards) {
+    const system = getGuildConfig(guild.id).levelSystem;
+    const channel = guild.channels.cache.get(system?.voiceNotifyChannelId);
+    if (!channel) return;
+    for (const award of awards.filter(Boolean)) {
+        const before = getLevelFromExp(award.before); const after = getLevelFromExp(award.after);
+        if (after <= before) continue;
+        await channel.send({ embeds: [new EmbedBuilder().setColor(0x8B5CF6).setTitle('🔊 Lên cấp Voice!')
+            .setDescription(`<@${award.userId}> đạt **Cấp Voice ${after}** tại máy chủ.\nLevel Voice được tính riêng với Chat.`)],
+            allowedMentions: { parse: [], users: [award.userId] } }).catch(() => null);
+    }
+}
+
+const BOOST_MESSAGE_TYPES = new Set([MessageType.GuildBoost, MessageType.GuildBoostTier1, MessageType.GuildBoostTier2, MessageType.GuildBoostTier3]);
+const boostNoticesInFlight = new Set();
+async function sendBoostThanks(member, eventId) {
+    if (!member || member.user.bot) return;
+    const settings = getGuildConfig(member.guild.id).boostThanks;
+    if (!settings?.enabled || settings.recentEvents?.includes(eventId) || boostNoticesInFlight.has(eventId)) return;
+    const channel = member.guild.channels.cache.get(settings.channelId);
+    if (!channel) return;
+    boostNoticesInFlight.add(eventId);
+    try {
+        await channel.send(buildMemberNotice('boost', member, settings));
+        settings.recentEvents = [...(settings.recentEvents || []), eventId].slice(-100);
+        saveConfig();
+    } catch { console.warn(`[Community] Không gửi được cảm ơn Boost ở server ${member.guild.id}; kiểm tra quyền/kênh đã chọn.`); }
+    finally { boostNoticesInFlight.delete(eventId); }
+}
+
+client.on('messageCreate', async message => {
+    if (!message.guild || !BOOST_MESSAGE_TYPES.has(message.type)) return;
+    const member = message.member || await message.guild.members.fetch(message.author.id).catch(() => null);
+    await sendBoostThanks(member, `message:${message.id}`);
+});
+client.on('guildMemberUpdate', async (oldMember, newMember) => {
+    if (!isNewBoost(oldMember, newMember)) return;
+    const guild = newMember.guild;
+    const systemChannel = guild.systemChannel;
+    // With visible system messages, each boost (including repeat boosts) is
+    // handled by messageCreate. Use member transition only when those are absent.
+    if (systemChannel && !guild.systemChannelFlags.has('SuppressPremiumSubscriptions') &&
+        systemChannel.permissionsFor(guild.members.me)?.has(PermissionFlagsBits.ViewChannel)) return;
+    await sendBoostThanks(newMember, `member:${guild.id}:${newMember.id}:${newMember.premiumSinceTimestamp}`);
+});
+client.on('guildMemberAdd', member => { inviteTracker.join(member).catch(() => null); });
+client.on('guildMemberRemove', async member => {
+    inviteTracker.leave(member);
+    const state = { guild: member.guild, id: member.id, member, channelId: null };
+    const award = voiceXpTracker.update(state, state);
+    if (award) await announceVoiceLevel(member.guild, [award]);
+    const settings = getGuildConfig(member.guild.id).goodbye;
+    const channel = member.guild.channels.cache.get(settings?.channelId);
+    if (!member.user.bot && settings?.enabled && channel) {
+        await channel.send(buildMemberNotice('goodbye', member, settings)).catch(() =>
+            console.warn(`[Community] Không gửi được tạm biệt ở server ${member.guild.id}; kiểm tra quyền/kênh đã chọn.`));
+    }
+});
+client.on('inviteCreate', invite => inviteTracker.created(invite));
+client.on('guildCreate', guild => { inviteTracker.seed(guild).catch(() => null); voiceXpTracker.resetGuild(guild); });
+client.on('guildDelete', guild => { inviteTracker.forgetGuild(guild.id); voiceXpTracker.forgetGuild(guild.id); });
+client.on('shardDisconnect', (_event, shardId) => {
+    for (const guild of client.guilds.cache.values()) if (guild.shardId === shardId) {
+        voiceXpTracker.suspendGuild(guild.id); inviteTracker.forgetGuild(guild.id);
+    }
+});
+for (const event of ['shardReady', 'shardResume']) client.on(event, shardId => {
+    for (const guild of client.guilds.cache.values()) if (guild.shardId === shardId) {
+        voiceXpTracker.resetGuild(guild); inviteTracker.seed(guild).catch(() => null);
+    }
+});
+client.on('voiceStateUpdate', async (oldState, newState) => {
+    const award = voiceXpTracker.update(oldState, newState);
+    if (award) await announceVoiceLevel(newState.guild, [award]);
+});
+let communityStarted = false;
+client.on('clientReady', () => {
+    if (communityStarted) return;
+    communityStarted = true;
+    for (const guild of client.guilds.cache.values()) { voiceXpTracker.resetGuild(guild); inviteTracker.seed(guild).catch(() => null); }
+    setInterval(() => {
+        for (const guild of client.guilds.cache.values()) {
+            if (!guild.available) { voiceXpTracker.forgetGuild(guild.id); continue; }
+            announceVoiceLevel(guild, voiceXpTracker.tick(guild)).catch(() => null);
+        }
+    }, 30_000).unref();
+});
+process.on('exit', () => { if (communitySaveTimer) saveConfig(); });
+for (const signal of ['SIGINT', 'SIGTERM']) process.once(signal, () => {
+    for (const guild of client.guilds.cache.values()) if (guild.available) voiceXpTracker.tick(guild);
+    saveConfig(); process.exit(0);
+});
 
 // -----------------------------------------------------------------
 // ☕ EMBED THÔNG TIN DONATE (gửi vào kênh donate tự động tạo bởi /setup)
@@ -4183,7 +4300,6 @@ function getCurrentLevelExp(totalExp) {
 function buildLevelBar(current, needed, length = 12) {
     return customProgressBar(current, needed, length);
 }
-const levelExpCooldown = new Map();
 // =====================================================================
 
 const AUDIO_EFFECTS = {
@@ -6017,20 +6133,66 @@ client.once('clientReady', async () => {
             .addStringOption(o => o.setName('ten_vai_tro').setDescription('Nhập tên vai trò bằng text nếu không chọn từ menu').setRequired(false)),
         new SlashCommandBuilder()
             .setName('level')
-            .setDescription('Xem cấp độ & EXP chat của bạn hoặc người khác trong server')
-            .addUserOption(o => o.setName('nguoi_dung').setDescription('Người dùng cần xem (để trống = xem của bạn)').setRequired(false)),
+            .setDescription('Xem cấp độ Chat hoặc Voice riêng trong máy chủ')
+            .addUserOption(o => o.setName('nguoi_dung').setDescription('Người dùng cần xem (để trống = xem của bạn)').setRequired(false))
+            .addStringOption(o => o.setName('loai').setDescription('Chọn bảng cấp độ').addChoices({ name: 'Chat', value: 'chat' }, { name: 'Voice', value: 'voice' })),
         new SlashCommandBuilder()
             .setName('leaderboard')
-            .setDescription('Bảng xếp hạng cấp độ chat trong server này'),
+            .setDescription('Top 10 cấp độ Chat hoặc Voice của máy chủ')
+            .addStringOption(o => o.setName('loai').setDescription('Chọn bảng xếp hạng').addChoices({ name: 'Chat', value: 'chat' }, { name: 'Voice', value: 'voice' })),
+        new SlashCommandBuilder()
+            .setName('toplv')
+            .setDescription('Kiểm tra top level trong máy chủ')
+            .addStringOption(o => o.setName('loai').setDescription('Chọn bảng xếp hạng').addChoices({ name: 'Chat', value: 'chat' }, { name: 'Voice', value: 'voice' })),
         new SlashCommandBuilder()
             .setName('levelsetup')
-            .setDescription('Cấu hình hệ thống Level chat cho server')
+            .setDescription('Cấu hình Level Chat và Voice độc lập trong máy chủ')
             .setDefaultMemberPermissions(PermissionFlagsBits.ManageGuild)
             .addSubcommand(s => s.setName('toggle').setDescription('Bật/Tắt hệ thống level chat'))
             .addSubcommand(s => s.setName('kenh').setDescription('Đặt kênh thông báo khi lên cấp')
                 .addChannelOption(o => o.setName('kenh').setDescription('Kênh thông báo lên cấp').setRequired(false)))
             .addSubcommand(s => s.setName('multiplier').setDescription('Nhân EXP nhận được')
-                .addNumberOption(o => o.setName('he_so').setDescription('Hệ số nhân EXP (1.5 = 1.5x EXP)').setMinValue(0.1).setMaxValue(5).setRequired(true))),
+                .addNumberOption(o => o.setName('he_so').setDescription('Hệ số nhân EXP (1.5 = 1.5x EXP)').setMinValue(0.1).setMaxValue(5).setRequired(true)))
+            .addSubcommand(s => s.setName('voice').setDescription('Bật/Tắt Level treo Voice, không tính bot hoặc AFK')
+                .addBooleanOption(o => o.setName('bat').setDescription('Bật hay tắt; để trống để chuyển trạng thái')))
+            .addSubcommand(s => s.setName('voicekenh').setDescription('Chọn kênh thông báo lên cấp Voice; bỏ trống để tắt')
+                .addChannelOption(o => o.setName('kenh').setDescription('Kênh thông báo').addChannelTypes(ChannelType.GuildText, ChannelType.GuildAnnouncement)))
+            .addSubcommand(s => s.setName('voicemultiplier').setDescription('Hệ số EXP Voice riêng')
+                .addNumberOption(o => o.setName('he_so').setDescription('Hệ số nhân 20 EXP/phút').setMinValue(0.1).setMaxValue(5).setRequired(true))),
+        new SlashCommandBuilder()
+            .setName('ticketroles').setDescription('Cấu hình 3 vai trò BQT được tag khi mở hoặc Hủy nhận ticket')
+            .setDefaultMemberPermissions(PermissionFlagsBits.ManageGuild)
+            .addSubcommand(s => s.setName('cauhinh').setDescription('Chọn 3 vai trò BQT')
+                .addRoleOption(o => o.setName('vai_tro_1').setDescription('Vai trò BQT thứ nhất').setRequired(true))
+                .addRoleOption(o => o.setName('vai_tro_2').setDescription('Vai trò BQT thứ hai').setRequired(true))
+                .addRoleOption(o => o.setName('vai_tro_3').setDescription('Vai trò BQT thứ ba').setRequired(true)))
+            .addSubcommand(s => s.setName('tudong').setDescription('Dùng lại 3 vai trò quản trị cao nhất'))
+            .addSubcommand(s => s.setName('xem').setDescription('Xem vai trò đang được tag')),
+        new SlashCommandBuilder()
+            .setName('invites').setDescription('Kiểm tra thành viên tham gia qua lời mời')
+            .addSubcommand(s => s.setName('nguoi_moi').setDescription('Danh sách thành viên được một người mời vào')
+                .addUserOption(o => o.setName('nguoi_moi').setDescription('Người mời; để trống để xem của bạn'))
+                .addIntegerOption(o => o.setName('trang').setDescription('Trang danh sách').setMinValue(1)))
+            .addSubcommand(s => s.setName('thanh_vien').setDescription('Kiểm tra nguồn tham gia của một thành viên')
+                .addUserOption(o => o.setName('nguoi_dung').setDescription('Thành viên; để trống để xem của bạn'))),
+        new SlashCommandBuilder()
+            .setName('boostsetup').setDescription('Bật/Tắt, chọn kênh và tùy chỉnh cảm ơn Boost')
+            .setDefaultMemberPermissions(PermissionFlagsBits.ManageGuild)
+            .addBooleanOption(o => o.setName('bat').setDescription('Bật hoặc tắt; để trống để xem cấu hình'))
+            .addChannelOption(o => o.setName('kenh').setDescription('Kênh cảm ơn Boost').addChannelTypes(ChannelType.GuildText, ChannelType.GuildAnnouncement))
+            .addStringOption(o => o.setName('tin_nhan').setDescription('Tin nhắn ngoài khung; {user}, {server}, {boosts}').setMaxLength(1500))
+            .addStringOption(o => o.setName('noi_dung').setDescription('Nội dung khung cảm ơn; dùng \\n để xuống dòng').setMaxLength(3000))
+            .addStringOption(o => o.setName('anh_nho').setDescription('URL HTTPS ảnh nhỏ; xóa để bỏ ảnh').setMaxLength(1000))
+            .addStringOption(o => o.setName('anh_lon').setDescription('URL HTTPS banner; xóa để bỏ ảnh').setMaxLength(1000)),
+        new SlashCommandBuilder()
+            .setName('goodbye').setDescription('Bật/Tắt, chọn kênh và tùy chỉnh lời tạm biệt như Welcome')
+            .setDefaultMemberPermissions(PermissionFlagsBits.ManageGuild)
+            .addBooleanOption(o => o.setName('bat').setDescription('Bật hoặc tắt; để trống để xem cấu hình'))
+            .addChannelOption(o => o.setName('kenh').setDescription('Kênh tạm biệt').addChannelTypes(ChannelType.GuildText, ChannelType.GuildAnnouncement))
+            .addStringOption(o => o.setName('tin_nhan').setDescription('Tin nhắn ngoài khung; {user}, {username}, {server}').setMaxLength(1500))
+            .addStringOption(o => o.setName('noi_dung').setDescription('Nội dung tạm biệt; {count} là số thành viên còn lại').setMaxLength(3000))
+            .addStringOption(o => o.setName('anh_nho').setDescription('URL HTTPS ảnh nhỏ; xóa để bỏ ảnh').setMaxLength(1000))
+            .addStringOption(o => o.setName('anh_lon').setDescription('URL HTTPS banner; xóa để bỏ ảnh').setMaxLength(1000)),
         new SlashCommandBuilder()
             .setName('broadcastupdate')
             .setDescription('Phát thông báo cập nhật hệ thống Components V2 tới kênh chính và liên server')
@@ -7752,15 +7914,9 @@ client.on('messageCreate', async (message) => {
     {
         const lvSys = gConfig.levelSystem;
         if (lvSys && lvSys.enabled && !message.author.bot) {
-            const coolKey = `${message.guild.id}:${message.author.id}`;
-            const now = Date.now();
-            if (!levelExpCooldown.has(coolKey) || now - levelExpCooldown.get(coolKey) > 60000) {
-                levelExpCooldown.set(coolKey, now);
-                const multi = lvSys.multiplier || 1;
-                const earn = Math.floor((15 + Math.random() * 10) * multi);
-                if (!lvSys.users) lvSys.users = {};
-                const prev = lvSys.users[message.author.id] || 0;
-                lvSys.users[message.author.id] = prev + earn;
+            const award = awardChatXp(lvSys, message.author);
+            if (award) {
+                const prev = award.before;
                 const prevLv = getLevelFromExp(prev);
                 const newLv = getLevelFromExp(lvSys.users[message.author.id]);
                 if (newLv > prevLv) {
@@ -7778,7 +7934,7 @@ client.on('messageCreate', async (message) => {
                         ]}).catch(() => null);
                     }
                 }
-                saveConfig();
+                scheduleCommunitySave();
             }
         }
     }
@@ -12858,60 +13014,14 @@ client.on('interactionCreate', async interaction => {
             return interaction.reply({ content: '🔓 Kênh đã được mở khóa.' });
         }
 
-        // ===== HỆ THỐNG LEVEL CHAT THEO SERVER =====
-        if (commandName === 'level') {
-            const gConfig = getGuildConfig(interaction.guild.id);
-            if (!gConfig.levelSystem?.enabled) return interaction.reply({ content: '❌ Server này chưa bật hệ thống Level. Admin dùng `/levelsetup toggle` để bật!', flags: MessageFlags.Ephemeral });
-            const tUser = interaction.options.getUser('nguoi_dung') || interaction.user;
-            const exp = gConfig.levelSystem?.users?.[tUser.id] || 0;
-            const { level: lv, currentExp: ce, neededExp: ne } = getCurrentLevelExp(exp);
-            const sorted = Object.entries(gConfig.levelSystem?.users || {}).sort((a,b)=>b[1]-a[1]);
-            const rank = sorted.findIndex(([id])=>id===tUser.id)+1;
-            return interaction.reply(buildRankPayload({
-                user: tUser, level: lv, currentExp: ce, neededExp: ne, totalExp: exp,
-                guildName: interaction.guild.name, rank, avatarUrl: tUser.displayAvatarURL()
-            }));
-        }
-
-        if (commandName === 'leaderboard') {
-            const gConfig = getGuildConfig(interaction.guild.id);
-            if (!gConfig.levelSystem?.enabled) return interaction.reply({ content: '❌ Server này chưa bật hệ thống Level. Admin dùng `/levelsetup toggle` để bật!', flags: MessageFlags.Ephemeral });
-            const sorted = Object.entries(gConfig.levelSystem?.users || {}).sort((a,b)=>b[1]-a[1]).slice(0,10);
-            if (!sorted.length) return interaction.reply({ content: '📊 Chưa có ai tích lũy EXP trong server này.', flags: MessageFlags.Ephemeral });
-            const medals = ['🥇','🥈','🥉'];
-            const lines = sorted.map(([id, exp], i) => {
-                const { level: lv } = getCurrentLevelExp(exp);
-                return `${medals[i] || `**#${i+1}**`} <@${id}> — Cấp **${lv}** | ${exp.toLocaleString()} EXP`;
+        // Các tính năng cộng đồng có cùng kiểm tra quyền cho mọi server.
+        if (commandName === 'level' || commandName === 'leaderboard' || commandName === 'toplv' ||
+            commandName === 'levelsetup' || commandName === 'ticketroles' || commandName === 'invites' ||
+            commandName === 'boostsetup' || commandName === 'goodbye') {
+            return handleCommunityCommand(interaction, {
+                getConfig: getGuildConfig, save: saveConfig, getStaffMention: getAdminRoleMention,
+                getCurrentLevelExp, buildRankPayload, voiceTracker: voiceXpTracker
             });
-            return interaction.reply({ embeds: [new EmbedBuilder()
-                .setColor(0xF1C40F)
-                .setTitle(`⭐ Bảng Xếp Hạng Level Chat - ${interaction.guild.name}`)
-                .setDescription(lines.join('\n'))
-                .setFooter({ text: 'Top 10 thành viên hoạt động tích cực nhất' })
-            ]});
-        }
-
-        if (commandName === 'levelsetup') {
-            const gConfig = getGuildConfig(interaction.guild.id);
-            if (!gConfig.levelSystem) gConfig.levelSystem = { enabled: false, users: {}, multiplier: 1 };
-            const sub = interaction.options.getSubcommand();
-            if (sub === 'toggle') {
-                gConfig.levelSystem.enabled = !gConfig.levelSystem.enabled;
-                saveConfig();
-                return interaction.reply({ content: `${gConfig.levelSystem.enabled ? '✅ Đã **BẬT**' : '🔴 Đã **TẮT**'} hệ thống Level chat cho server này!` });
-            }
-            if (sub === 'kenh') {
-                const ch = interaction.options.getChannel('kenh');
-                gConfig.levelSystem.notifyChannelId = ch?.id || null;
-                saveConfig();
-                return interaction.reply({ content: ch ? `✅ Thông báo lên cấp sẽ gửi vào ${ch}.` : '✅ Thông báo lên cấp sẽ gửi ngay trong kênh chat của người dùng.' });
-            }
-            if (sub === 'multiplier') {
-                const heSo = interaction.options.getNumber('he_so');
-                gConfig.levelSystem.multiplier = heSo;
-                saveConfig();
-                return interaction.reply({ content: `✅ Đã đặt hệ số nhân EXP thành **${heSo}x** (mỗi tin nhắn nhận ${Math.floor(15*heSo)}-${Math.floor(25*heSo)} EXP).` });
-            }
         }
 
         if (commandName === 'lichsugiaodich') {
@@ -14308,11 +14418,14 @@ if (commandName === 'changelog') {
             help_welcome: {
                 emoji: '👋', title: 'Lời Chào Thành Viên Mới',
                 color: '#FEE75C',
-                desc: 'Tùy biến tin nhắn và hình ảnh chào mừng khi có thành viên mới gia nhập server.',
+                desc: 'Tùy biến lời chào, tạm biệt và cảm ơn Boost theo kênh riêng của máy chủ.',
                 fields: [
                     { name: '`/configwelcome [kênh]`', value: 'Ghim cố định kênh hiển thị tin nhắn chào mừng. Bot sẽ ưu tiên kênh này thay vì kênh mặc định.' },
                     { name: '`/setwelcome [tin_nhắn] [nội_dung] [ảnh_nhỏ] [ảnh_lớn]`', value: 'Tùy biến sâu nội dung Embed: văn bản ngoài, mô tả embed, ảnh thumbnail góc phải và ảnh banner phía dưới.\n• `{user}` → tag thành viên mới\n• `{server}` → tên server' },
                     { name: '`/resetwelcome`', value: 'Đặt lại toàn bộ cấu hình lời chào về mặc định ban đầu.' },
+                    { name: '`/goodbye bat:true kenh:...`', value: 'Bật tạm biệt khi thành viên rời; dùng `bat:false` để tắt. Tùy chỉnh `tin_nhan`, `noi_dung`, `anh_nho`, `anh_lon` như Welcome.' },
+                    { name: '`/boostsetup bat:true kenh:...`', value: 'Bật cảm ơn Boost ở kênh đã chọn; dùng `bat:false` để tắt. Hỗ trợ biến `{user}`, `{server}`, `{count}`, `{boosts}`.' },
+                    { name: '`/invites nguoi_moi` hoặc `thanh_vien`', value: 'Xem người đã tham gia qua lời mời hoặc nguồn tham gia của một thành viên. Ghi nhận từ lúc cập nhật, không suy đoán lịch sử cũ.' },
                 ]
             },
             help_ticket: {
@@ -14322,6 +14435,7 @@ if (commandName === 'changelog') {
                 fields: [
                     { name: 'Quy trình hoạt động', value: '① Thành viên bấm nút tạo Ticket → Bot mở phòng chat riêng\n② Staff bấm "Nhận ca" → Được gán vào phòng đó\n③ Staff bấm "Đóng Ticket" → Bot lưu log toàn bộ chat\n④ Log được gửi vào kênh lưu trữ + DM cho người tạo Ticket' },
                     { name: '`/configticket [nội_dung]`', value: 'Tùy chỉnh lời nhắc hướng dẫn hiển thị bên trong phòng Ticket khi vừa được tạo.' },
+                    { name: '`/ticketroles cauhinh`', value: 'Chọn 3 vai trò BQT có quyền Quản lý kênh. Bot tag các vai trò này khi tạo ticket và khi Hủy nhận; chọn lại để thay vai trò. `/ticketroles xem` kiểm tra cấu hình.' },
                     { name: '`/addnutticket`', value: 'Gửi bảng tạo Ticket tùy chỉnh có hỗ trợ hình ảnh và tối đa 3 nút bấm có gắn link/màu sắc.' },
                     { name: '`/setupticket`', value: 'Bật/Tắt và tự động gửi hệ thống Ticket hỗ trợ mặc định.' },
                     { name: '⏱️ Tự động', value: 'Ticket không được nhận ca sau **24 giờ** sẽ tự đóng và gửi thông báo. Hủy nhận ca có cooldown **12 giờ**.' },
@@ -16045,7 +16159,11 @@ if (commandName === 'changelog') {
                         new ButtonBuilder().setCustomId('close_ticket_btn').setLabel('Đóng ticket').setStyle(ButtonStyle.Danger)
                     );
                     await interaction.editReply({ embeds: [embed], components: [row] });
-                    return channel.send({ content: 'Ca hỗ trợ đã được hủy nhận. Ticket chờ đến <t:' + Math.floor(expiresAtMs / 1000) + ':R> để người khác tiếp nhận.', allowedMentions: { parse: [] } });
+                    const staffMention = getAdminRoleMention(guild);
+                    const staffRoles = [...staffMention.matchAll(/<@&(\d+)>/g)].map(match => match[1]);
+                    const staffUsers = [...staffMention.matchAll(/<@(\d+)>/g)].map(match => match[1]);
+                    return channel.send({ content: `🔔 **Ticket cần BQT tiếp nhận lại**\n${staffMention}, ca hỗ trợ đã được hủy nhận. Vui lòng **Chấp nhận** để tiếp tục hỗ trợ <@${creatorId}>.\nTicket chờ đến <t:${Math.floor(expiresAtMs / 1000)}:R>.`,
+                        allowedMentions: { parse: [], roles: staffRoles, users: staffUsers } });
                 }
                 if (user.id !== creatorId && !member.permissions.has(PermissionFlagsBits.ManageChannels)) {
                     return interaction.reply({ content: 'Bạn không có quyền đóng ticket này.', flags: MessageFlags.Ephemeral });
