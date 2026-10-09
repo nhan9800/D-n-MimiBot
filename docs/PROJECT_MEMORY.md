@@ -275,3 +275,10 @@ Checkpoint 05/10/2026, Asia/Saigon. Đọc cùng WORKSPACE.md và AGENTS.md khi 
 - Đã thêm `bannedWordFilter.js` (NFC, dấu nguyên vẹn, ranh giới Unicode, cụm từ có khoảng trắng), `confessionUi.js` (V2/custom emoji), `confessionService.js` (modal, post/reply thread, likes, cooldown, khóa per user/post, không lưu danh tính bài ẩn danh). `/setupconfession` lưu ID panel và sửa tại chỗ. `/confess` và `/confession` có `che_do`.
 - `setupticket` dùng builder ticket V2; startup chỉ nâng mẫu ticket mặc định của bot khi emoji đủ, giữ custom ID/link/attachment, bỏ qua tin tự thiết kế. Build fingerprint/SFTP whitelist đã thêm 3 module.
 - Kiểm thử riêng 29/29; full suite **419/419**, cú pháp **95 JS**, `npm audit` **0** và preview **42 mẫu** đạt. Chưa commit/push/deploy lượt này. Cần CI, restart VibeHost, health/REST read-only; không gửi confession/DM thật hoặc sửa bài khách để test.
+
+## Checkpoint sau deploy confession/ticket — 09/10/2026, 20:00 VN
+
+- Bản vá cuối `3e260c5` đã push lên `main`; CI GitHub run `37932778866` thành công. Thay đổi cuối chuẩn hóa nút link hỗ trợ của mẫu ticket: giữ URL/custom ID, bỏ Unicode trang trí khỏi nhãn để builder gắn custom emoji globe.
+- VibeHost server `9d9f7a18` đã restart sau CI và console xác nhận `06a6c32..3e260c5`, bản dựng `v1.4.0 commit=3e260c5`. Startup đã đồng bộ panel ticket mặc định ở server chính `1517068246493429852` trong lượt trước; không gửi confession/ticket thật để kiểm thử.
+- Health lúc `2026-10-09T13:00:21Z`: `/health/live` HTTP200, commit `3e260c5`, custom/artwork `182/182`, missing `[]`; `/health/ready` HTTP200, `discord:true`. Receipt và ảnh console nằm ngoài Git ở `C:/Users/ivano/Downloads/MimiBot-backups/runtime-restore-2026-10-06/` (`deploy-3e260c5.json`, `hosting-3e260c5.png`, `console-3e260c5.txt`).
+- Bộ lọc từ cấm, confession V2 public/anonymous và ticket V2 đã có test; full suite lần kiểm gần nhất `419/419`, syntax `95 JS`, audit `0`. Chưa có xác minh âm thanh Discord thật hoặc gửi bài confession/ticket của thành viên.
