@@ -7,6 +7,7 @@ const { normalizePayload, walkComponents, countComponents } = require('../discor
 const emoji = require('../communityEmojis');
 const { BOT_ID, HOME_GUILD_ID } = require('../scripts/plan-home-guild');
 const { buildStandardSetupPanel, standardPanelType, controlSignature, isDefaultVerifyMessage, DEFAULT_VERIFY_MESSAGES } = require('../communitySetupPanels');
+const { refreshDefaultTicketPanels } = require('../communitySetupPanels');
 const { panelPayload, refreshPanels, inspectPanels, PANEL_CHANNELS } = require('../scripts/refresh-home-guild-panels');
 const trigger = '1526890047175917568';
 const old = {
@@ -123,6 +124,28 @@ test('Thiếu catalog vẫn có hướng dẫn và nút đúng chức năng, kh�
         assert.doesNotMatch(JSON.stringify(next), /<a?:\w+:\d+>|\p{Extended_Pictographic}/u);
     }
 }, false));
+
+test('Mẫu setupticket trong ảnh được nhận diện và thay mới giữ category Ticket/URL hỗ trợ', () => withEmoji(() => {
+    const source = snapshot('ticket');
+    source.components[0].components[1].content = '## HỆ THỐNG TICKET HỖ TRỢ\nNhấn vào nút bên dưới để tạo Ticket mới. Đội ngũ hỗ trợ sẽ phản hồi sớm nhất có thể!';
+    source.components[0].components[2].components[0].custom_id = 'create_ticket_btn:Ticket';
+    assert.equal(standardPanelType(source), 'ticket');
+    const next = panelPayload(source);
+    assert.equal(controlSignature(next.components), controlSignature(source.components));
+    assert.match(JSON.stringify(next), /03 · Lưu cuộc trò chuyện/);
+    assert.ok(nodes(next).filter(item => item.type === 2).every(item => item.emoji.id));
+}));
+
+test('Refresh startup chỉ sửa mẫu cũ của bot, không sửa ticket khách và chạy lại không đổi tin mới', () => withEmoji(async () => {
+    let edits = 0;
+    const old = snapshot('ticket');
+    old.edit = async payload => { edits++; old.components = normalizePayload(payload).components; };
+    const foreign = { ...snapshot('ticket'), author: { id: 'other' }, edit: async () => { throw Error('foreign'); } };
+    const channel = { messages: { fetch: async () => new Map([['old', old], ['foreign', foreign]]) } };
+    assert.equal(await refreshDefaultTicketPanels(channel, BOT_ID), 1);
+    assert.equal(await refreshDefaultTicketPanels(channel, BOT_ID), 0);
+    assert.equal(edits, 1);
+}));
 
 test('Inspect bỏ qua tin mới tự thiết kế và lấy đúng panel mặc định thuộc guild chính', async () => {
     const standard = snapshot('ticket');

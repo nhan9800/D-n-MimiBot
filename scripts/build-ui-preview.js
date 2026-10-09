@@ -13,6 +13,7 @@ const { CATALOG_ASSETS } = require('../emojiCatalog');
 const { buildStandardSetupPanel } = require('../communitySetupPanels');
 const { buildBlackjackPayload } = require('../blackjackUi');
 const { buildMemberNotice } = require('../communityCommands');
+const { buildConfessionComposer, buildConfessionPost, buildConfessionReply } = require('../confessionUi');
 // ID giả chỉ dùng trong preview; ảnh đúng asset sản xuất, không đăng nhập Discord.
 for (const [index, item] of CATALOG_ASSETS.entries()) for (const key of item.keys) COMMUNITY_EMOJI[key] = `<${item.format === 'gif' ? 'a' : ''}:${item.name}:${100000000000000000n + BigInt(index)}>`;
 const emojiAssets = Object.fromEntries(CATALOG_ASSETS.map(item => [item.name, item.url]));
@@ -42,6 +43,11 @@ add('Level Voice riêng', buildRankPayload({ user, level: 4, currentExp: 240, ne
 const sampleMember = { id: user.id, user, guild: { name: 'Cộng đồng Mimi', memberCount: 248, premiumSubscriptionCount: 14 } };
 add('Cảm ơn Boost', buildMemberNotice('boost', sampleMember));
 add('Tạm biệt thành viên', buildMemberNotice('goodbye', sampleMember));
+add('Confession · Trạm sẻ chia', buildConfessionComposer({ name: 'Cộng đồng Mimi', iconURL: () => avatar }));
+add('Confession · Ẩn danh', buildConfessionPost({ user, anonymous: true, number: 9, content: 'Có một câu chuyện mình muốn kể, và một lời cảm ơn gửi tới cộng đồng.', likes: 12 }));
+add('Confession · Công khai', buildConfessionPost({ user, anonymous: false, number: 10, content: 'Cảm ơn mọi người đã cùng mình tạo nên những kỷ niệm đẹp.' }));
+add('Confession · Trả lời ẩn danh', buildConfessionReply({ user, anonymous: true, number: 9, content: 'Cảm ơn bạn đã chia sẻ. Mong bạn luôn tìm được những điều vui vẻ ở đây.' }));
+add('Confession · Trả lời công khai', buildConfessionReply({ user, anonymous: false, number: 9, content: 'Cộng đồng luôn sẵn sàng lắng nghe bạn!' }));
 const pet = { name: 'Mochi', type: 'dog', level: 4, xp: 120, hunger: 85, happiness: 70 };
 add('Pet · Chơi cùng đếm giây', { embeds: [buildPetEmbed(user, pet)], components: buildPetComponents(user.id, pet, { cooldowns: { pet_play: Date.now() + 42000 } }) }, 'Builder pet sản xuất với dữ liệu mẫu; cooldown live được scheduler cập nhật.');
 const categories = [

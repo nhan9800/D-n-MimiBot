@@ -16,8 +16,14 @@
 | `/invites thanh_vien nguoi_dung:...` | Nguồn tham gia của một người. |
 | `/boostsetup bat:true kenh:...` | Bật cảm ơn Boost ở kênh đã chọn. `bat:false` tắt, gọi không option xem cấu hình. |
 | `/goodbye bat:true kenh:...` | Tạm biệt ở kênh đã chọn; cấu hình riêng, không thay Welcome. `bat:false` tắt. |
+| `/setupconfession kenh:...` | Tạo/làm mới bảng **Trạm sẻ chia** theo kiểu mới. Thành viên chọn đăng công khai hoặc ẩn danh. |
+| `/confess` hoặc `/confession` | Gửi bài bằng lệnh nhanh; có `che_do:anonymous/public`. Bài mới có số, nút Thích và luồng trả lời. |
 
 Hai lệnh Boost/Tạm biệt hỗ trợ `tin_nhan`, `noi_dung`, `anh_nho`, `anh_lon`; biến `{user}`, `{username}`, `{server}`, `{count}`, `{boosts}` và `\n`. Ảnh dùng URL HTTPS hoặc `xóa`. Cấu hình cần ManageGuild và bot phải ViewChannel/SendMessages/EmbedLinks ở kênh đích. Mặc định hai thông báo tắt cho đến khi quản trị chọn kênh.
+
+Confession lưu số bài và người đã thích trong `confessionState` của server. Bài ẩn danh không lưu ID/tên/avatar tác giả; bài công khai hiển thị tên và ảnh đại diện tại thời điểm đăng. Trả lời ẩn danh hoặc công khai đi vào luồng của đúng bài, không bật mention. Mimi giữ bài nếu không tạo được luồng và cho phép thử lại; cần `CreatePublicThreads` và `SendMessagesInThreads` để trả lời. Bộ lọc từ cấm áp dụng cho bài và trả lời, giữ dấu tiếng Việt và ranh giới nguyên từ: cấm `cu` không bắt `cư`, `cứu`, `cua` hay `cuốn`.
+
+Mẫu ticket cũ của chính Mimi được nâng cấp tự động sau khi emoji ứng dụng đủ; nút `create_ticket_btn:Ticket` và liên kết hỗ trợ vẫn giữ nguyên. Tin thành viên hoặc mẫu ticket tự thiết kế không bị sửa. Nếu chạy `/setupconfession` nhiều lần, Mimi lưu ID panel và sửa tại chỗ thay vì tạo bản sao.
 
 ## Dữ liệu và giới hạn
 

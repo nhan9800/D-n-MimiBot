@@ -1,5 +1,11 @@
 # CHANGELOG.md — NHẬT KÝ THAY ĐỔI
 
+## Confession, ticket và lọc từ cấm — 2026-10-09
+
+- Bộ lọc từ cấm giữ dấu và ranh giới nguyên từ; cấm `cu` không còn bắt `cư`, `cứu`, `cua` hoặc `cuốn`.
+- Confession có Trạm sẻ chia mới, số bài, Thích, luồng trả lời công khai/ẩn danh và lệnh `/setupconfession`; bài ẩn danh không lưu thông tin nhận diện.
+- Mẫu Ticket được dựng lại bằng custom emoji, tự nâng panel mặc định của Mimi sau khi restart và giữ nguyên custom ID, link hỗ trợ, tin thành viên.
+
 ## Cộng đồng — 2026-10-06
 
 - Ticket mở và Hủy nhận tag 3 vai trò BQT theo `/ticketroles`; đổi vai trò trong cấu hình có hiệu lực cho lượt tiếp theo.

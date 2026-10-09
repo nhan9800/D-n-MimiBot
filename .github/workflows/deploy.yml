@@ -90,6 +90,9 @@ jobs:
           put musicBuffer.js
           put communityFeatures.js
           put communityCommands.js
+          put bannedWordFilter.js
+          put confessionUi.js
+          put confessionService.js
           put modalUi.js
           put profileCard.js
           put petUi.js

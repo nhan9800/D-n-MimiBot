@@ -18,6 +18,7 @@ RUNTIME_FILES.push('emojiCatalog.js', 'assets/emojis/catalog.json');
 RUNTIME_FILES.push('communitySetupPanels.js');
 RUNTIME_FILES.push('blackjackUi.js', 'musicBuffer.js');
 RUNTIME_FILES.push('communityFeatures.js', 'communityCommands.js');
+RUNTIME_FILES.push('bannedWordFilter.js', 'confessionUi.js', 'confessionService.js');
 
 function runtimeFingerprint(directory = __dirname) {
     const hash = createHash('sha256');

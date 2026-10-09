@@ -32,7 +32,7 @@ const { spawn } = require('child_process');
 const { colors, buildBaseEmbed, generateProgressBar } = require('./uiBuilder');
 const { normalizePayload, readMessageEmbed, extractActionRows, installDiscordUi, preserveUi } = require('./discordUi');
 const { buildMusicDashboard, buildHelpOverview, buildHelpPage } = require('./communityPanels');
-const { buildStandardSetupPanel, isDefaultVerifyMessage } = require('./communitySetupPanels');
+const { buildStandardSetupPanel, isDefaultVerifyMessage, refreshDefaultTicketPanels } = require('./communitySetupPanels');
 const { buildBlackjackPayload } = require('./blackjackUi');
 const { StartupAudioBuffer, PcmFrameChunker, monitorMusicResource } = require('./musicBuffer');
 const { buildProfilePayload, buildRankPayload } = require('./profileCard');
@@ -47,6 +47,8 @@ const { normalizeTicketState, ticketStateFromPanel, resolveTicketState } = requi
 const { captureTicketTranscript, buildTranscriptFiles, persistTicketTranscript } = require('./ticketTranscript');
 const { awardChatXp, VoiceXpTracker, InviteTracker, inviteSnapshot, isNewBoost, voiceEnabled } = require('./communityFeatures');
 const { handleCommunityCommand, buildMemberNotice } = require('./communityCommands');
+const { findBannedWord } = require('./bannedWordFilter');
+const { createConfessionService } = require('./confessionService');
 const { parseDuration, setLongTimeout, clearLongTimeout } = require('./reminderUtils');
 const { MusicStore, MAX_ALBUMS_PER_USER, MAX_TRACKS_PER_ALBUM } = require('./musicStore');
 const { createDashboardKey, resolveDashboardSecret, DEFAULT_TTL_MS: DASHBOARD_KEY_TTL_MS } = require('./dashboardAuth');
@@ -501,6 +503,7 @@ function scheduleCommunitySave() {
     }, 1000).unref();
 }
 const voiceXpTracker = new VoiceXpTracker({ getConfig: getGuildConfig, changed: scheduleCommunitySave });
+const confessionService = createConfessionService({ getConfig: getGuildConfig, save: saveConfig, getBotId: () => client.user.id });
 const inviteTracker = new InviteTracker({ getConfig: getGuildConfig, save: saveConfig, fetchSnapshot: async guild => {
     const invites = await guild.invites.fetch();
     const vanity = guild.vanityURLCode ? await guild.fetchVanityData() : null;
@@ -2336,23 +2339,6 @@ async function unverifyBeforeMute(guild, gConfig, targetMember) {
 // thêm/xóa từ cấm. Bot dò toàn bộ tin nhắn trong server, xóa + cảnh cáo +
 // tự mute (leo thang) khi phát hiện từ cấm.
 // -----------------------------------------------------------------
-function normalizeForBadWordCheck(str) {
-    return (str || '')
-        .normalize('NFD').replace(/[\u0300-\u036f]/g, '')
-        .replace(/đ/g, 'd').replace(/Đ/g, 'd')
-        .toLowerCase();
-}
-
-function findBannedWord(content, gConfig) {
-    if (!gConfig.bannedWords || gConfig.bannedWords.length === 0) return null;
-    const normContent = normalizeForBadWordCheck(content);
-    for (const word of gConfig.bannedWords) {
-        const normWord = normalizeForBadWordCheck(word);
-        if (normWord && normContent.includes(normWord)) return word;
-    }
-    return null;
-}
-
 // -----------------------------------------------------------------
 // ⚖️ LỊCH SỬ KỶ LUẬT + TỰ ĐỘNG LEO THANG
 // Cứ mỗi 5 lần Mute -> tự động Kick. Cứ mỗi 5 lần Kick -> tự động Ban.
@@ -6066,6 +6052,18 @@ client.once('clientReady', async () => {
 
     // Cấp emoji ứng dụng chạy nền; UI thiếu emoji dùng chữ tới khi bộ biểu cảm sẵn sàng.
     startAppEmojiProvisioning().catch(() => console.warn('🎨 Không hoàn tất nạp emoji ứng dụng; giao diện tiếp tục bằng chữ.'));
+    // Nâng mẫu ticket đã gửi chỉ khi bộ emoji đầy đủ; không dựng lại kênh/ticket khách.
+    startAppEmojiProvisioning().then(async coverage => {
+        if (!coverage.complete) return;
+        for (const guild of client.guilds.cache.values()) {
+            const channel = guild.channels.cache.get(getGuildConfig(guild.id).ticketControlChannelId);
+            if (!channel) continue;
+            try {
+                const count = await refreshDefaultTicketPanels(channel, client.user.id);
+                if (count) console.info(`[TicketUI] Đã cập nhật ${count} mẫu ticket ở server ${guild.id}.`);
+            } catch { console.warn(`[TicketUI] Chưa cập nhật mẫu ticket ở server ${guild.id}; kiểm tra quyền đọc/sửa tin.`); }
+        }
+    }).catch(() => null);
     await syncChannels();
 
     // 🔌 Khởi động Internal API cho website (chỉ chạy nếu đã đặt MIMI_API_TOKEN)
@@ -6200,8 +6198,13 @@ client.once('clientReady', async () => {
             .addBooleanOption(o => o.setName('force').setDescription('Bắt buộc gửi lại ngay cả khi đã gửi rồi').setRequired(false)),
         new SlashCommandBuilder()
             .setName('confess')
-            .setDescription('Gửi lời thổ lộ / tâm sự ẩn danh vào kênh Confessions của server')
-            .addStringOption(o => o.setName('nội_dung').setDescription('Nội dung muốn gửi ẩn danh').setRequired(true)),
+            .setDescription('Gửi tâm sự công khai hoặc ẩn danh vào kênh Confession')
+            .addStringOption(o => o.setName('nội_dung').setDescription('Nội dung muốn chia sẻ').setMaxLength(3000).setRequired(true))
+            .addStringOption(o => o.setName('che_do').setDescription('Cách đăng; mặc định ẩn danh').addChoices({ name: 'Ẩn danh', value: 'anonymous' }, { name: 'Công khai', value: 'public' })),
+        new SlashCommandBuilder()
+            .setName('setupconfession').setDescription('Chọn kênh và làm mới Trạm sẻ chia')
+            .setDefaultMemberPermissions(PermissionFlagsBits.ManageGuild)
+            .addChannelOption(o => o.setName('kenh').setDescription('Kênh confession; để trống dùng kênh đã chọn').addChannelTypes(ChannelType.GuildText)),
         new SlashCommandBuilder()
             .setName('setupsystem')
             .setDescription('Cài đặt kênh nhận thông báo toàn hệ thống từ Admin Bot')
@@ -6257,8 +6260,9 @@ client.once('clientReady', async () => {
 
         new SlashCommandBuilder()
             .setName('confession')
-            .setDescription('Gửi một confession ẩn danh')
-            .addStringOption(o => o.setName('nội_dung').setDescription('Nội dung confession').setRequired(true)),
+            .setDescription('Gửi một confession công khai hoặc ẩn danh')
+            .addStringOption(o => o.setName('nội_dung').setDescription('Nội dung confession').setMaxLength(3000).setRequired(true))
+            .addStringOption(o => o.setName('che_do').setDescription('Cách đăng; mặc định ẩn danh').addChoices({ name: 'Ẩn danh', value: 'anonymous' }, { name: 'Công khai', value: 'public' })),
 
         new SlashCommandBuilder()
             .setName('configwelcome')
@@ -10526,6 +10530,7 @@ client.on('interactionCreate', async interaction => {
     const gConfig = getGuildConfig(guild.id);
 
     // Kiểm tra lại ở mọi nút/form, kể cả các bảng được mở trước lần cập nhật.
+    if (customId?.startsWith('cfs:')) return confessionService.handle(interaction);
     if (customId?.startsWith('bc_') && !isBotOwner(user.id)) {
         return interaction.reply({ content: '🚫 Chỉ chủ sở hữu bot được quản lý thông báo liên server.', flags: MessageFlags.Ephemeral });
     }
@@ -12597,28 +12602,9 @@ client.on('interactionCreate', async interaction => {
         }
 
         if (commandName === 'confess') {
-            const noiDung = options.getString('nội_dung');
-            await interaction.deferReply({ flags: MessageFlags.Ephemeral });
-            const confId = gConfig.confessionChannelId;
-            if (!confId) return interaction.editReply('❌ Server chưa cài đặt kênh Confessions. Admin hãy chạy `/setup` để tạo.');
-            const confChan = guild.channels.cache.get(confId);
-            if (!confChan) return interaction.editReply('❌ Kênh Confessions không tồn tại hoặc đã bị xoá.');
-            
-            const confEmbed = new EmbedBuilder()
-                .setColor('#FF69B4')
-                .setTitle('💌 Thổ Lộ (Confession)')
-                .setDescription(noiDung)
-                .setFooter({ text: 'Gửi ẩn danh qua MIMI BOT' })
-                .setTimestamp();
-            
-            try {
-                await confChan.send({ embeds: [confEmbed], mimiUi: { kind: 'feedback', preserveDescription: true } });
-                return interaction.editReply('✅ Gửi Confession thành công!');
-            } catch (e) {
-                if (e.code === 50013) return interaction.editReply('❌ Bot không có quyền gửi tin nhắn vào kênh Confession. Vui lòng báo Admin cấp quyền `SendMessages` cho bot tại kênh đó!');
-                return interaction.editReply('❌ Đã xảy ra lỗi khi gửi confession.');
-            }
+            return confessionService.publish(interaction, options.getString('che_do') || 'anonymous', options.getString('nội_dung'));
         }
+        if (commandName === 'setupconfession') return confessionService.setup(interaction);
 
         if (commandName === 'resetsetup') {
             await interaction.deferReply({ flags: MessageFlags.Ephemeral });
@@ -13334,29 +13320,7 @@ client.on('interactionCreate', async interaction => {
         }
 
                 if (commandName === 'confession') {
-            await interaction.deferReply({ flags: 64 });
-            
-            if (!gConfig || !gConfig.confessionChannelId) {
-                return interaction.editReply({ content: '❌ Kênh confession chưa được setup. Hãy báo Admin dùng /setup nhé.' });
-            }
-            const confChan = interaction.guild.channels.cache.get(gConfig.confessionChannelId);
-            if (!confChan) return interaction.editReply({ content: '❌ Không tìm thấy kênh confession.' });
-            
-            const noiDung = interaction.options.getString('nội_dung');
-            const confEmbed = new EmbedBuilder()
-                .setColor('#FF69B4')
-                .setTitle('💌 Thổ Lộ (Confession)')
-                .setDescription(noiDung)
-                .setFooter({ text: 'Gửi ẩn danh qua MIMI BOT' })
-                .setTimestamp();
-            
-            try {
-                await confChan.send({ embeds: [confEmbed], mimiUi: { kind: 'feedback', preserveDescription: true } });
-                return interaction.editReply({ content: '✅ Confession của bạn đã được gửi ẩn danh!' });
-            } catch (e) {
-                if (e.code === 50013) return interaction.editReply({ content: '❌ Bot không có quyền gửi tin nhắn vào kênh Confession. Vui lòng báo Admin cấp quyền `SendMessages` cho bot tại kênh đó!' });
-                return interaction.editReply({ content: '❌ Đã xảy ra lỗi khi gửi confession.' });
-            }
+            return confessionService.publish(interaction, options.getString('che_do') || 'anonymous', options.getString('nội_dung'));
         }
 if (commandName === 'afk') {
     const reason = interaction.options.getString('ly_do');
@@ -13439,12 +13403,11 @@ if (commandName === 'setupticket') {
     gConfig.ticketArchiveChannelId = archiveChan.id;
             saveConfig();
             
-            const embed = new EmbedBuilder().setColor('#EB459E').setTitle('HỆ THỐNG TICKET HỖ TRỢ').setDescription('Nhấn vào nút bên dưới để tạo Ticket mới. Đội ngũ hỗ trợ sẽ phản hồi sớm nhất có thể!');
             const row = new ActionRowBuilder().addComponents(
                 new ButtonBuilder().setCustomId('create_ticket_btn:Ticket').setLabel('Mở Ticket Mới').setStyle(ButtonStyle.Primary).setEmoji('📝'),
                 new ButtonBuilder().setLabel('🌐 Máy Chủ Hỗ Trợ').setStyle(ButtonStyle.Link).setURL('https://discord.gg/gBUHY3qph2')
             );
-            await ticketControlChannel.send(embedToV2Payload(embed, { components: [row] }));
+            await ticketControlChannel.send(buildStandardSetupPanel('ticket', { rows: [row], thumbnail: guild.iconURL({ size: 256 }) }));
             return interaction.editReply('✅ Đã **BẬT** và khởi tạo hệ thống Ticket!');
 
 }
@@ -13528,6 +13491,7 @@ if (commandName === 'setup') {
                 let confChan = guild.channels.cache.get(gConfig.confessionChannelId) || guild.channels.cache.find(ch => ch.type === ChannelType.GuildText && ch.name.includes('confessions'));
                 if (!confChan) confChan = await guild.channels.create({ name: '💌-confessions', type: ChannelType.GuildText });
                 gConfig.confessionChannelId = confChan.id;
+                await confessionService.ensureComposer(confChan, guild);
 
                 let pickChan = guild.channels.cache.get(gConfig.pickRolesChannelId) || guild.channels.cache.find(ch => ch.type === ChannelType.GuildText && ch.name.includes('pick-roles'));
                 if (!pickChan) pickChan = await guild.channels.create({ name: '🎭-pick-roles', type: ChannelType.GuildText });
@@ -13542,7 +13506,7 @@ if (commandName === 'setup') {
                         '• Gõ 1 từ/cụm từ → **thêm** vào danh sách cấm.\n' +
                         '• Gõ `-từ` → **xóa** từ đó khỏi danh sách.\n' +
                         '• Gõ `list` → xem toàn bộ danh sách hiện tại.\n\n' +
-                        'Bot quét **TẤT CẢ** kênh trong server. Khi phát hiện từ cấm, bot sẽ tự động **xóa tin nhắn** và **Cảnh Cáo** người vi phạm.\n' +
+                        'Bot quét **TẤT CẢ** kênh trong server, chỉ bắt **nguyên từ/cụm từ đúng dấu** (không phân biệt hoa/thường). Ví dụ cấm `cu` không bắt `cư`, `cứu` hay `cua`. Khi vi phạm, bot **xóa tin nhắn** và **Cảnh Cáo**.\n' +
                         'Cứ **5 lần Cảnh Cáo** → tự động **Mute** (1 phút → 1 giờ → 1 ngày → 3 ngày → 7 ngày qua 5 lần) → cứ **5 Mute** → **Kick** → cứ **5 Kick** → **Ban**.'
                     );
                 await bannedWordsChan.send(embedToV2Payload(bannedWordsEmbed)).catch(() => null);

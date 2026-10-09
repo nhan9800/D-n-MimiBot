@@ -7,6 +7,7 @@ const vm = require('node:vm');
 const discord = require('discord.js');
 const features = require('../communityFeatures');
 const { buildMemberNotice } = require('../communityCommands');
+const { createConfessionService } = require('../confessionService');
 const { normalizePayload } = require('../discordUi');
 const source = fs.readFileSync(path.join(__dirname, '../index.js'), 'utf8');
 
@@ -30,6 +31,7 @@ function fixture() {
         once(event, fn) { this.on(event, fn); } };
     const begin = source.indexOf('let communitySaveTimer = null;'); const end = source.indexOf('// ☕ EMBED THÔNG TIN DONATE', begin);
     vm.runInNewContext(source.slice(begin, end), { ...discord, client, voiceEnabled: features.voiceEnabled, inviteSnapshot: features.inviteSnapshot,
+        createConfessionService,
         isNewBoost: features.isNewBoost, buildMemberNotice, getGuildConfig: () => settings, saveConfig: () => saves++,
         VoiceXpTracker: class extends features.VoiceXpTracker { constructor(args) { super({ ...args, clock: () => now }); } },
         InviteTracker: class extends features.InviteTracker { constructor(args) { super({ ...args, setTimer: fn => timers.push(fn) }); } },

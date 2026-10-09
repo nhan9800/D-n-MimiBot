@@ -62,12 +62,15 @@ function controlSignature(components) {
 
 function styledRows(type, input) {
     const rows = (input || defaultRows(type)).map(json);
-    if (JSON.stringify(controlIds(rows)) !== JSON.stringify([...definitions[type].ids].sort())) {
+    const ids = controlIds(rows);
+    if (JSON.stringify(ids) !== JSON.stringify([...definitions[type].ids].sort()) &&
+        !(type === 'ticket' && JSON.stringify(ids) === JSON.stringify(['create_ticket_btn:Ticket']))) {
         throw new Error('Nút bảng mặc định không khớp chức năng.');
     }
     const labels = {
         verify_btn: ['Xác thực thành viên', 'check'],
         'create_ticket_btn:Default': ['Mở yêu cầu hỗ trợ', 'ticket'],
+        'create_ticket_btn:Ticket': ['Mở yêu cầu hỗ trợ', 'ticket'],
         voiceroom_settings_btn: ['Quản lý phòng của tôi', 'settings'],
         check_in_btn: ['Bắt đầu ca', 'check'], check_out_btn: ['Kết thúc ca', 'stop'],
     };
@@ -85,7 +88,7 @@ function styledRows(type, input) {
 function buildStandardSetupPanel(type, options = {}) {
     const definition = definitions[type];
     if (!definition) throw new Error('Loại bảng khởi tạo không được hỗ trợ.');
-    const headings = [text(`## ${definition.title}`)];
+    const headings = [text(`## ${iconText(definition.icon, definition.title)}`)];
     const bodies = {
         verify: [
             text('Chào mừng bạn đến với cộng đồng. Xác thực để nhận vai trò thành viên và khám phá các kênh của máy chủ.'),
@@ -96,9 +99,10 @@ function buildStandardSetupPanel(type, options = {}) {
         ticket: [
             text('Trao đổi riêng với đội ngũ trong một ticket dành cho yêu cầu của bạn.'),
             divider(),
-            text(`### ${iconText('note', 'Nói rõ điều bạn cần')}\nĐiền chủ đề và mô tả trong biểu mẫu. Thêm thông tin liên quan để đội ngũ hiểu vấn đề ngay từ đầu.`),
-            text(`### ${iconText('chat', 'Tiếp tục trong phòng hỗ trợ')}\nSau khi gửi biểu mẫu, theo dõi ticket vừa tạo để trao đổi với đội ngũ.`),
-            text('-# Mỗi yêu cầu có một cuộc trò chuyện riêng để bạn dễ theo dõi.'),
+            text(`### ${iconText('note', '01 · Gửi yêu cầu')}\nĐiền chủ đề trong biểu mẫu. Trong phòng vừa tạo, mô tả vấn đề và gửi ảnh nếu cần.`),
+            text(`### ${iconText('shield', '02 · Đội ngũ tiếp nhận')}\nMimi tag BQT để xác nhận và cùng bạn xử lý yêu cầu.`),
+            text(`### ${iconText('folder', '03 · Lưu cuộc trò chuyện')}\nKhi đóng ticket, nội dung được lưu tại kênh log và gửi cho bạn nếu bạn cho phép tin nhắn riêng.`),
+            text(`-# ${iconText('lock', 'Mỗi yêu cầu có một phòng riêng · Không gửi mật khẩu hoặc token.')}`),
         ],
         voice: [
             text('Tạo không gian cho buổi trò chuyện, nghe nhạc hoặc gặp gỡ bạn bè.'),
@@ -137,12 +141,13 @@ function standardPanelType(message) {
     const ids = JSON.stringify(controlIds(message.components));
     const known = {
         verify: /(?:XÁC THỰC THÀNH VIÊN|Xác thực · Bắt đầu tham gia cộng đồng|Bắt đầu hành trình cùng Mimi)/u,
-        ticket: /(?:Hệ Thống Hỗ Trợ|Quầy hỗ trợ · Chúng tôi sẵn sàng lắng nghe|Bạn cần hỗ trợ điều gì\?)/u,
+        ticket: /(?:Hệ Thống Hỗ Trợ|HỆ THỐNG TICKET HỖ TRỢ|Quầy hỗ trợ · Chúng tôi sẵn sàng lắng nghe|Bạn cần hỗ trợ điều gì\?)/u,
         voice: /(?:HỆ THỐNG PHÒNG VOICE RIÊNG|Phòng thoại · Không gian của bạn|Một phòng thoại của riêng bạn)/u,
         attendance: /(?:KHU VỰC CHẤM CÔNG TRỰC TUYẾN|Chấm công · Ca làm của bạn|Ghi nhận ca làm của bạn)/u,
     };
     const descriptions = {
         ticket: ['Nhấn vào nút bên dưới để điền Form mở Ticket ẩn.',
+            'Nhấn vào nút bên dưới để tạo Ticket mới. Đội ngũ hỗ trợ sẽ phản hồi sớm nhất có thể!',
             'Mở một phòng riêng để trao đổi với đội ngũ. Điền chủ đề và mô tả trong biểu mẫu để được tiếp nhận nhanh hơn.',
             'Trao đổi riêng với đội ngũ trong một ticket dành cho yêu cầu của bạn.'],
         voice: ['để **tự động được tạo một phòng voice riêng** mang tên bạn.',
@@ -152,7 +157,9 @@ function standardPanelType(message) {
             'Ghi lại thời điểm bắt đầu và hoàn thành công việc ngay tại đây.'],
     };
     for (const [type, definition] of Object.entries(definitions)) {
-        if (ids !== JSON.stringify([...definition.ids].sort()) || !known[type].test(body)) continue;
+        const matchingIds = ids === JSON.stringify([...definition.ids].sort()) ||
+            (type === 'ticket' && ids === JSON.stringify(['create_ticket_btn:Ticket']));
+        if (!matchingIds || !known[type].test(body)) continue;
         if (descriptions[type] && !descriptions[type].some(value => body.includes(value))) return null;
         if (type === 'verify' && !DEFAULT_VERIFY_MESSAGES.some(value => body.includes(value))
             && !body.includes('Xác thực để nhận vai trò thành viên và khám phá các kênh của máy chủ.')) return null;
@@ -195,4 +202,18 @@ function rebuildStandardSetupPanel(message) {
 }
 
 module.exports = { buildStandardSetupPanel, rebuildStandardSetupPanel, standardPanelType, controlIds, controlSignature,
-    isDefaultVerifyMessage, DEFAULT_VERIFY_MESSAGES };
+    isDefaultVerifyMessage, DEFAULT_VERIFY_MESSAGES, refreshDefaultTicketPanels };
+
+async function refreshDefaultTicketPanels(channel, botId) {
+    const messages = await channel.messages.fetch({ limit: 100 });
+    let updated = 0;
+    for (const message of messages.values()) {
+        const attachments = [...(message.attachments?.values?.() || message.attachments || [])].map(item => ({ ...item, filename: item.name || item.filename }));
+        const source = { content: message.content, embeds: (message.embeds || []).map(json), components: (message.components || []).map(json), attachments };
+        if (message.author?.id !== botId || standardPanelType(source) !== 'ticket' || textContent(source).includes('03 · Lưu cuộc trò chuyện')) continue;
+        const next = rebuildStandardSetupPanel(source);
+        await message.edit({ ...next, attachments: attachments.map(item => ({ id: item.id, filename: item.filename })) });
+        updated++;
+    }
+    return updated;
+}

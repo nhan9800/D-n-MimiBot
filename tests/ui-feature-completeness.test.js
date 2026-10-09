@@ -199,12 +199,12 @@ test('Thông báo lên cấp thật dùng thanh custom ngoài code và fallback 
     for (const bad of [NaN, Infinity, -1]) assert.match(b.buildLevelBar(bad, 100), /0%/);
 }));
 
-test('Góp ý và hai lệnh confession thật giữ nguyên nội dung tác giả, vẫn có header custom', () => catalog(async () => {
+test('Góp ý thật giữ nguyên nội dung tác giả, vẫn có header custom', () => catalog(async () => {
     const start = source.indexOf("client.on('interactionCreate', async interaction => {");
     const end = source.indexOf('// 🔑 ĐĂNG NHẬP BOT', start);
     assert.ok(start > 0 && end > start);
     const authored = '🎧 Xin giữ nhạc 🦑\nMimiBot Premium System\n**Added by:** tôi\n```text\n🐾 `mipet`\n```\n<:external:900000000000000009>';
-    for (const commandName of ['gopy', 'confess', 'confession']) {
+    for (const commandName of ['gopy']) {
         const sent = []; const replies = []; const errors = []; let handler;
         const targetChannel = { send: async payload => { sent.push(ui.normalizePayload(payload)); } };
         const guild = { id: uid, channels: { cache: new Map([['feedback', targetChannel], ['confession', targetChannel]]) } };

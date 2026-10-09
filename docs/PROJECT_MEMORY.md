@@ -260,3 +260,18 @@ Checkpoint 05/10/2026, Asia/Saigon. Đọc cùng WORKSPACE.md và AGENTS.md khi 
 - Đã cài lại dependency thiếu bằngnpmci ignore-scripts/audit0; phục hồiffmpegWin83MB từbackup trước vàyt-dlpWindows bằngpostinstall registry. Khôngloginbotlocal.
 - Targetedtests đạt; đangchạyfullsuite/syntax/audit, reviewvàCI. **Chưa commit/push/deploy feature mới** tại checkpoint này. Thông báoBoost/goodbye mặcđịnhtắt chờquảntrịchọnkênh. Cầnlưureceipt deploy và cậpnhậtcheckpoint sauhealth/97commands thật.
 - Kiểm tra cuối: full suite **398/398**, cú pháp **89 JS**, audit **0**, preview **37 mẫu** trong ngân sách Discord. Đã xem thẻ Voice/Boost/Goodbye, custom emoji hiển thị; snapshot invite thiếu uses giữ Không xác định. Log/checksum/audit ngoài Git ở runtime-restore-2026-10-06. Chuẩn bị push và triển khai; chưa có bằng chứng hosting nạp feature mới tại dòng này.
+
+## Cộng đồng đã triển khai — 06/10/2026, 20:35 VN
+
+- Main đã push `9fe583f12dfc52e0ea6751bfd3f30999f77af0fb`. CI Node22 [37471843827](https://github.com/nhan9800/D-n-MimiBot/actions/runs/37471843827) success, SFTP không bật; đã Restart VibeHost một lần để startup kéo Git.
+- Console xác nhận716046b→9fe583f; health/live đúng9fe583f, emoji182/182, health/ready HTTP200/Discordtrue lúc13:35:44UTC. Discord REST chỉ đọc xác nhận97globalcommands, đầy đủ8lệnh cộng đồng và option mới. Main guild1517068246493429852 đọc được3invite, metadatauses có sẵn. Không gửi thử DM/Boost/Goodbye hoặc tác động ticket khách.
+- Snapshot cấu hình server chính trước deploy: Chat đang bật với17người cóEXP; Voice mặc định theo hệ thống đã bật đến khi đổi công tắc riêng. Boost/goodbye chưa chọn kênh nên tắt. Ticket dùng3rolequảntrị mặcđịnh; `/ticketroles cauhinh` chọn3rolecốđịnh khi quảntrị muốn đổi.
+- Receipt ngoàiGit ở runtime-restore-2026-10-06: ci-verification.json, validation-receipt.json, deploy-verification.json, discord-readonly-verification.json, console-before/after.txt, hosting-community-deployed.png. Source mới có `source-9fe583f.zip`;19file runtime/checksum giữ snapshot đã tải, không ghi đè dữ liệu hosting mới hơn. Root WORKSPACE.md cập nhật cùng checkpoint. Dòng checkpoint này được lưu local sau deploy, chưa tạo commit tài liệu tiếp để tránh nhầm HEAD runtime.
+- Log khởi động mới tự khôi phục một phiên Bassboost và vẫn gặp `ffmpeg exited with code -11` ở section, sau đó chuyển pipe. Không tuyên bố nhạc hếtgiật; không restart thêm hoặc thử phát. Website/cPanel vẫn ở trạng thái trước, không triển khai trong lượt cộng đồng/khôi phục này.
+
+## Confession, ticket UI và bộ lọc — 09/10/2026, trước triển khai
+
+- Yêu cầu mới: bộ lọc phải phân biệt `cu` với `cư/cứu`; confession theo ảnh có công khai/ẩn danh, bài số, Thích và trả lời hai chế độ; mẫu ticket setup đổi mới bằng custom emoji.
+- Đã thêm `bannedWordFilter.js` (NFC, dấu nguyên vẹn, ranh giới Unicode, cụm từ có khoảng trắng), `confessionUi.js` (V2/custom emoji), `confessionService.js` (modal, post/reply thread, likes, cooldown, khóa per user/post, không lưu danh tính bài ẩn danh). `/setupconfession` lưu ID panel và sửa tại chỗ. `/confess` và `/confession` có `che_do`.
+- `setupticket` dùng builder ticket V2; startup chỉ nâng mẫu ticket mặc định của bot khi emoji đủ, giữ custom ID/link/attachment, bỏ qua tin tự thiết kế. Build fingerprint/SFTP whitelist đã thêm 3 module.
+- Kiểm thử riêng 29/29; full suite **419/419**, cú pháp **95 JS**, `npm audit` **0** và preview **42 mẫu** đạt. Chưa commit/push/deploy lượt này. Cần CI, restart VibeHost, health/REST read-only; không gửi confession/DM thật hoặc sửa bài khách để test.
