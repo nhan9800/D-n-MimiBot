@@ -78,6 +78,7 @@ function styledRows(type, input) {
         const item = { ...source };
         const spec = labels[item.custom_id];
         if (spec) item.label = spec[0];
+        if (item.url === SUPPORT_LINK) item.label = 'Cộng đồng hỗ trợ';
         const emoji = toComponentEmoji(emojiForKey(spec?.[1] || 'globe'));
         if (emoji) item.emoji = emoji;
         else delete item.emoji;

@@ -13405,7 +13405,7 @@ if (commandName === 'setupticket') {
             
             const row = new ActionRowBuilder().addComponents(
                 new ButtonBuilder().setCustomId('create_ticket_btn:Ticket').setLabel('Mở Ticket Mới').setStyle(ButtonStyle.Primary).setEmoji('📝'),
-                new ButtonBuilder().setLabel('🌐 Máy Chủ Hỗ Trợ').setStyle(ButtonStyle.Link).setURL('https://discord.gg/gBUHY3qph2')
+                new ButtonBuilder().setLabel('Cộng đồng hỗ trợ').setStyle(ButtonStyle.Link).setURL('https://discord.gg/gBUHY3qph2')
             );
             await ticketControlChannel.send(buildStandardSetupPanel('ticket', { rows: [row], thumbnail: guild.iconURL({ size: 256 }) }));
             return interaction.editReply('✅ Đã **BẬT** và khởi tạo hệ thống Ticket!');
