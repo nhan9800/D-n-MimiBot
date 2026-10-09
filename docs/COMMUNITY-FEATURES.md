@@ -25,6 +25,8 @@ Confession lưu số bài và người đã thích trong `confessionState` của
 
 Mẫu ticket cũ của chính Mimi được nâng cấp tự động sau khi emoji ứng dụng đủ; nút `create_ticket_btn:Ticket` và liên kết hỗ trợ vẫn giữ nguyên. Tin thành viên hoặc mẫu ticket tự thiết kế không bị sửa. Nếu chạy `/setupconfession` nhiều lần, Mimi lưu ID panel và sửa tại chỗ thay vì tạo bản sao.
 
+Sau mỗi confession mới, Mimi gửi lại **Trạm sẻ chia** ở cuối kênh rồi xóa bảng cũ. Thích hoặc trả lời trong luồng không gửi lại bảng. Nếu gửi bảng mới thất bại, bảng cũ được giữ; nếu xóa bảng cũ thất bại, Mimi lưu ID để thử dọn ở bài tiếp theo. Chỉ bảng của chính Mimi được xử lý, không xóa bài confession hoặc tin có luồng bình luận.
+
 ## Dữ liệu và giới hạn
 
 - Dữ liệu Chat trước đây ở `levelSystem.users` được giữ. Voice dùng `voiceUsers`, `voiceTimeMs`, `voiceRemainderMs`, `voiceEnabled` và `voiceMultiplier` trong cấu hình server. Nếu server đã bật Chat và chưa thiết lập Voice, Voice được bật cùng hệ thống hiện có; sau lần thay công tắc, hai loại độc lập.

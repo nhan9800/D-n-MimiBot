@@ -2,6 +2,7 @@
 
 ## Confession, ticket và lọc từ cấm — 2026-10-09
 
+- Mỗi confession mới đưa Trạm sẻ chia xuống cuối kênh, gửi bảng mới thành công trước khi xóa bảng cũ; lượt Thích/trả lời giữ nguyên bảng.
 - Bộ lọc từ cấm giữ dấu và ranh giới nguyên từ; cấm `cu` không còn bắt `cư`, `cứu`, `cua` hoặc `cuốn`.
 - Confession có Trạm sẻ chia mới, số bài, Thích, luồng trả lời công khai/ẩn danh và lệnh `/setupconfession`; bài ẩn danh không lưu thông tin nhận diện.
 - Mẫu Ticket được dựng lại bằng custom emoji, tự nâng panel mặc định của Mimi sau khi restart và giữ nguyên custom ID, link hỗ trợ, tin thành viên.

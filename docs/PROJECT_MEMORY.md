@@ -282,3 +282,9 @@ Checkpoint 05/10/2026, Asia/Saigon. Đọc cùng WORKSPACE.md và AGENTS.md khi 
 - VibeHost server `9d9f7a18` đã restart sau CI và console xác nhận `06a6c32..3e260c5`, bản dựng `v1.4.0 commit=3e260c5`. Startup đã đồng bộ panel ticket mặc định ở server chính `1517068246493429852` trong lượt trước; không gửi confession/ticket thật để kiểm thử.
 - Health lúc `2026-10-09T13:00:21Z`: `/health/live` HTTP200, commit `3e260c5`, custom/artwork `182/182`, missing `[]`; `/health/ready` HTTP200, `discord:true`. Receipt và ảnh console nằm ngoài Git ở `C:/Users/ivano/Downloads/MimiBot-backups/runtime-restore-2026-10-06/` (`deploy-3e260c5.json`, `hosting-3e260c5.png`, `console-3e260c5.txt`).
 - Bộ lọc từ cấm, confession V2 public/anonymous và ticket V2 đã có test; full suite lần kiểm gần nhất `419/419`, syntax `95 JS`, audit `0`. Chưa có xác minh âm thanh Discord thật hoặc gửi bài confession/ticket của thành viên.
+
+## Trạm sẻ chia tự xuống cuối — 09/10/2026, trước triển khai
+
+- User yêu cầu sau mỗi confession mới gửi lại bảng Trạm sẻ chia và xóa bảng trước. `confessionService.js` khóa guild cho cả đăng bài/setup, gửi bảng mới → lưu ID mới và ID cần dọn → xóa đúng bảng cũ của bot. Thích/trả lời không chuyển bảng; lỗi bảng không biến bài đã gửi thành thất bại hoặc bỏ cooldown.
+- Kiểm tra bot/kênh/guild/custom ID và `hasThread` trước sửa/xóa, force-fetch tin đã lưu. Gửi/lưu lỗi giữ bảng cũ; xóa lỗi lưu ID để thử lại. Setup lưu kênh và ID panel cùng lần ghi. `saveConfig` trả true/false để không xóa khi persistence lỗi; các caller cũ giữ hành vi.
+- Đã đạt full 430/430 test, syntax96JS, audit0 và diffcheck. Có 8 test rotation/concurrency/failure/ownership và 3 test hàm saveConfig thật trong VM; không gửi confession/DM hoặc xóa tin live để kiểm thử. Log/audit ngoài Git trong runtime-restore-2026-10-06. Bước tiếp: commit/push, chờ CI rồi restart VibeHost và đối chiếu health commit.

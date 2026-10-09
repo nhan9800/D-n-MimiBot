@@ -421,8 +421,10 @@ function saveConfig() {
     try {
         fs.writeFileSync(tempPath, JSON.stringify(config, null, 2));
         fs.renameSync(tempPath, configPath);
+        return true;
     } catch (e) {
         console.error("❌ Không thể lưu file config.json an toàn:", e);
+        return false;
     }
 }
 

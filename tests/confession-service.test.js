@@ -30,9 +30,9 @@ test.before(() => {
 
 function fixture(initial = {}) {
     const config = { confessionChannelId: CHANNEL, ...structuredClone(initial) };
-    const calls = { sends: [], edits: [], replies: [], modals: [], threads: [], warnings: [] };
+    const calls = { sends: [], composerSends: [], deletes: [], events: [], snapshots: [], edits: [], replies: [], modals: [], threads: [], warnings: [] };
     let at = 100000, saves = 0, nextId = 1556000000000000000n;
-    let sendFailure = false, editFailure = false, threadFailure = false, threadSendFailure = false;
+    let sendFailure = false, composerFailure = false, deleteFailure = false, saveFailure = false, editFailure = false, threadFailure = false, threadSendFailure = false;
     let visible = true, manager = true;
     const botMissing = new Set();
     const guild = { id: GUILD, name: 'Mimi Community', iconURL: () => 'https://cdn.discordapp.com/icons/example/icon.png',
@@ -46,15 +46,18 @@ function fixture(initial = {}) {
             return visible || !requested.includes(P.ViewChannel);
         } }; },
         messages: { async fetch(target) {
-            if (typeof target === 'object') return messageStore;
-            const message = messageStore.get(target);
+            if (typeof target === 'object' && !target.message) return messageStore;
+            const message = messageStore.get(typeof target === 'object' ? target.message : target);
             if (!message) throw Object.assign(new Error('Unknown message'), { code: 10008 });
             return message;
         } },
         async send(payload) {
-            calls.sends.push(payload);
-            if (sendFailure || botMissing.has(P.SendMessages)) throw new Error('Missing send permission');
-            return makeMessage(payload);
+            const composer = components(payload).some(item => item.custom_id === 'cfs:post:public');
+            (composer ? calls.composerSends : calls.sends).push(payload);
+            if (sendFailure || (composer && composerFailure) || botMissing.has(P.SendMessages)) throw new Error('Missing send permission');
+            const message = makeMessage(payload);
+            calls.events.push({ type: composer ? 'composer' : 'post', id: message.id });
+            return message;
         } };
     guild.channels.cache.set(CHANNEL, channel);
     function makeMessage(payload, id = String(nextId++)) {
@@ -64,6 +67,12 @@ function fixture(initial = {}) {
                 if (editFailure) throw new Error('Edit failed');
                 this.components = normalizePayload(nextPayload, { edit: true }).components;
                 return this;
+            },
+            async delete() {
+                calls.deletes.push(this.id);
+                if (deleteFailure) throw new Error('Delete failed');
+                if (!messageStore.has(this.id)) throw Object.assign(new Error('Unknown message'), { code: 10008 });
+                calls.events.push({ type: 'delete', id: this.id }); messageStore.delete(this.id);
             },
             async startThread(options) {
                 calls.threads.push(options);
@@ -81,7 +90,10 @@ function fixture(initial = {}) {
         messageStore.set(id, message);
         return message;
     }
-    const service = createConfessionService({ getConfig: () => config, save: () => saves++, getBotId: () => BOT,
+    const service = createConfessionService({ getConfig: () => config, save: () => {
+        if (saveFailure === 'false') return false;
+        if (saveFailure) throw new Error('Save failed'); saves++; calls.snapshots.push(structuredClone(config));
+    }, getBotId: () => BOT,
         now: () => at, logger: { warn: value => calls.warnings.push(value) } });
     function interaction({ id = AUTHOR, button = false, modal = false, customId = '', message, content = 'A kind story', selectedChannel = null } = {}) {
         const i = { guild, channel, channelId: CHANNEL, user: user(id), member: { id },
@@ -97,6 +109,7 @@ function fixture(initial = {}) {
     return { config, calls, guild, channel, messageStore, threadStore, service, interaction, makeMessage, botMissing,
         advance: ms => at += ms, setVisible: value => visible = value, setManager: value => manager = value,
         failSend: value => sendFailure = value, failEdit: value => editFailure = value,
+        failComposer: value => composerFailure = value, failDelete: value => deleteFailure = value, failSave: value => saveFailure = value,
         failThread: value => threadFailure = value, failThreadSend: value => threadSendFailure = value,
         get saves() { return saves; } };
 }
@@ -210,9 +223,10 @@ test('Composer setup checks manager and bot permissions, preserves old channel o
     await assert.rejects(f.service.setup(f.interaction({ selectedChannel: f.channel })), /send/);
     assert.equal(f.config.confessionChannelId, 'old-channel'); assert.equal(f.saves, 0);
     f.failSend(false); await f.service.setup(f.interaction({ selectedChannel: f.channel }));
-    assert.equal(f.config.confessionChannelId, CHANNEL); assert.equal(f.calls.sends.length, 2);
+    assert.equal(f.config.confessionChannelId, CHANNEL); assert.equal(f.calls.composerSends.length, 2);
+    assert.ok(f.calls.snapshots.every(snapshot => snapshot.confessionChannelId === CHANNEL && snapshot.confessionComposerMessageId));
     await f.service.setup(f.interaction({ selectedChannel: f.channel }));
-    assert.equal(f.calls.sends.length, 2); assert.equal(f.calls.edits.length, 1);
+    assert.equal(f.calls.composerSends.length, 2); assert.equal(f.calls.edits.length, 1);
 });
 
 test('Hidden or foreign channels and forged bot controls cannot publish or open a trusted modal', async () => {
@@ -252,4 +266,119 @@ test('Deleted post or missing thread-send permission reports a private failure a
     f.messageStore.delete(message.id); await sleepTurn();
     const deleted = f.interaction({ id: '1143387904064888944', modal: true, customId, content: 'Deleted' }); await f.service.handle(deleted);
     assert.match(deleted.lastReply.content, /Không hoàn tất/); assert.equal(f.calls.sends.length, 1);
+});
+
+test('Bài mới gửi Trạm sẻ chia xuống cuối rồi mới xóa bảng cũ, giữ nguyên bài và luồng', async () => {
+    const f = fixture(); const previous = await f.service.ensureComposer(f.channel, f.guild);
+    f.calls.events.length = 0;
+    await f.service.publish(f.interaction(), 'anonymous', 'Câu chuyện của tôi');
+    const recordId = Object.keys(f.config.confessionState.posts)[0];
+    assert.deepEqual(f.calls.events.map(event => event.type), ['post', 'composer', 'delete']);
+    assert.ok(f.calls.snapshots.some(snapshot => snapshot.confessionComposerMessageId !== previous.id
+        && snapshot.confessionComposerCleanupIds?.includes(previous.id)));
+    assert.deepEqual(f.calls.deletes, [previous.id]);
+    assert.equal(f.messageStore.has(previous.id), false);
+    assert.ok(f.messageStore.has(recordId));
+    assert.ok(f.threadStore.has(f.config.confessionState.posts[recordId].threadId));
+    assert.equal([...f.messageStore.keys()].at(-1), f.config.confessionComposerMessageId);
+    assert.match(json(f.calls.composerSends.at(-1)), /Trạm sẻ chia/);
+});
+
+test('Hai người đăng đồng thời có một bảng cuối cùng, setup dùng cùng hàng ghi', async () => {
+    const f = fixture(); await f.service.ensureComposer(f.channel, f.guild);
+    const send = f.channel.send.bind(f.channel);
+    f.channel.send = async payload => { await sleepTurn(); return send(payload); };
+    await Promise.all([
+        f.service.publish(f.interaction(), 'anonymous', 'Bài thứ nhất'),
+        f.service.publish(f.interaction({ id: '1143387904064888943' }), 'public', 'Bài thứ hai'),
+        f.service.setup(f.interaction({ selectedChannel: f.channel }))
+    ]);
+    assert.equal(Object.keys(f.config.confessionState.posts).length, 2);
+    assert.deepEqual(f.calls.events.filter(event => event.type !== 'delete').map(event => event.type),
+        ['composer', 'post', 'composer', 'post', 'composer']);
+    const panels = [...f.messageStore.values()].filter(message => components({ components: message.components }).some(item => item.custom_id === 'cfs:post:public'));
+    assert.equal(panels.length, 1);
+    assert.equal([...f.messageStore.keys()].at(-1), f.config.confessionComposerMessageId);
+});
+
+test('Trả lời và Thích không gửi lại hoặc xóa Trạm sẻ chia', async () => {
+    const f = fixture(); await f.service.publish(f.interaction(), 'public', 'Bài gốc');
+    const message = f.messageStore.get(Object.keys(f.config.confessionState.posts)[0]);
+    const panelId = f.config.confessionComposerMessageId;
+    await f.service.handle(f.interaction({ button: true, customId: 'cfs:like', message }));
+    await f.service.handle(f.interaction({ id: '1143387904064888943', modal: true,
+        customId: `cfs:submit-reply:anonymous:${CHANNEL}:${message.id}`, content: 'Trả lời' }));
+    assert.equal(f.calls.composerSends.length, 1); assert.equal(f.calls.deletes.length, 0);
+    assert.equal(f.config.confessionComposerMessageId, panelId);
+});
+
+test('Gửi bảng mới lỗi vẫn giữ bảng cũ và bài đã đăng, cooldown vẫn có hiệu lực', async () => {
+    const f = fixture(); const previous = await f.service.ensureComposer(f.channel, f.guild);
+    f.failComposer(true); const submitted = f.interaction();
+    await f.service.publish(submitted, 'anonymous', 'Bài đăng thành công');
+    assert.match(submitted.lastReply.content, /đã được gửi/);
+    assert.equal(f.config.confessionComposerMessageId, previous.id); assert.ok(f.messageStore.has(previous.id));
+    assert.equal(f.calls.deletes.length, 0); assert.equal(Object.keys(f.config.confessionState.posts).length, 1);
+    const retry = f.interaction(); await f.service.publish(retry, 'anonymous', 'Đăng lại');
+    assert.match(retry.lastReply.content, /15 giây/); assert.equal(f.calls.sends.length, 1);
+    assert.equal(f.calls.warnings.length, 1);
+});
+
+test('Gửi bài lỗi không chuyển bảng; xóa bảng cũ lỗi lưu ID để lần đăng sau dọn đúng bảng', async () => {
+    const f = fixture(); const previous = await f.service.ensureComposer(f.channel, f.guild);
+    f.failSend(true); await assert.rejects(f.service.publish(f.interaction(), 'public', 'Lỗi'), /send/);
+    assert.equal(f.config.confessionComposerMessageId, previous.id); assert.equal(f.calls.deletes.length, 0);
+    f.failSend(false); f.failDelete(true); const submitted = f.interaction();
+    await f.service.publish(submitted, 'anonymous', 'Bài được giữ');
+    assert.match(submitted.lastReply.content, /đã được gửi/);
+    assert.notEqual(f.config.confessionComposerMessageId, previous.id);
+    assert.deepEqual(f.config.confessionComposerCleanupIds, [previous.id]);
+    // Bảng cũ đã nằm ngoài trang gần nhất vẫn được tìm bằng ID đã lưu.
+    const fetch = f.channel.messages.fetch.bind(f.channel.messages);
+    f.channel.messages.fetch = target => typeof target === 'object' && !target.message ? Promise.resolve(new Collection()) : fetch(target);
+    f.failDelete(false); f.advance(15000); await f.service.publish(f.interaction(), 'public', 'Bài tiếp theo');
+    assert.equal(f.messageStore.has(previous.id), false); assert.deepEqual(f.config.confessionComposerCleanupIds, []);
+    assert.equal(Object.keys(f.config.confessionState.posts).length, 2);
+});
+
+test('ID bảng sai không sửa/xóa bài confession, tin người khác hoặc bảng có luồng', async () => {
+    for (const change of [message => { message.author.id = 'someone-else'; },
+        message => { message.thread = { id: 'discussion' }; },
+        message => { message.hasThread = true; message.thread = null; },
+        (message, f) => { f.config.confessionState = { counter: 1, posts: { [message.id]: { number: 1 } } }; }]) {
+        const f = fixture(); const unsafe = f.makeMessage(ui.buildConfessionComposer(f.guild));
+        change(unsafe, f); f.config.confessionComposerMessageId = unsafe.id;
+        await f.service.ensureComposer(f.channel, f.guild);
+        assert.equal(f.calls.edits.length, 0); assert.notEqual(f.config.confessionComposerMessageId, unsafe.id);
+        await f.service.publish(f.interaction(), 'anonymous', 'Bài mới');
+        assert.ok(f.messageStore.has(unsafe.id)); assert.ok(!f.calls.deletes.includes(unsafe.id));
+    }
+});
+
+test('Bảng đã mất được tạo lại; lỗi đọc lịch sử không tạo bảng trùng', async () => {
+    const f = fixture({ confessionComposerMessageId: '1555000000000000099' });
+    await f.service.publish(f.interaction(), 'anonymous', 'Bài mới');
+    assert.ok(f.messageStore.has(f.config.confessionComposerMessageId));
+    const panelId = f.config.confessionComposerMessageId;
+    f.channel.messages.fetch = async () => { throw Object.assign(new Error('Forbidden'), { code: 50013 }); };
+    f.advance(15000); const submitted = f.interaction();
+    await f.service.publish(submitted, 'public', 'Bài thứ hai');
+    assert.match(submitted.lastReply.content, /đã được gửi/);
+    assert.equal(f.calls.composerSends.length, 1); assert.equal(f.calls.deletes.length, 0);
+    assert.equal(f.config.confessionComposerMessageId, panelId);
+});
+
+test('Không xóa bảng cũ khi lưu ID bảng mới thất bại', async () => {
+    for (const failure of [true, 'false']) {
+    const f = fixture(); const previous = await f.service.ensureComposer(f.channel, f.guild);
+    const send = f.channel.send.bind(f.channel);
+    f.channel.send = async payload => {
+        const message = await send(payload);
+        if (components(payload).some(item => item.custom_id === 'cfs:post:public')) f.failSave(failure);
+        return message;
+    };
+    await f.service.publish(f.interaction(), 'anonymous', 'Bài vẫn còn');
+    assert.equal(f.config.confessionComposerMessageId, previous.id); assert.ok(f.messageStore.has(previous.id));
+    assert.equal(f.calls.deletes.length, 0); assert.equal(Object.keys(f.config.confessionState.posts).length, 1);
+    }
 });

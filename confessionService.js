@@ -19,21 +19,55 @@ function createConfessionService({ getConfig, save, getBotId, now = Date.now, lo
     function canView(channel, interaction) {
         return channel?.guild?.id === interaction.guild.id && channel.permissionsFor(interaction.member)?.has(P.ViewChannel);
     }
-    async function ensureComposer(channel, guild) {
-        return serial(`panel:${channel.id}`, async () => {
-            const config = getConfig(guild.id);
-            let panel = config.confessionComposerMessageId ? await channel.messages.fetch(config.confessionComposerMessageId).catch(() => null) : null;
-            if (!panel) {
-                const messages = await channel.messages.fetch({ limit: 100 });
-                panel = [...messages.values()].find(message => {
-                const ids = []; walkComponents(message.components, item => { if (item.custom_id) ids.push(item.custom_id); });
-                return message.author?.id === getBotId() && ids.includes('cfs:post:public') && ids.includes('cfs:post:anonymous');
-                });
+    function isComposer(message, channel, config) {
+        if (message.author?.id !== getBotId() || message.channel?.id !== channel.id || message.guild?.id !== channel.guild.id
+            || message.hasThread || message.thread || config.confessionState?.posts?.[message.id]) return false;
+        const ids = []; walkComponents(message.components, item => { if (item.custom_id) ids.push(item.custom_id); });
+        return ids.length === 2 && ids.includes('cfs:post:public') && ids.includes('cfs:post:anonymous');
+    }
+    // Gọi trong khóa của guild: setup và đăng bài dùng chung một hàng ghi.
+    async function updateComposer(channel, guild, repost = false) {
+        const config = getConfig(guild.id), panels = new Map();
+        const savedId = config.confessionComposerMessageId;
+        const knownIds = new Set([savedId, ...(config.confessionComposerCleanupIds || [])].filter(Boolean));
+        for (const id of knownIds) {
+            let message;
+            try { message = await channel.messages.fetch({ message: id, force: true }); }
+            catch (error) { if (error.code === 10008) continue; throw error; }
+            if (message && isComposer(message, channel, config)) panels.set(message.id, message);
+        }
+        const messages = await channel.messages.fetch({ limit: 100 });
+        for (const message of messages.values()) if (isComposer(message, channel, config)) panels.set(message.id, message);
+        const previous = panels.get(savedId) || panels.values().next().value;
+        const result = !repost && previous ? await previous.edit(buildConfessionComposer(guild)) : await channel.send(buildConfessionComposer(guild));
+        const previousCleanup = config.confessionComposerCleanupIds;
+        config.confessionComposerMessageId = result.id;
+        if (repost) config.confessionComposerCleanupIds = [...panels.keys()].filter(id => id !== result.id);
+        try { if (save() === false) throw new Error('composer_save_failed'); }
+        catch (error) {
+            config.confessionComposerMessageId = savedId;
+            config.confessionComposerCleanupIds = previousCleanup;
+            throw error;
+        }
+        if (repost) {
+            const remaining = [];
+            for (const panel of panels.values()) {
+                if (panel.id === result.id) continue;
+                try { await panel.delete(); }
+                catch (error) {
+                    if (error.code === 10008) continue;
+                    remaining.push(panel.id);
+                    logger.warn('[Confession] Đã gửi Trạm sẻ chia mới nhưng chưa xóa được bảng cũ; sẽ thử lại ở bài kế tiếp.');
+                }
             }
-            const result = panel ? await panel.edit(buildConfessionComposer(guild)) : await channel.send(buildConfessionComposer(guild));
-            config.confessionComposerMessageId = result.id; save();
-            return result;
-        });
+            if (remaining.length || config.confessionComposerCleanupIds?.length) {
+                config.confessionComposerCleanupIds = remaining; save();
+            }
+        }
+        return result;
+    }
+    async function ensureComposer(channel, guild) {
+        return serial(`composer:${guild.id}`, () => updateComposer(channel, guild));
     }
     async function setup(interaction) {
         await interaction.deferReply({ flags: MessageFlags.Ephemeral });
@@ -45,8 +79,12 @@ function createConfessionService({ getConfig, save, getBotId, now = Date.now, lo
             return notice(interaction, 'Chọn một kênh văn bản của máy chủ bằng `/setupconfession kenh:...`.');
         if (!channel.permissionsFor(interaction.guild.members.me)?.has([P.ViewChannel, P.SendMessages, P.ReadMessageHistory, P.EmbedLinks]))
             return notice(interaction, 'Mimi cần quyền Xem kênh, Gửi tin nhắn và Đọc lịch sử tại kênh confession.');
-        await ensureComposer(channel, interaction.guild);
-        config.confessionChannelId = channel.id; save();
+        await serial(`composer:${interaction.guild.id}`, async () => {
+            const previousChannelId = config.confessionChannelId;
+            config.confessionChannelId = channel.id;
+            try { await updateComposer(channel, interaction.guild); }
+            catch (error) { config.confessionChannelId = previousChannelId; throw error; }
+        });
         return notice(interaction, `Đã cập nhật Trạm sẻ chia tại <#${channel.id}>. Thành viên có thể đăng và trả lời công khai hoặc ẩn danh.`);
     }
     async function threadFor(message, record) {
@@ -84,16 +122,22 @@ function createConfessionService({ getConfig, save, getBotId, now = Date.now, lo
                     await thread.send(buildConfessionReply({ user: interaction.user, anonymous, number: record.number, content }));
                 });
             } else {
-                // Reserve before awaiting Discord; concurrent posts never share a number.
-                state.counter = Math.max(0, Number(state.counter) || 0) + 1; save();
-                const number = state.counter;
-                const message = await channel.send(buildConfessionPost({ user: interaction.user, anonymous, number, content }));
-                const record = { number, channelId: channel.id, likes: [], threadId: null };
-                state.posts[message.id] = record; save();
-                await serial(`post:${interaction.guild.id}:${message.id}`, async () => {
-                    try { await threadFor(message, record); }
-                    catch { logger.warn('[Confession] Không tạo được luồng bình luận; kiểm tra CreatePublicThreads/SendMessagesInThreads. Bài viết đã được giữ.'); }
+                const sent = await serial(`composer:${interaction.guild.id}`, async () => {
+                    if (config.confessionChannelId !== channel.id) return false;
+                    state.counter = Math.max(0, Number(state.counter) || 0) + 1; save();
+                    const number = state.counter;
+                    const message = await channel.send(buildConfessionPost({ user: interaction.user, anonymous, number, content }));
+                    const record = { number, channelId: channel.id, likes: [], threadId: null };
+                    state.posts[message.id] = record; save();
+                    await serial(`post:${interaction.guild.id}:${message.id}`, async () => {
+                        try { await threadFor(message, record); }
+                        catch { logger.warn('[Confession] Không tạo được luồng bình luận; kiểm tra CreatePublicThreads/SendMessagesInThreads. Bài viết đã được giữ.'); }
+                    });
+                    try { await updateComposer(channel, interaction.guild, true); }
+                    catch { logger.warn('[Confession] Bài đã đăng; chưa chuyển được Trạm sẻ chia xuống cuối kênh. Bảng cũ được giữ để tiếp tục sử dụng.'); }
+                    return true;
                 });
+                if (!sent) return notice(interaction, 'Kênh confession vừa được thay đổi. Hãy gửi lại tại bảng mới.');
             }
             cooldowns.set(key, now());
             if (cooldowns.size > 10000) for (const [entry, at] of cooldowns) if (now() - at >= 15000) cooldowns.delete(entry);
