@@ -25,7 +25,9 @@ function fixture() {
         systemChannelFlags: new discord.SystemChannelFlagsBitField(), voiceStates: { cache: new Map() },
         invites: { async fetch() { return new Map([['abc', { code: 'abc', uses, inviter: { id: 'owner' } }]]); } },
         roles: { cache: new Map(), async fetch() { return this.cache; } },
-        members: { me: { id: botId, permissions: { has: () => true } }, cache: new Map(), async fetch(id) { return id ? this.cache.get(id) : this.cache; } } };
+        members: { me: { id: botId, permissions: { has: () => true } }, cache: new Map(),
+            async fetch(id) { if (!id) throw new Error('Không gửi opcode 8'); return this.cache.get(id); },
+            async list() { return new Map(this.cache); } } };
     const user = { id: memberId, username: 'Mimi', bot: false, displayAvatarURL: () => 'https://cdn.discordapp.com/embed/avatars/0.png' };
     const member = { id: memberId, guild, user, joinedTimestamp: 1000, premiumSinceTimestamp: 2000,
         roles: { cache: new Map(), async add(id) { this.cache.set(id, guild.roles.cache.get(id)); }, async remove(id) { this.cache.delete(id); } } };

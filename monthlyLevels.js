@@ -23,6 +23,29 @@ function monthlyScores(system, kind, period = 'thang', at = Date.now()) {
     return { key, users: system?.monthly?.periods?.[key]?.[kind] || {} };
 }
 
+// REST có phân trang, được bộ REST của discord.js xếp hàng theo rate limit.
+// Không gọi members.fetch() toàn guild: hàm đó gửi Gateway opcode 8.
+async function listMonthlyMembers(guild) {
+    const members = new Map(); let after = '0';
+    while (true) {
+        const page = await guild.members.list({ limit: 1000, after, cache: false });
+        if (after !== '0' && [...page.values()].some(member => BigInt(member.id) <= BigInt(after)))
+            throw new Error('Phân trang thành viên không tiến triển; giữ nguyên role tháng.');
+        for (const member of page.values()) members.set(member.id, member);
+        if (page.size < 1000) return members;
+        const next = [...page.keys()].reduce((max, id) => BigInt(id) > BigInt(max) ? id : max, after);
+        if (BigInt(next) <= BigInt(after)) throw new Error('Phân trang thành viên không tiến triển; giữ nguyên role tháng.');
+        after = next;
+    }
+}
+
+function retryAfterMs(error) {
+    const seconds = Number(error.data?.retry_after ?? error.rawError?.retry_after);
+    if (Number.isFinite(seconds) && seconds > 0) return Math.ceil(seconds * 1000) + 250;
+    if (error.status === 429 || error.httpStatus === 429) return 60_000;
+    return 0;
+}
+
 function createMonthlyLevelService({ getConfig, save, now = Date.now, logger = console }) {
     const locks = new Map(), checked = new Map();
     async function serial(id, work) {
@@ -31,6 +54,16 @@ function createMonthlyLevelService({ getConfig, save, now = Date.now, logger = c
         try { return await task; } finally { if (locks.get(id) === task) locks.delete(id); }
     }
     function persist() { if (save() === false) throw new Error('Không lưu được cấu hình top tháng; hãy kiểm tra ổ đĩa.'); }
+    function failed(guild, error) {
+        const delay = retryAfterMs(error);
+        const result = { month: monthKey(now()), at: now(), failed: true, pending: delay > 0, retryAt: now() + (delay || 60_000) };
+        checked.set(guild.id, result);
+        logger.warn(`[MonthlyLevel] Chưa đồng bộ role tháng ở server ${guild.id}: ${error.message}`);
+        return result;
+    }
+    function pending(monthly, attempt) {
+        return { ...monthly, pendingSync: true, retryAfterMs: Math.max(0, attempt.retryAt - now()) };
+    }
     function state(guild) {
         const config = getConfig(guild.id);
         config.levelSystem ||= { enabled: false, users: {}, multiplier: 1 };
@@ -66,7 +99,7 @@ function createMonthlyLevelService({ getConfig, save, now = Date.now, logger = c
         for (const kind of ['chat', 'voice']) if (monthly.enabled?.[kind] || monthly.roles?.[kind]?.length)
             roles[kind] = await rolesFor(guild, monthly, kind, Boolean(monthly.enabled?.[kind]));
         // Lấy đủ thành viên trước khi thay role; cache một phần không đủ để gỡ hết người cũ.
-        const members = await guild.members.fetch();
+        const members = await listMonthlyMembers(guild);
         monthly.awards ||= {};
         for (const kind of Object.keys(roles)) {
             if (monthly.enabled?.[kind] && monthly.awards[kind]?.month !== closed) {
@@ -82,17 +115,26 @@ function createMonthlyLevelService({ getConfig, save, now = Date.now, logger = c
             for (let rank = 0; rank < 3; rank++) {
                 const role = roles[kind][rank]; if (!role) continue;
                 const winner = winners[rank]?.id;
-                for (const member of members.values()) if (member.roles.cache.has(role.id) && member.id !== winner)
-                    await member.roles.remove(role.id, reason);
+                for (const member of members.values()) if (member.roles.cache.has(role.id) && member.id !== winner) {
+                    const updated = await member.roles.remove(role.id, reason);
+                    if (updated?.id === member.id) members.set(member.id, updated);
+                }
             }
             for (let rank = 0; rank < 3; rank++) {
                 const role = roles[kind][rank], winner = members.get(winners[rank]?.id);
-                if (role && winner && !winner.user.bot && !winner.roles.cache.has(role.id)) await winner.roles.add(role.id, reason);
+                if (role && winner && !winner.user.bot && !winner.roles.cache.has(role.id)) {
+                    const updated = await winner.roles.add(role.id, reason);
+                    if (updated?.id === winner.id) members.set(winner.id, updated);
+                }
             }
         }
         // Giữ hai tháng cần tra cứu; EXP tổng không đổi.
         for (const key of Object.keys(monthly.periods || {})) if (key < closed) delete monthly.periods[key];
-        monthly.syncedAt = now(); persist(); checked.set(guild.id, { month, at: now() });
+        monthly.syncedAt = now(); persist();
+        const previous = checked.get(guild.id);
+        checked.set(guild.id, { month, at: now() });
+        if (!previous || previous.failed || previous.month !== month)
+            logger.info?.(`[MonthlyLevel] Đã đồng bộ role tháng ${closed} ở server ${guild.id}: Chat=${monthly.enabled?.chat ? 'bật' : 'tắt'}, Voice=${monthly.enabled?.voice ? 'bật' : 'tắt'}.`);
     }
     async function configure(guild, kind, enabled) {
         return serial(guild.id, async () => {
@@ -103,23 +145,27 @@ function createMonthlyLevelService({ getConfig, save, now = Date.now, logger = c
             const old = monthly.enabled?.[kind]; monthly.enabled ||= {}; monthly.startedAt ||= {};
             monthly.enabled[kind] = enabled; monthly.startedAt[kind] ??= now();
             try { persist(); } catch (error) { monthly.enabled[kind] = old; throw error; }
-            checked.delete(guild.id);
-            await sync(guild);
+            const attempt = checked.get(guild.id);
+            if (attempt?.pending && attempt.retryAt > now()) return pending(monthly, attempt);
+            try { await sync(guild); }
+            catch (error) {
+                const attempt = failed(guild, error);
+                if (attempt.pending) return pending(monthly, attempt);
+                throw error;
+            }
             return monthly;
         });
     }
     async function reconcile(guild, force = false) {
         return serial(guild.id, async () => {
             const last = checked.get(guild.id);
-            if (!force && last?.month === monthKey(now()) && now() - last.at < (last.failed ? 60_000 : 300_000)) return;
+            if (last?.failed && last.retryAt > now()) return;
+            if (!force && !last?.failed && last?.month === monthKey(now()) && now() - last.at < 300_000) return;
             try { await sync(guild); }
-            catch (error) {
-                checked.set(guild.id, { month: monthKey(now()), at: now(), failed: true });
-                logger.warn(`[MonthlyLevel] Chưa đồng bộ role tháng ở server ${guild.id}: ${error.message}`);
-            }
+            catch (error) { failed(guild, error); }
         });
     }
     return { configure, reconcile };
 }
 
-module.exports = { monthKey, previousMonth, addMonthlyXp, monthlyScores, createMonthlyLevelService };
+module.exports = { monthKey, previousMonth, addMonthlyXp, monthlyScores, listMonthlyMembers, createMonthlyLevelService };

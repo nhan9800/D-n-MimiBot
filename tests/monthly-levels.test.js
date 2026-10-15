@@ -2,6 +2,7 @@
 const test = require('node:test');
 const assert = require('node:assert/strict');
 const { Collection, PermissionFlagsBits: P } = require('discord.js');
+const { GatewayRateLimitError } = require('@discordjs/util');
 const { monthKey, previousMonth, addMonthlyXp, monthlyScores, createMonthlyLevelService } = require('../monthlyLevels');
 const { awardChatXp, VoiceXpTracker } = require('../communityFeatures');
 
@@ -43,7 +44,7 @@ test('Voice hoàn thành phút ở tháng nào tính EXP tháng đó, không tru
 function fixture() {
     let at = Date.parse('2026-10-15T10:00:00Z'), nextRole = 1550000000000000000n;
     const config = { levelSystem: { enabled: true, users: { a: 99999 } } };
-    const calls = { created: [], membership: [], saves: [], warnings: [] };
+    const calls = { created: [], membership: [], saves: [], warnings: [], lists: [], gateway: 0 };
     let manage = true, failSave = false, failFetch = false, failAdd = false, failRemove = false;
     const roleCache = new Collection(), memberCache = new Collection();
     const guild = { id: 'g', available: true, roles: { cache: roleCache,
@@ -53,7 +54,11 @@ function fixture() {
             const role = { id: String(nextRole++), editable: true, managed: false, permissions: { bitfield: 0n } };
             roleCache.set(role.id, role); return role;
         } }, members: { me: { permissions: { has: bit => bit === P.ManageRoles && manage } },
-            async fetch() { if (failFetch) throw new Error('Member fetch failed'); return new Collection(memberCache); } } };
+            async fetch() {
+                calls.gateway++;
+                throw new GatewayRateLimitError({ opcode: 8, retry_after: 17.665 }, {});
+            },
+            async list(options) { calls.lists.push(options); if (failFetch) throw new Error('Member fetch failed'); return new Collection(memberCache); } } };
     const addMember = (id, bot = false) => {
         const roles = new Collection();
         const member = { id, user: { id, bot }, roles: { cache: roles,
@@ -75,6 +80,7 @@ test('Bật mỗi loại tạo đúng 3 role không quyền, không lấy EXP t�
     const f = fixture(); await f.service.configure(f.guild, 'chat', true); await f.service.configure(f.guild, 'voice', true);
     assert.equal(f.calls.created.length, 6); assert.ok(f.calls.created.every(role => role.permissions.length === 0 && role.mentionable === false));
     assert.equal(f.calls.membership.length, 0); assert.equal(f.config.levelSystem.users.a, 99999);
+    assert.equal(f.calls.gateway, 0); assert.equal(f.calls.lists.length, 2);
     assert.equal(f.config.levelSystem.monthly.awards.chat.month, '2026-09');
     await f.service.configure(f.guild, 'chat', true); assert.equal(f.calls.created.length, 6);
 });
@@ -140,4 +146,25 @@ test('Lưu snapshot giải lỗi dừng trước khi gỡ/trao role và giữ sn
     const monthly = f.config.levelSystem.monthly; monthly.periods['2026-10'] = { chat: { a: 30 } };
     f.at = '2026-11-01T00:00:00Z'; f.failSave = true; await f.service.reconcile(f.guild);
     assert.equal(monthly.awards.chat.month, '2026-09'); assert.equal(f.calls.membership.length, 0);
+});
+
+test('Discord rate limit lưu cấu hình, trả trạng thái chờ và không gọi lại danh sách trước retry_after', async () => {
+    const f = fixture(); const list = f.guild.members.list; let limited = true;
+    f.guild.members.list = async options => {
+        f.calls.lists.push(options);
+        if (limited) throw new GatewayRateLimitError({ opcode: 8, retry_after: 17.665 }, {});
+        return new Collection(f.memberCache);
+    };
+    const first = await f.service.configure(f.guild, 'chat', true);
+    assert.equal(first.pendingSync, true); assert.equal(first.retryAfterMs, 17915);
+    assert.equal(f.config.levelSystem.monthly.enabled.chat, true); assert.equal(f.calls.lists.length, 1);
+    await f.service.configure(f.guild, 'voice', true);
+    await f.service.reconcile(f.guild, true); assert.equal(f.calls.lists.length, 1);
+    f.at = new Date(f.at + 17914).toISOString(); await f.service.reconcile(f.guild, true);
+    assert.equal(f.calls.lists.length, 1);
+    limited = false; f.at = new Date(f.at + 1).toISOString(); await f.service.reconcile(f.guild);
+    assert.equal(f.calls.lists.length, 2); assert.equal(f.config.levelSystem.monthly.awards.chat.month, '2026-09');
+    assert.equal(f.config.levelSystem.monthly.awards.voice.month, '2026-09');
+    assert.equal(f.calls.gateway, 0); assert.equal(f.calls.created.length, 6);
+    f.guild.members.list = list;
 });

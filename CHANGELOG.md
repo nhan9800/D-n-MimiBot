@@ -2,6 +2,7 @@
 
 ## Event lời mời và Top tháng — 2026-10-15
 
+- Sửa lỗi `/levelsetup thang` bị giới hạn Gateway opcode8: tải thành viên bằng REST phân trang đầy đủ, chờ `retry_after` khi có giới hạn, giữ cấu hình và báo trạng thái tự đồng bộ thay vì yêu cầu sửa quyền sai nguyên nhân.
 - Thêm `/invitesetup` thông báo người mời và số thứ tự riêng trong event; `/invites event` xem số, `/invites reset` làm mới số liệu với xác nhận và quyền quản trị, giữ lịch sử lời mời. Không đếm trùng rejoin/bot hoặc bịa nguồn không xác định.
 - `/levelsetup thang` bật riêng Top 3 Chat/Voice, tạo role không quyền, tự gỡ/trao theo tháng trước tại mốc giao tháng giờ Việt Nam. Thêm kỳ tháng này/tháng trước vào `/toplv` và `/leaderboard`; giữ EXP tổng.
 - Bắt kịp khi restart, khóa đồng bộ để tránh thao tác trùng và thử lại khi Discord lỗi; payload lời mời/top tháng dùng custom emoji và có trong preview.

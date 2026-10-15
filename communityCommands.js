@@ -170,14 +170,21 @@ async function handleCommunityCommand(interaction, dependencies) {
         voiceTracker.tick(guild); // Settle before changing multipliers or toggles.
         if (sub === 'thang') {
             const kind = options.getString('loai'); const enabled = options.getBoolean('bat');
+            let pending = null;
             if (enabled !== null) {
                 await interaction.deferReply({ flags: MessageFlags.Ephemeral });
-                try { await monthlyLevels.configure(guild, kind, enabled); }
-                catch (error) { return interaction.editReply({ content: `Chưa đồng bộ xong top tháng. ${error.message} Kiểm tra quyền/thứ tự role rồi gọi lại lệnh.`, allowedMentions: { parse: [] } }); }
+                try { pending = await monthlyLevels.configure(guild, kind, enabled); }
+                catch (error) {
+                    const permissions = error.code === 50013 || error.code === 50001 || /Mimi cần quyền|Role top tháng/.test(error.message);
+                    return interaction.editReply({ content: permissions
+                        ? 'Chưa đồng bộ được role tháng. Mimi cần quyền Quản lý vai trò và các role Top phải nằm dưới role Mimi, không có quyền quản trị.'
+                        : 'Chưa hoàn tất đồng bộ top tháng. Mimi giữ dữ liệu hiện có và sẽ tự thử lại nếu cấu hình đã được lưu; hãy kiểm tra lại trạng thái sau.', allowedMentions: { parse: [] } });
+                }
             }
             const monthly = system.monthly;
             const status = ['chat', 'voice'].map(type => `**${type === 'chat' ? 'Chat' : 'Voice'}:** ${monthly?.enabled?.[type] ? 'Bật' : 'Tắt'} · ${(monthly?.roles?.[type] || []).filter(Boolean).map(id => `<@&${id}>`).join(' / ') || 'Chưa tạo role'}`).join('\n');
-            const content = `${status}\nMỗi loại có Top 1/2/3 theo EXP kiếm được trong tháng từ khi bật. Chuyển role lúc **00:00 ngày 1 (giờ Việt Nam)**; role đang mang vinh danh tháng **${previousMonth(monthKey(now()))}**. Xem /toplv ky:thang hoặc ky:truoc.`;
+            const wait = pending?.pendingSync ? `\n**Đã lưu cấu hình.** Discord yêu cầu chờ ít nhất **${Math.max(1, Math.ceil(pending.retryAfterMs / 1000))} giây**. Mimi sẽ tự đồng bộ ở lượt kiểm tra tiếp theo sau thời gian chờ. Không cần chạy lại lệnh.\n` : '';
+            const content = `${status}${wait}\nMỗi loại có Top 1/2/3 theo EXP kiếm được trong tháng từ khi bật. Chuyển role lúc **00:00 ngày 1 (giờ Việt Nam)**; role đang mang vinh danh tháng **${previousMonth(monthKey(now()))}**. Xem /toplv ky:thang hoặc ky:truoc.`;
             return enabled !== null ? interaction.editReply({ content, allowedMentions: { parse: [] } }) : reply(content);
         }
         if (sub === 'toggle') {

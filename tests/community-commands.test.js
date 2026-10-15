@@ -161,4 +161,25 @@ test('Levelsetup tháng defer trước tạo role, xem trạng thái không tạ
     const denied = fixture({}, { manager: false }); denied.dependencies.monthlyLevels = f.dependencies.monthlyLevels;
     await denied.run('levelsetup', { sub: 'thang', loai: 'chat', bat: true }); assert.equal(configured.length, 1);
 });
+
+test('Rate limit top tháng báo đã lưu/chờ tự động, không báo nhầm quyền hoặc đưa lỗi tiếng Anh ra UI', async () => {
+    const f = fixture(); f.dependencies.monthlyLevels = { async configure() {
+        f.config.levelSystem.monthly = { enabled: { chat: true }, roles: { chat: ['r1', 'r2', 'r3'] } };
+        return { pendingSync: true, retryAfterMs: 17915 };
+    } };
+    await f.run('levelsetup', { sub: 'thang', loai: 'chat', bat: true });
+    const result = f.edited.at(-1);
+    assert.match(result.content, /Đã lưu cấu hình/); assert.match(result.content, /18 giây/); assert.match(result.content, /Không cần chạy lại/);
+    assert.doesNotMatch(result.content, /opcode|rate limited|Kiểm tra quyền/); assert.deepEqual(result.allowedMentions.parse, []);
+});
+
+test('Lỗi quyền thật vẫn hướng dẫn role; lỗi mạng không gán thành lỗi quyền', async () => {
+    const f = fixture(); f.dependencies.monthlyLevels = { async configure() { throw Object.assign(new Error('Missing permissions'), { code: 50013 }); } };
+    await f.run('levelsetup', { sub: 'thang', loai: 'voice', bat: true });
+    assert.match(f.edited.at(-1).content, /Quản lý vai trò/);
+    f.dependencies.monthlyLevels.configure = async () => { throw new Error('Network unavailable'); };
+    await f.run('levelsetup', { sub: 'thang', loai: 'voice', bat: true });
+    assert.doesNotMatch(f.edited.at(-1).content, /thứ tự role|Quản lý vai trò|Network unavailable/);
+    assert.match(f.edited.at(-1).content, /tự thử lại/);
+});
 function MessageFlagsValue() { return discord.MessageFlags.IsComponentsV2; }

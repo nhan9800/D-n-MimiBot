@@ -40,6 +40,8 @@ Top tháng dùng **EXP kiếm được trong tháng từ lúc bật**, không l�
 
 Bot cần **ManageRoles** và role Mimi nằm trên các role Top; role Top không có quyền quản trị. Khi tắt Top tháng, Mimi gỡ vai trò vinh danh nhưng giữ 3 role để bật lại. Khi chuyển tháng, snapshot Top 3 được lưu trước khi gỡ/trao; lỗi REST sẽ thử lại, không tạo một bộ role mới mỗi tháng. Nếu tháng trước không có EXP, các role được để trống. Người nhận giải phải đang là thành viên và không phải bot tại lúc chốt. Mặc định cả hai bảng Top tháng tắt đến khi quản trị bật. [Discord role API](https://docs.discord.com/developers/resources/guild#create-guild-role).
 
+Top tháng tải đủ thành viên qua REST `/guilds/:id/members`, từng trang tối đa 1.000, thay vì gửi yêu cầu Gateway opcode8 mỗi lượt. Danh sách chỉ dùng khi tất cả trang đã đọc thành công; lỗi giữa chừng hoặc phân trang lặp sẽ giữ role/snapshot cũ. Một lượt đồng bộ dùng danh sách này cho cả Chat và Voice. Nếu Discord yêu cầu `retry_after`, lệnh báo cấu hình đã lưu và thời gian chờ tối thiểu; cron và lệnh bấm lại đều tôn trọng thời gian đó, kể cả qua mốc đổi tháng. Không báo nhầm giới hạn lượt gọi thành lỗi quyền. [Discord List Guild Members](https://docs.discord.com/developers/resources/guild#list-guild-members).
+
 ## Dữ liệu và giới hạn
 
 - Dữ liệu Chat trước đây ở `levelSystem.users` được giữ. Voice dùng `voiceUsers`, `voiceTimeMs`, `voiceRemainderMs`, `voiceEnabled` và `voiceMultiplier` trong cấu hình server. Nếu server đã bật Chat và chưa thiết lập Voice, Voice được bật cùng hệ thống hiện có; sau lần thay công tắc, hai loại độc lập.
