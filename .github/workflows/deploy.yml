@@ -89,6 +89,8 @@ jobs:
           put blackjackUi.js
           put musicBuffer.js
           put communityFeatures.js
+          put inviteEvents.js
+          put monthlyLevels.js
           put communityCommands.js
           put bannedWordFilter.js
           put confessionUi.js

@@ -47,6 +47,8 @@ const { normalizeTicketState, ticketStateFromPanel, resolveTicketState } = requi
 const { captureTicketTranscript, buildTranscriptFiles, persistTicketTranscript } = require('./ticketTranscript');
 const { awardChatXp, VoiceXpTracker, InviteTracker, inviteSnapshot, isNewBoost, voiceEnabled } = require('./communityFeatures');
 const { handleCommunityCommand, buildMemberNotice } = require('./communityCommands');
+const { createMonthlyLevelService } = require('./monthlyLevels');
+const { createInviteEventService } = require('./inviteEvents');
 const { findBannedWord } = require('./bannedWordFilter');
 const { createConfessionService } = require('./confessionService');
 const { parseDuration, setLongTimeout, clearLongTimeout } = require('./reminderUtils');
@@ -505,8 +507,12 @@ function scheduleCommunitySave() {
     }, 1000).unref();
 }
 const voiceXpTracker = new VoiceXpTracker({ getConfig: getGuildConfig, changed: scheduleCommunitySave });
+const monthlyLevels = createMonthlyLevelService({ getConfig: getGuildConfig, save: saveConfig });
+const inviteEvents = createInviteEventService({ getConfig: getGuildConfig, save: saveConfig });
 const confessionService = createConfessionService({ getConfig: getGuildConfig, save: saveConfig, getBotId: () => client.user.id });
-const inviteTracker = new InviteTracker({ getConfig: getGuildConfig, save: saveConfig, fetchSnapshot: async guild => {
+const inviteTracker = new InviteTracker({ getConfig: getGuildConfig, save: saveConfig,
+    onJoin: (member, record, metadata) => inviteEvents.joined(member, record, metadata).catch(() =>
+        console.warn(`[InviteEvent] Chưa ghi được event ở server ${member.guild.id}.`)), fetchSnapshot: async guild => {
     const invites = await guild.invites.fetch();
     const vanity = guild.vanityURLCode ? await guild.fetchVanityData() : null;
     return inviteSnapshot(invites, vanity);
@@ -591,11 +597,15 @@ let communityStarted = false;
 client.on('clientReady', () => {
     if (communityStarted) return;
     communityStarted = true;
-    for (const guild of client.guilds.cache.values()) { voiceXpTracker.resetGuild(guild); inviteTracker.seed(guild).catch(() => null); }
+    for (const guild of client.guilds.cache.values()) {
+        voiceXpTracker.resetGuild(guild); inviteTracker.seed(guild).catch(() => null);
+        monthlyLevels.reconcile(guild).catch(() => null);
+    }
     setInterval(() => {
         for (const guild of client.guilds.cache.values()) {
             if (!guild.available) { voiceXpTracker.forgetGuild(guild.id); continue; }
             announceVoiceLevel(guild, voiceXpTracker.tick(guild)).catch(() => null);
+            monthlyLevels.reconcile(guild).catch(() => null);
         }
     }, 30_000).unref();
 });
@@ -6139,11 +6149,13 @@ client.once('clientReady', async () => {
         new SlashCommandBuilder()
             .setName('leaderboard')
             .setDescription('Top 10 cấp độ Chat hoặc Voice của máy chủ')
-            .addStringOption(o => o.setName('loai').setDescription('Chọn bảng xếp hạng').addChoices({ name: 'Chat', value: 'chat' }, { name: 'Voice', value: 'voice' })),
+            .addStringOption(o => o.setName('loai').setDescription('Chọn bảng xếp hạng').addChoices({ name: 'Chat', value: 'chat' }, { name: 'Voice', value: 'voice' }))
+            .addStringOption(o => o.setName('ky').setDescription('Kỳ xếp hạng').addChoices({ name: 'Tổng EXP', value: 'tong' }, { name: 'Tháng này', value: 'thang' }, { name: 'Tháng trước', value: 'truoc' })),
         new SlashCommandBuilder()
             .setName('toplv')
             .setDescription('Kiểm tra top level trong máy chủ')
-            .addStringOption(o => o.setName('loai').setDescription('Chọn bảng xếp hạng').addChoices({ name: 'Chat', value: 'chat' }, { name: 'Voice', value: 'voice' })),
+            .addStringOption(o => o.setName('loai').setDescription('Chọn bảng xếp hạng').addChoices({ name: 'Chat', value: 'chat' }, { name: 'Voice', value: 'voice' }))
+            .addStringOption(o => o.setName('ky').setDescription('Kỳ xếp hạng').addChoices({ name: 'Tổng EXP', value: 'tong' }, { name: 'Tháng này', value: 'thang' }, { name: 'Tháng trước', value: 'truoc' })),
         new SlashCommandBuilder()
             .setName('levelsetup')
             .setDescription('Cấu hình Level Chat và Voice độc lập trong máy chủ')
@@ -6158,7 +6170,10 @@ client.once('clientReady', async () => {
             .addSubcommand(s => s.setName('voicekenh').setDescription('Chọn kênh thông báo lên cấp Voice; bỏ trống để tắt')
                 .addChannelOption(o => o.setName('kenh').setDescription('Kênh thông báo').addChannelTypes(ChannelType.GuildText, ChannelType.GuildAnnouncement)))
             .addSubcommand(s => s.setName('voicemultiplier').setDescription('Hệ số EXP Voice riêng')
-                .addNumberOption(o => o.setName('he_so').setDescription('Hệ số nhân 20 EXP/phút').setMinValue(0.1).setMaxValue(5).setRequired(true))),
+                .addNumberOption(o => o.setName('he_so').setDescription('Hệ số nhân 20 EXP/phút').setMinValue(0.1).setMaxValue(5).setRequired(true)))
+            .addSubcommand(s => s.setName('thang').setDescription('Bật top tháng, tự tạo và chuyển 3 role Chat hoặc Voice')
+                .addStringOption(o => o.setName('loai').setDescription('Bảng cần cấu hình').setRequired(true).addChoices({ name: 'Chat', value: 'chat' }, { name: 'Voice', value: 'voice' }))
+                .addBooleanOption(o => o.setName('bat').setDescription('Bật/tắt; để trống để xem trạng thái'))),
         new SlashCommandBuilder()
             .setName('ticketroles').setDescription('Cấu hình 3 vai trò BQT được tag khi mở hoặc Hủy nhận ticket')
             .setDefaultMemberPermissions(PermissionFlagsBits.ManageGuild)
@@ -6174,7 +6189,17 @@ client.once('clientReady', async () => {
                 .addUserOption(o => o.setName('nguoi_moi').setDescription('Người mời; để trống để xem của bạn'))
                 .addIntegerOption(o => o.setName('trang').setDescription('Trang danh sách').setMinValue(1)))
             .addSubcommand(s => s.setName('thanh_vien').setDescription('Kiểm tra nguồn tham gia của một thành viên')
-                .addUserOption(o => o.setName('nguoi_dung').setDescription('Thành viên; để trống để xem của bạn'))),
+                .addUserOption(o => o.setName('nguoi_dung').setDescription('Thành viên; để trống để xem của bạn')))
+            .addSubcommand(s => s.setName('event').setDescription('Xem top hoặc số người mời trong event hiện tại')
+                .addUserOption(o => o.setName('nguoi_moi').setDescription('Xem riêng người mời; bỏ trống xem top'))
+                .addIntegerOption(o => o.setName('trang').setDescription('Trang top lời mời').setMinValue(1)))
+            .addSubcommand(s => s.setName('reset').setDescription('Quản trị: reset số liệu event, giữ lịch sử lời mời')
+                .addBooleanOption(o => o.setName('xac_nhan').setDescription('Xác nhận reset về 0 để bắt đầu event mới').setRequired(true))),
+        new SlashCommandBuilder()
+            .setName('invitesetup').setDescription('Bật/tắt thông báo người mời và số thứ tự trong event')
+            .setDefaultMemberPermissions(PermissionFlagsBits.ManageGuild)
+            .addBooleanOption(o => o.setName('bat').setDescription('Bật/tắt đếm và thông báo; bỏ trống xem cấu hình'))
+            .addChannelOption(o => o.setName('kenh').setDescription('Kênh thông báo lời mời').addChannelTypes(ChannelType.GuildText, ChannelType.GuildAnnouncement)),
         new SlashCommandBuilder()
             .setName('boostsetup').setDescription('Bật/Tắt, chọn kênh và tùy chỉnh cảm ơn Boost')
             .setDefaultMemberPermissions(PermissionFlagsBits.ManageGuild)
@@ -13004,11 +13029,11 @@ client.on('interactionCreate', async interaction => {
 
         // Các tính năng cộng đồng có cùng kiểm tra quyền cho mọi server.
         if (commandName === 'level' || commandName === 'leaderboard' || commandName === 'toplv' ||
-            commandName === 'levelsetup' || commandName === 'ticketroles' || commandName === 'invites' ||
+            commandName === 'levelsetup' || commandName === 'ticketroles' || commandName === 'invites' || commandName === 'invitesetup' ||
             commandName === 'boostsetup' || commandName === 'goodbye') {
             return handleCommunityCommand(interaction, {
                 getConfig: getGuildConfig, save: saveConfig, getStaffMention: getAdminRoleMention,
-                getCurrentLevelExp, buildRankPayload, voiceTracker: voiceXpTracker
+                getCurrentLevelExp, buildRankPayload, voiceTracker: voiceXpTracker, inviteEvents, monthlyLevels
             });
         }
 

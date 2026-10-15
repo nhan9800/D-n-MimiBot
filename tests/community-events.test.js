@@ -8,12 +8,14 @@ const discord = require('discord.js');
 const features = require('../communityFeatures');
 const { buildMemberNotice } = require('../communityCommands');
 const { createConfessionService } = require('../confessionService');
+const { createInviteEventService } = require('../inviteEvents');
+const { createMonthlyLevelService } = require('../monthlyLevels');
 const { normalizePayload } = require('../discordUi');
 const source = fs.readFileSync(path.join(__dirname, '../index.js'), 'utf8');
 
 function fixture() {
     const handlers = new Map(); const timers = []; const intervals = []; const sends = [];
-    let now = 0; let saves = 0; let uses = 0;
+    let now = 0; let wall = Date.parse('2026-10-15T10:00:00Z'); let saves = 0; let uses = 0;
     const guildId = '1517068246493429852'; const memberId = '1143387904064888942'; const botId = '1516603522584416376';
     const settings = { levelSystem: { enabled: true, users: { [memberId]: 900 }, voiceNotifyChannelId: 'notify' },
         boostThanks: { enabled: true, channelId: 'notify' }, goodbye: { enabled: true, channelId: 'notify' } };
@@ -22,16 +24,19 @@ function fixture() {
         channels: { cache: new Map([['notify', channel]]) }, systemChannel: { permissionsFor: () => ({ has: () => true }) },
         systemChannelFlags: new discord.SystemChannelFlagsBitField(), voiceStates: { cache: new Map() },
         invites: { async fetch() { return new Map([['abc', { code: 'abc', uses, inviter: { id: 'owner' } }]]); } },
-        members: { me: { id: botId }, cache: new Map(), async fetch(id) { return this.cache.get(id); } } };
+        roles: { cache: new Map(), async fetch() { return this.cache; } },
+        members: { me: { id: botId, permissions: { has: () => true } }, cache: new Map(), async fetch(id) { return id ? this.cache.get(id) : this.cache; } } };
     const user = { id: memberId, username: 'Mimi', bot: false, displayAvatarURL: () => 'https://cdn.discordapp.com/embed/avatars/0.png' };
-    const member = { id: memberId, guild, user, joinedTimestamp: 1000, premiumSinceTimestamp: 2000 };
+    const member = { id: memberId, guild, user, joinedTimestamp: 1000, premiumSinceTimestamp: 2000,
+        roles: { cache: new Map(), async add(id) { this.cache.set(id, guild.roles.cache.get(id)); }, async remove(id) { this.cache.delete(id); } } };
     guild.members.cache.set(memberId, member);
     const client = { guilds: { cache: new Map([[guildId, guild]]) },
         on(event, fn) { if (!handlers.has(event)) handlers.set(event, []); handlers.get(event).push(fn); },
         once(event, fn) { this.on(event, fn); } };
     const begin = source.indexOf('let communitySaveTimer = null;'); const end = source.indexOf('// ☕ EMBED THÔNG TIN DONATE', begin);
     vm.runInNewContext(source.slice(begin, end), { ...discord, client, voiceEnabled: features.voiceEnabled, inviteSnapshot: features.inviteSnapshot,
-        createConfessionService,
+        createConfessionService, createInviteEventService,
+        createMonthlyLevelService: args => createMonthlyLevelService({ ...args, now: () => wall }),
         isNewBoost: features.isNewBoost, buildMemberNotice, getGuildConfig: () => settings, saveConfig: () => saves++,
         VoiceXpTracker: class extends features.VoiceXpTracker { constructor(args) { super({ ...args, clock: () => now }); } },
         InviteTracker: class extends features.InviteTracker { constructor(args) { super({ ...args, setTimer: fn => timers.push(fn) }); } },
@@ -41,7 +46,7 @@ function fixture() {
         setInterval(fn) { intervals.push(fn); return { unref() { return this; } }; }
     });
     return { handlers, timers, intervals, settings, member, guild, sends, channel,
-        advance(ms) { now += ms; }, set uses(value) { uses = value; }, get saves() { return saves; },
+        advance(ms) { now += ms; wall += ms; }, set at(value) { wall = Date.parse(value); }, set uses(value) { uses = value; }, get saves() { return saves; },
         async emit(event, ...args) { for (const fn of handlers.get(event) || []) await fn(...args); },
         async ready() { await this.emit('clientReady'); await new Promise(setImmediate); } };
 }
@@ -92,4 +97,23 @@ test('Voice Gateway/timer thật cộng riêng, shardDisconnect không cộng t�
     assert.equal(f.settings.levelSystem.voiceUsers[f.member.id], 20);
     await f.emit('shardResume', 0); f.advance(60000); f.intervals[0]();
     assert.equal(f.settings.levelSystem.voiceUsers[f.member.id], 40);
+});
+
+test('Hook thành viên mới thực sự gửi thông báo lời mời theo event đã bật', async () => {
+    const f = fixture(); f.settings.inviteAnnouncements = { enabled: true, channelId: 'notify' };
+    f.settings.inviteEvent = { id: 'event', startedAtMs: 0, counts: {}, members: {} };
+    await f.ready(); f.uses = 1; await f.emit('guildMemberAdd', f.member); await f.timers.shift()();
+    assert.equal(f.sends.length, 1); assert.match(JSON.stringify(f.sends[0]), /người thứ 1/);
+    assert.equal(f.settings.inviteEvent.counts.owner, 1);
+    assert.deepEqual([...f.sends[0].allowedMentions.users], [f.member.id]);
+});
+
+test('Ready và timer trong index bắt kịp role tháng, chuyển đúng khi đổi tháng', async () => {
+    const f = fixture(); const ids = ['r1', 'r2', 'r3'];
+    for (const id of ids) f.guild.roles.cache.set(id, { id, editable: true, managed: false, permissions: { bitfield: 0n } });
+    f.settings.levelSystem.monthly = { enabled: { chat: true }, roles: { chat: ids }, periods: { '2026-09': { chat: { [f.member.id]: 20 } } } };
+    await f.ready(); assert.equal(f.settings.levelSystem.monthly.awards.chat.month, '2026-09');
+    assert.equal(f.member.roles.cache.has('r1'), true);
+    f.at = '2026-10-31T17:00:00Z'; f.intervals[0](); await new Promise(setImmediate);
+    assert.equal(f.settings.levelSystem.monthly.awards.chat.month, '2026-10'); assert.equal(f.member.roles.cache.has('r1'), false);
 });

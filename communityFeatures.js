@@ -1,6 +1,7 @@
 'use strict';
 
 const { performance } = require('node:perf_hooks');
+const { addMonthlyXp } = require('./monthlyLevels');
 
 const CHAT_COOLDOWN_MS = 10_000;
 const VOICE_MINUTE_MS = 60_000;
@@ -20,14 +21,16 @@ function awardChatXp(system, user, now = Date.now(), random = Math.random) {
     const earned = Math.floor((15 + random() * 10) * multiplier(system.multiplier));
     system.users[user.id] = before + earned;
     system.chatLastAwardMs[user.id] = now;
+    addMonthlyXp(system, 'chat', user.id, earned, now);
     return { before, after: before + earned, earned };
 }
 
 // Session times use a monotonic clock. Only elapsed time observed by this process
 // is awarded; neither restart nor reconnect backfills time while the bot was offline.
 class VoiceXpTracker {
-    constructor({ getConfig, changed = () => {}, clock = () => performance.now() }) {
+    constructor({ getConfig, changed = () => {}, clock = () => performance.now(), wallClock = Date.now }) {
         this.getConfig = getConfig; this.changed = changed; this.clock = clock;
+        this.wallClock = wallClock;
         this.sessions = new Map(); this.suspended = new Set();
     }
     eligible(state) {
@@ -48,6 +51,11 @@ class VoiceXpTracker {
         const accumulated = numeric(system.voiceRemainderMs[userId]) + elapsed;
         const minutes = Math.floor(accumulated / VOICE_MINUTE_MS);
         const earned = minutes * Math.floor(VOICE_XP_PER_MINUTE * multiplier(system.voiceMultiplier));
+        const wallNow = this.wallClock();
+        for (let minute = 1; minute <= minutes; minute++) {
+            const completedAt = wallNow - elapsed + minute * VOICE_MINUTE_MS - numeric(system.voiceRemainderMs[userId]);
+            addMonthlyXp(system, 'voice', userId, Math.floor(VOICE_XP_PER_MINUTE * multiplier(system.voiceMultiplier)), completedAt);
+        }
         system.voiceTimeMs[userId] = Math.floor(numeric(system.voiceTimeMs[userId]) + elapsed);
         system.voiceRemainderMs[userId] = accumulated % VOICE_MINUTE_MS;
         system.voiceUsers[userId] = before + earned;
@@ -118,8 +126,9 @@ function inferInvite(previous, current, joinCount) {
 // Join events close together form one batch. Multiple changed invite counters
 // cannot establish which member used which code, so every result stays unknown.
 class InviteTracker {
-    constructor({ getConfig, save, fetchSnapshot, delayMs = 750, setTimer = setTimeout }) {
+    constructor({ getConfig, save, fetchSnapshot, onJoin = async () => {}, delayMs = 750, setTimer = setTimeout }) {
         this.getConfig = getConfig; this.save = save; this.fetchSnapshot = fetchSnapshot;
+        this.onJoin = onJoin;
         this.delayMs = delayMs; this.setTimer = setTimer; this.baselines = new Map(); this.jobs = new Map();
     }
     async seed(guild) {
@@ -135,17 +144,24 @@ class InviteTracker {
                 this.jobs.set(member.guild.id, job);
                 this.setTimer(() => this.flush(member.guild.id), this.delayMs);
             }
-            job.members.push({ member, resolve });
+            const duplicate = job.members.find(item => item.member.id === member.id && item.member.joinedTimestamp === member.joinedTimestamp);
+            if (duplicate) duplicate.resolves.push(resolve);
+            else {
+                const config = this.getConfig(member.guild.id);
+                job.members.push({ member, resolves: [resolve], eventId: config.inviteAnnouncements?.enabled ? config.inviteEvent?.id : undefined });
+            }
         });
     }
     async flush(guildId) {
         const job = this.jobs.get(guildId);
         if (!job || job.running) return;
         job.running = true;
+        const requestedCount = job.members.length;
         let result;
         try {
             const current = await this.fetchSnapshot(job.guild);
-            result = inferInvite(this.baselines.get(guildId), current, job.members.length);
+            result = job.members.length === requestedCount ? inferInvite(this.baselines.get(guildId), current, requestedCount)
+                : { kind: 'unknown', inviterId: null, code: null, reason: 'joins_during_fetch' };
             this.baselines.set(guildId, current);
         } catch {
             this.baselines.delete(guildId);
@@ -154,17 +170,21 @@ class InviteTracker {
         const config = this.getConfig(guildId);
         config.inviteTracking ||= { startedAtMs: Date.now(), members: {} };
         config.inviteTracking.members ||= {};
-        for (const { member, resolve } of job.members) {
+        for (const { member } of job.members) {
             const old = config.inviteTracking.members[member.id];
             const joinedAtMs = member.joinedTimestamp || Date.now();
             // A duplicate gateway event must not overwrite a known attribution.
             if (!old || old.joinedAtMs !== joinedAtMs) {
                 config.inviteTracking.members[member.id] = { ...result, joinedAtMs, leftAtMs: job.departed.has(member.id) ? Date.now() : null };
             }
-            resolve(config.inviteTracking.members[member.id]);
         }
         this.jobs.delete(guildId);
-        this.save();
+        const saved = this.save() !== false;
+        for (const { member, resolves, eventId } of job.members) {
+            const record = config.inviteTracking.members[member.id];
+            try { if (saved) await this.onJoin(member, record, { eventId }); }
+            finally { for (const resolve of resolves) resolve(record); }
+        }
     }
     leave(member) {
         this.jobs.get(member.guild.id)?.departed.add(member.id);

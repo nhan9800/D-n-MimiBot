@@ -5,6 +5,7 @@ const discord = require('discord.js');
 const { handleCommunityCommand, buildMemberNotice, imageUrl } = require('../communityCommands');
 const { buildRankPayload } = require('../profileCard');
 const { normalizePayload } = require('../discordUi');
+const { createInviteEventService } = require('../inviteEvents');
 const GUILD = '1517068246493429852'; const HUMAN = '1143387904064888942'; const BOT = '1516603522584416376';
 const text = value => JSON.stringify(normalizePayload(value));
 
@@ -21,6 +22,9 @@ function fixture(config = {}, { manager = true, memberCache = new discord.Collec
     const dependencies = { getConfig: () => config, save: () => saves++, getStaffMention: () => 'BQT', buildRankPayload,
         getCurrentLevelExp: xp => ({ level: Math.floor(xp / 100), currentExp: xp % 100, neededExp: 100 }),
         voiceTracker: { tick: () => voiceEvents.push('tick'), resetGuild: () => voiceEvents.push('reset') } };
+    dependencies.inviteEvents = createInviteEventService({ getConfig: () => config, save: dependencies.save, now: () => 100000 });
+    dependencies.now = () => Date.parse('2026-10-15T10:00:00Z');
+    guild.members.me.permissions = { has: () => true };
     const f = { config, guild, user, channel, replies, edited, voiceEvents, dependencies, get saves() { return saves; },
         async run(commandName, values = {}) {
             const options = { getSubcommand: () => values.sub,
@@ -63,7 +67,7 @@ test('Ảnh lỗi hoặc kênh server khác không làm thay đổi cấu hình 
 });
 test('Thiếu quyền Quản lý máy chủ không thay bất kỳ cấu hình nào', async () => {
     const f = fixture({}, { manager: false });
-    for (const name of ['ticketroles', 'goodbye', 'boostsetup', 'levelsetup']) await f.run(name, { bat: true, sub: 'voice', kenh: f.channel });
+    for (const name of ['ticketroles', 'goodbye', 'boostsetup', 'levelsetup', 'invitesetup']) await f.run(name, { bat: true, sub: 'voice', kenh: f.channel });
     assert.equal(f.saves, 0); assert.deepEqual(f.config, {});
 });
 test('Ba role BQT phải khác nhau, không role managed/everyone; đổi cấu hình giữ ID mới', async () => {
@@ -112,5 +116,49 @@ test('Thông báo Boost chỉ ping booster, tạm biệt không ping user/role t
     assert.equal(goodbye.flags & MessageFlagsValue(), MessageFlagsValue());
     const partial = buildMemberNotice('goodbye', { ...member, user: { ...f.user, username: null } });
     assert.match(text(partial), /Thành viên/);
+});
+
+test('Invitesetup kiểm tra kênh/quyền, bật/tắt và lệnh xem không tự reset event', async () => {
+    const f = fixture(); await f.run('invitesetup', { bat: true }); assert.equal(f.saves, 0);
+    f.guild.members.me.permissions = { has: () => false };
+    await f.run('invitesetup', { bat: true, kenh: f.channel }); assert.equal(f.saves, 0);
+    f.guild.members.me.permissions = { has: () => true };
+    await f.run('invitesetup', { bat: true, kenh: f.channel }); assert.equal(f.config.inviteAnnouncements.enabled, true);
+    const eventId = f.config.inviteEvent.id, saves = f.saves;
+    await f.run('invitesetup'); assert.equal(f.saves, saves); assert.equal(f.config.inviteEvent.id, eventId);
+    await f.run('invitesetup', { bat: false }); assert.equal(f.config.inviteAnnouncements.enabled, false);
+    assert.equal(f.config.inviteEvent.id, eventId);
+});
+
+test('Reset lời mời chỉ cho quản trị và cần chọn xác nhận; dữ liệu lịch sử không thay', async () => {
+    const old = { inviteEvent: { id: 'old', startedAtMs: 1, counts: { [HUMAN]: 9 }, members: {} }, inviteTracking: { members: { old: { inviterId: HUMAN } } } };
+    const denied = fixture(structuredClone(old), { manager: false });
+    await denied.run('invites', { sub: 'reset', xac_nhan: true }); assert.equal(denied.saves, 0);
+    const f = fixture(structuredClone(old)); await f.run('invites', { sub: 'reset', xac_nhan: false }); assert.equal(f.saves, 0);
+    await f.run('invites', { sub: 'reset', xac_nhan: true });
+    assert.deepEqual(f.config.inviteEvent.counts, {}); assert.deepEqual(f.config.inviteTracking, old.inviteTracking);
+    assert.notEqual(f.config.inviteEvent.id, 'old'); assert.match(f.replies.at(-1).content, /về \*\*0/);
+});
+
+test('Bảng event và bảng level tháng phân biệt rõ tổng/tháng trước, không tự ping', async () => {
+    const f = fixture({ inviteEvent: { startedAtMs: 100000, counts: { [HUMAN]: 3 }, members: {} },
+        levelSystem: { enabled: true, users: { [HUMAN]: 99999 }, monthly: { periods: { '2026-09': { chat: { [HUMAN]: 123 } }, '2026-10': { chat: { [HUMAN]: 45 } } } } } });
+    await f.run('invites', { sub: 'event' }); assert.match(text(f.replies.at(-1)), /3/);
+    await f.run('toplv', { ky: 'truoc' }); assert.match(text(f.edited.at(-1)), /2026-09/); assert.match(text(f.edited.at(-1)), /123 EXP/);
+    assert.doesNotMatch(text(f.edited.at(-1)), /99.999/); assert.deepEqual(f.edited.at(-1).allowedMentions.parse, []);
+    await f.run('toplv', { ky: 'thang' }); assert.match(text(f.edited.at(-1)), /45 EXP/);
+});
+
+test('Levelsetup tháng defer trước tạo role, xem trạng thái không tạo role và thiếu quyền không gọi service', async () => {
+    const f = fixture(); const configured = [];
+    f.dependencies.monthlyLevels = { async configure(guild, kind, enabled) {
+        assert.equal(f.replies.at(-1).defer, true); configured.push([kind, enabled]);
+        f.config.levelSystem.monthly = { enabled: { [kind]: enabled }, roles: { [kind]: ['r1', 'r2', 'r3'] } };
+    } };
+    await f.run('levelsetup', { sub: 'thang', loai: 'voice', bat: true });
+    assert.deepEqual(configured, [['voice', true]]); assert.match(f.edited.at(-1).content, /00:00/);
+    await f.run('levelsetup', { sub: 'thang', loai: 'voice' }); assert.equal(configured.length, 1);
+    const denied = fixture({}, { manager: false }); denied.dependencies.monthlyLevels = f.dependencies.monthlyLevels;
+    await denied.run('levelsetup', { sub: 'thang', loai: 'chat', bat: true }); assert.equal(configured.length, 1);
 });
 function MessageFlagsValue() { return discord.MessageFlags.IsComponentsV2; }

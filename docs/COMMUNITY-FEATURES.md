@@ -12,8 +12,13 @@
 | `/levelsetup voice bat:true` | Bật Voice độc lập. Tính 20 EXP/phút × voiceMultiplier, kể cả một người treo/mute/deafen; loại bot và kênh AFK của server. |
 | `/levelsetup voicekenh kenh:...` | Kênh thông báo lên cấp Voice, bỏ kênh để tắt thông báo. Không tự gửi mỗi phút. |
 | `/levelsetup voicemultiplier he_so:...` | Hệ số Voice riêng 0.1–5, không sửa hệ số Chat. |
+| `/levelsetup thang loai:chat bat:true` hoặc `loai:voice` | Bật Top 3 tháng của loại đã chọn; tự tạo 3 role không có quyền. `bat:false` dừng ghi EXP tháng và gỡ role đang trao, giữ role để dùng lại. Bỏ `bat` xem trạng thái. |
+| `/toplv loai:chat ky:thang` hoặc `ky:truoc` | Xem EXP tháng này/tháng trước. `loai:voice` xem Voice; mặc định `ky:tong` giữ bảng tổng. `/leaderboard` có cùng lựa chọn. |
 | `/invites nguoi_moi nguoi_moi:... trang:...` | Danh sách 10 người/trang, số đang tham gia/đã rời. Bỏ người mời để xem của mình. |
 | `/invites thanh_vien nguoi_dung:...` | Nguồn tham gia của một người. |
+| `/invitesetup bat:true kenh:...` | Bật thông báo người mời và số thứ tự riêng trong event. `bat:false` tạm dừng đếm/thông báo, giữ số cũ. Bỏ các option xem trạng thái. |
+| `/invites event nguoi_moi:...` | Xem số riêng của người mời; bỏ người mời để xem top event, `trang` phân trang. |
+| `/invites reset xac_nhan:true` | Quản trị bắt đầu event mới từ 0, giữ nguyên `inviteTracking` và trạng thái bật/tắt thông báo. |
 | `/boostsetup bat:true kenh:...` | Bật cảm ơn Boost ở kênh đã chọn. `bat:false` tắt, gọi không option xem cấu hình. |
 | `/goodbye bat:true kenh:...` | Tạm biệt ở kênh đã chọn; cấu hình riêng, không thay Welcome. `bat:false` tắt. |
 | `/setupconfession kenh:...` | Tạo/làm mới bảng **Trạm sẻ chia** theo kiểu mới. Thành viên chọn đăng công khai hoặc ẩn danh. |
@@ -27,9 +32,18 @@ Mẫu ticket cũ của chính Mimi được nâng cấp tự động sau khi emo
 
 Sau mỗi confession mới, Mimi gửi lại **Trạm sẻ chia** ở cuối kênh rồi xóa bảng cũ. Thích hoặc trả lời trong luồng không gửi lại bảng. Nếu gửi bảng mới thất bại, bảng cũ được giữ; nếu xóa bảng cũ thất bại, Mimi lưu ID để thử dọn ở bài tiếp theo. Chỉ bảng của chính Mimi được xử lý, không xóa bài confession hoặc tin có luồng bình luận.
 
+## Event lời mời và Top tháng
+
+Thông báo lời mời ghi thành viên mới, người mời và số thứ tự riêng của người mời trong event. Một thành viên chỉ được tính lần đầu/event; ra rồi vào lại không tăng số, rời máy chủ không trừ lượt đã ghi nhận. Vanity, nguồn không rõ và tự mời không cộng cho người mời. Khi reset, lượt vào đang chờ xác định từ event cũ không bị đưa sang event mới. Tính năng mặc định tắt, bắt đầu từ lúc bật bằng `/invitesetup`; không dựng số liệu từ lịch sử cũ. Thông báo chỉ ping thành viên mới, không ping người mời hoặc everyone.
+
+Top tháng dùng **EXP kiếm được trong tháng từ lúc bật**, không lấy EXP tổng. Có 3 role Chat và 3 role Voice, xếp hạng theo EXP giảm dần; hòa điểm phân thứ tự cố định theo ID. Giờ chốt tháng là **00:00 ngày 1 theo Asia/Ho_Chi_Minh**. Ví dụ tháng 11 mang role cho Top tháng 10; `/toplv ky:truoc` xem số liệu tháng 10. Bộ đồng bộ kiểm tra mỗi 30 giây, có thể trễ theo Discord/rate limit; startup tự bắt kịp nếu bot offline lúc giao tháng. Voice tính tháng tại lúc hoàn thành phút nhận EXP. Chat/Voice tổng và dữ liệu trước khi bật vẫn giữ nguyên.
+
+Bot cần **ManageRoles** và role Mimi nằm trên các role Top; role Top không có quyền quản trị. Khi tắt Top tháng, Mimi gỡ vai trò vinh danh nhưng giữ 3 role để bật lại. Khi chuyển tháng, snapshot Top 3 được lưu trước khi gỡ/trao; lỗi REST sẽ thử lại, không tạo một bộ role mới mỗi tháng. Nếu tháng trước không có EXP, các role được để trống. Người nhận giải phải đang là thành viên và không phải bot tại lúc chốt. Mặc định cả hai bảng Top tháng tắt đến khi quản trị bật. [Discord role API](https://docs.discord.com/developers/resources/guild#create-guild-role).
+
 ## Dữ liệu và giới hạn
 
 - Dữ liệu Chat trước đây ở `levelSystem.users` được giữ. Voice dùng `voiceUsers`, `voiceTimeMs`, `voiceRemainderMs`, `voiceEnabled` và `voiceMultiplier` trong cấu hình server. Nếu server đã bật Chat và chưa thiết lập Voice, Voice được bật cùng hệ thống hiện có; sau lần thay công tắc, hai loại độc lập.
+- `levelSystem.monthly` lưu bật/tắt từng loại, ID role, EXP theo tháng và snapshot người nhận giải. Giữ EXP thô tháng này/tháng trước; không xóa EXP tổng. `inviteAnnouncements` lưu công tắc/kênh, `inviteEvent` lưu ID event, mốc bắt đầu, số theo người mời và người đã tính; reset không đổi `inviteTracking`.
 - Voice dùng đồng hồ đơn điệu, lưu mỗi lượt kiểm tra 30 giây và khi rời/chuyển voice; khởi động và reconnect chỉ tính từ thời điểm bot kết nối lại. Giữ phần phút lẻ, không truy lĩnh thời gian offline. Khoảng treo tiến trình bất thường giới hạn 2 phút/lượt. Shutdown bình thường lưu trước khi thoát; crash/SIGKILL có thể mất tối đa một nhịp chưa lưu.
 - Lời mời theo dõi từ lúc phiên bot này chạy, không có API cung cấp người mời của từng thành viên lịch sử. So sánh `uses` trước/sau một batch tham gia; nhiều mã tăng, mã xoá, thiếu metadata/quyền, vanity thiếu baseline hoặc delta không khớp đều ghi **Không xác định**. `inviteTracking.members` lưu lượt vào gần nhất cho mỗi thành viên (tham gia lại thay lượt cũ), không phải tổng số lần rejoin.
 - Fetch invite cần ManageGuild để nhận metadata `uses`; bot cũng dùng GuildInvites/GuildMembers intents. Vanity ghi nguồn liên kết máy chủ, không gán thành người mời. [Discord guild invites/metadata](https://github.com/discord/discord-api-docs/blob/main/developers/resources/guild.mdx#get-guild-invites).

@@ -1,5 +1,11 @@
 # CHANGELOG.md — NHẬT KÝ THAY ĐỔI
 
+## Event lời mời và Top tháng — 2026-10-15
+
+- Thêm `/invitesetup` thông báo người mời và số thứ tự riêng trong event; `/invites event` xem số, `/invites reset` làm mới số liệu với xác nhận và quyền quản trị, giữ lịch sử lời mời. Không đếm trùng rejoin/bot hoặc bịa nguồn không xác định.
+- `/levelsetup thang` bật riêng Top 3 Chat/Voice, tạo role không quyền, tự gỡ/trao theo tháng trước tại mốc giao tháng giờ Việt Nam. Thêm kỳ tháng này/tháng trước vào `/toplv` và `/leaderboard`; giữ EXP tổng.
+- Bắt kịp khi restart, khóa đồng bộ để tránh thao tác trùng và thử lại khi Discord lỗi; payload lời mời/top tháng dùng custom emoji và có trong preview.
+
 ## Confession, ticket và lọc từ cấm — 2026-10-09
 
 - Mỗi confession mới đưa Trạm sẻ chia xuống cuối kênh, gửi bảng mới thành công trước khi xóa bảng cũ; lượt Thích/trả lời giữ nguyên bảng.

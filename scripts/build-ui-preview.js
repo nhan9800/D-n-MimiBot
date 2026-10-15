@@ -12,7 +12,8 @@ const { COMMUNITY_EMOJI } = require('../communityEmojis');
 const { CATALOG_ASSETS } = require('../emojiCatalog');
 const { buildStandardSetupPanel } = require('../communitySetupPanels');
 const { buildBlackjackPayload } = require('../blackjackUi');
-const { buildMemberNotice } = require('../communityCommands');
+const { buildMemberNotice, buildLevelLeaderboard } = require('../communityCommands');
+const { buildInviteNotice } = require('../inviteEvents');
 const { buildConfessionComposer, buildConfessionPost, buildConfessionReply } = require('../confessionUi');
 // ID giả chỉ dùng trong preview; ảnh đúng asset sản xuất, không đăng nhập Discord.
 for (const [index, item] of CATALOG_ASSETS.entries()) for (const key of item.keys) COMMUNITY_EMOJI[key] = `<${item.format === 'gif' ? 'a' : ''}:${item.name}:${100000000000000000n + BigInt(index)}>`;
@@ -43,6 +44,14 @@ add('Level Voice riêng', buildRankPayload({ user, level: 4, currentExp: 240, ne
 const sampleMember = { id: user.id, user, guild: { name: 'Cộng đồng Mimi', memberCount: 248, premiumSubscriptionCount: 14 } };
 add('Cảm ơn Boost', buildMemberNotice('boost', sampleMember));
 add('Tạm biệt thành viên', buildMemberNotice('goodbye', sampleMember));
+add('Lời mời · Người thứ 3 trong event', buildInviteNotice(sampleMember,
+    { kind: 'invite', inviterId: '123456789012345679', joinedAtMs: 100000 },
+    { inviterId: '123456789012345679', ordinal: 3, joinedAtMs: 100000 }, { startedAtMs: 90000 }));
+add('Lời mời · Không xác định', buildInviteNotice(sampleMember, { kind: 'unknown', joinedAtMs: 100000 }, {}, { startedAtMs: 90000 }));
+add('Top Chat · Tháng trước', buildLevelLeaderboard({ period: 'truoc', month: '2026-09', guildName: sampleMember.guild.name,
+    sorted: [[user.id, 3290], ['123456789012345679', 2150], ['123456789012345680', 1890]] }));
+add('Top Voice · Tháng này', buildLevelLeaderboard({ voice: true, period: 'thang', month: '2026-10', guildName: sampleMember.guild.name,
+    sorted: [[user.id, 1440], ['123456789012345679', 1260], ['123456789012345680', 900]] }));
 add('Confession · Trạm sẻ chia', buildConfessionComposer({ name: 'Cộng đồng Mimi', iconURL: () => avatar }));
 add('Confession · Ẩn danh', buildConfessionPost({ user, anonymous: true, number: 9, content: 'Có một câu chuyện mình muốn kể, và một lời cảm ơn gửi tới cộng đồng.', likes: 12 }));
 add('Confession · Công khai', buildConfessionPost({ user, anonymous: false, number: 10, content: 'Cảm ơn mọi người đã cùng mình tạo nên những kỷ niệm đẹp.' }));

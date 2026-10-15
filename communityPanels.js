@@ -105,7 +105,7 @@ function buildHelpOverview({ avatarUrl, rows = [] } = {}) {
     components.push(divider(),
         text(`### ${withIcon('music', 'Hẹn nhau giải trí')}\n**Nhạc** \`/play\` · **Trò chơi** \`/mines\`\nChọn bài, lưu thư viện và thử các trò chơi xu.`),
         text(`### ${withIcon('pet', 'Đồng hành mỗi ngày')}\n**Thú cưng** \`mipet\` · **Nông trại** \`/farm\` · **Hồ sơ** \`miprofile\`\nChăm pet, trồng cây và xây hành trình của riêng bạn.`),
-        text(`### ${withIcon('shield', 'Chăm sóc máy chủ')}\n**Khởi tạo** \`/setup\` · **Hỗ trợ** \`/setupticket\` · **Emoji** \`/setupemoji\`\n**Level Chat/Voice** \`/level\` · **Top level** \`/toplv\` · **Lời mời** \`/invites\`\n**Tạm biệt** \`/goodbye\` · **Cảm ơn Boost** \`/boostsetup\` · **BQT ticket** \`/ticketroles\``),
+        text(`### ${withIcon('shield', 'Chăm sóc máy chủ')}\n**Khởi tạo** \`/setup\` · **Hỗ trợ** \`/setupticket\` · **Emoji** \`/setupemoji\`\n**Level Chat/Voice** \`/level\` · **Top tháng** \`/toplv ky:thang\` · **Role tháng** \`/levelsetup thang\`\n**Event lời mời** \`/invites event\` · **Thông báo mời** \`/invitesetup\`\n**Tạm biệt** \`/goodbye\` · **Cảm ơn Boost** \`/boostsetup\` · **BQT ticket** \`/ticketroles\``),
         divider(), ...jsonRows(rows),
         text('-# Chọn danh mục bên dưới · Toàn bộ tính năng cộng đồng miễn phí'));
     return payload('help', HELP_ACCENT, components);
