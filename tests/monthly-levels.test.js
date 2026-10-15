@@ -2,7 +2,9 @@
 const test = require('node:test');
 const assert = require('node:assert/strict');
 const { Collection, PermissionFlagsBits: P } = require('discord.js');
-const { GatewayRateLimitError } = require('@discordjs/util');
+// Giữ đúng cấu trúc lỗi SDK; không thêm dependency trực tiếp chỉ để dựng lỗi giả.
+const gatewayRateLimit = seconds => Object.assign(new Error(`Request with opcode 8 was rate limited. Retry after ${seconds} seconds.`),
+    { name: 'GatewayRateLimitError', data: { opcode: 8, retry_after: seconds } });
 const { monthKey, previousMonth, addMonthlyXp, monthlyScores, createMonthlyLevelService } = require('../monthlyLevels');
 const { awardChatXp, VoiceXpTracker } = require('../communityFeatures');
 
@@ -56,7 +58,7 @@ function fixture() {
         } }, members: { me: { permissions: { has: bit => bit === P.ManageRoles && manage } },
             async fetch() {
                 calls.gateway++;
-                throw new GatewayRateLimitError({ opcode: 8, retry_after: 17.665 }, {});
+                throw gatewayRateLimit(17.665);
             },
             async list(options) { calls.lists.push(options); if (failFetch) throw new Error('Member fetch failed'); return new Collection(memberCache); } } };
     const addMember = (id, bot = false) => {
@@ -152,7 +154,7 @@ test('Discord rate limit lưu cấu hình, trả trạng thái chờ và không 
     const f = fixture(); const list = f.guild.members.list; let limited = true;
     f.guild.members.list = async options => {
         f.calls.lists.push(options);
-        if (limited) throw new GatewayRateLimitError({ opcode: 8, retry_after: 17.665 }, {});
+        if (limited) throw gatewayRateLimit(17.665);
         return new Collection(f.memberCache);
     };
     const first = await f.service.configure(f.guild, 'chat', true);
