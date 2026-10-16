@@ -2,6 +2,15 @@
 
 Checkpoint 05/10/2026, Asia/Saigon. Đọc cùng WORKSPACE.md và AGENTS.md khi tiếp tục. Kết quả lịch sử không thay thế xác minh mới; không lưu bí mật hoặc dữ liệu runtime.
 
+## Đã triển khai — panel Ticket nhiều nút, 16/10/2026
+
+- Yêu cầu mới: `/addnutticket` phải tạo được nhiều tin panel riêng, thêm nút theo ID tin nhắn và bỏ giới hạn cũ 3 nút.
+- `ticketPanelService.js`: đọc tối đa 5 nhóm nút/lần; chia ActionRow 5 nút; thêm tiếp vào bản sao payload, giữ nội dung/nút/ảnh hiện có; giới hạn Discord 25 nút/tin nhắn và 40 Components V2; kiểm tra tác giả Mimi, guild, channel, URL HTTP(S), custom ID trùng và custom emoji `ticket/link`.
+- `index.js`: `/addnutticket` bỏ `tin_nhan_id` tạo panel mới; có ID thì fetch đúng tin trong kênh và edit an toàn. Không sửa tin người dùng hoặc panel không phải Ticket Mimi. Help/changelog/tài liệu và whitelist SFTP/fingerprint đã cập nhật.
+- Kiểm chứng local mới: `npm test` **468/468**, `npm run check` **103 file JS**, `npm audit --json` **0 lỗ hổng**, `git diff --check` đạt. Test riêng `tests/ticket-panel-service.test.js` 5/5.
+- **Đã push/deploy:** commit `f8187924799de2fc7b11ceba1ce683f525673f13` lên `main`; CI `38872599664` success. Health VibeHost đọc trực tiếp sau restart: `/health/live` HTTP200 `commit=f818792`, custom/artwork `182/182`; `/health/ready` HTTP200 `discord=true`. Panel console VibeHost đang trả HTTP503/mất kết nối UI dù health bot đã ready; không coi lỗi panel là lỗi code.
+- Chưa chạy lệnh thật trên server chính để không tự tạo/sửa panel của người dùng. Quản trị dùng `/addnutticket kênh_gửi ...` để tạo; lần sau điền cùng `kênh_gửi` + `tin_nhan_id` + nhóm nút mới để bổ sung. Mỗi lần tối đa5, tổng25.
+
 ## Đã triển khai — sửa Bassboost sau phép đo, 05/10/2026 lúc 19:31 VN
 
 - User xác nhận “boosrbass bị ấy”, ưu tiên Bassboost. Browser VibeHost mới cho thấy đang9a72d70, uptime1h50m/CPU7.73%/RAM179MiB; console cósectionFFmpeg-11 ở guild1425088892494811248 rồipipe fallback. Không coi lỗi guild khác hoặcCPU trung bình là nguyên nhân chắc chắn. Health lần đầu timeout7s, không có bằng chứng bot tắt.
