@@ -3964,7 +3964,7 @@ function startAppEmojiProvisioning() {
 // Bảng cập nhật dùng emoji cộng đồng và bố cục Components V2 hiện hành.
 // =====================================================================
 const PRIMARY_UPDATE_CHANNEL_ID = '1527814721053655092';
-const CURRENT_UPDATE_VERSION = '2026.10.02-1.4.0';
+const CURRENT_UPDATE_VERSION = '2026.10.16-ticket-panel';
 const ANNOUNCED_UPDATES_FILE = path.join(__dirname, 'data', 'announced_updates.json');
 
 function readAnnouncedUpdates() {
@@ -3995,23 +3995,23 @@ function buildComponentsV2Announcement() {
         components: [{
             type: 17, accent_color: 0x2DD4BF,
             components: [
-                { type: 10, content: `# ${E.sparkle} Mimi • Cập nhật cộng đồng
+                { type: 10, content: `# ${E.sparkle} Mimi • Cập nhật ngắn gọn
 -# Phiên bản 1.4.0 • ${CURRENT_UPDATE_VERSION}` },
                 { type: 14, divider: true, spacing: 1 },
-                { type: 10, content: `### ${E.music} 1. Diện mạo Mimi mới
-Thẻ thông tin chuyển sang tông mint, nhận diện từng nhóm tính năng, dữ liệu chia mục rõ và các nút nằm cuối bảng. Bảng nhạc, sổ tay hướng dẫn, hồ sơ và cấp độ có bố cục mới riêng.` },
+                { type: 10, content: `### ${E.ticket} 1. Ticket linh hoạt hơn
+Tạo panel Ticket riêng hoặc thêm nút vào tin cũ bằng \`tin_nhan_id\`. Mỗi lần thêm tối đa 5 nút, một tin nhắn tối đa 25 nút.` },
                 { type: 14, divider: true, spacing: 1 },
-                { type: 10, content: `### ${E.check} 2. Biểu mẫu dễ hiểu hơn
-AFK, đặt tên thú cưng, ticket, phòng thoại và soạn thông báo dùng nhãn trường mới kèm hướng dẫn. Mẫu thông báo và bảng ticket do quản trị viên tự thiết kế giữ nội dung, màu và nút đã chọn.` },
+                { type: 10, content: `### ${E.music} 2. Giao diện và nhạc
+Bảng nhạc, hồ sơ, cấp độ và hướng dẫn dùng bố cục riêng; các thao tác giữ nguyên quyền và trạng thái phiên.` },
                 { type: 14, divider: true, spacing: 1 },
-                { type: 10, content: `### ${E.shield} 3. Bảng nhạc cập nhật ổn định
-Gom các lần sửa bảng, bỏ nội dung không đổi khi tạm dừng và chặn kết quả cũ ghi đè phiên mới. Lỗi mạng tạm thời không tạo thêm bảng nhạc; chỉ khôi phục khi tin nhắn đã bị xóa.` },
+                { type: 10, content: `### ${E.check} 3. Custom emoji đồng nhất
+Nút và bảng Mimi dùng bộ emoji ứng dụng; bố cục cũ, quyền quản trị và dữ liệu Ticket vẫn được giữ.` },
                 { type: 14, divider: true, spacing: 1 },
-                { type: 10, content: `### ${E.game} 4. Cổng cộng đồng và tối ưu emoji
-Trang giới thiệu đi kèm bot chuyển sang Mimi miễn phí và đọc trạng thái thật. Bộ xử lý emoji tái sử dụng danh mục đã biên dịch để giảm công việc lặp khi dựng các bảng tương tác.` },
+                { type: 10, content: `### ${E.info} 4. Mimi miễn phí cho cộng đồng
+Nhạc, Ticket và các tính năng cộng đồng vẫn miễn phí. Xem danh sách lệnh hoặc vào máy chủ hỗ trợ để được hướng dẫn.` },
                 { type: 1, components: [
-                    { type: 2, style: 5, label: 'Website Mimi', url: WEB_BASE_URL, emoji: { name: '🌐' } },
-                    { type: 2, style: 5, label: 'Máy chủ hỗ trợ', url: SUPPORT_LINK, emoji: { name: '💗' } }
+                    { type: 2, style: 5, label: 'Website Mimi', url: WEB_BASE_URL, emoji: E.globe ? { name: E.globe } : undefined },
+                    { type: 2, style: 5, label: 'Máy chủ hỗ trợ', url: SUPPORT_LINK, emoji: E.heart ? { name: E.heart } : undefined }
                 ] },
                 { type: 10, content: '-# Mimi • Bot cộng đồng miễn phí' }
             ]
