@@ -13671,7 +13671,9 @@ if (commandName === 'setup') {
                 
             if (thumbUrl) ticketEmbed.setThumbnail(thumbUrl);
             if (imageUrl) ticketEmbed.setImage(imageUrl);
-            const specs = buttonSpecs.length ? buttonSpecs : [{ type: 'ticket', label: 'Mở Ticket Mới', color: 'Primary', url: null }];
+            // Giữ custom ID cũ cho panel mặc định để các tin đã lưu/nhận diện
+            // sau restart vẫn tương thích với create_ticket_btn:Ticket.
+            const specs = buttonSpecs.length ? buttonSpecs : [{ type: 'ticket', label: 'Mở Ticket Mới', color: 'Primary', customId: 'create_ticket_btn:Ticket', url: null }];
             const rows = buildRows(specs, { emojiForKey });
             await targetChannel.send(embedToV2Payload(ticketEmbed, { components: rows, mimiUi: { preserve: true } }));
             return interaction.editReply({ content: `✅ Đã gửi bảng Ticket mới tới ${targetChannel} với ${specs.length} nút. Muốn bổ sung, chạy lại lệnh và điền \`tin_nhan_id\` của tin vừa gửi.` });

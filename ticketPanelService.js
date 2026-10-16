@@ -79,7 +79,7 @@ function buildButton(spec, { emojiForKey = () => '' } = {}) {
         button.setStyle(ButtonStyle.Link).setURL(spec.url);
         return withEmoji(button, 'link', emojiForKey);
     }
-    button.setCustomId(buildCustomId(spec.label)).setStyle(STYLE_BY_NAME[spec.color] || ButtonStyle.Primary);
+    button.setCustomId(spec.customId || buildCustomId(spec.label)).setStyle(STYLE_BY_NAME[spec.color] || ButtonStyle.Primary);
     return withEmoji(button, 'ticket', emojiForKey);
 }
 
