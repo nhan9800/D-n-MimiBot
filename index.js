@@ -51,6 +51,7 @@ const { createMonthlyLevelService } = require('./monthlyLevels');
 const { createInviteEventService } = require('./inviteEvents');
 const { findBannedWord } = require('./bannedWordFilter');
 const { createConfessionService } = require('./confessionService');
+const { readButtonSpecs, buildRows, buildAppendPayload, MAX_BUTTONS_PER_INVOCATION } = require('./ticketPanelService');
 const { parseDuration, setLongTimeout, clearLongTimeout } = require('./reminderUtils');
 const { MusicStore, MAX_ALBUMS_PER_USER, MAX_TRACKS_PER_ALBUM } = require('./musicStore');
 const { createDashboardKey, resolveDashboardSecret, DEFAULT_TTL_MS: DASHBOARD_KEY_TTL_MS } = require('./dashboardAuth');
@@ -6381,9 +6382,10 @@ client.once('clientReady', async () => {
 
         new SlashCommandBuilder()
             .setName('addnutticket')
-            .setDescription('Gửi bảng tạo Ticket với tối đa 3 nút bấm tuỳ chỉnh (Màu sắc, Loại nút, Hình ảnh)')
+            .setDescription('Tạo panel Ticket mới hoặc thêm tối đa 5 nút vào panel theo ID tin nhắn')
             .setDefaultMemberPermissions(PermissionFlagsBits.ManageGuild)
             .addChannelOption(option => option.setName('kênh_gửi').setDescription('Kênh hiển thị bảng Ticket').addChannelTypes(ChannelType.GuildText).setRequired(true))
+            .addStringOption(option => option.setName('tin_nhan_id').setDescription('ID tin nhắn Ticket của Mimi cần thêm nút (bỏ trống để tạo tin mới)'))
             .addStringOption(option => option.setName('tiêu_đề').setDescription('Tiêu đề của bảng Ticket'))
             .addStringOption(option => option.setName('nội_dung').setDescription('Nội dung mô tả (hỗ trợ \\n để xuống dòng)'))
             .addAttachmentOption(option => option.setName('hình_nhỏ').setDescription('Ảnh thumbnail bên góc phải (Mặc định: Logo Server)'))
@@ -6399,7 +6401,14 @@ client.once('clientReady', async () => {
             .addStringOption(option => option.setName('nút3_loại').setDescription('Loại chức năng của nút 3').addChoices({ name: 'Tạo Ticket', value: 'ticket' }, { name: 'Liên Kết', value: 'link' }))
             .addStringOption(option => option.setName('nút3_tên').setDescription('Tên hiển thị của nút 3'))
             .addStringOption(option => option.setName('nút3_màu').setDescription('Màu của nút 3').addChoices({ name: 'Xanh dương', value: 'Primary' }, { name: 'Xanh lá', value: 'Success' }, { name: 'Đỏ', value: 'Danger' }, { name: 'Xám', value: 'Secondary' }))
-            .addStringOption(option => option.setName('nút3_link').setDescription('Link URL của nút 3')),
+            .addStringOption(option => option.setName('nút3_link').setDescription('Link URL của nút 3'))
+            .addStringOption(option => option.setName('nút4_loại').setDescription('Loại chức năng của nút 4').addChoices({ name: 'Tạo Ticket', value: 'ticket' }, { name: 'Liên Kết', value: 'link' }))
+            .addStringOption(option => option.setName('nút4_tên').setDescription('Tên hiển thị của nút 4'))
+            .addStringOption(option => option.setName('nút4_màu').setDescription('Màu của nút 4').addChoices({ name: 'Xanh dương', value: 'Primary' }, { name: 'Xanh lá', value: 'Success' }, { name: 'Đỏ', value: 'Danger' }, { name: 'Xám', value: 'Secondary' }))
+            .addStringOption(option => option.setName('nút4_link').setDescription('Link URL của nút 4'))
+            .addStringOption(option => option.setName('nút5_loại').setDescription('Loại chức năng của nút 5').addChoices({ name: 'Tạo Ticket', value: 'ticket' }, { name: 'Liên Kết', value: 'link' }))
+            .addStringOption(option => option.setName('nút5_tên').setDescription('Tên hiển thị của nút 5'))
+            .addStringOption(option => option.setName('nút5_link').setDescription('Link URL của nút 5')),
 
         new SlashCommandBuilder()
             .setName('setupverify')
@@ -13611,6 +13620,41 @@ if (commandName === 'setup') {
 
             if (!gConfig.ticketCategoryId) return interaction.editReply({ content: '❌ Vui lòng dùng `/setupticket bật` để khởi tạo hệ thống Ticket trước.' });
 
+            let buttonSpecs;
+            try {
+                buttonSpecs = readButtonSpecs(options, MAX_BUTTONS_PER_INVOCATION);
+            } catch (error) {
+                return interaction.editReply({ content: `❌ ${error.message}` });
+            }
+
+            const targetMessageId = options.getString('tin_nhan_id')?.trim();
+            if (targetMessageId) {
+                if (!/^\d{17,20}$/.test(targetMessageId)) {
+                    return interaction.editReply({ content: '❌ ID tin nhắn không hợp lệ. Hãy sao chép đúng Message ID của panel Ticket.' });
+                }
+                if (!buttonSpecs.length) {
+                    return interaction.editReply({ content: '❌ Khi thêm nút vào tin nhắn cũ, bạn cần nhập ít nhất một nhóm Nút.' });
+                }
+                let targetMessage;
+                try {
+                    targetMessage = await targetChannel.messages.fetch(targetMessageId);
+                } catch (error) {
+                    return interaction.editReply({ content: '❌ Không tìm thấy tin nhắn trong kênh đã chọn hoặc bot không có quyền đọc lịch sử.' });
+                }
+                try {
+                    const payload = buildAppendPayload(targetMessage, buttonSpecs, {
+                        botId: client.user.id,
+                        channelId: targetChannel.id,
+                        guildId: guild.id,
+                        emojiForKey
+                    });
+                    await targetMessage.edit(payload);
+                    return interaction.editReply({ content: `✅ Đã thêm ${buttonSpecs.length} nút vào panel Ticket \`${targetMessageId}\` tại ${targetChannel}. Có thể bổ sung tiếp tới tối đa 25 nút/tin nhắn (mỗi lần gọi tối đa 5 nút).` });
+                } catch (error) {
+                    return interaction.editReply({ content: `❌ Không thể thêm nút: ${error.message}` });
+                }
+            }
+
             const title = options.getString('tiêu_đề') || '📩 Hệ Thống Hỗ Trợ & Báo Lỗi';
             const rawDescription = options.getString('nội_dung') || 'Nhấn nút phía dưới để gửi Form yêu cầu hỗ trợ đến admin.';
             
@@ -13627,38 +13671,10 @@ if (commandName === 'setup') {
                 
             if (thumbUrl) ticketEmbed.setThumbnail(thumbUrl);
             if (imageUrl) ticketEmbed.setImage(imageUrl);
-
-            const row = new ActionRowBuilder();
-            let buttonCount = 0;
-
-            for (let i = 1; i <= 3; i++) {
-                const type = options.getString(`nút${i}_loại`);
-                const name = options.getString(`nút${i}_tên`);
-                const color = options.getString(`nút${i}_màu`) || 'Primary';
-                const link = options.getString(`nút${i}_link`);
-
-                if (type && name) {
-                    const btn = new ButtonBuilder().setLabel(name);
-                    if (type === 'ticket') {
-                        btn.setCustomId(`create_ticket_btn:${name}`);
-                        btn.setStyle(ButtonStyle[color]);
-                    } else if (type === 'link') {
-                        if (!link) return interaction.editReply({ content: `❌ Lỗi: Bạn chọn Nút ${i} là Liên Kết nhưng không nhập Link.` });
-                        if (!link.startsWith('http')) return interaction.editReply({ content: `❌ Lỗi: Link ở Nút ${i} phải bắt đầu bằng http:// hoặc https://` });
-                        btn.setStyle(ButtonStyle.Link).setURL(link);
-                    }
-                    row.addComponents(btn);
-                    buttonCount++;
-                }
-            }
-
-            if (buttonCount === 0) {
-                // Thêm nút mặc định nếu không set nút nào
-                row.addComponents(new ButtonBuilder().setCustomId('create_ticket_btn:Ticket').setLabel('Mở Ticket Mới').setStyle(ButtonStyle.Primary));
-            }
-
-            await targetChannel.send(embedToV2Payload(ticketEmbed, { components: [row], mimiUi: { preserve: true } }));
-            return interaction.editReply({ content: `✅ Đã gửi bảng Ticket tùy chỉnh tới ${targetChannel} thành công!` });
+            const specs = buttonSpecs.length ? buttonSpecs : [{ type: 'ticket', label: 'Mở Ticket Mới', color: 'Primary', url: null }];
+            const rows = buildRows(specs, { emojiForKey });
+            await targetChannel.send(embedToV2Payload(ticketEmbed, { components: rows, mimiUi: { preserve: true } }));
+            return interaction.editReply({ content: `✅ Đã gửi bảng Ticket mới tới ${targetChannel} với ${specs.length} nút. Muốn bổ sung, chạy lại lệnh và điền \`tin_nhan_id\` của tin vừa gửi.` });
         }
 
         // ==========================================
@@ -14427,7 +14443,7 @@ if (commandName === 'changelog') {
                     { name: 'Quy trình hoạt động', value: '① Thành viên bấm nút tạo Ticket → Bot mở phòng chat riêng\n② Staff bấm "Nhận ca" → Được gán vào phòng đó\n③ Staff bấm "Đóng Ticket" → Bot lưu log toàn bộ chat\n④ Log được gửi vào kênh lưu trữ + DM cho người tạo Ticket' },
                     { name: '`/configticket [nội_dung]`', value: 'Tùy chỉnh lời nhắc hướng dẫn hiển thị bên trong phòng Ticket khi vừa được tạo.' },
                     { name: '`/ticketroles cauhinh`', value: 'Chọn 3 vai trò BQT có quyền Quản lý kênh. Bot tag các vai trò này khi tạo ticket và khi Hủy nhận; chọn lại để thay vai trò. `/ticketroles xem` kiểm tra cấu hình.' },
-                    { name: '`/addnutticket`', value: 'Gửi bảng tạo Ticket tùy chỉnh có hỗ trợ hình ảnh và tối đa 3 nút bấm có gắn link/màu sắc.' },
+                    { name: '`/addnutticket`', value: 'Tạo panel Ticket mới với tối đa 5 nút/lần, hoặc điền `tin_nhan_id` để thêm tiếp nút vào panel của Mimi (tối đa 25 nút/tin nhắn).' },
                     { name: '`/setupticket`', value: 'Bật/Tắt và tự động gửi hệ thống Ticket hỗ trợ mặc định.' },
                     { name: '⏱️ Tự động', value: 'Ticket không được nhận ca sau **24 giờ** sẽ tự đóng và gửi thông báo. Hủy nhận ca có cooldown **12 giờ**.' },
                 ]

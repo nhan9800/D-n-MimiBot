@@ -6,6 +6,7 @@
 | --- | --- |
 | `/ticketroles cauhinh vai_tro_1 vai_tro_2 vai_tro_3` | Lưu 3 role BQT khác nhau có ManageChannels. Ping khi mở ticket và Hủy nhận. Chọn lại role để đổi cấu hình, không đổi quyền role/kênh. |
 | `/ticketroles xem` hoặc `/ticketroles tudong` | Xem cấu hình hoặc dùng lại tối đa 3 role quản trị cao nhất. Role bot và @everyone bị loại. |
+| `/addnutticket` | Bỏ `tin_nhan_id` để tạo panel Ticket riêng (tối đa 5 nút mỗi lần); điền ID tin do Mimi gửi để thêm tiếp nút. Có thể gọi lại nhiều lần tới tối đa 25 nút/tin nhắn, Discord tự chia mỗi hàng 5 nút. |
 | `/level loai:Chat` hoặc `Voice` | EXP/cấp độ riêng trong server, mặc định Chat. Không tính bot. |
 | `/toplv loai:Chat` hoặc `Voice` | Top 10 thành viên hiện tại; `/leaderboard` cũng hỗ trợ hai loại. |
 | `/levelsetup toggle` | Bật/tắt Chat; Voice giữ công tắc riêng. Chat tối đa một lần nhận 15–24 EXP × multiplier mỗi 10 giây, gồm cooldown sau restart. |

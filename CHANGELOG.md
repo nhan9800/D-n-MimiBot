@@ -1,5 +1,11 @@
 # CHANGELOG.md — NHẬT KÝ THAY ĐỔI
 
+## Ticket panel nhiều nút — 2026-10-16
+
+- Mở rộng `/addnutticket`: bỏ `tin_nhan_id` để tạo tin panel Ticket riêng, hoặc điền ID tin do Mimi gửi để thêm tiếp nút mà không xóa bố cục/nút cũ.
+- Hỗ trợ 5 nút mỗi lần gọi và tối đa 25 nút trong một tin nhắn, tự chia hàng 5 nút theo giới hạn Discord; gọi lệnh nhiều lần để bổ sung dần.
+- Nút Ticket/liên kết dùng custom emoji ứng dụng, kiểm tra đúng server/kênh/tác giả, URL HTTPS và từ chối panel không phải của Mimi trước khi edit.
+
 ## Event lời mời và Top tháng — 2026-10-15
 
 - Sửa lỗi `/levelsetup thang` bị giới hạn Gateway opcode8: tải thành viên bằng REST phân trang đầy đủ, chờ `retry_after` khi có giới hạn, giữ cấu hình và báo trạng thái tự đồng bộ thay vì yêu cầu sửa quyền sai nguyên nhân.
