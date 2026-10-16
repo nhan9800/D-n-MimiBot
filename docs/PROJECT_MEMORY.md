@@ -11,6 +11,12 @@ Checkpoint 05/10/2026, Asia/Saigon. Đọc cùng WORKSPACE.md và AGENTS.md khi 
 - **Đã push/deploy:** runtime commit `73c061cc24b719757b5605ded824a1d175a37ad6` lên `main`; CI `38874899605` success (trước đó tính năng chính ở `f818792`, giữ ID mặc định ở `a1bdee8`). Health VibeHost đọc trực tiếp sau restart: `/health/live` HTTP200 `commit=73c061c`, custom/artwork `182/182`; `/health/ready` HTTP200 `discord=true`. Panel console VibeHost đang trả HTTP503/mất kết nối UI dù health bot đã ready; không coi lỗi panel là lỗi code.
 - Chưa chạy lệnh thật trên server chính để không tự tạo/sửa panel của người dùng. Quản trị dùng `/addnutticket kênh_gửi ...` để tạo; lần sau điền cùng `kênh_gửi` + `tin_nhan_id` + nhóm nút mới để bổ sung. Mỗi lần tối đa5, tổng25.
 
+## Đã rút gọn thông báo khách — 16/10/2026
+
+- `buildComponentsV2Announcement()` nay dùng `CURRENT_UPDATE_VERSION=2026.10.16-ticket-panel`, chỉ còn 4 ý ngắn: Ticket nhiều nút, giao diện/nhạc, custom emoji và Mimi miễn phí. Giữ Components V2, separator native, link website/hỗ trợ và `allowedMentions` trống.
+- Đã kiểm chứng lại sau thay đổi: `npm test` **468/468**, `npm run check` **103 file JS**, `npm audit` **0 lỗ hổng**. CI `38881655968` success; runtime VibeHost sau restart đọc `/health/live` HTTP200 `commit=e0dbf05`, `/health/ready` HTTP200 `discord=true`, custom/artwork `182/182`.
+- Nội dung sẵn sàng cho `/broadcastupdate`; chưa tự kích hoạt phát sóng liên server để tránh gửi trùng khi chưa có thao tác owner. Gọi lệnh một lần để gửi đến kênh chính và các kênh thông báo đã cấu hình.
+
 ## Đã triển khai — sửa Bassboost sau phép đo, 05/10/2026 lúc 19:31 VN
 
 - User xác nhận “boosrbass bị ấy”, ưu tiên Bassboost. Browser VibeHost mới cho thấy đang9a72d70, uptime1h50m/CPU7.73%/RAM179MiB; console cósectionFFmpeg-11 ở guild1425088892494811248 rồipipe fallback. Không coi lỗi guild khác hoặcCPU trung bình là nguyên nhân chắc chắn. Health lần đầu timeout7s, không có bằng chứng bot tắt.
