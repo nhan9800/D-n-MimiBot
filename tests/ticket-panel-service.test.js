@@ -74,6 +74,7 @@ test('Chỉ sửa panel do Mimi gửi trong đúng server/kênh và không nhậ
 
 test('Kiểm tra URL và giữ ID ticket tương thích handler modal cũ', () => {
     assert.throws(() => readButtonSpecs(optionsOf({ 'nút1_loại': 'link', 'nút1_tên': 'Docs', 'nút1_link': 'javascript:alert(1)' })), /http/);
+    assert.throws(() => buildRows([spec('Trùng'), spec('Trùng')], { emojiForKey }), /trùng ID/);
     const rows = buildRows([spec('Hỗ trợ: khẩn cấp')], { emojiForKey });
     let ids = [];
     walkComponents(rows, component => { if (component.custom_id) ids.push(component.custom_id); });

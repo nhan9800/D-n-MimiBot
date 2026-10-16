@@ -84,6 +84,14 @@ function buildButton(spec, { emojiForKey = () => '' } = {}) {
 }
 
 function buildRows(specs, options = {}) {
+    if (specs.length > MAX_BUTTONS_PER_PANEL) throw new Error(`Một panel Discord chỉ chứa tối đa ${MAX_BUTTONS_PER_PANEL} nút.`);
+    const ids = new Set();
+    for (const spec of specs) {
+        if (spec.type !== 'ticket') continue;
+        const id = spec.customId || buildCustomId(spec.label);
+        if (ids.has(id)) throw new Error(`Nút Ticket “${spec.label}” bị trùng ID trong cùng panel.`);
+        ids.add(id);
+    }
     const buttons = specs.map(spec => buildButton(spec, options));
     const rows = [];
     for (let index = 0; index < buttons.length; index += MAX_BUTTONS_PER_ROW) {
