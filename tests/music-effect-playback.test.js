@@ -336,6 +336,24 @@ test('Idle thật của resource hiện tại vẫn tự chuyển sang bài tron
     } finally { f.cleanup(); }
 });
 
+test('SoundCloud lỗi chuyển sang bài kế tiếp, không tìm lại SoundCloud vô hạn', async () => {
+    let searches = 0;
+    const f = await fixture({ synchronousPlaying: true, searchSoundcloud: async () => { searches++; return null; } });
+    try {
+        f.current.url = 'https://soundcloud.com/artist/current';
+        f.current.source = 'SoundCloud';
+        f.queued.url = 'https://soundcloud.com/artist/next';
+        f.queued.source = 'SoundCloud';
+        await f.play();
+        await f.processes[0].rejectPlayback(new Error('SoundCloud stream lỗi'));
+        await tick();
+        assert.equal(searches, 0);
+        assert.equal(f.mq.current, f.queued);
+        assert.equal(f.processes.length, 2);
+        assert.deepEqual(f.mq.queue, []);
+    } finally { f.cleanup(); }
+});
+
 test('Demux của thế hệ cũ reject muộn không làm hỏng cùng bài đang phát lại', async () => {
     const firstProbe = deferred();
     let probes = 0;

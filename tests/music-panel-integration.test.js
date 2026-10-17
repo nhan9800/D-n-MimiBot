@@ -128,7 +128,13 @@ test('Phát YouTube, SoundCloud và tua bài dùng argv hợp lệ trước khi 
         assert.ok(!args.includes('--no-check-certificates'));
         assert.ok(args.includes('--no-playlist'));
         assert.equal(calls[0].flags.output, '-');
-        assert.equal(calls[0].flags.format, 'bestaudio[acodec=opus]/bestaudio[ext=webm]/bestaudio');
+        if (url.includes('youtube.com')) {
+            assert.equal(calls[0].flags.format, 'bestaudio[acodec=opus]/bestaudio[ext=webm]/bestaudio');
+            assert.equal(calls[0].flags.extractorArgs, 'youtube:player_client=android,ios');
+        } else {
+            assert.equal(calls[0].flags.format, 'bestaudio/best');
+            assert.equal(calls[0].flags.extractorArgs, undefined);
+        }
         if (seekSec) {
             assert.equal(calls[0].flags.downloadSections, '*12-inf');
             assert.equal(calls[0].flags.ffmpegLocation, '/mock/ffmpeg');

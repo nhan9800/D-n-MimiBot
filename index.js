@@ -5032,6 +5032,10 @@ async function playNextTrack(guildId, opts = {}) {
     persistSession(guildId);
 
     const isCurrentPlayback = () => musicQueues.get(guildId) === mq && mq.playGeneration === genId && mq.current === next;
+    // Retry client/fallback YouTube chỉ áp dụng cho track YouTube. SoundCloud
+    // dùng format/luồng riêng; nếu nó lỗi phải chuyển queue, không tìm lại
+    // chính SoundCloud vô hạn khiến bài kế tiếp không bao giờ chạy.
+    const isYoutubePlayback = next.source === 'YouTube' || /(?:youtube\.com|youtu\.be)/i.test(String(next.url || ''));
     let failureStarted = false;
     let sourcePending = false;
     let sourceRecovering = false;
@@ -5105,10 +5109,10 @@ async function playNextTrack(guildId, opts = {}) {
         // lỗi tạo file tạm '--Frag*' bị No such file or directory trên stream HLS/DASH dài.
         const ytdlOpts = {
             output: '-',
-            // Ưu tiên Opus để Discord chuyển thẳng gói WebM/Ogg, tránh bắt
-            // @discordjs/voice giải mã lại AAC/M4A rồi làm đầy CPU gây giật.
-            // Nếu video không có Opus mới hạ xuống WebM hoặc định dạng audio khác.
-            format: 'bestaudio[acodec=opus]/bestaudio[ext=webm]/bestaudio',
+            // YouTube ưu tiên Opus/WebM để Discord chuyển thẳng gói nhẹ hơn.
+            // SoundCloud giữ selector chung của yt-dlp; selector Opus của YouTube
+            // có thể làm nguồn SoundCloud bị trả format rỗng.
+            format: isYoutubePlayback ? 'bestaudio[acodec=opus]/bestaudio[ext=webm]/bestaudio' : 'bestaudio/best',
             noPlaylist: true,
             noWarnings: true,
             quiet: true,
@@ -5122,8 +5126,10 @@ async function playNextTrack(guildId, opts = {}) {
         };
         const cookiePath = getCookieFilePath();
         if (cookiePath) ytdlOpts.cookies = cookiePath;
-        const extArgs = YT_DOWNLOAD_CLIENT_FALLBACKS[clientAttempt] || 'youtube:player_client=android,ios';
-        ytdlOpts.extractorArgs = extArgs;
+        if (isYoutubePlayback) {
+            const extArgs = YT_DOWNLOAD_CLIENT_FALLBACKS[clientAttempt] || 'youtube:player_client=android,ios';
+            ytdlOpts.extractorArgs = extArgs;
+        }
         if (seekSec > 0 && seekTransport === 'section') {
             // Tải thẳng từ mốc thời gian khi tua hoặc khi đổi hiệu ứng -> không bắt ffmpeg đọc/bỏ qua hàng MB dữ liệu qua pipe
             ytdlOpts.downloadSections = `*${seekSec}-inf`;
@@ -5196,7 +5202,7 @@ async function playNextTrack(guildId, opts = {}) {
 
             const isRetryable = /403|forbidden|Requested format is not available|Sign in to confirm you|bot|confirm you’re not a bot|needs_auth|login|Unable to download|No such file|Frag|timeout|IncompleteRead|HTTP Error 5|Connection reset|timed out|network/i.test(rawErr);
             const nextAttempt = clientAttempt + 1;
-            if (isRetryable && nextAttempt < YT_DOWNLOAD_CLIENT_FALLBACKS.length) {
+            if (isYoutubePlayback && isRetryable && nextAttempt < YT_DOWNLOAD_CLIENT_FALLBACKS.length) {
                 console.warn(`🔁 [Music] Thử lại client #${nextAttempt} cho "${next.title}".`);
                 playNextTrack(guildId, {
                     ...opts,
@@ -5210,7 +5216,7 @@ async function playNextTrack(guildId, opts = {}) {
             }
 
             // 🛡️ BẢO HIỂM 403 / LỖI TẢI: NẾU YOUTUBE LỖI/CHẶN BÀI NÀY -> TỰ ĐỘNG PHÁT TỪ SOUNDCLOUD
-            if (!next.scFallbackAttempted) {
+            if (isYoutubePlayback && !next.scFallbackAttempted) {
                 console.warn(`🔄 [Music] Nguồn YouTube gặp sự cố ("${next.title}") -> Tự động tìm nguồn phát SoundCloud...`);
                 try {
                     const scTrack = await searchSoundcloud(next.title);
