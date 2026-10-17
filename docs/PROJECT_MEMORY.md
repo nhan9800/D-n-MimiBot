@@ -2,6 +2,14 @@
 
 Checkpoint 05/10/2026, Asia/Saigon. Đọc cùng WORKSPACE.md và AGENTS.md khi tiếp tục. Kết quả lịch sử không thay thế xác minh mới; không lưu bí mật hoặc dữ liệu runtime.
 
+## Đã triển khai — giảm giật khi phát YouTube, 17/10/2026
+
+- Yêu cầu mới: tìm/phát nhạc YouTube bị giật, cần ưu tiên đường phát nhẹ hơn.
+- `index.js`: yt-dlp dùng `bestaudio[acodec=opus]/bestaudio[ext=webm]/bestaudio`, ưu tiên luồng Opus/WebM để Discord chuyển thẳng thay vì giải mã lại AAC/M4A; giữ fallback định dạng audio khi video không có Opus.
+- Kiểm chứng: full `npm test` **468/468**, nhóm nhạc `80/80` (11 integration + 69 effect/buffer), `npm run check` **103 file JS**, `npm audit` **0 lỗ hổng**, diff check đạt.
+- **Đã push/deploy:** commit `07cc6de4d6f18d85aeec9c4b0aebe594df5885ba`, CI `39029632120` success. Health VibeHost sau restart: `/health/live` HTTP200 `commit=07cc6de`, `/health/ready` HTTP200 `discord=true`, custom/artwork `182/182`.
+- Console lúc restart có một số lỗi `setupticket` cũ do `Missing Permissions` ở một kênh Discord; không liên quan luồng YouTube và không làm health bot fail. Chưa phát một bài thật bằng tài khoản Discord trong lượt này, nên cần đối chiếu log `[MusicAudio]`/`underruns` nếu người dùng vẫn nghe giật.
+
 ## Đã triển khai — panel Ticket nhiều nút, 16/10/2026
 
 - Yêu cầu mới: `/addnutticket` phải tạo được nhiều tin panel riêng, thêm nút theo ID tin nhắn và bỏ giới hạn cũ 3 nút.
