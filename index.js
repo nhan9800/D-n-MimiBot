@@ -5105,7 +5105,10 @@ async function playNextTrack(guildId, opts = {}) {
         // lỗi tạo file tạm '--Frag*' bị No such file or directory trên stream HLS/DASH dài.
         const ytdlOpts = {
             output: '-',
-            format: 'bestaudio/best',
+            // Ưu tiên Opus để Discord chuyển thẳng gói WebM/Ogg, tránh bắt
+            // @discordjs/voice giải mã lại AAC/M4A rồi làm đầy CPU gây giật.
+            // Nếu video không có Opus mới hạ xuống WebM hoặc định dạng audio khác.
+            format: 'bestaudio[acodec=opus]/bestaudio[ext=webm]/bestaudio',
             noPlaylist: true,
             noWarnings: true,
             quiet: true,
