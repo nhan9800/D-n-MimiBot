@@ -10,6 +10,13 @@ Checkpoint 05/10/2026, Asia/Saigon. Đọc cùng WORKSPACE.md và AGENTS.md khi 
 - **Đã push/deploy:** commit `07cc6de4d6f18d85aeec9c4b0aebe594df5885ba`, CI `39029632120` success. Health VibeHost sau restart: `/health/live` HTTP200 `commit=07cc6de`, `/health/ready` HTTP200 `discord=true`, custom/artwork `182/182`.
 - Console lúc restart có một số lỗi `setupticket` cũ do `Missing Permissions` ở một kênh Discord; không liên quan luồng YouTube và không làm health bot fail. Chưa phát một bài thật bằng tài khoản Discord trong lượt này, nên cần đối chiếu log `[MusicAudio]`/`underruns` nếu người dùng vẫn nghe giật.
 
+## Đã triển khai — tách phục hồi YouTube/SoundCloud, 17/10/2026
+
+- Yêu cầu mới: YouTube không được thì không lặp fallback sai nguồn; SoundCloud phải tự chuyển bài kế tiếp.
+- `playNextTrack`: chỉ track YouTube mới dùng retry client YouTube và fallback SoundCloud; SoundCloud dùng `bestaudio/best`, không nhận selector/client YouTube. Nếu SoundCloud lỗi, xử lý failure một lần rồi chuyển queue, không tìm lại chính SoundCloud.
+- Kiểm chứng: full `npm test` **469/469**, nhóm nhạc **71/71**, `npm run check` **103 file JS**, `npm audit` **0 lỗ hổng**, diff check đạt.
+- **Đã push/deploy:** commit `a347fa8aca89a2050dc10c77e4a3a2d2b5f57684`, CI `39030267310` success. Health VibeHost sau restart: `/health/live` HTTP200 `commit=a347fa8`, `/health/ready` HTTP200 `discord=true`, custom/artwork `182/182`.
+
 ## Đã triển khai — panel Ticket nhiều nút, 16/10/2026
 
 - Yêu cầu mới: `/addnutticket` phải tạo được nhiều tin panel riêng, thêm nút theo ID tin nhắn và bỏ giới hạn cũ 3 nút.
