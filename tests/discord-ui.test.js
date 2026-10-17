@@ -357,7 +357,7 @@ test('Edit sau defer dựng V2 mà không gọi fetchReply', async () => {
 
 test('Danh sách yêu thích trống và có bài đều chứa nội dung hợp lệ', () => {
     const index = fs.readFileSync(path.join(__dirname, '..', 'index.js'), 'utf8');
-    const start = index.indexOf('function buildFavoritesPayload(');
+    const start = index.indexOf('function libraryTrackKey(');
     const end = index.indexOf('// 🎚️ Payload chọn', start);
     class Builder {
         constructor() { this.data = { type: 1 }; }
@@ -370,7 +370,7 @@ test('Danh sách yêu thích trống và có bài đều chứa nội dung hợp
         addComponents(component) { this.data.components = [component.data]; return this; }
         toJSON() { return this.data; }
     }
-    const build = vm.runInNewContext(`${index.slice(start, end)}; buildFavoritesPayload`, {
+    const build = vm.runInNewContext(`${index.slice(start, end)}; buildFavoritesPayload`, { crypto: require('node:crypto'),
         normalizePayload, buildMusicNoticeContainer: (title, description, color) => ({ title, description, color }),
         MessageFlags: { Ephemeral: EPHEMERAL }, StringSelectMenuOptionBuilder: Builder, StringSelectMenuBuilder: Builder, ActionRowBuilder: Builder,
         formatDuration: () => '03:00'

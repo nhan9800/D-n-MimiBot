@@ -92,6 +92,7 @@ jobs:
           put inviteEvents.js
           put monthlyLevels.js
           put ticketPanelService.js
+          put ticketSetup.js
           put communityCommands.js
           put bannedWordFilter.js
           put confessionUi.js

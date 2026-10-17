@@ -75,12 +75,14 @@ test('Tùy chọn metadata tạo argv yt-dlp hợp lệ, giữ cookie và xác t
         getCookieFilePath: () => '/tmp/cookies-test.txt', validateMusicUrl,
         ytDlpExec: async (url, flags) => { calls.push({ url, flags }); return { title: 'Bài thử', webpage_url: 'https://soundcloud.com/artist/track' }; }
     });
+    vm.runInContext(region('const YT_EXTRACTOR_ARGS =', 'async function searchSoundcloud('), context);
     vm.runInContext(region('function getYtCommonOpts()', 'const YT_COMMON_OPTS'), context);
     vm.runInContext(region('async function searchSoundcloud(', 'function getYtCommonOpts('), context);
     vm.runInContext(region('async function resolveDirectUrl(', '// Ưu tiên: YouTube'), context);
     const common = vm.runInContext('getYtCommonOpts()', context);
     assert.equal(common.cookies, '/tmp/cookies-test.txt');
-    assert.equal(common.extractorArgs, 'youtube:player_client=android,ios,mweb');
+    assert.equal(common.extractorArgs, 'youtube:player_client=default');
+    assert.equal(common.jsRuntimes, 'node');
     await vm.runInContext('searchSoundcloud("Bài thử")', context);
     await vm.runInContext('resolveDirectUrl("https://soundcloud.com/artist/track")', context);
     for (const flags of [common, ...calls.map(call => call.flags)]) {
@@ -95,7 +97,8 @@ test('Phát YouTube, SoundCloud và tua bài dùng argv hợp lệ trước khi 
     for (const [url, seekSec] of [
         ['https://www.youtube.com/watch?v=abcdefghijk', 0],
         ['https://soundcloud.com/artist/track', 0],
-        ['https://www.youtube.com/watch?v=abcdefghijk', 12]
+        ['https://www.youtube.com/watch?v=abcdefghijk', 12],
+        ['https://www.youtube.com/watch?v=abcdefghijk', 1800]
     ]) {
         const f = fixture();
         const calls = []; const failures = []; const played = [];
@@ -135,10 +138,12 @@ test('Phát YouTube, SoundCloud và tua bài dùng argv hợp lệ trước khi 
             assert.equal(calls[0].flags.format, 'bestaudio/best');
             assert.equal(calls[0].flags.extractorArgs, undefined);
         }
-        if (seekSec) {
-            assert.equal(calls[0].flags.downloadSections, '*12-inf');
+        if (seekSec > 120) {
+            assert.equal(calls[0].flags.downloadSections, '*1800-inf');
             assert.equal(calls[0].flags.ffmpegLocation, '/mock/ffmpeg');
             assert.ok(args.includes('--ffmpeg-location'));
+        } else {
+            assert.equal(calls[0].flags.downloadSections, undefined);
         }
         assert.equal(played.length, 1);
         assert.equal(mq.current.url, url);

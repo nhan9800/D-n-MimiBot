@@ -1,5 +1,14 @@
 # CHANGELOG.md — NHẬT KÝ THAY ĐỔI
 
+## Phục hồi nhạc và quyền Ticket — 2026-10-17
+
+- Cập nhật client YouTube/Node runtime; dừng lặp client khi nguồn yêu cầu xác thực. Dọn deadline luồng cũ trước tìm nguồn thay thế, giới hạn cả chờ demux và tăng thời gian tua pipe cho mix dài có giới hạn.
+- Mốc tua ngắn dùng pipe; section lỗi không được dùng lại trong phiên. SoundCloud cập nhật đúng bản thu/thời lượng và chỉ báo đã chuyển nguồn sau khi âm thanh bắt đầu phát.
+- Dọn fragment chỉ khi không có nguồn đang tải và file cache đã cũ; giữ các tệp `.part` khác, tránh ảnh hưởng phòng nhạc đang hoạt động.
+- `/setupticket` kiểm quyền trước tạo kênh, giữ ID các bước đã tạo để thử lại, chỉ bật sau gửi panel thành công và hướng dẫn quyền cụ thể khi Discord từ chối.
+- Hoàn thiện menu album/yêu thích: chọn theo hash toàn bộ URL, không phát nhầm bài khi danh sách đổi vị trí; yêu cầu mở lại menu cũ dùng chỉ số.
+- Hướng dẫn xác thực nguồn/quyền thực: `docs/MUSIC-TICKET-RECOVERY.md`. Không tự cấp quyền hoặc khẳng định mọi video YouTube đều truy cập được.
+
 ## Ticket panel nhiều nút — 2026-10-16
 
 - Mở rộng `/addnutticket`: bỏ `tin_nhan_id` để tạo tin panel Ticket riêng, hoặc điền ID tin do Mimi gửi để thêm tiếp nút mà không xóa bố cục/nút cũ.

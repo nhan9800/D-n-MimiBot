@@ -9,12 +9,33 @@ const discord = require('discord.js');
 const { MusicStore } = require('../musicStore');
 const source = fs.readFileSync(path.join(__dirname, '../index.js'), 'utf8');
 
+test('Album/yêu thích dùng khóa URL đầy đủ: danh sách đổi vị trí vẫn chọn đúng bài', async () => {
+    const crypto = require('node:crypto');
+    const key = track => 't:' + crypto.createHash('sha256').update(track.url).digest('hex').slice(0, 24);
+    const first = { title: 'Bài đầu', url: 'https://soundcloud.com/artist/' + 'a'.repeat(100) + 'one', duration: 180 };
+    const picked = { title: 'Bài chọn', url: 'https://soundcloud.com/artist/' + 'a'.repeat(100) + 'two', duration: 200 };
+    assert.notEqual(key(first), key(picked), 'Không cắt URL dài thành cùng khóa');
+    const albumId = 'music_album_play_select:' + crypto.createHash('sha1').update('Album').digest('hex').slice(0, 12);
+    for (const menu of ['music_fav_play_select', albumId]) {
+        const f = fixture({ favorites: [picked, first], albums: { Album: [picked, first] } });
+        await f.run(menu, key(picked));
+        assert.equal(f.playback.length, 1);
+        assert.equal(f.playback[0].track, picked);
+        for (const value of [key({ url: 'deleted' }), '0']) {
+            const stale = fixture({ favorites: [first], albums: { Album: [first] } });
+            await stale.run(menu, value);
+            assert.equal(stale.playback.length, 0);
+            assert.match(stale.replies[0].title, /không còn/);
+        }
+    }
+});
+
 // Chạy handler thật với I/O giả lập, không login bot hoặc ghi dữ liệu người dùng.
-function fixture({ userId = 'owner', dj = false, admin = false, voiceId = 'voice', queue, onDefer } = {}) {
+function fixture({ userId = 'owner', dj = false, admin = false, voiceId = 'voice', queue, onDefer, favorites = [], albums = {} } = {}) {
     const start = source.indexOf("client.on('interactionCreate', async interaction => {");
     const end = source.indexOf('// 🔑 ĐĂNG NHẬP BOT', start);
     assert.ok(start > 0 && end > start);
-    const helpers = ['canControlMusic', 'persistSession', 'getPlaybackSec', 'queueTrackKey'].map(name => {
+    const helpers = ['canControlMusic', 'persistSession', 'getPlaybackSec', 'queueTrackKey', 'libraryTrackKey', 'albumKey'].map(name => {
         const match = source.match(new RegExp(`function ${name}\\([^]*?\\n\\}`));
         assert.ok(match, `Có helper ${name}`);
         return match[0];
@@ -27,12 +48,14 @@ function fixture({ userId = 'owner', dj = false, admin = false, voiceId = 'voice
     let handler;
     const notice = (title, content) => ({ title, content });
     vm.runInNewContext(`${helpers}\n${source.slice(start, end)}`, {
-        ...discord, MusicStore,
+        ...discord, MusicStore, crypto: require('node:crypto'),
         client: { on(event, fn) { if (event === 'interactionCreate') handler = fn; } },
         getGuildConfig: () => ({}), musicQueues: new Map([['guild', mq]]),
         musicStore: { getGuildConfig: () => ({ djRoleId: 'dj' }),
+            getFavorites: () => favorites, getAlbumNames: () => Object.keys(albums), getAlbum: (id, name) => albums[name],
             saveSession: (id, value) => saved.push({ id, value: structuredClone(value) }), clearSession() {} },
-        buildOwnershipRejectPayload: notice, buildMusicNoticePayload: notice,
+        buildOwnershipRejectPayload: notice, buildMusicNoticePayload: notice, buildMusicNoticeEphemeral: notice,
+        enqueueKnownTrack: async (guild, voice, channel, track) => { playback.push({ track }); return { ok: true, queued: true, title: track.title, position: 1 }; },
         buildMusicNoticeContainer: notice, buildQueueRemoveRow: () => [], buildQueueListText: () => 'queue',
         buildEffectsPayload: key => ({ effect: key }), AUDIO_EFFECTS: { none: {}, bass: {} },
         playNextTrack: async (id, options) => { playback.push({ id, ...options }); mq.effect = options.effectKey; },
@@ -48,6 +71,7 @@ function fixture({ userId = 'owner', dj = false, admin = false, voiceId = 'voice
         async reply(payload) { replies.push(payload); this.replied = true; },
         async update(payload) { updates.push(payload); this.replied = true; },
         async deferUpdate() { this.deferred = true; onDefer?.(mq); },
+        async deferReply() { this.deferred = true; onDefer?.(mq); },
         async editReply(payload) { replies.push(payload); }
     };
     return { mq, replies, updates, errors, saved, playback, async run(customId, value) {

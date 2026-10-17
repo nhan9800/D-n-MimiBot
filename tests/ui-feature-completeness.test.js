@@ -21,7 +21,7 @@ function functionSource(name) {
 function builders() {
     const names = ['buildMineEmbed', 'buildMineGridRows', 'formatHiLoCardLabel', 'buildHiLoEmbed',
         'buildLevelBar', 'buildDisciplinePage', 'queueTrackKey', 'buildQueueRemoveRow',
-        'buildMusicNoticeContainer', 'buildFavoritesPayload', 'buildEffectsPayload',
+        'libraryTrackKey', 'buildMusicNoticeContainer', 'buildFavoritesPayload', 'buildEffectsPayload',
         'albumKey', 'buildAlbumDetailPayload', 'embedToV2Payload'];
     const context = { ...discord, ...ui, ...emojis, colors, formatDuration,
         crypto: require('node:crypto'), formatTimeVN: () => '12:00:00 04/10/2026' };
@@ -156,8 +156,8 @@ test('Menu nhạc và kỷ luật có emoji custom nhưng giữ value, default, 
     const discipline = b.buildDisciplinePage(user, { modHistory: { [uid]: { warnCount: 1, historyLog: [{ type: 'warn', timestamp: 1, reason: 'Lý do', moderator: 'Staff' }] } } }, 1, uid, 'warn');
     const cases = [
         [ui.normalizePayload({ components: b.buildQueueRemoveRow({ queue: tracks }) }), 'music_queue_remove_select', ['0|https://example.com/one', '1|https://example.com/two'], 'mimi_clear'],
-        [b.buildFavoritesPayload(tracks), 'music_fav_play_select', ['0', '1'], 'mimi_fav'],
-        [b.buildAlbumDetailPayload('Album của An', tracks), `music_album_play_select:${b.albumKey('Album của An')}`, ['0', '1'], 'mimi_play'],
+        [b.buildFavoritesPayload(tracks), 'music_fav_play_select', tracks.map(b.libraryTrackKey), 'mimi_fav'],
+        [b.buildAlbumDetailPayload('Album của An', tracks), `music_album_play_select:${b.albumKey('Album của An')}`, tracks.map(b.libraryTrackKey), 'mimi_play'],
         [b.buildEffectsPayload('nightcore'), 'music_effect_select', ['none', 'bassboost', 'nightcore', 'lofi', 'vaporwave', 'eightd', 'soft', 'tremolo', 'sped'], null],
         [ui.normalizePayload(discipline), `kyluat_filter_${uid}_1_${uid}`, ['all', 'warn', 'mute', 'kick', 'ban', 'admin_edit'], null]
     ];

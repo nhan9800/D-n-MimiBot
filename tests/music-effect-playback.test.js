@@ -32,6 +32,85 @@ function deferred() {
 
 const tick = () => new Promise(resolve => setImmediate(resolve));
 
+test('Đổi hiệu ứng ở mốc ngắn dùng pipe ngay, tua sâu dùng section trước khi có lỗi', async () => {
+    for (const seekSec of [30, 1800]) {
+        const f = await fixture();
+        try {
+            await f.play({ effectKey: 'bassboost', seekSec, seekTransport: undefined });
+            assert.equal(f.processes[0].flags.downloadSections, seekSec === 30 ? undefined : '*1800-inf');
+            const filters = f.ffmpegs[0].args[f.ffmpegs[0].args.indexOf('-af') + 1];
+            assert.equal(filters, seekSec === 30 ? pipeFilters(30, 'bassboost') : audioEffects.bassboost.af);
+            assert.equal(f.mq.current, f.current);
+            assert.equal(f.mq.queue[0], f.queued);
+        } finally { f.cleanup(); }
+    }
+});
+
+test('Xác thực YouTube: timeout cũ không nuốt fallback, chỉ báo thành công sau Playing', async () => {
+    const lookup = deferred();
+    const f = await fixture({ searchSoundcloud: () => lookup.promise });
+    try {
+        f.context.YT_DOWNLOAD_CLIENT_FALLBACKS = ['default', 'web_safari', 'android_vr'];
+        await f.play({ effectKey: 'bassboost' });
+        const oldTimer = f.timers.find(timer => !timer.cleared);
+        const recovery = f.processes[0].rejectPlayback(new Error('Sign in to confirm you are not a bot'));
+        await tick();
+        assert.equal(f.processes.length, 1);
+        assert.equal(oldTimer.cleared, true);
+        oldTimer.callback();
+        assert.equal(f.mq.current, f.current);
+        assert.equal(f.mq.queue[0], f.queued);
+        lookup.resolve({ title: 'Bản thu khác', url: 'https://soundcloud.com/artist/alt', duration: 222, thumbnail: 'cover' });
+        await recovery; await tick();
+        assert.equal(f.processes.length, 2);
+        assert.equal(f.current.duration, 222);
+        assert.equal(f.current.title, 'Bản thu khác');
+        assert.equal(f.current.source, 'SoundCloud');
+        assert.equal(f.notices.length, 0, 'Chưa phát thì không báo đã chuyển nguồn');
+        const resource = f.mq.currentResource;
+        f.player.state = { status: 'playing', resource };
+        f.player.emit('playing', {}, f.player.state);
+        assert.equal(f.notices.length, 1);
+        assert.match(f.notices[0].title, /Đang phát từ SoundCloud/);
+        assert.match(f.notices[0].content, /yêu cầu xác thực/);
+        assert.equal(f.current.pendingSourceNotice, undefined);
+        await f.processes[1].resolvePlayback();
+        f.mq.onPlaybackEnd(); await tick();
+        assert.equal(f.mq.current, f.queued, 'SoundCloud kết thúc chuyển bài thật');
+    } finally { f.cleanup(); }
+});
+
+test('Mix tua sâu qua pipe có ngân sách hữu hạn; section lỗi không được dùng lại trong phiên', async () => {
+    const f = await fixture();
+    try {
+        await f.play({ effectKey: 'bassboost', seekSec: 3600 });
+        await f.processes[0].rejectPlayback(new Error('ERROR: ffmpeg exited with code -11'));
+        await tick();
+        assert.equal(f.timers.find(timer => !timer.cleared).delay, 180000);
+        assert.equal(f.mq.sectionDisabled, true);
+        await f.play({ effectKey: 'none', seekSec: 90 });
+        assert.equal(f.processes[2].flags.downloadSections, undefined);
+        assert.equal(f.ffmpegs[2].args[f.ffmpegs[2].args.indexOf('-af') + 1], pipeFilters(90, 'none'));
+    } finally { f.cleanup(); }
+});
+
+test('Nguồn chưa trả byte cho demux vẫn có timeout và không bỏ treo hàng đợi', async () => {
+    const probe = deferred(); let calls = 0;
+    const f = await fixture({ demuxProbe: stream => ++calls === 1 ? probe.promise : Promise.resolve({ stream, type: 'opus' }) });
+    try {
+        const start = f.play();
+        await tick();
+        const deadline = f.timers.find(timer => !timer.cleared);
+        assert.equal(deadline.delay, 45000);
+        deadline.callback(); await tick();
+        assert.equal(f.processes[0].killed, true);
+        assert.equal(f.mq.current, f.queued);
+        probe.resolve({ stream: f.processes[0].stdout, type: 'opus' }); await start;
+        assert.equal(f.mq.current, f.queued);
+        assert.equal(f.notices.filter(n => n.title === 'Không thể phát bài này').length, 1);
+    } finally { f.cleanup(); }
+});
+
 async function fixture({ synchronousPlaying = false, demuxProbe, searchSoundcloud } = {}) {
     const processes = [], ffmpegs = [], resources = [], timers = [], notices = [], logs = [];
     const musicQueues = new Map();
@@ -121,7 +200,9 @@ async function fixture({ synchronousPlaying = false, demuxProbe, searchSoundclou
     mq.current = current;
     mq.queue = [queued];
     const f = { context, mq, current, queued, player, connection, musicQueues, processes, ffmpegs, resources, timers, notices, logs };
-    f.play = options => context.playNextTrack('g1', { replayCurrent: true, ...options });
+    // Các regression section chủ động chọn transport; mặc định production được
+    // kiểm riêng bên dưới, không phụ thuộc quy tắc chọn transport của fixture.
+    f.play = options => context.playNextTrack('g1', { replayCurrent: true, seekTransport: 'section', ...options });
     f.cleanup = () => {
         context.killCurrentProcess(mq);
         for (const proc of [...processes, ...ffmpegs]) { proc.stdin.destroy(); proc.stdout.destroy(); proc.stderr.destroy(); }
@@ -567,7 +648,7 @@ for (const effectKey of Object.keys(audioEffects)) {
             assert.equal(f.ffmpegs[0].killed, true);
             assert.equal(f.connection.destroyed, undefined);
             assert.equal(f.timers.filter(timer => !timer.cleared).length, 1);
-            assert.equal(f.timers.find(timer => !timer.cleared).delay, 45000, 'Pipe vẫn có hạn bắt đầu phát');
+            assert.equal(f.timers.find(timer => !timer.cleared).delay, 54000, 'Pipe có hạn khởi động gồm thời gian tua 90 giây');
         } finally { f.cleanup(); }
     });
 }
@@ -647,7 +728,7 @@ test('Pipe timeout với none kết thúc lượt lỗi hữu hạn và callback
         await f.processes[0].rejectPlayback(new Error('ERROR: ffmpeg exited with code -11'));
         await tick();
         const pipeTimer = f.timers.find(timer => !timer.cleared);
-        assert.equal(pipeTimer.delay, 45000);
+        assert.equal(pipeTimer.delay, 48000);
         pipeTimer.callback();
         await tick();
         assert.equal(f.processes.length, 3);

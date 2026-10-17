@@ -21,6 +21,7 @@ RUNTIME_FILES.push('communityFeatures.js', 'communityCommands.js');
 RUNTIME_FILES.push('bannedWordFilter.js', 'confessionUi.js', 'confessionService.js');
 RUNTIME_FILES.push('inviteEvents.js', 'monthlyLevels.js');
 RUNTIME_FILES.push('ticketPanelService.js');
+RUNTIME_FILES.push('ticketSetup.js');
 
 function runtimeFingerprint(directory = __dirname) {
     const hash = createHash('sha256');
