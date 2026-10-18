@@ -96,7 +96,7 @@ test('Request URL, case, seek và effect không an toàn không tạo thư mục
             'https://soundcloud.com/artist', 'https://soundcloud.com/artist/sets/playlist', ' https://soundcloud.com/artist/song',
             'https://soundcloud.com/artist/song\n'].map(url => ({ ...f.request, url })),
         { ...f.request, seekSec: -1 }, { ...f.request, seekSec: 86401 }, { ...f.request, seekSec: '45' },
-        { ...f.request, effectKey: SECRET }, { ...f.request, effectKey: 'none' }];
+        { ...f.request, effectKey: SECRET }, { ...f.request, effectKey: 'nightcore' }];
     for (const request of bad) { await f.writeRequest(request); assert.equal(await runMusicEffectCheck(f.input), null); }
     assert.equal(f.calls.length, 0);
     await assert.rejects(fs.stat(f.receiptDir), { code: 'ENOENT' });

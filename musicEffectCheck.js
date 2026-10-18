@@ -21,7 +21,7 @@ function safeRequest(value) {
         || typeof value.caseId !== 'string' || !/^[A-Za-z0-9][A-Za-z0-9-]{0,63}$/.test(value.caseId)
         || typeof value.url !== 'string' || value.url.length > 2048 || !/^https:\/\/soundcloud\.com\//i.test(value.url)
         || /[\u0000-\u0020\u007f]/.test(value.url)
-        || value.effectKey !== 'bassboost' || !Number.isFinite(value.seekSec) || value.seekSec < 0 || value.seekSec > 86400) return null;
+        || !['bassboost', 'none'].includes(value.effectKey) || !Number.isFinite(value.seekSec) || value.seekSec < 0 || value.seekSec > 86400) return null;
     let url;
     try { url = new URL(value.url); } catch { return null; }
     if (url.protocol !== 'https:' || url.hostname.toLowerCase() !== 'soundcloud.com'
