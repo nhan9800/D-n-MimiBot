@@ -139,8 +139,10 @@ function publicGuildStats(guild, guildConfig, musicQueue) {
     const roles = guild.roles?.cache;
     const humanCount = members ? members.filter(member => !member.user?.bot).size : null;
     const botCount = members ? members.filter(member => member.user?.bot).size : null;
-    const onlineCount = members
-        ? members.filter(member => !member.user?.bot && ['online', 'idle', 'dnd'].includes(member.presence?.status)).size
+    const humanMembers = members ? members.filter(member => !member.user?.bot) : null;
+    const presenceKnown = humanMembers ? humanMembers.some(member => ['online', 'idle', 'dnd', 'offline'].includes(member.presence?.status)) : false;
+    const onlineCount = humanMembers && presenceKnown
+        ? humanMembers.filter(member => ['online', 'idle', 'dnd'].includes(member.presence?.status)).size
         : null;
     const channelSummary = channels ? {
         total: channels.size,
@@ -615,9 +617,13 @@ function startInternalApi(deps) {
                     iconUrl: guild.iconURL?.({ size: 256 }) || null,
                     memberCount: Number(guild.memberCount || 0),
                     boostCount: Number(guild.premiumSubscriptionCount || 0),
-                    onlineCount: guild.members?.cache
-                        ? guild.members.cache.filter(member => !member.user?.bot && ['online', 'idle', 'dnd'].includes(member.presence?.status)).size
-                        : null,
+                    onlineCount: (() => {
+                        const members = guild.members?.cache;
+                        if (!members) return null;
+                        const humans = members.filter(member => !member.user?.bot);
+                        const presenceKnown = humans.some(member => ['online', 'idle', 'dnd', 'offline'].includes(member.presence?.status));
+                        return presenceKnown ? humans.filter(member => ['online', 'idle', 'dnd'].includes(member.presence?.status)).size : null;
+                    })(),
                     features: {
                         music: !!musicQueues.get(guild.id)?.connection,
                         ticket: !!getGuildConfig(guild.id)?.isTicketSetup,
