@@ -4666,6 +4666,27 @@ const musicEffectTransitions = createEffectTransitionController({
 function changeMusicEffect(guildId, effectKey, options = {}) {
     const mq = musicQueues.get(guildId);
     if (!mq || !mq.current || !AUDIO_EFFECTS[effectKey]) return Promise.resolve({ applied: false });
+    // SoundCloud hiện thường trả CDN HLS chỉ dùng được cho lần phát trực tiếp;
+    // một số host từ chối mở lại URL CDN đó cho phiên hiệu ứng (hoặc đóng ngay
+    // trước packet đầu tiên). Dùng cùng đường pipe yt-dlp đã phát bài thành công
+    // để đổi hiệu ứng, giữ vị trí hiện tại và tránh làm bot rơi khỏi voice.
+    const soundcloudTrack = mq.current.source === 'SoundCloud'
+        || /(?:^|\.)soundcloud\.com\//i.test(String(mq.current.url || ''));
+    if (soundcloudTrack) {
+        const track = mq.current;
+        const positionSec = Math.max(0, Math.floor(Number(getPlaybackSec(mq)) || 0));
+        return playNextTrack(guildId, {
+            ...options,
+            replayCurrent: true,
+            expectedTrack: track,
+            seekSec: positionSec,
+            effectKey,
+            // Pipe đọc SoundCloud bằng yt-dlp rồi áp filter cục bộ; không phụ
+            // thuộc URL HLS ký ngắn hạn được chọn cho direct transition.
+            seekTransport: 'pipe',
+            sourceDeadline: Date.now() + Math.max(30000, Math.min(90000, 45000 + positionSec * 100))
+        }).then(result => result?.applied ? { ...result, reason: 'soundcloud_pipe' } : { applied: false, reason: 'failed' });
+    }
     mq.cancelEffectPreparation = () => musicEffectTransitions.cancel(guildId);
     return musicEffectTransitions.change(guildId, effectKey, options);
 }
