@@ -88,6 +88,9 @@ jobs:
           put communitySetupPanels.js
           put blackjackUi.js
           put musicBuffer.js
+          put musicSearch.js
+          put musicEffectTransition.js
+          put musicDirectAudio.js
           put communityFeatures.js
           put inviteEvents.js
           put monthlyLevels.js

@@ -199,14 +199,18 @@ class MusicStore {
         return saved;
     }
 
-    // Chuẩn hóa track về đúng 4 trường cần lưu (bỏ requestedBy... cho gọn file)
+    // Chỉ lưu metadata và lựa chọn nguồn; không lưu URL audio tạm hoặc credential.
     static normalizeTrack(track) {
         if (!track || !track.url) return null;
         return {
             title: track.title || 'Không rõ tên',
             url: track.url,
             duration: track.duration || 0,
-            thumbnail: track.thumbnail || null
+            thumbnail: track.thumbnail || null,
+            ...(track.author ? { author: String(track.author).slice(0, 200) } : {}),
+            ...(track.source ? { source: String(track.source).slice(0, 40) } : {}),
+            ...(track.allowSourceFallback === false ? { allowSourceFallback: false } : {}),
+            ...(['youtube', 'soundcloud', 'auto'].includes(track.requestedSource) ? { requestedSource: track.requestedSource } : {})
         };
     }
 

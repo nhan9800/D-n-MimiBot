@@ -35,10 +35,9 @@ test('Link nhạc được kiểm tra theo hostname thực, không theo chuỗi 
 
 test('Nguồn SoundCloud được chọn và chế độ tự động có fallback', async () => {
     const source = fs.readFileSync(path.join(__dirname, '..', 'index.js'), 'utf8');
-    const start = source.indexOf('async function resolveTrack(');
-    const end = source.indexOf('\n// Trích ID video', start);
+    const body = source.match(/async function resolveTrackUncached\([^]*?\n\}/)[0];
     const calls = [];
-    const resolveTrack = vm.runInNewContext(`(${source.slice(start, end).trim()})`, {
+    const resolveTrack = vm.runInNewContext(`(${body})`, {
         validateMusicUrl,
         YT_URL_REGEX: /^https?:\/\/(www\.|m\.)?(youtube\.com|youtu\.be|music\.youtube\.com)\//i,
         SPOTIFY_URL_REGEX: /^https?:\/\/open\.spotify\.com\//i,

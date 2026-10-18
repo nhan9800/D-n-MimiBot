@@ -11,6 +11,7 @@ const { StartupAudioBuffer, PcmFrameChunker, monitorMusicResource } = require('.
 const ytDlp = require('yt-dlp-exec');
 const { validateMusicUrl } = require('../musicSources');
 const { createMusicPanelWriter } = require('../musicPanelUpdater');
+const { createMusicSearchCache, applySourcePolicy, chooseSoundcloudResult: rankSoundcloudResult } = require('../musicSearch');
 const source = fs.readFileSync(path.join(__dirname, '..', 'index.js'), 'utf8');
 
 // Chỉ chạy vùng function cần kiểm tra, không import bootstrap/login/cron của bot.
@@ -53,6 +54,7 @@ function fixture({ realBuild = false } = {}) {
         killCurrentProcess() {},
         console: { log() {}, error() {}, warn() {} },
     });
+    vm.runInContext(region('function getPlaybackSec(', 'function persistSession('), context);
     if (realBuild) vm.runInContext(region('function buildMusicPayload(mq)', 'function buildMusicNoticeContainer('), context);
     vm.runInContext(region('const musicQueues = new Map();', 'const ttsQueues = new Map();'), context);
     vm.runInContext(region('function stopProgressUpdater(mq)', 'function killCurrentProcess(mq)'), context);
@@ -71,18 +73,21 @@ function musicQueue(message = null) {
 test('Tùy chọn metadata tạo argv yt-dlp hợp lệ, giữ cookie và xác thực HTTPS mặc định', async () => {
     const calls = [];
     const context = vm.createContext({
-        YT_EXTRACTOR_ARGS: 'youtube:player_client=android,ios,mweb', YT_META_TIMEOUT_MS: 12000,
+        YT_EXTRACTOR_ARGS: 'youtube:player_client=android,ios,mweb',
+        rankSoundcloudResult,
         getCookieFilePath: () => '/tmp/cookies-test.txt', validateMusicUrl,
-        ytDlpExec: async (url, flags) => { calls.push({ url, flags }); return { title: 'Bài thử', webpage_url: 'https://soundcloud.com/artist/track' }; }
+        ytDlpExec: async (url, flags, options) => { calls.push({ url, flags, options }); return { title: 'Bài thử', webpage_url: 'https://soundcloud.com/artist/track' }; }
     });
     vm.runInContext(region('const YT_EXTRACTOR_ARGS =', 'async function searchSoundcloud('), context);
     vm.runInContext(region('function getYtCommonOpts()', 'const YT_COMMON_OPTS'), context);
     vm.runInContext(region('function normalizeMusicMatchText(', 'function getYtCommonOpts('), context);
+    vm.runInContext(region('const YT_META_TIMEOUT_MS =', 'async function searchYoutube('), context);
     vm.runInContext(region('async function resolveDirectUrl(', '// Ưu tiên: YouTube'), context);
     const common = vm.runInContext('getYtCommonOpts()', context);
     assert.equal(common.cookies, '/tmp/cookies-test.txt');
     assert.equal(common.extractorArgs, 'youtube:player_client=default');
     assert.equal(common.jsRuntimes, 'node');
+    assert.equal(common.remoteComponents, 'ejs:github');
     assert.equal(common.forceIpv4, true, 'Metadata và stream phải dùng cùng tuyến IPv4 để tránh URL googlevideo bị 403');
     await vm.runInContext('searchSoundcloud("Bài thử")', context);
     await vm.runInContext('resolveDirectUrl("https://soundcloud.com/artist/track")', context);
@@ -92,6 +97,7 @@ test('Tùy chọn metadata tạo argv yt-dlp hợp lệ, giữ cookie và xác t
         assert.ok(!args.includes('--no-check-certificates'), 'Giữ xác thực chứng chỉ HTTPS mặc định');
     }
     assert.equal(calls.length, 2);
+    assert.ok(calls.every(call => call.options.timeout === 8000), 'Metadata từng nguồn có thời hạn hữu hạn 8 giây');
 });
 
 test('Phát YouTube, SoundCloud và tua bài dùng argv hợp lệ trước khi khởi động audio', async () => {
@@ -131,14 +137,15 @@ test('Phát YouTube, SoundCloud và tua bài dùng argv hợp lệ trước khi 
         assert.ok(!args.includes('--no-no-check-certificates'));
         assert.ok(!args.includes('--no-check-certificates'));
         assert.ok(args.includes('--no-playlist'));
-        assert.equal(calls[0].flags.socketTimeout, 15, 'Nguồn lỗi phải thoát nhanh, không để phòng thoại im lặng');
-        assert.equal(calls[0].flags.retries, 3);
-        assert.equal(calls[0].flags.fragmentRetries, 3);
+        assert.equal(calls[0].flags.socketTimeout, 6, 'Nguồn lỗi phải thoát nhanh, không để phòng thoại im lặng');
+        assert.equal(calls[0].flags.retries, 1);
+        assert.equal(calls[0].flags.fragmentRetries, 1);
         assert.equal(calls[0].flags.forceIpv4, true);
         assert.equal(calls[0].flags.output, '-');
         if (url.includes('youtube.com')) {
             assert.equal(calls[0].flags.format, 'bestaudio[ext=webm]/bestaudio[ext=ogg]/bestaudio/best');
             assert.equal(calls[0].flags.extractorArgs, 'youtube:player_client=android,ios');
+            assert.equal(calls[0].flags.remoteComponents, 'ejs:github');
         } else {
             assert.equal(calls[0].flags.format, 'bestaudio/best');
             assert.equal(calls[0].flags.extractorArgs, undefined);
@@ -160,6 +167,7 @@ test('Phát YouTube, SoundCloud và tua bài dùng argv hợp lệ trước khi 
 
 test('SoundCloud fallback ưu tiên đúng bản theo tên, nghệ sĩ và thời lượng, bỏ bản slowed đầu tiên', async () => {
     const context = vm.createContext({
+        rankSoundcloudResult,
         ytDlpExec: async () => ({ entries: [
             { title: 'J97 Lưu Niên slowed + reverb', duration: 205, webpage_url: 'https://soundcloud.com/a/slowed' },
             { title: 'J97 Lưu Niên', uploader: 'J97', duration: 194, webpage_url: 'https://soundcloud.com/a/original' }
@@ -168,6 +176,87 @@ test('SoundCloud fallback ưu tiên đúng bản theo tên, nghệ sĩ và thờ
     vm.runInContext(region('function normalizeMusicMatchText(', 'function getYtCommonOpts('), context);
     const result = await vm.runInContext('searchSoundcloud("J97 Lưu Niên", { author: "J97", duration: 194 })', context);
     assert.equal(result.url, 'https://soundcloud.com/a/original');
+});
+
+function resolverFixture({ youtube, soundcloud } = {}) {
+    const calls = [];
+    const context = vm.createContext({
+        createMusicSearchCache, applySourcePolicy, validateMusicUrl, URL,
+        YT_URL_REGEX: /^https?:\/\/(www\.|m\.)?(youtube\.com|youtu\.be|music\.youtube\.com)\//i,
+        SPOTIFY_URL_REGEX: /^https?:\/\/(open\.)?spotify\.com\//i,
+        searchYoutube: async query => {
+            calls.push(['youtube', query]);
+            return youtube ? youtube(query) : { title: query, url: 'https://www.youtube.com/watch?v=abcdefghijk', source: 'YouTube' };
+        },
+        searchSoundcloud: async query => {
+            calls.push(['soundcloud', query]);
+            return soundcloud ? soundcloud(query) : { title: query, url: 'https://soundcloud.com/artist/track', source: 'SoundCloud' };
+        },
+        resolveSpotifyQuery: async () => 'Tên bài Spotify',
+        resolveDirectUrl: async url => ({ title: 'Bản trực tiếp', url })
+    });
+    vm.runInContext(region('function normalizeYoutubeUrl(', 'function getCookieFilePath('), context);
+    vm.runInContext(region('async function resolveTrackUncached(', '// Trích ID video'), context);
+    return { resolve: vm.runInContext('resolveTrack', context), calls };
+}
+
+test('Resolver thật giữ nguồn YouTube bắt buộc và link YouTube trực tiếp', async () => {
+    const f = resolverFixture();
+    for (const track of [await f.resolve('yt: Bài thử'), await f.resolve('Bài thử', 'youtube'), await f.resolve('https://youtu.be/abcdefghijk')]) {
+        assert.equal(track.requestedSource, 'youtube');
+        assert.equal(track.allowSourceFallback, false);
+    }
+    assert.equal(f.calls.length, 2, 'Prefix và tùy chọn cùng nguồn chia sẻ cache metadata');
+    assert.ok(f.calls.every(([source]) => source === 'youtube'));
+});
+
+test('Resolver thật không gọi SoundCloud khi nguồn/link YouTube rõ ràng bị lỗi', async () => {
+    const f = resolverFixture({ youtube: () => { throw new Error('HTTP Error 403'); } });
+    await assert.rejects(f.resolve('Bài thử', 'youtube'), /403/);
+    await assert.rejects(f.resolve('yt: Bài thử'), /403/);
+    await assert.rejects(f.resolve('https://youtu.be/abcdefghijk'), /403/);
+    assert.equal(f.calls.length, 3, 'Lỗi không được cache');
+    assert.ok(f.calls.every(([source]) => source === 'youtube'));
+});
+
+test('Resolver tự động mới tìm SoundCloud dự phòng và giữ chính sách auto', async () => {
+    const f = resolverFixture({ youtube: () => { throw new Error('YouTube tạm lỗi'); } });
+    const track = await f.resolve('Bài thử', 'auto');
+    assert.equal(track.source, 'SoundCloud');
+    assert.equal(track.requestedSource, 'auto');
+    assert.equal(track.allowSourceFallback, true);
+    assert.deepEqual(f.calls, [['youtube', 'Bài thử'], ['soundcloud', 'Bài thử']]);
+    const explicit = await f.resolve('sc: Bài thử');
+    assert.equal(explicit.requestedSource, 'soundcloud');
+    assert.equal(explicit.allowSourceFallback, false);
+    assert.equal(f.calls.length, 3, 'Cache tách theo nguồn hiệu lực');
+});
+
+test('Resolver thật gộp tìm kiếm đang chờ và clone metadata trước khi gán người yêu cầu', async () => {
+    let complete;
+    const f = resolverFixture({ youtube: () => new Promise(resolve => { complete = resolve; }) });
+    const first = f.resolve(' Bài  thử ');
+    const second = f.resolve('bài thử');
+    await Promise.resolve();
+    assert.equal(f.calls.length, 1);
+    complete({ title: 'Bài thử', url: 'https://youtu.be/abcdefghijk', source: 'YouTube' });
+    const [a, b] = await Promise.all([first, second]);
+    a.requestedBy = 'người A'; a.allowSourceFallback = false;
+    assert.equal(b.requestedBy, undefined);
+    assert.equal(b.allowSourceFallback, true);
+    const third = await f.resolve('Bài thử');
+    assert.equal(third.requestedBy, undefined);
+    assert.equal(third.allowSourceFallback, true);
+    assert.equal(f.calls.length, 1);
+});
+
+test('Cache resolver phân biệt dấu tiếng Việt và ID video có khác biệt chữ hoa', async () => {
+    const f = resolverFixture();
+    await f.resolve('cu'); await f.resolve('cư');
+    const upper = 'https://www.youtube.com/watch?v=abcdefghijA';
+    const lower = 'https://www.youtube.com/watch?v=abcdefghija';
+    await f.resolve(upper); await f.resolve(lower);
+    assert.deepEqual(f.calls.map(([, query]) => query), ['cu', 'cư', upper, lower]);
 });
 
 test('Refresh helper định tuyến guild rõ ràng, không đệ quy hoặc cập nhật guild khác', async () => {

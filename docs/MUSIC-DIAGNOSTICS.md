@@ -1,5 +1,17 @@
 # Bassboost và nhịp phát nhạc
 
+## Luồng đổi hiệu ứng mới —18/10/2026
+
+Menu và `mifx` chuẩn bị resource mới trong lúc resource cũ tiếp tục phát. Metadata CDN có cache RAM tối đa5phút và bị cắt theo hạn URL; chỉ nhận HTTPS YouTube/SoundCloud cùng CDN được cho phép. Không lưu cookie/header/URL CDN trong session. Lượt chuẩn bị tối đa10giây, latest-wins; skip/stop/đổi bài hủy candidate. Chỉ khi có packet đầu mới chuyển resource, giữ pause, volume mới nhất và hàng đợi. Lỗi/timeout hoặc mốc mới đã tụt quá3giây giữ nguyên audio cũ, không thử lại đường section đã crash.
+
+FFmpeg dùng `-ss` trước `-i` và `-fflags +fastseek`, áp bộ lọc rồi xuất PCM. Tắt hiệu ứng cũng dùng bàn giao này. Chọn lại hiệu ứng đang chạy không tải lại. Tốc độ Nightcore/Sped/Lofi/Vaporwave được tính vào tiến độ nguồn; input được chuẩn hóa48kHz trước `asetrate`. Soft/Warm bỏ bộ lọc nhìn trước dài.
+
+Phép đo local với FFmpeg6.1.1, MP3noise60giây, HTTP loopback có Range/throttle64KB/s, tua45giây: pipe+atrim có byte PCM đầu12.624giây; input-seek mặc định13.307giây; thêm fastseek còn0.375giây. Đây là nguồn tổng hợp, không phải thời gian phát Discord hay đảm bảo mọi CDN. Biên bản ngoài Git: `MimiBot-backups/music-runtime-2026-10-18/direct-seek-options-probe.json`.
+
+Tìm kiếm metadata có deadline8giây, cache RAM120giây và gộp truy vấn trùng. Các client YouTube chia sẻ ngân sách22giây, mỗi lượt bắt đầu tối đa12giây; timeout đi qua cùng coordinator phục hồi nguồn. Chọn nguồn YouTube hoặc dán URL YouTube giữ đúng nguồn, không tự thay bằng SoundCloud; chỉ chế độ auto được dùng nguồn dự phòng. Đối sánh dự phòng loại bản đổi tốc độ không yêu cầu, kể cả khi truy vấn chứa Remix.
+
+Lỗi YouTube403 là chặn từ nhà cung cấp; cache, EJS hay đổi engine không bảo đảm hết chặn IP/xác thực. Không báo đã sửa triệt để nếu chưa phát được bài trên host. Lavalink vẫn chịu giới hạn nguồn YouTube; muốn độc lập cần nguồn audio được phép phát khác hoặc kho riêng. Không tự cấu hình tài khoản/cookie, dịch vụ trả phí hoặc node mới trong đợt sửa này.
+
 Ngày05/10/2026, user xác nhận giật xảy ra khi bật Bassboost. Hosting trước sửa chạy9a72d70, console có lỗi yt-dlp sectionFFmpeg-11 ở một guild khác và fallbackpipe; CPU khoảng7.7%, RAM179MiB tại lần đọc. Không lấy sốCPU trung bình để loại trừ chậm eventloop hoặc kết luận lỗi nguồn ở guild khác là nguyên nhân phiên user.
 
 ## Bằng chứng offline

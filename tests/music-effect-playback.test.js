@@ -141,7 +141,7 @@ test('Nguồn chưa trả byte cho demux vẫn có timeout và không bỏ treo 
         const start = f.play();
         await tick();
         const deadline = f.timers.find(timer => !timer.cleared);
-        assert.equal(deadline.delay, 20000);
+        assert.equal(deadline.delay, 12000);
         deadline.callback(); await tick();
         assert.equal(f.processes[0].killed, true);
         assert.equal(f.mq.current, f.queued);
@@ -151,8 +151,142 @@ test('Nguồn chưa trả byte cho demux vẫn có timeout và không bỏ treo 
     } finally { f.cleanup(); }
 });
 
+test('Timeout nguồn dùng chung22giây giữa client, hủy child cũ rồi mới fallback SoundCloud', async () => {
+    let searches = 0;
+    const f = await fixture({ searchSoundcloud: async () => {
+        searches++;
+        return { title: 'Bản thay thế', url: 'https://soundcloud.com/artist/recovered', duration: 180 };
+    } });
+    try {
+        f.context.YT_DOWNLOAD_CLIENT_FALLBACKS = ['youtube:player_client=default', 'youtube:player_client=web_embedded', 'youtube:player_client=android'];
+        const beganAt = f.clock.now;
+        await f.play({ effectKey: 'bassboost' });
+        const first = f.processes[0];
+        assert.equal(first.flags.socketTimeout, 6);
+        assert.equal(first.flags.retries, 1);
+        assert.equal(first.flags.fragmentRetries, 1);
+        const firstDeadline = f.timers.find(timer => !timer.cleared);
+        assert.equal(firstDeadline.delay, 12000);
+        f.clock.now += firstDeadline.delay;
+        firstDeadline.callback(); await tick();
+        assert.equal(first.killed, true);
+        assert.equal(f.processes.length, 2);
+        assert.equal(f.processes[1].flags.extractorArgs, 'youtube:player_client=web_embedded');
+        assert.equal(f.mq.current, f.current);
+        assert.deepEqual(f.mq.queue, [f.queued]);
+        assert.equal(searches, 0);
+
+        const second = f.processes[1];
+        const secondDeadline = f.timers.find(timer => !timer.cleared);
+        assert.equal(secondDeadline.delay, 10000, 'Lượt2 chỉ còn10giây, không được nhận thêm12giây');
+        assert.equal(f.clock.now + secondDeadline.delay, beganAt + 22000);
+        f.clock.now += secondDeadline.delay;
+        secondDeadline.callback(); await tick();
+        assert.equal(second.killed, true);
+        assert.equal(searches, 1);
+        assert.equal(f.processes.length, 3, 'Hết ngân sách thì không thử client YouTube thứ3');
+        assert.equal(f.processes[2].url, 'https://soundcloud.com/artist/recovered');
+        assert.equal(f.mq.current, f.current);
+        assert.equal(f.mq.effect, 'bassboost');
+        assert.deepEqual(f.mq.queue, [f.queued]);
+        assert.equal(f.notices.length, 0, 'Chưa Playing thì không báo chuyển nguồn thành công');
+        firstDeadline.callback(); secondDeadline.callback();
+        await first.rejectPlayback(new Error('Timeout cũ trả403 muộn'));
+        await tick();
+        assert.equal(searches, 1);
+        assert.equal(f.processes.length, 3, 'Timer/lỗi muộn không được mở thêm phiên');
+    } finally { f.cleanup(); }
+});
+
+test('Chọn nguồn YouTube không tự đổi SoundCloud khi hết deadline chung hoặc bị403', async () => {
+    for (const failure of ['timeout', '403']) {
+        let searches = 0;
+        const f = await fixture({ searchSoundcloud: async () => { searches++; return { url: 'https://soundcloud.com/artist/wrong-source' }; } });
+        try {
+            f.current.allowSourceFallback = false;
+            const originalUrl = f.current.url;
+            f.context.YT_DOWNLOAD_CLIENT_FALLBACKS = ['youtube:player_client=default', 'youtube:player_client=web_embedded'];
+            await f.play({ effectKey: 'bassboost' });
+            for (let attempt = 0; attempt < 2; attempt++) {
+                if (failure === 'timeout') {
+                    const deadline = f.timers.find(timer => !timer.cleared);
+                    assert.equal(deadline.delay, attempt === 0 ? 12000 : 10000);
+                    f.clock.now += deadline.delay;
+                    deadline.callback();
+                } else await f.processes[attempt].rejectPlayback(new Error('HTTP Error 403: Forbidden'));
+                await tick();
+            }
+            assert.equal(searches, 0, failure);
+            assert.equal(f.current.url, originalUrl);
+            assert.equal(f.current.allowSourceFallback, false);
+            assert.equal(f.mq.current, f.queued, 'Bài nguồn YouTube thất bại vẫn cho queue đi tiếp');
+            assert.equal(f.mq.queue.length, 0);
+            assert.equal(f.processes.length, 3);
+            assert.equal(f.notices.filter(notice => notice.title === 'Không thể phát bài này').length, 1);
+            assert.match(f.notices.find(notice => notice.title === 'Không thể phát bài này').content, /giữ lựa chọn nguồn YouTube/);
+            assert.equal(f.notices.filter(notice => /SoundCloud/.test(notice.title)).length, 0);
+        } finally { f.cleanup(); }
+    }
+});
+
+test('Ngân sách nguồn gần hết không được mở client mới và callback cũ không dừng bài trong queue', async () => {
+    let searches = 0;
+    const f = await fixture({ searchSoundcloud: async () => { searches++; return null; } });
+    try {
+        f.current.allowSourceFallback = false;
+        f.context.YT_DOWNLOAD_CLIENT_FALLBACKS = ['youtube:player_client=default', 'youtube:player_client=web_embedded'];
+        await f.play({ sourceDeadline: f.clock.now + 4000 });
+        const source = f.processes[0];
+        const deadline = f.timers.find(timer => !timer.cleared);
+        assert.equal(deadline.delay, 4000);
+        f.clock.now += 3000;
+        await source.rejectPlayback(new Error('HTTP Error 403: Forbidden'));
+        await tick();
+        assert.equal(f.processes.length, 2, 'Còn1giây thì bỏ retry, chuyển sang bài chờ đúng một lần');
+        assert.equal(f.mq.current, f.queued);
+        const queuedResource = f.mq.currentResource;
+        deadline.callback(); await tick();
+        assert.equal(f.processes.length, 2);
+        assert.equal(f.mq.currentResource, queuedResource);
+        assert.equal(searches, 0);
+    } finally { f.cleanup(); }
+});
+
+test('YouTube đã Playing60giây gặp403 nhận ngân sách retry22giây mới và giữ mốc nghe/nguồn đã chọn', async () => {
+    let searches = 0;
+    const f = await fixture({ synchronousPlaying: true, searchSoundcloud: async () => { searches++; return null; } });
+    try {
+        f.current.allowSourceFallback = false;
+        f.context.YT_DOWNLOAD_CLIENT_FALLBACKS = ['youtube:player_client=default', 'youtube:player_client=web_embedded'];
+        const realPlay = f.context.playNextTrack;
+        const attempts = [];
+        f.context.playNextTrack = (guildId, options = {}) => { attempts.push(options); return realPlay(guildId, options); };
+        await f.play({ effectKey: 'bassboost' });
+        const first = f.processes[0];
+        f.mq.currentResource.playbackDuration = 60000;
+        f.clock.now += 60000;
+        const failureAt = f.clock.now;
+        await first.rejectPlayback(new Error('HTTP Error 403: Forbidden'));
+        await tick();
+
+        assert.equal(f.processes.length, 2, 'Không dùng deadline của thời điểm bắt đầu bài60giây trước');
+        assert.equal(f.processes[1].flags.extractorArgs, 'youtube:player_client=web_embedded');
+        assert.equal(attempts[1].sourceDeadline, failureAt + 22000);
+        assert.equal(attempts[1].seekSec, 60);
+        assert.equal(f.processes[1].flags.downloadSections, '*60-inf');
+        assert.equal(f.mq.seekBase, 60);
+        assert.equal(f.mq.current, f.current);
+        assert.equal(f.mq.current.allowSourceFallback, false);
+        assert.equal(f.mq.effect, 'bassboost');
+        assert.deepEqual(f.mq.queue, [f.queued]);
+        assert.equal(searches, 0);
+        assert.equal(f.notices.length, 0, 'Khôi phục nguồn đang nghe không được báo lỗi hoặc đổi nguồn sớm');
+    } finally { f.cleanup(); }
+});
+
 async function fixture({ synchronousPlaying = false, demuxProbe, searchSoundcloud } = {}) {
     const processes = [], ffmpegs = [], resources = [], timers = [], notices = [], logs = [];
+    const clock = { now: 1792300000000 };
     const musicQueues = new Map();
     const connection = new EventEmitter();
     connection.state = { status: 'ready' };
@@ -188,6 +322,7 @@ async function fixture({ synchronousPlaying = false, demuxProbe, searchSoundclou
     };
     const context = vm.createContext({
         musicQueues, PassThrough, StartupAudioBuffer, PcmFrameChunker, monitorMusicResource,
+        Date: class extends Date { static now() { return clock.now; } },
         fs: { existsSync: () => true },
         getFfmpegPath: () => '/mock/ffmpeg',
         getPlaybackSec: mq => (mq.seekBase || 0) + Math.floor((mq.currentResource?.playbackDuration || 0) / 1000),
@@ -227,7 +362,8 @@ async function fixture({ synchronousPlaying = false, demuxProbe, searchSoundclou
         clearTimeout(timer) { if (timer) timer.cleared = true; },
         console: { error(...args) { logs.push(args.join(' ')); }, warn() {}, log() {} },
     });
-    vm.runInContext(region('function spawnFfmpegAudio(', 'function parseTimeToSeconds('), context);
+    // Coordinator direct mới được kiểm riêng; fixture này chạy đúng pipeline seek/recovery cũ.
+    vm.runInContext(region('function spawnFfmpegAudio(', '// Lấy URL audio có hạn trong RAM'), context);
     vm.runInContext(region('function buildSoundcloudFallbackQuery(', 'function getYtCommonOpts('), context);
     vm.runInContext(region('function killCurrentProcess(mq)', '// -----------------------------------------------------------------'), context);
     vm.runInContext(region('async function playNextTrack(', '// 🧯 Xử lý bài phát'), context);
@@ -240,7 +376,7 @@ async function fixture({ synchronousPlaying = false, demuxProbe, searchSoundclou
     const queued = { title: 'Bài kế tiếp', url: 'https://www.youtube.com/watch?v=lmnopqrstuv', duration: 180 };
     mq.current = current;
     mq.queue = [queued];
-    const f = { context, mq, current, queued, player, connection, musicQueues, processes, ffmpegs, resources, timers, notices, logs };
+    const f = { context, mq, current, queued, player, connection, musicQueues, processes, ffmpegs, resources, timers, notices, logs, clock };
     // Các regression section chủ động chọn transport; mặc định production được
     // kiểm riêng bên dưới, không phụ thuộc quy tắc chọn transport của fixture.
     f.play = options => context.playNextTrack('g1', { replayCurrent: true, seekTransport: 'section', ...options });

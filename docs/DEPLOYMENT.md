@@ -36,6 +36,8 @@ Nếu cả ba secret Pterodactyl trống, workflow báo cần restart thủ côn
 
 Các module mới `blackjackUi.js` (bàn xì dách) và `musicBuffer.js` (nạp trước audio) có trong whitelist SFTP và fingerprint runtime. Khi upload thủ công phải giữ cả hai module cùng `index.js`; không thay file cấu hình hoặc dữ liệu người dùng.
 
+Đợt tối ưu nhạc18/10/2026 thêm `musicSearch.js`, `musicEffectTransition.js`, `musicDirectAudio.js`; cả ba phải đi cùng `index.js`, `musicStore.js` và `buildInfo.js`. Cache metadata/URL CDN chỉ ở RAM, không thêm kho runtime hay dependency. Node22 trở lên được yt-dlp dùng làm JavaScript runtime, EJS lấy từ nguồn chính thức `ejs:github`. Không đưa cookie, URL CDN ký số hoặc nội dung stderr thô vào Git/log.
+
 Host cần Node >=22.12.0, package theo lockfile, ffmpeg/yt-dlp và codec phù hợp. `npm ci --ignore-scripts` trên CI chỉ dùng kiểm tra; không cung cấp binary phát nhạc. Trên host thật chạy `npm ci` hoặc cung cấp binary và cài codec theo môi trường host. Nếu native opus không build được, dự án có `opusscript`; cần kiểm tra voice thực tế trước khi mở nhạc cho cộng đồng.
 
 Đặt biến qua panel hoặc file `.env` riêng trên host theo [mẫu](../.env.example). `DISCORD_TOKEN` và `DISCORD_CLIENT_ID` dùng cho đăng nhập/đăng ký lệnh. Bot vẫn đọc config cũ và giữ dữ liệu guild. Sau nâng cấp schema/module, sao lưu file runtime trước restart.

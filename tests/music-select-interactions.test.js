@@ -59,6 +59,7 @@ function fixture({ userId = 'owner', dj = false, admin = false, voiceId = 'voice
         buildMusicNoticeContainer: notice, buildQueueRemoveRow: () => [], buildQueueListText: () => 'queue',
         buildEffectsPayload: key => ({ effect: key }), AUDIO_EFFECTS: { none: {}, bass: {} },
         playNextTrack: async (id, options) => { playback.push({ id, ...options }); mq.effect = options.effectKey; },
+        changeMusicEffect: async (id, effectKey, options) => { playback.push({ id, effectKey, ...options }); mq.effect = effectKey; return { applied: true }; },
         buttonCooldowns: new Map(), setTimeout: () => ({ unref() {} }), clearTimeout() {},
         console: { error: (...args) => errors.push(args) }
     });
@@ -128,16 +129,13 @@ test('Menu hiệu ứng từ chối khi đã rời voice, chuyển kênh hoặc 
     }
 });
 
-test('DJ cùng voice đổi hiệu ứng và phát lại từ tiến độ hiện tại; giá trị lạ không phát lại', async () => {
+test('DJ cùng voice dùng bộ chuẩn bị hiệu ứng cho đúng bài; giá trị lạ không phát lại', async () => {
     const f = fixture({ userId: 'dj-user', dj: true });
     await f.run('music_effect_select', 'bass');
     assert.equal(f.mq.effect, 'bass');
     assert.equal(f.playback.length, 1);
-    assert.equal(f.playback[0].seekSec, 17);
-    assert.equal(f.playback[0].replayCurrent, true);
     assert.equal(f.playback[0].effectKey, 'bass');
     assert.equal(f.playback[0].expectedTrack, f.mq.current);
-    assert.equal(f.playback[0].seekTransport, 'section');
     const invalid = fixture();
     await invalid.run('music_effect_select', 'unknown');
     assert.equal(invalid.mq.effect, 'none');
