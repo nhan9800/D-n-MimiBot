@@ -32,18 +32,34 @@ function deferred() {
 
 const tick = () => new Promise(resolve => setImmediate(resolve));
 
-test('Đổi hiệu ứng ở mốc ngắn dùng pipe ngay, tua sâu dùng section trước khi có lỗi', async () => {
+test('Đổi hiệu ứng dùng section ngay cả ở mốc ngắn để không phải đọc lại từ đầu bài', async () => {
     for (const seekSec of [30, 1800]) {
         const f = await fixture();
         try {
             await f.play({ effectKey: 'bassboost', seekSec, seekTransport: undefined });
-            assert.equal(f.processes[0].flags.downloadSections, seekSec === 30 ? undefined : '*1800-inf');
+            assert.equal(f.processes[0].flags.downloadSections, `*${seekSec}-inf`);
             const filters = f.ffmpegs[0].args[f.ffmpegs[0].args.indexOf('-af') + 1];
-            assert.equal(filters, seekSec === 30 ? pipeFilters(30, 'bassboost') : audioEffects.bassboost.af);
+            assert.equal(filters, audioEffects.bassboost.af);
             assert.equal(f.mq.current, f.current);
             assert.equal(f.mq.queue[0], f.queued);
         } finally { f.cleanup(); }
     }
+});
+
+test('Đổi hiệu ứng retry giữ section ở mốc ngắn, không quay lại pipe', async () => {
+    const f = await fixture({ searchSoundcloud: async () => null });
+    try {
+        // Không ép seekTransport để kiểm đúng đường production từ menu hiệu ứng.
+        f.context.YT_DOWNLOAD_CLIENT_FALLBACKS = ['youtube:player_client=android', 'youtube:player_client=ios'];
+        await f.play({ effectKey: 'bassboost', seekSec: 45, seekTransport: undefined });
+        assert.equal(f.processes[0].flags.downloadSections, '*45-inf');
+        await f.processes[0].rejectPlayback(new Error('HTTP Error 403: Forbidden'));
+        await tick();
+        assert.equal(f.processes.length, 2);
+        assert.equal(f.processes[1].flags.downloadSections, '*45-inf');
+        assert.equal(f.mq.effect, 'bassboost');
+        assert.equal(f.mq.current, f.current);
+    } finally { f.cleanup(); }
 });
 
 test('Xác thực YouTube: timeout cũ không nuốt fallback, chỉ báo thành công sau Playing', async () => {

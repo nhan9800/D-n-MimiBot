@@ -137,6 +137,7 @@ test('DJ cùng voice đổi hiệu ứng và phát lại từ tiến độ hiệ
     assert.equal(f.playback[0].replayCurrent, true);
     assert.equal(f.playback[0].effectKey, 'bass');
     assert.equal(f.playback[0].expectedTrack, f.mq.current);
+    assert.equal(f.playback[0].seekTransport, 'section');
     const invalid = fixture();
     await invalid.run('music_effect_select', 'unknown');
     assert.equal(invalid.mq.effect, 'none');

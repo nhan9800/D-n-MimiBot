@@ -4945,10 +4945,17 @@ async function playNextTrack(guildId, opts = {}) {
 
     const seekSec = Math.max(0, Math.floor(opts.seekSec || 0));
     const effectKey = opts.effectKey || mq.effect || 'none';
-    // Mốc ngắn dùng pipe để tránh FFmpeg tải section bị crash trên host.
-    // Tua sâu vẫn ưu tiên section; sau một lỗi thì cả phiên giữ pipe.
+    // Tua ngắn thường dùng pipe để tránh FFmpeg tải section bị crash trên host.
+    // Khi ĐỔI HIỆU ỨNG, pipe phải giải mã và bỏ qua toàn bộ phần đầu bài trước khi
+    // có thể phát byte đầu tiên, nên một bài đang ở phút 1–2 sẽ đứng im rất lâu.
+    // Ưu tiên section riêng cho lượt đổi hiệu ứng; nếu section gặp lỗi -11 thì
+    // coordinator bên dưới chuyển cả phiên sang pipe như trước.
+    const effectTransition = opts.replayCurrent && seekSec > 0 && effectKey !== (mq.effect || 'none');
     const seekTransport = opts.seekTransport === 'pipe' || mq.sectionDisabled
-        || (opts.seekTransport !== 'section' && seekSec <= 120) ? 'pipe' : 'section';
+        ? 'pipe'
+        : opts.seekTransport === 'section' || effectTransition || seekSec > 120
+            ? 'section'
+            : 'pipe';
     // Khi tải bị 403, lần thử sau dùng bộ player_client tiếp theo.
     const clientAttempt = Math.max(0, Math.floor(opts.clientAttempt || 0));
     const useFfmpeg = seekSec > 0 || effectKey !== 'none';
@@ -5275,6 +5282,10 @@ async function playNextTrack(guildId, opts = {}) {
                     expectedTrack: next,
                     seekSec: Math.max(seekSec, getPlaybackSec(mq)),
                     effectKey,
+                    // Giữ nguyên đường section khi thử client YouTube kế tiếp.
+                    // Nếu bỏ qua trường này, lượt retry ở mốc <=120s sẽ quay về
+                    // pipe và lại phải đọc toàn bộ phần đầu bài.
+                    seekTransport,
                     clientAttempt: nextAttempt
                 }).catch(e => console.error(`❌ [Music] Lỗi khi thử lại client cho "${next.title}":`, e?.message || e));
                 return;
@@ -10273,7 +10284,12 @@ async function saveUserBackground(uId, url) {
             return noticeV2('Không có hiệu ứng đó', `Các hiệu ứng: ${Object.keys(AUDIO_EFFECTS).map(k => `\`${k}\``).join(', ')}.`, 0xF1C40F);
         }
         const resumeSec = getPlaybackSec(mq);
-        const result = await playNextTrack(message.guild.id, { replayCurrent: true, expectedTrack: mq.current, seekSec: resumeSec, effectKey: rest });
+        const result = await playNextTrack(message.guild.id, {
+            replayCurrent: true, expectedTrack: mq.current, seekSec: resumeSec, effectKey: rest,
+            // Đổi hiệu ứng cần lấy stream từ đúng mốc; playNextTrack vẫn tự ép pipe
+            // nếu section đã từng lỗi trong phiên này.
+            seekTransport: 'section'
+        });
         if (!result?.applied) return;
         if (mq.nowPlayingMessage) refreshMusicPanel(mq).catch(() => null);
         return noticeV2('Đang xử lý hiệu ứng', `Đã yêu cầu **${AUDIO_EFFECTS[rest].label}** từ vị trí \`${formatDuration(resumeSec)}\`.`, 0x57F287);
@@ -14367,7 +14383,11 @@ if (commandName === 'changelog') {
         }
         // Phát lại bài hiện tại từ resumeSec với hiệu ứng mới (đi qua ffmpeg).
         if (musicQueues.get(guild.id) !== mq || mq.playGeneration !== expectedGeneration) return;
-        await playNextTrack(guild.id, { replayCurrent: true, expectedTrack, seekSec: resumeSec, effectKey: key });
+        await playNextTrack(guild.id, {
+            replayCurrent: true, expectedTrack, seekSec: resumeSec, effectKey: key,
+            // Không giải mã lại toàn bộ phần đầu bài khi người dùng đổi hiệu ứng.
+            seekTransport: 'section'
+        });
         // Cập nhật lại panel "Đang phát" nếu thao tác từ menu popup bên ngoài
         const mqNow = musicQueues.get(guild.id);
         if (!isMain && mqNow === mq && mqNow.current === expectedTrack) {
