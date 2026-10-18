@@ -57,6 +57,8 @@ có phiên bản riêng để giữ bằng chứng lượt đầu và không ch�
 
 ## Tài liệu gốc
 
+Phần bổ sung tài khoản phụ: [hướng dẫn cookies trên VibeHost](YOUTUBE-COOKIES.md).
+
 - [bgutil provider 2.0.2](https://github.com/Brainicism/bgutil-ytdlp-pot-provider/releases/tag/2.0.2)
 - [PO Token Guide của yt-dlp](https://github.com/yt-dlp/yt-dlp/wiki/PO-Token-Guide)
 - [Cài plugin yt-dlp](https://github.com/yt-dlp/yt-dlp#installing-plugins)

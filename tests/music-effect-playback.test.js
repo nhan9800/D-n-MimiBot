@@ -10,6 +10,7 @@ const { EventEmitter } = require('node:events');
 const { PassThrough } = require('node:stream');
 const ytDlp = require('yt-dlp-exec');
 const { StartupAudioBuffer, PcmFrameChunker, monitorMusicResource } = require('../musicBuffer');
+const { classifyMusicSourceError } = require('../musicSourceErrors');
 const source = fs.readFileSync(path.join(__dirname, '..', 'index.js'), 'utf8');
 
 // Chạy hàm phát thật trong VM, không import bootstrap hoặc kết nối Discord/nguồn nhạc.
@@ -322,7 +323,7 @@ async function fixture({ synchronousPlaying = false, demuxProbe, searchSoundclou
         return proc;
     };
     const context = vm.createContext({
-        musicQueues, PassThrough, StartupAudioBuffer, PcmFrameChunker, monitorMusicResource,
+        musicQueues, PassThrough, StartupAudioBuffer, PcmFrameChunker, monitorMusicResource, classifyMusicSourceError,
         Date: class extends Date { static now() { return clock.now; } },
         fs: { existsSync: () => true },
         getFfmpegPath: () => '/mock/ffmpeg',
@@ -362,7 +363,8 @@ async function fixture({ synchronousPlaying = false, demuxProbe, searchSoundclou
         },
         setTimeout(callback, delay) { const timer = { callback, delay, unref() {} }; timers.push(timer); return timer; },
         clearTimeout(timer) { if (timer) timer.cleared = true; },
-        console: { error(...args) { logs.push(args.join(' ')); }, warn() {}, log() {} },
+        console: { error(...args) { logs.push(args.join(' ')); },
+            warn(...args) { logs.push(args.join(' ')); }, log(...args) { logs.push(args.join(' ')); } },
     });
     // Coordinator direct mới được kiểm riêng; fixture này chạy đúng pipeline seek/recovery cũ.
     vm.runInContext(region('function spawnFfmpegAudio(', '// Lấy URL audio có hạn trong RAM'), context);
@@ -574,9 +576,47 @@ test('Lỗi execa chỉ ghi chẩn đoán ngắn, không đưa audio binary vào
             shortMessage: 'Command failed with exit code 1', stdout: 'AUDIO_BINARY_SENTINEL', stderr: '', exitCode: 1
         }));
         await tick();
-        assert.ok(f.logs.some(x => x.includes('Command failed with exit code 1')));
+        assert.ok(f.logs.some(x => x.includes('SOURCE_FAILED')), 'Console chỉ nhận mã phân loại cố định');
+        assert.ok(f.logs.every(x => !x.includes('Command failed with exit code 1')), 'Không chuyển tiếp CLI/shortMessage của execa');
         assert.ok(f.logs.every(x => !x.includes('AUDIO_BINARY_SENTINEL')));
+        assert.equal(f.mq.current, f.queued, 'Lỗi vẫn chuyển đúng bài kế tiếp');
     } finally { f.cleanup(); }
+});
+
+test('Lỗi tải thật qua stderr/settlement không lộ cookie, provider JSON hoặc signed URL ra console/Discord', async () => {
+    const secret = 'PRIVATE_COOKIE_SID_playback_fixture';
+    const signedUrl = `https://rr1.googlevideo.com/videoplayback?pot=${secret}&sig=private_signature`;
+    const stderr = `Cookie: SID=${secret}\nproviderResponse={"poToken":"${secret}"}\n`
+        + `--cookies /home/container/data/private/youtube_cookies.txt\n${signedUrl}\n`
+        + 'ERROR: unable to download video data: HTTP Error 403: Forbidden';
+    for (const throughStream of [true, false]) {
+        const f = await fixture();
+        try {
+            f.current.scFallbackAttempted = true;
+            await f.play({ effectKey: 'bassboost', seekSec: 0, seekTransport: 'pipe' });
+            const child = f.processes[0];
+            if (throughStream) {
+                const split = Math.floor(stderr.length / 2);
+                child.stderr.write(stderr.slice(0, split));
+                child.stderr.write(stderr.slice(split));
+            }
+            await child.rejectPlayback(Object.assign(new Error(`Command failed: yt-dlp ${stderr}`), {
+                stderr: throughStream ? '' : stderr,
+                shortMessage: `Command failed with exit code 1 ${signedUrl}`, stdout: 'AUDIO_BINARY_SENTINEL', exitCode: 1
+            }));
+            await tick();
+            const notice = f.notices.find(item => item.title === 'Không thể phát bài này');
+            assert.ok(notice, 'Lỗi nguồn vẫn được thông báo một lần cho khách');
+            assert.equal(f.notices.filter(item => item.title === notice.title).length, 1);
+            assert.ok(notice.content.includes(classifyMusicSourceError('HTTP Error 403: Forbidden').message));
+            assert.ok(f.logs.some(item => /yt-dlp lỗi/.test(item) && item.includes('HTTP_403')));
+            assert.doesNotMatch(JSON.stringify({ console: f.logs, discord: f.notices }),
+                /PRIVATE_COOKIE|private_signature|googlevideo|https?:|poToken|providerResponse|--cookies|youtube_cookies|home\/container|AUDIO_BINARY_SENTINEL|Command failed/);
+            assert.equal(f.mq.current, f.queued, 'Sanitize lỗi không thay đổi chuyển bài');
+            assert.equal(f.mq.effect, 'bassboost');
+            assert.equal(f.mq.queue.length, 0);
+        } finally { f.cleanup(); }
+    }
 });
 
 test('Luồng tải thật vượt maxBuffer nhỏ vẫn truyền đủ audio, không bị gom thành chuỗi', async () => {
@@ -1035,7 +1075,8 @@ test('Source hoàn tất sạch sau lỗi ffmpeg cục bộ mới xử lý lỗi
         assert.equal(f.mq.current, f.queued);
         assert.equal(f.mq.queue.length, 0);
         assert.equal(f.notices.filter(notice => notice.title === 'Không thể phát bài này').length, 1);
-        assert.match(f.notices[0].content, /Lỗi giải mã sau khi tải/);
+        assert.ok(f.notices[0].content.includes(classifyMusicSourceError('Lỗi giải mã sau khi tải').message));
+        assert.doesNotMatch(f.notices[0].content, /Lỗi giải mã sau khi tải/, 'Không trả nội dung error.message thô cho khách');
     } finally { f.cleanup(); }
 });
 

@@ -41,6 +41,10 @@ const { createMusicSearchCache, applySourcePolicy, chooseSoundcloudResult: rankS
 const { createYoutubePoProvider } = require('./youtubePoProvider');
 const { installYoutubePo } = require('./scripts/setup-youtube-po');
 const { runYoutubePoProbe } = require('./youtubePoProbe');
+const { createYoutubeCookieSource } = require('./youtubeCookies');
+const { createYoutubeCookieVerification } = require('./youtubeCookieVerification');
+const { classifyMusicSourceError } = require('./musicSourceErrors');
+const youtubeCookieSource = createYoutubeCookieSource({ rootDir: __dirname });
 const { buildProfilePayload, buildRankPayload } = require('./profileCard');
 const { applyPetDecayRealtime, buildPetEmbed, buildPetComponents, createPetPanelUpdater } = require('./petUi');
 const petPanels = createPetPanelUpdater({ getUserData });
@@ -3379,12 +3383,39 @@ const youtubePoProvider = createYoutubePoProvider({
     root: __dirname, log: console.log
 });
 let youtubePoVerification = null;
-process.once('exit', () => youtubePoProvider.stop());
+const youtubeCookieVerifier = createYoutubeCookieVerification({
+    readCookieSource: () => youtubeCookieSource.read(),
+    isProviderReady: () => youtubePoProvider.snapshot().ready,
+    receiptDir: path.join(__dirname, 'data', 'youtube-po', 'cookie-checks'),
+    probe: async ({ signal }) => {
+        const source = youtubeCookieSource.read();
+        if (!source.path || source.status.state !== 'ready' || !source.status.hasAuthCookies) {
+            throw new Error('COOKIE_SOURCE_CHANGED');
+        }
+        const options = { ...getYtCommonOpts(), cookies: source.path };
+        const getOptions = () => {
+            const current = youtubeCookieSource.read();
+            if (current.path !== source.path || current.revision !== source.revision) throw new Error('COOKIE_SOURCE_CHANGED');
+            return { ...options };
+        };
+        const result = await runYoutubePoProbe({ ytDlpExec, getOptions, signal,
+            query: 'JACK - J97 LƯU NIÊN Album TAM THÁI TỬ Track No.4', timeoutMs: 45000 });
+        return { ...result, credentials: 'cookie_file', checkedAt: new Date().toISOString(),
+            providerTokensIssued: youtubePoProvider.snapshot().tokensIssued || 0 };
+    },
+    onResult: result => {
+        youtubePoVerification = { ...result, credentials: 'cookie_file' };
+        console.log(`[YouTubeCookies] AUDIO_CHECK ${JSON.stringify(youtubePoVerification)}`);
+    }
+});
+process.once('exit', () => { youtubeCookieVerifier.stop(); youtubePoProvider.stop(); });
 function getYoutubePoStatus() {
     const checked = youtubePoVerification;
     const outcomes = ['audio_received', 'http_403', 'auth_required', 'timeout', 'search_failed',
-        'source_failed', 'search_empty', 'invalid_audio', 'invalid_configuration', 'invalid_input'];
-    return { ...youtubePoProvider.snapshot(), verification: checked ? {
+        'source_failed', 'search_empty', 'invalid_audio', 'invalid_configuration', 'invalid_input',
+        'cancelled', 'aborted', 'interrupted'];
+    return { ...youtubePoProvider.snapshot(), cookies: youtubeCookieSource.snapshot(),
+        cookieCheck: youtubeCookieVerifier.snapshot(), verification: checked ? {
         ok: checked.ok === true,
         outcome: outcomes.includes(checked.outcome) ? checked.outcome : 'unknown',
         bytes: Math.max(0, Math.min(65536, Number(checked.bytes) || 0)),
@@ -3394,6 +3425,7 @@ function getYoutubePoStatus() {
         providerRequestFailed: checked.providerRequestFailed === true,
         mediaDownloadFailed: checked.mediaDownloadFailed === true,
         downloadStarted: checked.downloadStarted === true,
+        credentials: checked.credentials === 'cookie_file' ? 'cookie_file' : 'guest',
         searchResolved: checked.searchResolved === true
     } : null };
 }
@@ -3420,7 +3452,10 @@ async function verifyFirstYoutubePoSetup() {
 ensureYtDlpBinary().then(async available => {
     if (!available || !youtubePoEnabled) return;
     const status = await youtubePoProvider.start();
-    if (status.ready) await verifyFirstYoutubePoSetup();
+    if (status.ready) {
+        await verifyFirstYoutubePoSetup();
+        youtubeCookieVerifier.start();
+    }
 }).catch(() => console.warn('[YouTubePO] SETUP_FAILED'));
 
 // Bot chạy PM2 liên tục nhiều ngày/tuần không restart, nên phải kiểm tra lại định kỳ:
@@ -3486,12 +3521,11 @@ function normalizeYoutubeUrl(rawUrl) {
 }
 
 function getCookieFilePath() {
-    const possibleNames = ['cookies.txt', 'youtube_cookies.txt', 'youtube.cookies.txt', 'cookies.json'];
-    for (const name of possibleNames) {
-        const fullPath = path.join(__dirname, name);
-        if (fs.existsSync(fullPath)) return fullPath;
-    }
-    return null;
+    return youtubeCookieSource.read().path;
+}
+
+function getMusicSourceCacheKey() {
+    return `${youtubeCookieSource.read().revision}:po-${youtubePoProvider.snapshot().clientRevision}`;
 }
 
 // Dùng bộ client hiện hành của yt-dlp và Node để xử lý challenge JavaScript.
@@ -4553,8 +4587,7 @@ const musicEffectTransitions = createEffectTransitionController({
     getCurrent: guildId => musicQueues.get(guildId),
     getPosition: getPlaybackSec,
     resolveMedia: (track, { signal }) => {
-        const cookie = getCookieFilePath();
-        const cacheKey = `${cookie ? fs.statSync(cookie).mtimeMs : 'public'}:po-${youtubePoProvider.snapshot().clientRevision}`;
+        const cacheKey = getMusicSourceCacheKey();
         return effectMediaResolver.resolve(track.url, { signal, cacheKey });
     },
     createCandidate: (media, { effectKey, positionSec, signal }) => createDirectAudioCandidate({
@@ -4565,9 +4598,8 @@ const musicEffectTransitions = createEffectTransitionController({
     }),
     commit: commitPreparedMusicEffect,
     notify: ({ guildId, mq, track, reason }) => {
-        const cookie = getCookieFilePath();
         effectMediaResolver.invalidate(track.url, {
-            cacheKey: `${cookie ? fs.statSync(cookie).mtimeMs : 'public'}:po-${youtubePoProvider.snapshot().clientRevision}`
+            cacheKey: getMusicSourceCacheKey()
         });
         console.warn(`[Music] Giữ audio cũ khi chuẩn bị hiệu ứng server=${guildId} reason=${reason}`);
         mq.textChannel?.send(buildMusicNoticePayload('Chưa đổi được hiệu ứng',
@@ -5456,7 +5488,8 @@ async function playNextTrack(guildId, opts = {}) {
             const rawErr = (stderrBuffer || err.stderr || err.shortMessage
                 || (Object.hasOwn(err, 'stdout') ? `yt-dlp thoát với mã ${err.exitCode ?? err.code ?? 'không rõ'}` : err.message)
                 || 'Không rõ lỗi tải nhạc').slice(-4000);
-            console.error(`❌ [Music] yt-dlp lỗi khi phát "${next.title}" ở server ${guildId}:`, rawErr);
+            const safeError = classifyMusicSourceError(rawErr);
+            console.error(`❌ [Music] yt-dlp lỗi khi phát "${next.title}" ở server ${guildId}:`, safeError.code);
 
             cleanupOrphanedMusicFragments();
 
@@ -5476,12 +5509,12 @@ async function playNextTrack(guildId, opts = {}) {
                     effectKey,
                     clientAttempt,
                     seekTransport: 'pipe'
-                }).catch(e => console.error('[Music] Không thể phát lại qua pipe:', e?.message || e));
+                }).catch(e => console.error('[Music] Không thể phát lại qua pipe:', classifyMusicSourceError(e).code));
             }
 
             if (/ffmpeg|ffprobe/i.test(rawErr)) {
                 sourceRecovering = false;
-                return failPlayback(rawErr.slice(-300));
+                return failPlayback(safeError.message);
             }
 
             const isRetryable = /403|forbidden|Requested format is not available|Sign in to confirm you|bot|confirm you’re not a bot|needs_auth|login|Unable to download|No such file|Frag|timeout|IncompleteRead|HTTP Error 5|Connection reset|timed out|network/i.test(rawErr);
@@ -5503,7 +5536,7 @@ async function playNextTrack(guildId, opts = {}) {
                     seekTransport,
                     sourceDeadline,
                     clientAttempt: nextAttempt
-                }).catch(e => console.error(`❌ [Music] Lỗi khi thử lại client cho "${next.title}":`, e?.message || e));
+                }).catch(e => console.error(`❌ [Music] Lỗi khi thử lại client cho "${next.title}":`, classifyMusicSourceError(e).code));
                 return;
             }
 
@@ -5538,21 +5571,22 @@ async function playNextTrack(guildId, opts = {}) {
                 } catch (scErr) {
                     if (!isCurrentPlayback()) return;
                     next.scFallbackAttempted = true;
-                    console.error('❌ [Music] Lỗi fallback sang SoundCloud:', scErr?.message);
+                    console.error('❌ [Music] Lỗi fallback sang SoundCloud:', classifyMusicSourceError(scErr).code);
                 }
             }
 
             const shortErr = isYoutubePlayback && next.allowSourceFallback === false
                 ? 'YouTube từ chối hoặc chưa tải được audio. Mimi giữ lựa chọn nguồn YouTube; dùng nguồn SoundCloud hoặc Tự động nếu muốn thử bản khác.'
-                : (rawErr.split('\n').filter(Boolean).pop() || 'Không rõ lỗi').slice(0, 300);
+                : safeError.message;
             sourceRecovering = false;
             return failPlayback(shortErr);
         }).catch(err => {
             // Bắt cả lỗi từ handler settlement; không để Promise của tiến trình thành
             // unhandled rejection. Không xử lý hoặc dọn resource của thế hệ mới.
             if (!isCurrentPlayback()) return;
-            console.error('[Music] Lỗi xử lý kết quả tải nhạc:', err?.message || err);
-            failPlayback((err?.message || 'Không thể xử lý kết quả tải nhạc').slice(0, 300), { force: true });
+            const safeError = classifyMusicSourceError(err);
+            console.error('[Music] Lỗi xử lý kết quả tải nhạc:', safeError.code);
+            failPlayback(safeError.message, { force: true });
         });
 
         mq.currentProcess = ytdlProcess;
@@ -5582,15 +5616,17 @@ async function playNextTrack(guildId, opts = {}) {
                 ff.stderr?.on('data', (chunk) => { ffErr += chunk.toString(); if (ffErr.length > 2000) ffErr = ffErr.slice(-2000); });
                 ff.on('error', (e) => {
                     if (!isCurrentPlayback()) return;
-                    console.error(`❌ [Music] ffmpeg lỗi ở server ${guildId}:`, e.message);
-                    failPlayback((e.message || 'ffmpeg gặp lỗi').slice(0, 300));
+                    const safeError = classifyMusicSourceError(e);
+                    console.error(`❌ [Music] ffmpeg lỗi ở server ${guildId}:`, safeError.code);
+                    failPlayback(safeError.message);
                 });
                 ff.on('close', (code) => {
                     if (!isCurrentPlayback() || code === 0) return;
-                    console.error(`❌ [Music] ffmpeg thoát ở server ${guildId}:`, code, ffErr);
+                    const safeError = classifyMusicSourceError(ffErr || 'ffmpeg');
+                    console.error(`❌ [Music] ffmpeg thoát ở server ${guildId}:`, code, safeError.code);
                     const inputFailure = /Error opening input|Invalid data found|Error during demuxing|HTTP (?:error|Error)|Input\/output error/i.test(ffErr);
                     const filterFailure = !inputFailure && /No such filter|Error (?:initializing|reinitializing) (?:complex )?filters?|Error applying option.*filter|Unable to parse option value.*(?:atempo|asetrate|bass|treble|tremolo|apulsator|dynaudnorm)/i.test(ffErr);
-                    failPlayback((ffErr || `ffmpeg thoát với mã ${code}`).slice(-300), { filterFailure });
+                    failPlayback(safeError.message, { filterFailure });
                 });
                 if (!isCurrentPlayback()) {
                     try { ff.kill('SIGKILL'); } catch { /* bỏ qua */ }
@@ -5676,8 +5712,9 @@ async function playNextTrack(guildId, opts = {}) {
         return { applied: isCurrentPlayback() };
     } catch (err) {
         if (!isCurrentPlayback()) return;
-        console.error(`❌ [Music] Lỗi phát nhạc ở server ${guildId}:`, err.message);
-        failPlayback((err.message || 'Không rõ lỗi').slice(0, 300));
+        const safeError = classifyMusicSourceError(err);
+        console.error(`❌ [Music] Lỗi phát nhạc ở server ${guildId}:`, safeError.code);
+        failPlayback(safeError.message);
         return;
     }
 }
@@ -5848,10 +5885,11 @@ async function getOrCreateMusicQueue(guild, voiceChannel, textChannel) {
     player.on('error', (err) => {
         const m = musicQueues.get(guild.id);
         if (m !== mq || m.player !== player || !m.current || !m.currentResource || err.resource !== m.currentResource) return;
-        console.error(`❌ [Music] Player error ở server ${guild.id}:`, err.message);
-        if (m.onPlaybackFailure) m.onPlaybackFailure((err.message || 'Không rõ lỗi').slice(0, 300));
+        const safeError = classifyMusicSourceError(err);
+        console.error(`❌ [Music] Player error ở server ${guild.id}:`, safeError.code);
+        if (m.onPlaybackFailure) m.onPlaybackFailure(safeError.message);
         else {
-            handlePlaybackFailure(guild.id, m, m.current, (err.message || 'Không rõ lỗi').slice(0, 300));
+            handlePlaybackFailure(guild.id, m, m.current, safeError.message);
         }
     });
     connection.on(voiceLib.VoiceConnectionStatus.Disconnected, async () => {
@@ -10756,7 +10794,7 @@ async function saveUserBackground(uId, url) {
         try {
             track = await resolveTrack(query); // hỗ trợ YouTube, Spotify, SoundCloud, Bandcamp, Twitch, Vimeo, link...
         } catch (err) {
-            console.error('❌ [Music] Lỗi tìm kiếm (prefix):', err.message);
+            console.error('❌ [Music] Lỗi tìm kiếm (prefix):', classifyMusicSourceError(err).code);
             const payload = err.code === 'RESTRICTED_VIDEO'
                 ? buildMusicNoticePayload('Video bị giới hạn', 'Video này đang **riêng tư** hoặc **bị giới hạn độ tuổi**, bot không thể phát. Vui lòng thử link/từ khóa khác.', 0xF1C40F)
                 : err.code === 'SPOTIFY_RESOLVE_FAILED'
@@ -14189,7 +14227,7 @@ if (commandName === 'setup') {
             try {
                 track = await resolveTrack(query, source); // YouTube, Spotify, SoundCloud, Bandcamp, Twitch, Vimeo, link...
             } catch (err) {
-                console.error('❌ [Music] Lỗi tìm kiếm:', err.message);
+                console.error('❌ [Music] Lỗi tìm kiếm:', classifyMusicSourceError(err).code);
                 const msg = err.code === 'RESTRICTED_VIDEO'
                     ? '🔞 Video này đang **riêng tư** hoặc **bị giới hạn độ tuổi**, bot không thể phát. Vui lòng thử link/từ khóa khác.'
                     : err.code === 'SPOTIFY_RESOLVE_FAILED'

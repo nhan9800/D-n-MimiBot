@@ -94,34 +94,39 @@ function urlExpiry(url) {
 /** Chọn audio đã được extractor xác nhận, ưu tiên file riêng có thể seek bằng HTTP Range. */
 function selectMediaAudio(info, { now = Date.now() } = {}) {
     if (!info || typeof info !== 'object') throw new Error('Nguồn nhạc chưa cung cấp thông tin âm thanh.');
-    const choices = [
-        ...(Array.isArray(info.requested_downloads) ? info.requested_downloads : []),
-        ...(Array.isArray(info.requested_formats) ? info.requested_formats : []),
-        info,
-        ...(Array.isArray(info.formats) ? info.formats : []),
+    // URL đã chọn có thể chứa PO Token/signature riêng cho đúng format. Không
+    // chấm lại toàn catalog rồi thay bằng Opus chưa được extractor chọn/xác nhận.
+    // Chỉ tìm trong nhóm sau khi cả nhóm ưu tiên trước không còn audio hợp lệ.
+    const groups = [
+        Array.isArray(info.requested_downloads) ? info.requested_downloads : [],
+        Array.isArray(info.requested_formats) ? info.requested_formats : [],
+        [info],
+        Array.isArray(info.formats) ? info.formats : [],
     ];
-    const candidates = [];
-    for (const item of choices) {
-        if (!item || !item.url || item.acodec === 'none') continue;
-        const audioOnly = item.vcodec === 'none' || (!item.vcodec && Boolean(item.acodec));
-        if (!audioOnly && item !== info) continue;
-        if (item.vcodec && item.vcodec !== 'none') continue;
-        try {
-            const url = validateDirectMediaUrl(item.url);
-            const expires = urlExpiry(url);
-            if (expires <= now) continue;
-            const headers = safeHeaders(info.http_headers, item.http_headers);
-            const directFile = !/m3u8|dash|hls/i.test(String(item.protocol || '')) && !/\.m3u8(?:\?|$)/i.test(url);
-            const bitrate = Math.max(0, Math.min(1000, Number(item.abr) || Number(item.tbr) || 0));
-            candidates.push({ url, headers, expiresAt: Math.min(now + MAX_MEDIA_TTL_MS, expires - EXPIRY_MARGIN_MS),
-                formatId: item.format_id == null ? undefined : String(item.format_id),
-                score: (audioOnly ? 10000 : 0) + (directFile ? 2000 : 0) + (item.acodec === 'opus' ? 100 : 0) + bitrate });
-        } catch { /* Một format không hợp lệ không được chặn format audio hợp lệ còn lại. */ }
+    for (const choices of groups) {
+        const candidates = [];
+        for (const item of choices) {
+            if (!item || !item.url || item.acodec === 'none') continue;
+            const audioOnly = item.vcodec === 'none' || (!item.vcodec && Boolean(item.acodec));
+            if (!audioOnly || (item.vcodec && item.vcodec !== 'none')) continue;
+            try {
+                const url = validateDirectMediaUrl(item.url);
+                const expires = urlExpiry(url);
+                if (expires <= now) continue;
+                const headers = safeHeaders(info.http_headers, item.http_headers);
+                const directFile = !/m3u8|dash|hls/i.test(String(item.protocol || '')) && !/\.m3u8(?:\?|$)/i.test(url);
+                const bitrate = Math.max(0, Math.min(1000, Number(item.abr) || Number(item.tbr) || 0));
+                candidates.push({ url, headers, expiresAt: Math.min(now + MAX_MEDIA_TTL_MS, expires - EXPIRY_MARGIN_MS),
+                    formatId: item.format_id == null ? undefined : String(item.format_id),
+                    score: (directFile ? 2000 : 0) + (item.acodec === 'opus' ? 100 : 0) + bitrate });
+            } catch { /* Một format không hợp lệ không được chặn format audio hợp lệ còn lại. */ }
+        }
+        if (!candidates.length) continue;
+        candidates.sort((left, right) => right.score - left.score);
+        const { score: _score, ...selected } = candidates[0];
+        return selected;
     }
-    candidates.sort((left, right) => right.score - left.score);
-    if (!candidates.length) throw new Error('Không có URL audio hợp lệ từ CDN được hỗ trợ.');
-    const { score: _score, ...selected } = candidates[0];
-    return selected;
+    throw new Error('Không có URL audio hợp lệ từ CDN được hỗ trợ.');
 }
 
 function cloneMedia(media) { return { ...media, headers: { ...media.headers } }; }

@@ -52,6 +52,42 @@ test('Không chọn media hết hạn, video hoặc header có CRLF; lỗi khôn
     }
 });
 
+test('Giữ format M4A đã chọn kèm PO Token thay vì tự đổi sang Opus chưa được chọn', () => {
+    for (const placement of ['requested_downloads', 'requested_formats', 'info']) {
+        const chosenUrl = `${CDN}?itag=140&pot=synthetic%2Fselected%2Btoken&sig=chosen`;
+        const chosen = { url: chosenUrl, format_id: '140', acodec: 'mp4a.40.2', vcodec: 'none', abr: 128,
+            http_headers: { 'User-Agent': 'Selected-client', Referer: 'https://www.youtube.com/' } };
+        const info = { http_headers: { 'User-Agent': 'Extractor-default', Accept: '*/*' },
+            formats: [{ url: `${CDN}?itag=251`, format_id: '251', acodec: 'opus', vcodec: 'none', abr: 160 }] };
+        if (placement === 'info') Object.assign(info, chosen, {
+            http_headers: { ...info.http_headers, ...chosen.http_headers }
+        });
+        else info[placement] = [chosen];
+        const selected = selectMediaAudio(info, { now: NOW });
+        assert.equal(selected.formatId, '140', placement);
+        assert.equal(selected.url, chosenUrl, 'Giữ nguyên URL đã ký, không ghép/chuyển pot giữa format');
+        assert.deepEqual(selected.headers, { 'user-agent': 'Selected-client', accept: '*/*', referer: 'https://www.youtube.com/' });
+        assert.equal(new URL(info.formats[0].url).searchParams.has('pot'), false, 'Không sửa URL catalog gốc');
+    }
+});
+
+test('Nhóm format đã chọn được ưu tiên đúng thứ tự; chỉ quét catalog khi không còn selected audio hợp lệ', () => {
+    const download = { ...mediaInfo(`${CDN}?selected=download`), format_id: '140', acodec: 'mp4a.40.2' };
+    const requested = { ...mediaInfo(`${CDN}?selected=requested`), format_id: '251' };
+    const infoSelected = { ...mediaInfo(`${CDN}?selected=info`), format_id: '250' };
+    const fallback = { ...mediaInfo(`${CDN}?selected=fallback`), format_id: '249' };
+    const info = { ...infoSelected, requested_downloads: [download], requested_formats: [requested], formats: [fallback] };
+    assert.equal(selectMediaAudio(info, { now: NOW }).formatId, '140');
+    info.requested_downloads = [{ ...download, url: 'https://127.0.0.1/private' }];
+    assert.equal(selectMediaAudio(info, { now: NOW }).formatId, '251');
+    info.requested_formats = [{ ...requested, acodec: 'none', vcodec: 'av01' }];
+    assert.equal(selectMediaAudio(info, { now: NOW }).formatId, '250');
+    info.url = `${CDN}?expire=${Math.floor((NOW - 1000) / 1000)}`;
+    assert.equal(selectMediaAudio(info, { now: NOW }).formatId, '249');
+    assert.throws(() => selectMediaAudio({ url: CDN, formats: [] }, { now: NOW }), /audio hợp lệ/,
+        'Top-level URL không có thông tin codec không được coi là audio đã xác nhận');
+});
+
 test('Resolver chia sẻ extract đang chạy, clone header, cache tối đa5phút và phân biệt client fingerprint', async () => {
     let now = NOW, calls = 0;
     const first = deferred();

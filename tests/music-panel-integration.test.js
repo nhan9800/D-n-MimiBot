@@ -12,6 +12,7 @@ const ytDlp = require('yt-dlp-exec');
 const { validateMusicUrl } = require('../musicSources');
 const { createMusicPanelWriter } = require('../musicPanelUpdater');
 const { createMusicSearchCache, applySourcePolicy, chooseSoundcloudResult: rankSoundcloudResult } = require('../musicSearch');
+const { classifyMusicSourceError } = require('../musicSourceErrors');
 const source = fs.readFileSync(path.join(__dirname, '..', 'index.js'), 'utf8');
 
 // Chỉ chạy vùng function cần kiểm tra, không import bootstrap/login/cron của bot.
@@ -25,7 +26,7 @@ function region(begin, end) {
 function fixture({ realBuild = false } = {}) {
     const timers = [];
     const context = vm.createContext({
-        createMusicPanelWriter,
+        createMusicPanelWriter, classifyMusicSourceError,
         youtubePoProvider: { options: extractorArgs => ({ extractorArgs }), snapshot: () => ({ clientRevision: 0 }) },
         buildMusicDashboard: require('../communityPanels').buildMusicDashboard,
         normalizePayload: require('../discordUi').normalizePayload,

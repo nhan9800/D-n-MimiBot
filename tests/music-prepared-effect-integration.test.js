@@ -12,6 +12,7 @@ function deferred() { let resolve; let reject; const promise = new Promise((yes,
 function region(begin, end) { const start = source.indexOf(begin); const stop = source.indexOf(end, start); assert.ok(start >= 0 && stop > start); return source.slice(start, stop); }
 
 function fixture({ paused = false,
+    youtubeCookieSource = { read: () => ({ path: null, revision: 'guest' }) },
     youtubePoProvider = { options: extractorArgs => ({ extractorArgs }), snapshot: () => ({ clientRevision: 0 }) } } = {}) {
     const ready = deferred(); const completion = deferred();
     const events = []; const notices = []; const saved = []; const positions = []; const extractions = [];
@@ -35,7 +36,7 @@ function fixture({ paused = false,
         ytDlpExec: async (url, options) => { extractions.push({ url, options }); return {
             url: 'https://rr1.googlevideo.com/videoplayback?expire=9999999999', acodec: 'opus', vcodec: 'none' }; },
         validateMusicUrl: url => url, getCookieFilePath: () => null,
-        YT_EXTRACTOR_ARGS: 'youtube:player_client=default', youtubePoProvider,
+        YT_EXTRACTOR_ARGS: 'youtube:player_client=default', youtubePoProvider, youtubeCookieSource,
         getFfmpegPath: () => 'ffmpeg', spawn() {}, StartupAudioBuffer() {}, PcmFrameChunker() {},
         voiceLib: { AudioPlayerStatus: { Playing: 'playing', Paused: 'paused', AutoPaused: 'autopaused' }, createAudioResource() {}, StreamType: { Raw: 'raw' } },
         musicQueues: map, getPlaybackSec: null, setTimeout, clearTimeout,
@@ -47,6 +48,7 @@ function fixture({ paused = false,
     vm.runInContext(source.match(/function killCurrentProcess\([^]*?\n\}/)[0], context);
     // getPlaybackSec is independent from the persistence/Discord bootstrap.
     vm.runInContext(source.match(/function getPlaybackSec\([^]*?\n\}/)[0], context);
+    vm.runInContext(source.match(/function getMusicSourceCacheKey\([^]*?\n\}/)[0], context);
     vm.runInContext(region('function getYtCommonOpts()', '// Số kết quả sẽ lấy'), context);
     vm.runInContext(region('const effectMediaResolver =', '// Chuyển chuỗi thời gian'), context);
     return { mq, old, candidate, ready, completion, events, positions, notices, saved, map, extractions,
@@ -98,6 +100,25 @@ test('Resolver hiệu ứng dùng options PO động và bỏ cache media khi pr
         assert.equal(f.extractions[1].options.pluginDirs, undefined);
         assert.equal(f.extractions[1].options.extractorArgs, 'youtube:player_client=default');
         assert.equal(f.mq.queue.length, 1);
+    } finally { f.cleanup(); }
+});
+
+test('Đổi revision xác thực buộc trích media mới dù cookie giữ nguyên đường dẫn và mtime', async () => {
+    const cookie = { path: '/mock/youtube-cookies.txt', revision: 'auth-A', mtimeMs: 1234 };
+    const f = fixture({ youtubeCookieSource: { read: () => ({ ...cookie }) } });
+    try {
+        const pending = f.change('bassboost'); await tick();
+        f.ready.resolve(f.candidate.resource); assert.equal((await pending).applied, true);
+        assert.equal(f.extractions.length, 1);
+        assert.equal((await f.change('nightcore')).applied, true);
+        assert.equal(f.extractions.length, 1, 'Revision giữ nguyên vẫn chia sẻ media trong RAM');
+        cookie.revision = 'auth-B';
+        assert.equal((await f.change('soft')).applied, true);
+        assert.equal(cookie.path, '/mock/youtube-cookies.txt');
+        assert.equal(cookie.mtimeMs, 1234);
+        assert.equal(f.extractions.length, 2, 'Không tái dùng signed URL của revision xác thực cũ');
+        assert.equal(f.mq.queue.length, 1);
+        assert.equal(f.notices.length, 0);
     } finally { f.cleanup(); }
 });
 

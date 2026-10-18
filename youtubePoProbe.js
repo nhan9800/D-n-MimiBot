@@ -44,7 +44,7 @@ function waitWithSignal(promise, signal) {
  * production; helper không mở cookie, không trả/log token hoặc signed media URL.
  */
 function runYoutubePoProbe({ ytDlpExec, getOptions, query = 'JACK J97 Lưu Niên', videoUrl,
-    timeoutMs = 45000, maxBytes = 65536, now = Date.now, timers = {} } = {}) {
+    timeoutMs = 45000, maxBytes = 65536, now = Date.now, timers = {}, signal: parentSignal } = {}) {
     const beganAt = now();
     const budget = Math.max(1, Math.min(60000, Number(timeoutMs) || 45000));
     const byteLimit = Math.max(4, Math.min(65536, Math.floor(Number(maxBytes) || 65536)));
@@ -76,6 +76,7 @@ function runYoutubePoProbe({ ytDlpExec, getOptions, query = 'JACK J97 Lưu Niên
     const errorOutcome = () => authRequired ? 'auth_required' : forbidden ? 'http_403' : sourceTimedOut ? 'timeout' : phase === 'search' ? 'search_failed' : 'source_failed';
 
     return new Promise(resolve => {
+        const onAbort = () => finish('cancelled', true);
         const onStdout = chunk => {
             if (complete) return;
             const data = Buffer.isBuffer(chunk) ? chunk : Buffer.from(chunk);
@@ -101,6 +102,7 @@ function runYoutubePoProbe({ ytDlpExec, getOptions, query = 'JACK J97 Lưu Niên
             if (complete) return;
             complete = true;
             clearTimer(timer);
+            parentSignal?.removeEventListener('abort', onAbort);
             intentionalKill = stopChild;
             // Trước khi abort/kill phải đánh dấu kết thúc: execa có thể reject ngay.
             controller.abort();
@@ -118,6 +120,8 @@ function runYoutubePoProbe({ ytDlpExec, getOptions, query = 'JACK J97 Lưu Niên
             resolve(result);
         };
         timer = setTimer(() => finish('timeout', true), budget);
+        parentSignal?.addEventListener('abort', onAbort, { once: true });
+        if (parentSignal?.aborted) { onAbort(); return; }
         // Probe chủ động chờ kết quả; timer không unref để CLI không thoát giữa chừng.
         const run = async () => {
             if (typeof ytDlpExec !== 'function' || typeof ytDlpExec.exec !== 'function' || typeof getOptions !== 'function') {

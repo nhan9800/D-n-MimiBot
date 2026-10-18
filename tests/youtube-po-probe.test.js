@@ -259,6 +259,22 @@ test('Output không phải container audio không được coi là probe thành 
     assert.equal(result.containerHeaderRecognized, false);
 });
 
+test('Hủy từ coordinator dừng probe, không mở nguồn muộn hoặc giữ child tải audio', async () => {
+    const cancelled = new AbortController(); cancelled.abort();
+    const before = fixture();
+    assert.equal((await runYoutubePoProbe({ ...before.dependencies, signal: cancelled.signal })).outcome, 'cancelled');
+    assert.equal(before.searches.length, 0);
+    const active = fixture();
+    const controller = new AbortController();
+    const probing = runYoutubePoProbe({ ...active.dependencies, videoUrl: URL, signal: controller.signal });
+    await tick();
+    controller.abort();
+    assert.equal((await probing).outcome, 'cancelled');
+    assert.equal(active.streams[0].kills, 1);
+    assert.equal(active.streams[0].listenerCount('close'), 0);
+    assert.equal(active.timers[0].cleared, true);
+});
+
 test('Thiếu dependency hoặc lỗi getOptions có kết quả hữu hạn và không log lỗi thô', async () => {
     const missing = await runYoutubePoProbe({ ytDlpExec: null, getOptions: () => ({}) });
     assert.equal(missing.outcome, 'invalid_configuration');
