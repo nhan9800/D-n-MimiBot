@@ -7,6 +7,15 @@ const path = require('node:path');
 const vm = require('node:vm');
 const { validateMusicUrl } = require('../musicSources');
 
+test('YouTube recovery gom client trong một lượt để không chờ im lặng qua nhiều lần fallback', () => {
+    const source = fs.readFileSync(path.join(__dirname, '..', 'index.js'), 'utf8');
+    const block = source.match(/const YT_DOWNLOAD_CLIENT_FALLBACKS = \[([\s\S]*?)\];/);
+    assert.ok(block, 'Có danh sách client tải YouTube');
+    const clients = [...block[1].matchAll(/youtube:player_client=([^']+)/g)].map(match => match[1]);
+    assert.equal(clients.length, 1);
+    assert.match(clients[0], /^default,android_music,android_creator,tv_embedded$/);
+});
+
 test('Link nhạc được kiểm tra theo hostname thực, không theo chuỗi con', () => {
     for (const url of ['https://127.0.0.1/a.mp3', 'https://youtube.com.evil.example/watch', 'https://evil.example/youtube.com/a',
         'https://youtube.com@127.0.0.1/a', 'https://youtube.com:8443/watch', 'file:///a.mp3', 'https://unknown.example/a.mp3']) {

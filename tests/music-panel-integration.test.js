@@ -130,6 +130,9 @@ test('Phát YouTube, SoundCloud và tua bài dùng argv hợp lệ trước khi 
         assert.ok(!args.includes('--no-no-check-certificates'));
         assert.ok(!args.includes('--no-check-certificates'));
         assert.ok(args.includes('--no-playlist'));
+        assert.equal(calls[0].flags.socketTimeout, 15, 'Nguồn lỗi phải thoát nhanh, không để phòng thoại im lặng');
+        assert.equal(calls[0].flags.retries, 3);
+        assert.equal(calls[0].flags.fragmentRetries, 3);
         assert.equal(calls[0].flags.output, '-');
         if (url.includes('youtube.com')) {
             assert.equal(calls[0].flags.format, 'bestaudio[ext=webm]/bestaudio[ext=ogg]/bestaudio/best');

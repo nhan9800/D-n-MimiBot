@@ -3444,11 +3444,13 @@ function getCookieFilePath() {
 const YT_EXTRACTOR_ARGS = 'youtube:player_client=default';
 const YT_DOWNLOAD_EXTRACTOR_ARGS = YT_EXTRACTOR_ARGS;
 
-// 🔁 CHUỖI CLIENT DỰ PHÒNG KHI TẢI DATA
+// 🔁 Client dự phòng khi tải audio. yt-dlp đã gom các client trong cùng một
+// lượt; tách thành nhiều lượt riêng khiến mỗi lỗi 403 phải chờ thêm một lần
+// timeout rồi mới tới SoundCloud, tạo cảm giác bot đứng im trong phòng thoại.
 const YT_DOWNLOAD_CLIENT_FALLBACKS = [
-    YT_DOWNLOAD_EXTRACTOR_ARGS,
-    'youtube:player_client=web_safari',
-    'youtube:player_client=android_vr'
+    // Android Music/Creator và TV Embedded vẫn công bố audio khi web client
+    // yêu cầu xác thực; gom cùng lượt để không chờ ba tiến trình tuần tự.
+    'youtube:player_client=default,android_music,android_creator,tv_embedded'
 ];
 
 function normalizeMusicMatchText(value) {
@@ -5173,9 +5175,12 @@ async function playNextTrack(guildId, opts = {}) {
             noWarnings: true,
             quiet: true,
             noPart: true,
-            socketTimeout: 30,
-            retries: 10,
-            fragmentRetries: 10,
+            // Audio pipe không nên treo hàng chục giây khi URL YouTube hết hạn
+            // hoặc IP host bị từ chối. Hai lượt retry đủ cho một fragment lỗi;
+            // sau đó recovery sẽ thử client gộp hoặc chuyển nguồn có kiểm soát.
+            socketTimeout: 15,
+            retries: 3,
+            fragmentRetries: 3,
             skipUnavailableFragments: true,
             bufferSize: '1024K',
             forceIpv4: true
