@@ -3444,13 +3444,14 @@ function getCookieFilePath() {
 const YT_EXTRACTOR_ARGS = 'youtube:player_client=default';
 const YT_DOWNLOAD_EXTRACTOR_ARGS = YT_EXTRACTOR_ARGS;
 
-// 🔁 Client dự phòng khi tải audio. yt-dlp đã gom các client trong cùng một
-// lượt; tách thành nhiều lượt riêng khiến mỗi lỗi 403 phải chờ thêm một lần
-// timeout rồi mới tới SoundCloud, tạo cảm giác bot đứng im trong phòng thoại.
+// 🔁 Client dự phòng khi tải audio. Chỉ giữ một lượt retry với client hợp lệ
+// để lỗi 403 không kéo dài qua nhiều tiến trình trước khi chuyển nguồn.
 const YT_DOWNLOAD_CLIENT_FALLBACKS = [
-    // Android Music/Creator và TV Embedded vẫn công bố audio khi web client
-    // yêu cầu xác thực; gom cùng lượt để không chờ ba tiến trình tuần tự.
-    'youtube:player_client=default,android_music,android_creator,tv_embedded'
+    // Chỉ dùng tên client có trong yt-dlp hiện hành. Các alias
+    // android_music/android_creator/tv_embedded không phải client hợp lệ và
+    // có thể khiến yt-dlp bỏ qua toàn bộ danh sách format.
+    'youtube:player_client=default',
+    'youtube:player_client=web_embedded'
 ];
 
 function normalizeMusicMatchText(value) {
@@ -3500,6 +3501,24 @@ async function searchSoundcloud(query, hints = {}) {
     } catch {
         return null;
     }
+}
+
+// YouTube thường đặt thêm "(VNN Mix)", "/ Audio Lyrics", "Official Audio"
+// vào tiêu đề. Giữ chúng trong truy vấn SoundCloud khiến kết quả rỗng dù bản
+// nhạc gốc vẫn tồn tại. Dùng một truy vấn gọn cho lần fallback duy nhất để
+// không kéo dài thời gian chờ khi nguồn YouTube bị 403.
+function buildSoundcloudFallbackQuery(title, author = '') {
+    const raw = String(title || '').trim();
+    const cleaned = raw
+        .replace(/\([^)]*(?:mix|official|audio|lyrics|video|mv)[^)]*\)/gi, ' ')
+        .replace(/\[[^\]]*(?:mix|official|audio|lyrics|video|mv)[^\]]*\]/gi, ' ')
+        .replace(/\b(?:official\s+)?(?:audio|lyrics|lyric\s+video|music\s+video|mv|4k)\b/gi, ' ')
+        .replace(/[|/]+/g, ' ')
+        .replace(/\s+/g, ' ')
+        .trim();
+    const artist = String(author || '').replace(/[|/]+/g, ' ').replace(/\s+/g, ' ').trim();
+    const query = [artist, cleaned || raw].filter(Boolean).join(' ').trim();
+    return query.slice(0, 180) || raw.slice(0, 180);
 }
 
 function getYtCommonOpts() {
@@ -5280,7 +5299,9 @@ async function playNextTrack(guildId, opts = {}) {
             const isRetryable = /403|forbidden|Requested format is not available|Sign in to confirm you|bot|confirm you’re not a bot|needs_auth|login|Unable to download|No such file|Frag|timeout|IncompleteRead|HTTP Error 5|Connection reset|timed out|network/i.test(rawErr);
             const nextAttempt = clientAttempt + 1;
             const authRequired = /Sign in to confirm|not a bot|needs_auth|login required|authentication required/i.test(rawErr);
-            if (isYoutubePlayback && isRetryable && !authRequired && nextAttempt < YT_DOWNLOAD_CLIENT_FALLBACKS.length) {
+            const nextClient = YT_DOWNLOAD_CLIENT_FALLBACKS[nextAttempt] || '';
+            const authCompatibleClient = /player_client=web_embedded/i.test(nextClient);
+            if (isYoutubePlayback && isRetryable && (!authRequired || authCompatibleClient) && nextAttempt < YT_DOWNLOAD_CLIENT_FALLBACKS.length) {
                 console.warn(`🔁 [Music] Thử lại client #${nextAttempt} cho "${next.title}".`);
                 playNextTrack(guildId, {
                     ...opts,
@@ -5301,7 +5322,8 @@ async function playNextTrack(guildId, opts = {}) {
             if (isYoutubePlayback && !next.scFallbackAttempted) {
                 console.warn(`🔄 [Music] Nguồn YouTube gặp sự cố ("${next.title}") -> Tự động tìm nguồn phát SoundCloud...`);
                 try {
-                    const scTrack = await searchSoundcloud(next.title, { author: next.author, duration: next.duration });
+                    const scQuery = buildSoundcloudFallbackQuery(next.title, next.author);
+                    const scTrack = await searchSoundcloud(scQuery, { author: next.author, duration: next.duration });
                     if (!isCurrentPlayback()) return;
                     next.scFallbackAttempted = true;
                     if (scTrack && scTrack.url) {

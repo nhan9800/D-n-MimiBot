@@ -96,6 +96,30 @@ test('Xác thực YouTube: timeout cũ không nuốt fallback, chỉ báo thành
     } finally { f.cleanup(); }
 });
 
+test('YouTube yêu cầu xác thực vẫn thử web_embedded một lần trước SoundCloud', async () => {
+    const lookup = deferred();
+    const f = await fixture({ searchSoundcloud: () => lookup.promise });
+    try {
+        f.context.YT_DOWNLOAD_CLIENT_FALLBACKS = [
+            'youtube:player_client=default',
+            'youtube:player_client=web_embedded'
+        ];
+        await f.play({ effectKey: 'bassboost' });
+        const first = f.processes[0];
+        const firstFailure = first.rejectPlayback(new Error('Sign in to confirm you are not a bot'));
+        await tick();
+        assert.equal(f.processes.length, 2);
+        assert.equal(f.processes[1].flags.extractorArgs, 'youtube:player_client=web_embedded');
+        const secondFailure = f.processes[1].rejectPlayback(new Error('HTTP Error 403: Forbidden'));
+        await tick();
+        lookup.resolve({ title: 'Bản thay thế', url: 'https://soundcloud.com/artist/alt', duration: 180 });
+        await Promise.all([firstFailure, secondFailure]);
+        await tick();
+        assert.equal(f.processes.length, 3);
+        assert.equal(f.current.source, 'SoundCloud');
+    } finally { lookup.resolve(null); f.cleanup(); }
+});
+
 test('Mix tua sâu qua pipe có ngân sách hữu hạn; section lỗi không được dùng lại trong phiên', async () => {
     const f = await fixture();
     try {
@@ -204,6 +228,7 @@ async function fixture({ synchronousPlaying = false, demuxProbe, searchSoundclou
         console: { error(...args) { logs.push(args.join(' ')); }, warn() {}, log() {} },
     });
     vm.runInContext(region('function spawnFfmpegAudio(', 'function parseTimeToSeconds('), context);
+    vm.runInContext(region('function buildSoundcloudFallbackQuery(', 'function getYtCommonOpts('), context);
     vm.runInContext(region('function killCurrentProcess(mq)', '// -----------------------------------------------------------------'), context);
     vm.runInContext(region('async function playNextTrack(', '// 🧯 Xử lý bài phát'), context);
     vm.runInContext(region('const MAX_CONSECUTIVE_FAILURES =', '// ⏭️ Bỏ qua bài'), context);

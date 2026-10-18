@@ -7,13 +7,21 @@ const path = require('node:path');
 const vm = require('node:vm');
 const { validateMusicUrl } = require('../musicSources');
 
-test('YouTube recovery gom client trong một lượt để không chờ im lặng qua nhiều lần fallback', () => {
+test('YouTube recovery dùng đúng client hợp lệ và thử web_embedded sau default', () => {
     const source = fs.readFileSync(path.join(__dirname, '..', 'index.js'), 'utf8');
     const block = source.match(/const YT_DOWNLOAD_CLIENT_FALLBACKS = \[([\s\S]*?)\];/);
     assert.ok(block, 'Có danh sách client tải YouTube');
     const clients = [...block[1].matchAll(/youtube:player_client=([^']+)/g)].map(match => match[1]);
-    assert.equal(clients.length, 1);
-    assert.match(clients[0], /^default,android_music,android_creator,tv_embedded$/);
+    assert.deepEqual(clients, ['default', 'web_embedded']);
+});
+
+test('SoundCloud fallback rút gọn hậu tố Remix/Audio Lyrics để tìm đúng bản thay thế', () => {
+    const source = fs.readFileSync(path.join(__dirname, '..', 'index.js'), 'utf8');
+    const start = source.indexOf('function buildSoundcloudFallbackQuery(');
+    const match = source.slice(start).match(/function buildSoundcloudFallbackQuery\([\s\S]*?\n}\s*/);
+    assert.ok(match, 'Có helper rút gọn truy vấn fallback');
+    const buildQuery = vm.runInNewContext(`(${match[0].trim()})`);
+    assert.equal(buildQuery('LƯU NIÊN REMIX (VNN Mix) - JACK - J97 / Audio Lyrics', 'JACK - J97'), 'JACK - J97 LƯU NIÊN REMIX - JACK - J97');
 });
 
 test('Link nhạc được kiểm tra theo hostname thực, không theo chuỗi con', () => {

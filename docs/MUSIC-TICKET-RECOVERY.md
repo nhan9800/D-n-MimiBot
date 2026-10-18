@@ -8,9 +8,9 @@
 
 ## Hành vi sau sửa
 
-- YouTube dùng client mặc định của yt-dlp và bật JavaScript runtime Node hiện có. Không tắt xác thực TLS, không thêm proxy, không đọc cookie trình duyệt người dùng. Khi nguồn yêu cầu xác thực, không lặp cùng lỗi qua nhiều client.
+- YouTube dùng client hợp lệ `default`, thử thêm `web_embedded` một lần khi nguồn yêu cầu xác thực, bật JavaScript runtime Node và ép metadata/stream đi cùng IPv4 để tránh URL googlevideo lệch tuyến. Không tắt xác thực TLS, không thêm proxy, không đọc cookie trình duyệt người dùng. Khi cả hai client đều bị chặn, bot chuyển nguồn có kiểm soát.
 - Mốc tua đến 120 giây mặc định dùng pipe. Tua sâu thử section; section lỗi thì phiên hiện tại giữ pipe. Pipe có ngân sách khởi động theo mốc tua, tối đa 180 giây; nguồn không trả byte khi demux cũng có deadline. Luồng/timer/kết quả cũ không được chuyển hàng đợi mới.
-- SoundCloud nhận đúng tên/thời lượng/ảnh của bản thu thay thế. Chỉ gửi thông báo đã chuyển nguồn sau `AudioPlayerStatus.Playing`; không hứa chất lượng hoặc bản thu giống YouTube. Khi hết bài, chuyển queue theo EOF thực.
+- SoundCloud nhận đúng tên/thời lượng/ảnh của bản thu thay thế; tiêu đề YouTube có hậu tố `Remix`, `VNN Mix`, `Audio Lyrics` được rút gọn trước khi tìm để tránh rỗng kết quả. Chỉ gửi thông báo đã chuyển nguồn sau `AudioPlayerStatus.Playing`; không hứa chất lượng hoặc bản thu giống YouTube. Khi hết bài, chuyển queue theo EOF thực.
 - Ticket kiểm quyền người gọi và bot trước tạo kênh, kiểm quyền hub/archive hiện có. Bot có ghi đè quyền riêng tại hub khóa chat. ID các kênh đã tạo được giữ để thử lại, chỉ ghi bật sau gửi panel thành công. Không tự cấp vai trò/quyền hoặc xóa kênh.
 - Menu album/yêu thích dùng hash toàn bộ URL, không chọn theo index dễ dịch chuyển. Menu cũ chỉ có số được yêu cầu mở lại; không đoán bài theo vị trí mới.
 
