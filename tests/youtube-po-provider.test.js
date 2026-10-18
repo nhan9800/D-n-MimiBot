@@ -186,3 +186,34 @@ test('Stop rồi start mới không bị kết quả install thế hệ trước
     assert.equal((await current).ready, true);
     f.manager.stop();
 });
+
+test('Đếm marker cấp token qua nhiều chunk mà không lưu hoặc log token', async () => {
+    const f = fixture();
+    const pending = f.manager.start(); await turn();
+    const owned = f.children[0];
+    owned.stdout.emit('data', Buffer.from('poToken: FAKE_BEFORE_READY\n'));
+    assert.equal(f.manager.snapshot().tokensIssued, 0);
+    f.ready(owned); await pending;
+    owned.stdout.emit('data', Buffer.from('poTo'));
+    assert.equal(f.manager.snapshot().tokensIssued, 0);
+    owned.stdout.emit('data', Buffer.from('ken: FAKE_PRIVATE_VALUE\n'));
+    assert.equal(f.manager.snapshot().tokensIssued, 1);
+    owned.stdout.emit('data', Buffer.from('poToken:'));
+    owned.stdout.emit('data', Buffer.from(' '));
+    owned.stdout.emit('data', Buffer.from('FAKE_SECOND_VALUE\n' + 'x'.repeat(65536)));
+    assert.equal(f.manager.snapshot().tokensIssued, 2);
+    assert.equal(f.manager.snapshot().tokensIssued, 2, 'Đọc snapshot không đếm lại marker');
+    owned.stderr.emit('data', Buffer.from('poToken: FAKE_STDERR_VALUE\n'));
+    assert.equal(f.manager.snapshot().tokensIssued, 2, 'Chỉ stdout của provider là bằng chứng cấp token');
+    assert.equal(f.logs.filter(line => line === '[YouTubePO] TOKEN_ISSUED').length, 1);
+    assert.doesNotMatch(JSON.stringify([f.logs, f.manager.snapshot()]), /FAKE_|PRIVATE|poToken:/);
+    f.manager.stop();
+    owned.stdout.emit('data', Buffer.from('poToken: FAKE_LATE_VALUE\n'));
+    assert.equal(f.manager.snapshot().tokensIssued, 2, 'Child cũ không thay thống kê sau stop');
+    const restarted = f.manager.start(); await turn();
+    assert.equal(f.manager.snapshot().tokensIssued, 0, 'Mỗi start có bộ đếm mới');
+    f.ready(f.children[1]); await restarted;
+    f.children[1].stdout.emit('data', Buffer.from('poToken: FAKE_NEW_PROCESS\n'));
+    assert.equal(f.manager.snapshot().tokensIssued, 1);
+    f.manager.stop();
+});

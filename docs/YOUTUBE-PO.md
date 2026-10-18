@@ -39,12 +39,21 @@ receipt ngăn tự tải lặp lại mỗi restart. Các test mặc định ch�
 - `ready`: child đúng phiên bản thực sự đã bind loopback và trả ping.
 - `pluginLoaded`: yt-dlp báo đã nạp provider; chưa chứng minh tải được audio.
 - `tokenRequestObserved`: thấy yêu cầu tạo PO Token; chưa chứng minh đã cấp thành công.
+- `tokensIssued`: số lần child provider báo đã sinh token, chỉ đếm marker cố định,
+  không ghi hoặc trả giá trị token. `providerRequestFailed` và `mediaDownloadFailed`
+  giúp tách lỗi gọi provider khỏi lỗi tải audio; `downloadStarted` chưa chứng minh nhận bytes.
 - `ok=true`, `outcome=audio_received`, `bytes>0`: đã nhận dữ liệu có header
   container audio từ YouTube trên máy chạy probe.
 - `http_403`/`auth_required`/`timeout`: lỗi vẫn còn ở lượt kiểm tra đó.
 
 Ping hoặc test trên máy local không chứng minh IP hosting đã hết 403.
 PO Token cũng không bảo đảm vượt mọi giới hạn IP/tài khoản/video của YouTube.
+
+Lượt thử VibeHost ngày 18/10/2026 trên commit `7480240`: provider ready 2.0.2,
+tìm được video `boKJ5XDs_mY`, plugin nạp và có yêu cầu token, nhưng tải audio
+trả HTTP403 sau 18.729 giây với 0 byte. Đây là lỗi còn tồn tại được đo thật;
+chưa được coi là khắc phục chỉ vì cài đặt thành công. Receipt kiểm tra bổ sung
+có phiên bản riêng để giữ bằng chứng lượt đầu và không chạy lại mỗi restart.
 
 ## Tài liệu gốc
 

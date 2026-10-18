@@ -80,6 +80,9 @@ test('Probe dùng options production cho search/audio, chỉ nhận64KiB rồi k
     assert.equal(result.containerHeaderRecognized, true);
     assert.equal(result.pluginLoaded, true);
     assert.equal(result.tokenRequestObserved, true);
+    assert.equal(result.providerRequestFailed, false);
+    assert.equal(result.mediaDownloadFailed, false);
+    assert.equal(result.downloadStarted, false);
     assert.equal(Object.hasOwn(result, 'tokenGenerated'), false, 'Marker Generating chỉ chứng minh đã gửi yêu cầu');
     assert.equal(child.kills, 1);
     assert.equal(child.stdout.listenerCount('data'), 0);
@@ -125,6 +128,8 @@ for (const [message, outcome] of [
         assert.equal(result.outcome, outcome);
         assert.equal(result.videoId, ID);
         assert.equal(result.bytes, 0);
+        assert.equal(result.mediaDownloadFailed, outcome === 'http_403');
+        assert.equal(result.providerRequestFailed, false);
         assert.doesNotMatch(JSON.stringify(result), /private|secret\.test|token=|stderr|ERROR:/);
         assert.equal(child.kills, 1);
         assert.equal(f.timers[0].cleared, true);
@@ -148,6 +153,51 @@ test('Deadline toàn probe tối đa60giây; child/audio treo bị dừng và li
     assert.equal(child.stderr.listenerCount('data'), 0);
     f.timers[0].callback();
     assert.equal(child.kills, 1);
+});
+
+test('Probe phân biệt provider POST lỗi với CDN403, giữ marker qua chunk và không trả nội dung riêng tư', async () => {
+    for (const marker of [
+        'WARNING: [youtube] [pot] bgutil:http: Error reaching POST /get_pot (caused by HTTPError(403)) token=private',
+        'PoTokenProviderError: provider response contained secret-token',
+        'WARNING: [youtube] [pot] bgutil:http failed to generate a PO Token token=private'
+    ]) {
+        const f = fixture();
+        const probing = runYoutubePoProbe({ ...f.dependencies, videoUrl: URL });
+        await tick();
+        const child = f.streams[0];
+        const split = Math.floor(marker.length / 2);
+        child.stderr.write(marker.slice(0, split));
+        child.stderr.write(`${marker.slice(split)}\n`);
+        child.source.reject(new Error('source failed'));
+        const result = await probing;
+        assert.equal(result.ok, false);
+        assert.equal(result.providerRequestFailed, true, marker);
+        assert.equal(result.mediaDownloadFailed, false, '403 từ provider không được coi là lỗi tải CDN');
+        assert.equal(result.downloadStarted, false);
+        assert.doesNotMatch(JSON.stringify(result), /private|secret-token|bgutil:http|\/get_pot|stderr|HTTPError/);
+    }
+});
+
+test('Đã chọn format/Destination nhưng CDN403 vẫn chưa phải audio_received hoặc lỗi provider', async () => {
+    for (const marker of ['[info] abcdefghijk: Downloading 1 format(s): 251\n',
+        '[download] Destination: -\n']) {
+        const f = fixture();
+        const probing = runYoutubePoProbe({ ...f.dependencies, videoUrl: URL });
+        await tick();
+        const child = f.streams[0];
+        child.stderr.write(marker);
+        const message = 'ERROR: unable to download video data: HTTP Error 403: Forbidden https://rr1.googlevideo.com/?pot=private';
+        child.source.reject(Object.assign(new Error('source failed'), { stderr: message }));
+        const result = await probing;
+        assert.equal(result.outcome, 'http_403');
+        assert.equal(result.ok, false);
+        assert.equal(result.downloadStarted, true);
+        assert.equal(result.mediaDownloadFailed, true);
+        assert.equal(result.providerRequestFailed, false);
+        assert.equal(result.bytes, 0);
+        assert.equal(result.containerHeaderRecognized, false);
+        assert.doesNotMatch(JSON.stringify(result), /googlevideo|private|Destination|format\(s\)/);
+    }
 });
 
 test('Search treo nằm trong cùng deadline, kết quả search muộn không được mở child tải nhạc', async () => {

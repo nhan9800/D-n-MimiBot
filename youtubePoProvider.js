@@ -14,6 +14,39 @@ function sanitizedRuntimeEnv(env = process.env) {
 
 function providerError(code) { return Object.assign(new Error(code), { code }); }
 
+// Bộ dò chỉ giữ vị trí khớp của marker cố định, không nối/lưu phần chứa token.
+function fixedMarkerCounter(marker, { wholeLine = false } = {}) {
+    const expected = Buffer.from(marker);
+    const prefix = new Array(expected.length).fill(0);
+    for (let index = 1, matched = 0; index < expected.length; index++) {
+        while (matched && expected[index] !== expected[matched]) matched = prefix[matched - 1];
+        if (expected[index] === expected[matched]) matched++;
+        prefix[index] = matched;
+    }
+    let matched = 0;
+    let invalidLine = false;
+    return chunk => {
+        let count = 0;
+        for (const byte of Buffer.isBuffer(chunk) ? chunk : Buffer.from(chunk)) {
+            if (wholeLine) {
+                if (byte === 10) {
+                    if (!invalidLine && matched === expected.length) count++;
+                    matched = 0;
+                    invalidLine = false;
+                } else if (!invalidLine && byte === 13 && matched === expected.length) {
+                    // Cho phép CRLF mà không lưu nội dung dòng.
+                } else if (!invalidLine && matched < expected.length && byte === expected[matched]) matched++;
+                else invalidLine = true;
+                continue;
+            }
+            while (matched && byte !== expected[matched]) matched = prefix[matched - 1];
+            if (byte === expected[matched]) matched++;
+            if (matched === expected.length) { count++; matched = prefix[matched - 1]; }
+        }
+        return count;
+    };
+}
+
 function requestLoopbackJson(url, { signal } = {}) {
     return new Promise((resolve, reject) => {
         const request = http.get(url, { signal }, response => {
@@ -49,6 +82,7 @@ function createYoutubePoProvider({ install, spawn = spawnProcess, execPath = pro
     let scope = null;
     let clientRevision = 0;
     let errorCode = null;
+    let tokensIssued = 0;
 
     function setState(next, code = null) {
         if ((state === 'ready') !== (next === 'ready')) clientRevision++;
@@ -56,7 +90,7 @@ function createYoutubePoProvider({ install, spawn = spawnProcess, execPath = pro
         errorCode = code;
     }
     function snapshot() {
-        return { state, ready: state === 'ready', version: runtime?.version || null, clientRevision, errorCode };
+        return { state, ready: state === 'ready', version: runtime?.version || null, clientRevision, errorCode, tokensIssued };
     }
     function report(code) {
         const message = `[YouTubePO] ${code}`;
@@ -139,6 +173,7 @@ function createYoutubePoProvider({ install, spawn = spawnProcess, execPath = pro
         if (flight) return flight;
         const owner = newScope();
         scope = owner;
+        tokensIssued = 0;
         setState('installing');
         const task = (async () => {
             try {
@@ -162,11 +197,20 @@ function createYoutubePoProvider({ install, spawn = spawnProcess, execPath = pro
                 if (!owned || !Number.isInteger(owned.pid) || owned.pid <= 0 || !owned.stdout?.on || !owned.stderr?.on) throw providerError('SPAWN_FAILED');
                 let signalBound;
                 const bound = new Promise(resolve => { signalBound = resolve; });
-                let output = '';
                 const marker = `Started POT server (v${VERSION}) on address 127.0.0.1:${port}`;
+                const boundMarkers = fixedMarkerCounter(marker, { wholeLine: true });
+                const issuedMarkers = fixedMarkerCounter('poToken: ');
                 const onOutput = chunk => {
-                    output = (output + chunk.toString()).slice(-4096);
-                    if (output.split(/\r?\n/).some(line => line.trim() === marker)) { output = ''; signalBound(); }
+                    if (scope !== owner || child !== owned || owner.cancelled) return;
+                    if (state === 'starting') {
+                        if (boundMarkers(chunk)) signalBound();
+                    } else if (state === 'ready') {
+                        const issued = issuedMarkers(chunk);
+                        if (issued) {
+                            if (!tokensIssued) report('TOKEN_ISSUED');
+                            tokensIssued = Math.min(Number.MAX_SAFE_INTEGER, tokensIssued + issued);
+                        }
+                    }
                 };
                 // Chỉ nhận marker cố định; không đưa stdout/stderr/token của provider vào log.
                 owned.stdout.on('data', onOutput);
@@ -178,8 +222,6 @@ function createYoutubePoProvider({ install, spawn = spawnProcess, execPath = pro
                 owned.once('exit', onExit);
                 owned.once('error', () => { if (child === owned) fail(owner, 'SPAWN_FAILED'); });
                 await bounded(() => bound, 15000, 'READY_TIMEOUT', owner);
-                owned.stdout.off?.('data', onOutput);
-                owned.stdout.on('data', () => {});
                 const health = await bounded(() => ping(owner), 1500, 'PING_TIMEOUT', owner);
                 if (scope !== owner || owner.cancelled) throw providerError('CANCELLED');
                 if (child !== owned || owned.exitCode != null || owned.killed) throw providerError('PROCESS_EXIT');

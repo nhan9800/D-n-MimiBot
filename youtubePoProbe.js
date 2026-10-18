@@ -54,15 +54,24 @@ function runYoutubePoProbe({ ytDlpExec, getOptions, query = 'JACK J97 Lưu Niên
     let child = null, timer = null, complete = false, intentionalKill = false;
     let phase = 'input', videoId = null, bytes = 0, header = Buffer.alloc(0), stderrTail = '';
     let pluginLoaded = false, tokenRequestObserved = false, searchResolved = false;
+    let providerRequestFailed = false, mediaDownloadFailed = false, downloadStarted = false;
     let forbidden = false, authRequired = false, sourceTimedOut = false;
     const state = () => ({ elapsedMs: Math.max(0, now() - beganAt), bytes, videoId,
-        containerHeaderRecognized: recognizesAudioContainer(header), pluginLoaded, tokenRequestObserved, searchResolved });
+        containerHeaderRecognized: recognizesAudioContainer(header), pluginLoaded, tokenRequestObserved, searchResolved,
+        providerRequestFailed, mediaDownloadFailed, downloadStarted });
     const inspectError = error => {
         // Chỉ dùng để phân loại; không chuyển chuỗi lỗi/execa.stderr ra caller.
         const text = [error?.code, error?.stderr, error?.shortMessage, error?.message].filter(value => typeof value === 'string').join(' ').slice(-16384);
         forbidden ||= /HTTP\s*(?:Error\s*)?403|403\s*:\s*Forbidden|Forbidden/i.test(text);
         authRequired ||= /Sign in to confirm|not a bot|needs_auth|login required|authentication required/i.test(text);
         sourceTimedOut ||= /timed?\s*out|timeout|ETIMEDOUT/i.test(text);
+        // Tách lỗi gọi provider khỏi lỗi tải CDN; marker chỉ là bằng chứng phân loại,
+        // không lưu chuỗi lỗi (plugin có thể kèm token/response trong exception).
+        providerRequestFailed ||= /Error reaching POST\s+(?:https?:\/\/[^\s]*?)?\/get_pot\b|PoTokenProvider(?:Error|RejectedRequest)\b|(?:\[pot\]|bgutil:http)[^\r\n]{0,240}(?:failed|error|not available|unavailable)/i.test(text);
+        mediaDownloadFailed ||= /unable to download (?:video|audio) data[^\r\n]{0,300}(?:HTTP\s*(?:Error\s*)?403|403\s*:\s*Forbidden)/i.test(text);
+        // Chọn format/Destination chưa chứng minh đã có byte audio: bytes và header
+        // vẫn là hai điều kiện riêng để đánh dấu audio_received.
+        downloadStarted ||= /\[download\]\s*Destination:|\bDownloading\s+\d+\s+format(?:\(s\)|s)?\b/i.test(text);
     };
     const errorOutcome = () => authRequired ? 'auth_required' : forbidden ? 'http_403' : sourceTimedOut ? 'timeout' : phase === 'search' ? 'search_failed' : 'source_failed';
 

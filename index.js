@@ -3391,13 +3391,16 @@ function getYoutubePoStatus() {
         elapsedMs: Math.max(0, Math.min(60000, Number(checked.elapsedMs) || 0)),
         pluginLoaded: checked.pluginLoaded === true,
         tokenRequestObserved: checked.tokenRequestObserved === true,
+        providerRequestFailed: checked.providerRequestFailed === true,
+        mediaDownloadFailed: checked.mediaDownloadFailed === true,
+        downloadStarted: checked.downloadStarted === true,
         searchResolved: checked.searchResolved === true
     } : null };
 }
 
 async function verifyFirstYoutubePoSetup() {
     // Một phép thử tải được chủ bot yêu cầu; receipt ngăn lặp lại mỗi restart.
-    const receiptPath = path.join(__dirname, 'data', 'youtube-po', 'verification-2026-10-18-v1.json');
+    const receiptPath = path.join(__dirname, 'data', 'youtube-po', 'verification-2026-10-18-v2.json');
     try {
         if (fs.existsSync(receiptPath)) {
             youtubePoVerification = JSON.parse(fs.readFileSync(receiptPath, 'utf8'));
@@ -3405,7 +3408,8 @@ async function verifyFirstYoutubePoSetup() {
         }
         const result = await runYoutubePoProbe({ ytDlpExec, getOptions: getYtCommonOpts,
             query: 'JACK - J97 LƯU NIÊN Album TAM THÁI TỬ Track No.4', timeoutMs: 45000 });
-        youtubePoVerification = { checkedAt: new Date().toISOString(), ...result };
+        youtubePoVerification = { checkedAt: new Date().toISOString(), ...result,
+            providerTokensIssued: youtubePoProvider.snapshot().tokensIssued || 0 };
         fs.writeFileSync(`${receiptPath}.tmp`, JSON.stringify(youtubePoVerification), { mode: 0o600 });
         fs.renameSync(`${receiptPath}.tmp`, receiptPath);
         console.log(`[YouTubePO] AUDIO_CHECK ${JSON.stringify(youtubePoVerification)}`);
