@@ -68,3 +68,18 @@ test('team dùng server nhà được ứng dụng truyền vào khi hosting ch�
     assert.equal(result.source, 'discord_roles');
     assert.equal(unrelated.calls, 0);
 });
+
+test('team nhận diện role Founder, Developer và Quản trị bằng tên role thật', async t => {
+    const home = fakeGuild('1517068246493429852', [
+        fakeMember('founder', [{ id: 'founder-role', name: '👑 Founder · Nhà sáng lập', position: 14 }]),
+        fakeMember('developer', [{ id: 'developer-role', name: '💻 Developer', position: 12 }]),
+        fakeMember('admin', [{ id: 'admin-role', name: '🛡️ Quản trị', position: 13 }])
+    ]);
+    const request = await fixture(t, [home], {}, { homeGuildId: '1517068246493429852' });
+    const result = await request();
+    assert.deepEqual(result.team.map(member => ({ id: member.id, group: member.group, isDev: member.isDev })), [
+        { id: 'founder', group: 'core', isDev: false },
+        { id: 'developer', group: 'core', isDev: true },
+        { id: 'admin', group: 'admin', isDev: false }
+    ]);
+});
