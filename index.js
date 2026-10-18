@@ -3400,7 +3400,7 @@ function getYoutubePoStatus() {
 
 async function verifyFirstYoutubePoSetup() {
     // Một phép thử tải được chủ bot yêu cầu; receipt ngăn lặp lại mỗi restart.
-    const receiptPath = path.join(__dirname, 'data', 'youtube-po', 'verification-2026-10-18-v2.json');
+    const receiptPath = path.join(__dirname, 'data', 'youtube-po', 'verification-2026-10-18-v3.json');
     try {
         if (fs.existsSync(receiptPath)) {
             youtubePoVerification = JSON.parse(fs.readFileSync(receiptPath, 'utf8'));

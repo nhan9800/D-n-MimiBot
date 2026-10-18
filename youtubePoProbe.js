@@ -67,7 +67,7 @@ function runYoutubePoProbe({ ytDlpExec, getOptions, query = 'JACK J97 Lưu Niên
         sourceTimedOut ||= /timed?\s*out|timeout|ETIMEDOUT/i.test(text);
         // Tách lỗi gọi provider khỏi lỗi tải CDN; marker chỉ là bằng chứng phân loại,
         // không lưu chuỗi lỗi (plugin có thể kèm token/response trong exception).
-        providerRequestFailed ||= /Error reaching POST\s+(?:https?:\/\/[^\s]*?)?\/get_pot\b|PoTokenProvider(?:Error|RejectedRequest)\b|(?:\[pot\]|bgutil:http)[^\r\n]{0,240}(?:failed|error|not available|unavailable)/i.test(text);
+        providerRequestFailed ||= /Error reaching POST\s+(?:https?:\/\/[^\s]*?)?\/get_pot\b|PoTokenProvider(?:Error|RejectedRequest)\b|(?:\[pot:bgutil:http\]|\[pot\]\s+bgutil:http(?:-\d+(?:\.\d+)*)?\b)[^\r\n]{0,240}(?:failed|error|not available|unavailable)/i.test(text);
         mediaDownloadFailed ||= /unable to download (?:video|audio) data[^\r\n]{0,300}(?:HTTP\s*(?:Error\s*)?403|403\s*:\s*Forbidden)/i.test(text);
         // Chọn format/Destination chưa chứng minh đã có byte audio: bytes và header
         // vẫn là hai điều kiện riêng để đánh dấu audio_received.

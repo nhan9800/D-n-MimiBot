@@ -200,6 +200,19 @@ test('Đã chọn format/Destination nhưng CDN403 vẫn chưa phải audio_rece
     }
 });
 
+test('Danh sách provider dự phòng unavailable không bị gán nhầm thành lỗi HTTP provider', async () => {
+    const f = fixture();
+    const probing = runYoutubePoProbe({ ...f.dependencies, videoUrl: URL });
+    await tick();
+    f.streams[0].stderr.write('[debug] [youtube] [pot] PO Token Providers: bgutil:http-2.0.2 (external), bgutil:script-deno-2.0.2 (external, unavailable)\n');
+    f.streams[0].stderr.write('ERROR: unable to download video data: HTTP Error 403: Forbidden\n');
+    f.streams[0].emit('close', 1);
+    const result = await probing;
+    assert.equal(result.pluginLoaded, true);
+    assert.equal(result.providerRequestFailed, false);
+    assert.equal(result.mediaDownloadFailed, true);
+});
+
 test('Search treo nằm trong cùng deadline, kết quả search muộn không được mở child tải nhạc', async () => {
     const pendingSearch = deferred();
     const f = fixture(pendingSearch.promise);
