@@ -71,6 +71,10 @@ function fixedFailure(error, phase) {
     if (code === 'CHECK_TIMEOUT') return 'timeout';
     if (code === 'CHECK_ABORTED' || code === 'MUSIC_DIRECT_ABORTED') return 'aborted';
     if (code === 'MUSIC_DIRECT_EOF') return 'candidate_eof';
+    if (code === 'MUSIC_DIRECT_403') return 'source_http403';
+    if (code === 'MUSIC_DIRECT_NETWORK') return 'source_network';
+    if (code === 'MUSIC_DIRECT_FORMAT') return 'format_unavailable';
+    if (code === 'MUSIC_DIRECT_PROCESSOR') return 'audio_processor';
     const fixed = classifyMusicSourceError(error).code;
     return ({ HTTP_403: 'source_http403', AUTH_REQUIRED: 'source_auth_required', NETWORK: 'source_network',
         TIMEOUT: 'timeout', FORMAT_UNAVAILABLE: 'format_unavailable', AUDIO_PROCESSOR: 'audio_processor' })[fixed]

@@ -20,6 +20,15 @@ function candidateError(message, code = 'MUSIC_DIRECT_FAILED') {
     return error;
 }
 
+function directFailureCode(message) {
+    const text = String(message || '');
+    if (/403|forbidden/i.test(text)) return 'MUSIC_DIRECT_403';
+    if (/timed? out|timeout|network|connection|I\/O error|input\/output/i.test(text)) return 'MUSIC_DIRECT_NETWORK';
+    if (/Invalid data|demux|format|Error opening input|No such file/i.test(text)) return 'MUSIC_DIRECT_FORMAT';
+    if (/filter|FFmpeg/i.test(text)) return 'MUSIC_DIRECT_PROCESSOR';
+    return 'MUSIC_DIRECT_FAILED';
+}
+
 function directArgs(media, seekSec, effectFilter) {
     let url;
     try { url = new URL(media?.url); } catch { throw candidateError('Nguồn âm thanh trực tiếp không hợp lệ.'); }
@@ -105,7 +114,7 @@ function createDirectAudioCandidate({ media, seekSec = 0, effectFilter = '', ffm
     };
     const failStream = error => {
         const text = safeAudioError(error?.message);
-        rejectStartup(candidateError(text));
+        rejectStartup(candidateError(text, directFailureCode(text)));
         finish(null, text);
     };
     const hasPacket = () => Boolean(resource?.playStream?.readableLength > 0);
@@ -154,7 +163,7 @@ function createDirectAudioCandidate({ media, seekSec = 0, effectFilter = '', ffm
 
     listen(process, 'error', error => {
         const text = safeAudioError(error?.message);
-        rejectStartup(candidateError(text));
+        rejectStartup(candidateError(text, directFailureCode(text)));
         finish(null, text);
     });
     listen(process, 'close', code => {
