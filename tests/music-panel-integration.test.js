@@ -83,6 +83,7 @@ test('Tùy chọn metadata tạo argv yt-dlp hợp lệ, giữ cookie và xác t
     assert.equal(common.cookies, '/tmp/cookies-test.txt');
     assert.equal(common.extractorArgs, 'youtube:player_client=default');
     assert.equal(common.jsRuntimes, 'node');
+    assert.equal(common.forceIpv4, true, 'Metadata và stream phải dùng cùng tuyến IPv4 để tránh URL googlevideo bị 403');
     await vm.runInContext('searchSoundcloud("Bài thử")', context);
     await vm.runInContext('resolveDirectUrl("https://soundcloud.com/artist/track")', context);
     for (const flags of [common, ...calls.map(call => call.flags)]) {
@@ -133,6 +134,7 @@ test('Phát YouTube, SoundCloud và tua bài dùng argv hợp lệ trước khi 
         assert.equal(calls[0].flags.socketTimeout, 15, 'Nguồn lỗi phải thoát nhanh, không để phòng thoại im lặng');
         assert.equal(calls[0].flags.retries, 3);
         assert.equal(calls[0].flags.fragmentRetries, 3);
+        assert.equal(calls[0].flags.forceIpv4, true);
         assert.equal(calls[0].flags.output, '-');
         if (url.includes('youtube.com')) {
             assert.equal(calls[0].flags.format, 'bestaudio[ext=webm]/bestaudio[ext=ogg]/bestaudio/best');

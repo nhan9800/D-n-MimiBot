@@ -3509,7 +3509,13 @@ function getYtCommonOpts() {
         noWarnings: true,
         preferFreeFormats: true,
         jsRuntimes: 'node',
-        extractorArgs: YT_EXTRACTOR_ARGS
+        extractorArgs: YT_EXTRACTOR_ARGS,
+        // YouTube signs the googlevideo URL with the address used while
+        // extracting it. Keep metadata extraction on the same IPv4 path as
+        // the streaming process; otherwise dual-stack hosts can extract over
+        // IPv6 and download over IPv4 (or vice versa), which is rejected as
+        // HTTP 403 even though the video is public and playable.
+        forceIpv4: true
     };
     const c = getCookieFilePath();
     if (c) opts.cookies = c;
