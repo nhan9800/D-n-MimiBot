@@ -621,19 +621,21 @@ function startInternalApi(deps) {
                         // nghĩa để không đưa toàn bộ thành viên lên website, đồng
                         // thời nhận được các tên role cũ bằng tiếng Anh.
                         const matchingRole = member.roles.cache
-                            .filter(role => /bqt|admin|quản trị|quản lý|điều hành|nhân sự|manager|moderator|mod\b|support|staff|dev\b|developer|owner|chủ server|lead|helper|trợ lý|team|partner|đối tác/i.test(role.name))
+                            .filter(role => /founder|nhà sáng lập|bqt|admin|quản trị|quản lý|điều hành|nhân sự|manager|moderator|mod\b|support|staff|dev\b|developer|owner|chủ server|lead|helper|trợ lý|team|partner|đối tác/i.test(role.name))
                             .sort((a, b) => b.position - a.position)
                             .first();
                         if (!matchingRole) continue;
                         const isPartner = /partner|đối tác/i.test(matchingRole.name);
-                        const isAdmin = /bqt|admin|quản trị|quản lý|điều hành|nhân sự|manager|moderator|mod\b|support|staff|dev\b|developer|owner|chủ server|lead|helper|trợ lý|team/i.test(matchingRole.name);
+                        const isFounder = /founder|nhà sáng lập/i.test(matchingRole.name);
+                        const isDev = /developer|dev\b/i.test(matchingRole.name);
+                        const isAdmin = /bqt|admin|quản trị|quản lý|điều hành|nhân sự|manager|moderator|mod\b|support|staff|owner|chủ server|lead|helper|trợ lý|team/i.test(matchingRole.name);
                         addMember(member, {
                             role: matchingRole.name,
                             color: matchingRole.hexColor && matchingRole.hexColor !== '#000000' ? matchingRole.hexColor : '#9b59b6',
                             description: 'Thành viên đội ngũ theo vai trò tại máy chủ hỗ trợ.',
-                            group: isPartner ? 'partner' : isAdmin ? 'admin' : 'community',
-                            priority: isPartner ? 6 : isAdmin ? 3 : 5,
-                            isDev: false
+                            group: isFounder || isDev ? 'core' : isPartner ? 'partner' : isAdmin ? 'admin' : 'community',
+                            priority: isFounder ? 1 : isDev ? 2 : isPartner ? 6 : isAdmin ? 3 : 5,
+                            isDev
                         });
                     }
                 }
