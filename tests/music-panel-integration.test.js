@@ -77,7 +77,7 @@ test('Tùy chọn metadata tạo argv yt-dlp hợp lệ, giữ cookie và xác t
     });
     vm.runInContext(region('const YT_EXTRACTOR_ARGS =', 'async function searchSoundcloud('), context);
     vm.runInContext(region('function getYtCommonOpts()', 'const YT_COMMON_OPTS'), context);
-    vm.runInContext(region('async function searchSoundcloud(', 'function getYtCommonOpts('), context);
+    vm.runInContext(region('function normalizeMusicMatchText(', 'function getYtCommonOpts('), context);
     vm.runInContext(region('async function resolveDirectUrl(', '// Ưu tiên: YouTube'), context);
     const common = vm.runInContext('getYtCommonOpts()', context);
     assert.equal(common.cookies, '/tmp/cookies-test.txt');
@@ -132,7 +132,7 @@ test('Phát YouTube, SoundCloud và tua bài dùng argv hợp lệ trước khi 
         assert.ok(args.includes('--no-playlist'));
         assert.equal(calls[0].flags.output, '-');
         if (url.includes('youtube.com')) {
-            assert.equal(calls[0].flags.format, 'bestaudio[acodec=opus]/bestaudio[ext=webm]/bestaudio');
+            assert.equal(calls[0].flags.format, 'bestaudio[ext=webm]/bestaudio[ext=ogg]/bestaudio/best');
             assert.equal(calls[0].flags.extractorArgs, 'youtube:player_client=android,ios');
         } else {
             assert.equal(calls[0].flags.format, 'bestaudio/best');
@@ -151,6 +151,18 @@ test('Phát YouTube, SoundCloud và tua bài dùng argv hợp lệ trước khi 
         process.stdout.destroy(); process.stderr.destroy(); mq.currentBuffer.destroy();
         mq.currentFfmpeg?.stdout.destroy(); mq.currentFfmpeg?.stderr.destroy();
     }
+});
+
+test('SoundCloud fallback ưu tiên đúng bản theo tên, nghệ sĩ và thời lượng, bỏ bản slowed đầu tiên', async () => {
+    const context = vm.createContext({
+        ytDlpExec: async () => ({ entries: [
+            { title: 'J97 Lưu Niên slowed + reverb', duration: 205, webpage_url: 'https://soundcloud.com/a/slowed' },
+            { title: 'J97 Lưu Niên', uploader: 'J97', duration: 194, webpage_url: 'https://soundcloud.com/a/original' }
+        ] })
+    });
+    vm.runInContext(region('function normalizeMusicMatchText(', 'function getYtCommonOpts('), context);
+    const result = await vm.runInContext('searchSoundcloud("J97 Lưu Niên", { author: "J97", duration: 194 })', context);
+    assert.equal(result.url, 'https://soundcloud.com/a/original');
 });
 
 test('Refresh helper định tuyến guild rõ ràng, không đệ quy hoặc cập nhật guild khác', async () => {

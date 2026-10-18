@@ -101,7 +101,7 @@ test('Nguồn chưa trả byte cho demux vẫn có timeout và không bỏ treo 
         const start = f.play();
         await tick();
         const deadline = f.timers.find(timer => !timer.cleared);
-        assert.equal(deadline.delay, 45000);
+        assert.equal(deadline.delay, 20000);
         deadline.callback(); await tick();
         assert.equal(f.processes[0].killed, true);
         assert.equal(f.mq.current, f.queued);

@@ -3451,15 +3451,42 @@ const YT_DOWNLOAD_CLIENT_FALLBACKS = [
     'youtube:player_client=android_vr'
 ];
 
-async function searchSoundcloud(query) {
+function normalizeMusicMatchText(value) {
+    return String(value || '').normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase()
+        .replace(/[^a-z0-9]+/g, ' ').trim();
+}
+
+function chooseSoundcloudResult(entries, query, { author = '', duration = 0 } = {}) {
+    const queryText = normalizeMusicMatchText(query);
+    const queryTokens = new Set(queryText.split(/\s+/).filter(token => token.length >= 2));
+    const authorText = normalizeMusicMatchText(author);
+    const wantsAlternate = /\b(remix|cover|karaoke|instrumental|slowed|slow(ed)?|reverb|nightcore|sped)\b/i.test(String(query || ''));
+    return entries.map((item, index) => {
+        const titleText = normalizeMusicMatchText(`${item?.title || ''} ${item?.uploader || item?.artist || ''}`);
+        const titleTokens = new Set(titleText.split(/\s+/).filter(token => token.length >= 2));
+        let score = Math.max(0, 12 - index);
+        for (const token of queryTokens) if (titleTokens.has(token)) score += 4;
+        if (authorText && titleText.includes(authorText)) score += 8;
+        const itemDuration = Number(item?.duration) || 0;
+        if (duration > 0 && itemDuration > 0) {
+            const delta = Math.abs(itemDuration - duration);
+            score += delta <= 8 ? 12 : delta <= 25 ? 4 : -Math.min(10, Math.floor(delta / 30));
+        }
+        if (!wantsAlternate && /\b(remix|cover|karaoke|instrumental|slowed|slow(ed)?|reverb|nightcore|sped)\b/i.test(String(item?.title || ''))) score -= 12;
+        return { item, score };
+    }).sort((a, b) => b.score - a.score)[0]?.item || null;
+}
+
+async function searchSoundcloud(query, hints = {}) {
     if (!ytDlpExec) return null;
     try {
-        const info = await ytDlpExec(`scsearch1:${query}`, {
+        const info = await ytDlpExec(`scsearch5:${query}`, {
             dumpSingleJson: true,
             skipDownload: true,
             noWarnings: true
-        }, { timeout: 12000 });
-        const item = info?.entries?.[0] || info;
+        }, { timeout: 10000 });
+        const entries = Array.isArray(info?.entries) ? info.entries.filter(Boolean) : (info ? [info] : []);
+        const item = chooseSoundcloudResult(entries, query, hints);
         if (!item || (!item.url && !item.webpage_url)) return null;
         return {
             title: item.title || query,
@@ -3531,7 +3558,7 @@ function prettySourceName(raw) {
 // kết quả riêng tư / giới hạn độ tuổi / cần đăng nhập, chỉ trả về kết quả đầu tiên phát được.
 // ⏱️ Timeout cho mỗi lệnh yt-dlp lấy metadata: nếu YouTube/host chậm hoặc treo, execa sẽ
 // kill tiến trình và ném lỗi thay vì để "Đang tìm bài hát..." kẹt vô hạn.
-const YT_META_TIMEOUT_MS = 20000;
+const YT_META_TIMEOUT_MS = 15000;
 
 async function searchYoutube(query) {
     const isDirectUrl = YT_URL_REGEX.test(query.trim());
@@ -5120,7 +5147,9 @@ async function playNextTrack(guildId, opts = {}) {
 
     // Tính cả thời gian chờ demux. Pipe phải giải mã phần bị tua qua, nên cho
     // thêm thời gian có giới hạn với mix dài thay vì luôn ngắt ở 45 giây.
-    const startupBudgetMs = seekTransport === 'pipe' ? Math.min(180000, 45000 + seekSec * 100) : 45000;
+    const startupBudgetMs = seekSec === 0
+        ? 20000
+        : seekTransport === 'pipe' ? Math.min(180000, 45000 + seekSec * 100) : 45000;
     transitionSafety = setTimeout(() => {
         if (!isCurrentPlayback() || sourceRecovering || playbackStarted) return;
         cleanupTransition();
@@ -5135,10 +5164,11 @@ async function playNextTrack(guildId, opts = {}) {
         // lỗi tạo file tạm '--Frag*' bị No such file or directory trên stream HLS/DASH dài.
         const ytdlOpts = {
             output: '-',
-            // YouTube ưu tiên Opus/WebM để Discord chuyển thẳng gói nhẹ hơn.
-            // SoundCloud giữ selector chung của yt-dlp; selector Opus của YouTube
-            // có thể làm nguồn SoundCloud bị trả format rỗng.
-            format: isYoutubePlayback ? 'bestaudio[acodec=opus]/bestaudio[ext=webm]/bestaudio' : 'bestaudio/best',
+            // Ưu tiên WebM/Ogg nhưng luôn có fallback `bestaudio/best`. Không khóa
+            // acodec=opus vì một số YouTube client trả metadata nhưng không công bố
+            // format Opus, khiến yt-dlp báo Requested format is not available rồi
+            // chuyển nhầm sang SoundCloud.
+            format: isYoutubePlayback ? 'bestaudio[ext=webm]/bestaudio[ext=ogg]/bestaudio/best' : 'bestaudio/best',
             noPlaylist: true,
             noWarnings: true,
             quiet: true,
@@ -5249,7 +5279,7 @@ async function playNextTrack(guildId, opts = {}) {
             if (isYoutubePlayback && !next.scFallbackAttempted) {
                 console.warn(`🔄 [Music] Nguồn YouTube gặp sự cố ("${next.title}") -> Tự động tìm nguồn phát SoundCloud...`);
                 try {
-                    const scTrack = await searchSoundcloud(next.title);
+                    const scTrack = await searchSoundcloud(next.title, { author: next.author, duration: next.duration });
                     if (!isCurrentPlayback()) return;
                     next.scFallbackAttempted = true;
                     if (scTrack && scTrack.url) {
