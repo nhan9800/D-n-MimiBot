@@ -4496,9 +4496,10 @@ function buildLevelBar(current, needed, length = 12) {
 
 const AUDIO_EFFECTS = {
     none:      { label: 'Tắt',            af: null },
-    // Limiter ngắn, không dùng dynaudnorm phải chờ ~6giây audio tương lai.
-    // Chừa headroom cho nút âm lượng tối đa150%, tránh bass lớn bị clip.
-    bassboost: { label: 'Bassboost',      af: 'bass=g=8:f=110:w=0.6,alimiter=limit=0.63:attack=5:release=80:level=0:latency=1' },
+    // Filter bass đơn giản, tương thích cả FFmpeg cũ trên host. Tránh
+    // alimiter latency=1 vì một số bản build làm tiến trình HLS thoát -11
+    // khi đổi hiệu ứng giữa chừng; volume chừa headroom cho nút âm lượng.
+    bassboost: { label: 'Bassboost',      af: 'bass=g=6:f=110:w=0.6,volume=0.92' },
     nightcore: { label: 'Nightcore',      af: 'aresample=48000,asetrate=48000*1.25,aresample=48000,atempo=1.0' },
     lofi:      { label: 'Chill (Lofi)',   af: 'atempo=0.9,bass=g=5,treble=g=-3,aresample=48000' },
     vaporwave: { label: 'Vaporwave',      af: 'aresample=48000,asetrate=48000*0.85,aresample=48000,atempo=1.0' },

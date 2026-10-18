@@ -75,6 +75,17 @@ function fixedFailure(error, phase) {
     if (code === 'MUSIC_DIRECT_NETWORK') return 'source_network';
     if (code === 'MUSIC_DIRECT_FORMAT') return 'format_unavailable';
     if (code === 'MUSIC_DIRECT_PROCESSOR') return 'audio_processor';
+    // Một số lỗi khởi động bị bọc lại thành MUSIC_DIRECT_FAILED sau khi
+    // stream đóng rất sớm. Chỉ đọc thông báo đã được rút gọn, không đọc stderr
+    // thô, để receipt vẫn chỉ chứa nhóm lỗi an toàn và hữu ích.
+    let message = '';
+    try { message = typeof error?.message === 'string' ? error.message : ''; } catch { /* lỗi bên ngoài */ }
+    if (/HTTP 403|từ chối tải/i.test(message)) return 'source_http403';
+    if (/yêu cầu xác thực|xác thực lại/i.test(message)) return 'source_auth_required';
+    if (/phản hồi quá chậm|kết nối.*gián đoạn/i.test(message)) return 'source_network';
+    if (/định dạng|không đọc được/i.test(message)) return 'format_unavailable';
+    if (/bộ xử lý|FFmpeg/i.test(message)) return 'audio_processor';
+    if (/kết thúc trước gói/i.test(message)) return 'candidate_eof';
     const fixed = classifyMusicSourceError(error).code;
     return ({ HTTP_403: 'source_http403', AUTH_REQUIRED: 'source_auth_required', NETWORK: 'source_network',
         TIMEOUT: 'timeout', FORMAT_UNAVAILABLE: 'format_unavailable', AUDIO_PROCESSOR: 'audio_processor' })[fixed]
