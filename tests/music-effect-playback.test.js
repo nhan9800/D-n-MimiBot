@@ -152,7 +152,7 @@ test('Nguồn chưa trả byte cho demux vẫn có timeout và không bỏ treo 
     } finally { f.cleanup(); }
 });
 
-test('Timeout nguồn dùng chung22giây giữa client, hủy child cũ rồi mới fallback SoundCloud', async () => {
+test('Timeout nguồn dùng chung16giây giữa client, hủy child cũ rồi mới fallback SoundCloud', async () => {
     let searches = 0;
     const f = await fixture({ searchSoundcloud: async () => {
         searches++;
@@ -179,8 +179,8 @@ test('Timeout nguồn dùng chung22giây giữa client, hủy child cũ rồi m�
 
         const second = f.processes[1];
         const secondDeadline = f.timers.find(timer => !timer.cleared);
-        assert.equal(secondDeadline.delay, 10000, 'Lượt2 chỉ còn10giây, không được nhận thêm12giây');
-        assert.equal(f.clock.now + secondDeadline.delay, beganAt + 22000);
+        assert.equal(secondDeadline.delay, 4000, 'Lượt2 chỉ còn4giây, không được nhận thêm12giây');
+        assert.equal(f.clock.now + secondDeadline.delay, beganAt + 16000);
         f.clock.now += secondDeadline.delay;
         secondDeadline.callback(); await tick();
         assert.equal(second.killed, true);
@@ -211,7 +211,7 @@ test('Chọn nguồn YouTube không tự đổi SoundCloud khi hết deadline ch
             for (let attempt = 0; attempt < 2; attempt++) {
                 if (failure === 'timeout') {
                     const deadline = f.timers.find(timer => !timer.cleared);
-                    assert.equal(deadline.delay, attempt === 0 ? 12000 : 10000);
+                    assert.equal(deadline.delay, attempt === 0 ? 12000 : 4000);
                     f.clock.now += deadline.delay;
                     deadline.callback();
                 } else await f.processes[attempt].rejectPlayback(new Error('HTTP Error 403: Forbidden'));
@@ -272,7 +272,7 @@ test('YouTube đã Playing60giây gặp403 nhận ngân sách retry22giây mới
 
         assert.equal(f.processes.length, 2, 'Không dùng deadline của thời điểm bắt đầu bài60giây trước');
         assert.equal(f.processes[1].flags.extractorArgs, 'youtube:player_client=web_embedded');
-        assert.equal(attempts[1].sourceDeadline, failureAt + 22000);
+        assert.equal(attempts[1].sourceDeadline, failureAt + 16000);
         assert.equal(attempts[1].seekSec, 60);
         assert.equal(f.processes[1].flags.downloadSections, '*60-inf');
         assert.equal(f.mq.seekBase, 60);
@@ -440,7 +440,7 @@ test('PO sẵn sàng: packet đến giây17 trong cửa sổ22giây vẫn phát 
         const starting = f.play({ effectKey: 'none', seekSec: 0, seekTransport: 'pipe' });
         await tick();
         const deadline = f.timers.find(timer => !timer.cleared);
-        assert.equal(deadline.delay, 22000, 'PO cold challenge dùng trọn deadline chung, không bị cắt ở12giây');
+        assert.equal(deadline.delay, 16000, 'PO cold challenge dùng trọn deadline chung, không bị cắt ở12giây');
         assert.equal(f.processes.length, 1);
         assert.equal(f.processes[0].flags.downloadSections, undefined);
         f.clock.now += 17000;
@@ -475,7 +475,7 @@ test('PO sẵn sàng: hết22giây dừng nguồn đúng một lần, YouTube t�
         await tick();
         const firstSource = f.processes[0];
         const deadline = f.timers.find(timer => !timer.cleared);
-        assert.equal(deadline.delay, 22000);
+        assert.equal(deadline.delay, 16000);
         f.clock.now += deadline.delay;
         deadline.callback(); await tick();
         assert.equal(firstSource.killed, true);
@@ -498,7 +498,7 @@ test('PO sẵn sàng: hết22giây dừng nguồn đúng một lần, YouTube t�
     } finally { packet.resolve({ stream: f.processes[0]?.stdout, type: 'opus' }); f.cleanup(); }
 });
 
-test('PO sẵn sàng:403 nhanh chỉ cấp retry phần còn lại của22giây, không khởi tạo deadline mới', async () => {
+test('PO sẵn sàng:403 nhanh chỉ cấp retry phần còn lại của16giây, không khởi tạo deadline mới', async () => {
     let searches = 0;
     const f = await fixture({ searchSoundcloud: async () => { searches++; return null; },
         youtubePoProvider: { options: extractorArgs => ({ extractorArgs }), snapshot: () => ({ ready: true, clientRevision: 1 }) }
@@ -509,15 +509,15 @@ test('PO sẵn sàng:403 nhanh chỉ cấp retry phần còn lại của22giây,
         const beganAt = f.clock.now;
         await f.play({ effectKey: 'none', seekSec: 0, seekTransport: 'pipe' });
         const firstDeadline = f.timers.find(timer => !timer.cleared);
-        assert.equal(firstDeadline.delay, 22000);
+        assert.equal(firstDeadline.delay, 16000);
         f.clock.now += 3000;
         await f.processes[0].rejectPlayback(new Error('HTTP Error 403: Forbidden')); await tick();
         assert.equal(f.processes.length, 2);
         assert.equal(firstDeadline.cleared, true);
         assert.equal(f.processes[1].flags.extractorArgs, 'youtube:player_client=web_embedded');
         const secondDeadline = f.timers.find(timer => !timer.cleared);
-        assert.equal(secondDeadline.delay, 19000);
-        assert.equal(f.clock.now + secondDeadline.delay, beganAt + 22000);
+        assert.equal(secondDeadline.delay, 13000);
+        assert.equal(f.clock.now + secondDeadline.delay, beganAt + 16000);
         assert.equal(f.mq.current, f.current);
         assert.deepEqual(f.mq.queue, [f.queued]);
         f.clock.now += secondDeadline.delay;

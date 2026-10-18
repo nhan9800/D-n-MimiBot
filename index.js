@@ -5402,7 +5402,10 @@ async function playNextTrack(guildId, opts = {}) {
     let recoverSourceFailure;
     // Chia sẻ một ngân sách giữa các client YouTube, không bắt người nghe
     // chờ lại đủ một deadline mới cho từng lần thử.
-    let sourceDeadline = opts.sourceDeadline || Date.now() + 22000;
+    // Giới hạn lượt thử YouTube đầu để phòng voice không im lặng quá lâu khi
+    // CDN/PO đã mất nhiều giây mà chưa có byte đầu; lượt fallback SoundCloud
+    // vẫn chạy trong cùng một coordinator, không cộng thêm một deadline mới.
+    let sourceDeadline = opts.sourceDeadline || Date.now() + 16000;
     const cleanupTransition = () => {
         if (transitionSafety) clearTimeout(transitionSafety);
         if (onPlayingClear) mq.player.off(voiceLib.AudioPlayerStatus.Playing, onPlayingClear);
@@ -5473,7 +5476,7 @@ async function playNextTrack(guildId, opts = {}) {
     const startupBudgetMs = seekSec === 0
         // PO có thể cần challenge mới cho từng video. Dùng trọn ngân sách hiện có
         // cho client đầu thay vì kill ở12s rồi bắt client khác làm lại từ đầu.
-        ? Math.max(1, Math.min(isYoutubePlayback && youtubePoProvider.snapshot().ready ? 22000 : 12000,
+        ? Math.max(1, Math.min(isYoutubePlayback && youtubePoProvider.snapshot().ready ? 16000 : 12000,
             sourceDeadline - Date.now()))
         : seekTransport === 'pipe' ? Math.min(180000, 45000 + seekSec * 100) : 45000;
     transitionSafety = setTimeout(() => {
@@ -5556,7 +5559,7 @@ async function playNextTrack(guildId, opts = {}) {
             if (!isCurrentPlayback() || failureStarted || sourceRecovering) return;
             // Lỗi giữa bài cần một cửa sổ phục hồi mới; chỉ các lần thử chưa
             // phát được packet nào mới chia sẻ deadline khởi động ban đầu.
-            if (playbackStarted) sourceDeadline = Date.now() + 22000;
+            if (playbackStarted) sourceDeadline = Date.now() + 16000;
             cleanupTransition();
             sourcePending = false;
             sourceRecovering = true;
