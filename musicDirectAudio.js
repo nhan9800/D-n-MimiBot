@@ -46,9 +46,19 @@ function directArgs(media, seekSec, effectFilter) {
         }
         args.push(key === 'user-agent' ? '-user_agent' : '-referer', value);
     }
-    // Fastseek cho phép demuxer dùng chỉ mục/TOC qua HTTP Range. Chỉ đặt -ss
-    // chưa đủ với MP3: FFmpeg vẫn có thể đọc/bỏ toàn bộ phần đầu bài.
-    args.push('-fflags', '+fastseek', '-ss', String(seekSec), '-i', media.url, '-vn', '-sn', '-dn', '-ac', '2', '-ar', '48000');
+    // Fastseek trước input rất nhanh với file/HTTP có chỉ mục (YouTube WebM,
+    // MP3). SoundCloud hiện cấp playlist HLS AAC: nhiều playlist không hỗ trợ
+    // input-seek và FFmpeg sẽ thoát mã 0 nhưng không phát ra PCM. Với HLS,
+    // đặt -ss sau -i để demuxer đọc segment rồi cắt ở output; vẫn giữ seek
+    // trước input cho nguồn có Range để không quay lại lỗi load chậm.
+    const isHls = /m3u8|hls/i.test(String(media.protocol || '')) || /\.m3u8(?:\?|$)/i.test(url.pathname + url.search);
+    if (isHls) {
+        args.push('-i', media.url);
+        if (seekSec > 0) args.push('-ss', String(seekSec));
+    } else {
+        args.push('-fflags', '+fastseek', '-ss', String(seekSec), '-i', media.url);
+    }
+    args.push('-vn', '-sn', '-dn', '-ac', '2', '-ar', '48000');
     if (effectFilter) args.push('-af', effectFilter);
     args.push('-c:a', 'pcm_s16le', '-f', 's16le', 'pipe:1');
     return args;

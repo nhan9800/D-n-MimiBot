@@ -87,6 +87,19 @@ test('FFmpeg tua tại đầu vào HTTPS, giữ bộ lọc và chỉ nhận hai 
     assert.equal(candidate.pcmChunker.maxChunkBytes, 7680);
 });
 
+test('SoundCloud HLS đặt mốc tua sau input để không thoát mã 0 nhưng rỗng PCM', () => {
+    const f = fixture({ media: {
+        url: 'https://playback.media-streaming.soundcloud.cloud/track/aac_160k/playlist.m3u8?expires=9999999999',
+        protocol: 'm3u8_native', headers: { 'User-Agent': 'Mimi-Audio/1.0' }
+    } });
+    const candidate = f.create();
+    candidate.dispose();
+    const args = f.calls[0].args;
+    assert.ok(args.indexOf('-i') < args.indexOf('-ss'), 'HLS seek phải sau input');
+    assert.equal(args[args.indexOf('-ss') + 1], '73.25');
+    assert.equal(args.includes('-fflags'), false, 'HLS không dùng input fastseek');
+});
+
 test('ready đợi gói đầu tiên mà không tiêu thụ gói; PCM chỉ mã hóa tối đa hai frame mỗi lượt', { timeout: 2000 }, async t => {
     const f = fixture();
     const candidate = f.create();
