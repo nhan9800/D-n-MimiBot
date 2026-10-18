@@ -239,6 +239,7 @@ function startInternalApi(deps) {
         // mặc định tương thích với HOME_GUILD_ID để API không trả empty chỉ vì
         // hosting chưa inject lại biến môi trường sau khi rebuild.
         homeGuildId = '',
+        getYoutubePoStatus = () => null,
         logger = console,
         // các field cấu hình guild được phép sửa qua API (allowlist — chống ghi bừa)
         editableSettingKeys = [
@@ -396,7 +397,8 @@ function startInternalApi(deps) {
                     commit: buildInfo.shortCommit,
                     builtAt: buildInfo.builtAt,
                     buildSource: buildInfo.source,
-                    emojiCoverage: getEmojiCoverage()
+                    emojiCoverage: getEmojiCoverage(),
+                    youtubePo: getYoutubePoStatus()
                 }, reqId);
             }
             if (url.pathname === '/health/ready') {

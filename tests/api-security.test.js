@@ -35,6 +35,17 @@ async function fixture(t, { allowIps = '', ...overrides } = {}) {
 
 const bearer = { Authorization: 'Bearer api-test-token' };
 
+test('Health phân biệt provider lỗi với Discord sẵn sàng và không chạy lại chẩn đoán', async t => {
+    let reads = 0;
+    const status = { state: 'ready', ready: true, version: '2.0.2', clientRevision: 1, errorCode: null,
+        verification: { ok: false, outcome: 'http_403', bytes: 0 } };
+    const { request } = await fixture(t, { getYoutubePoStatus: () => { reads++; return status; } });
+    assert.deepEqual((await (await request('/health/live')).json()).youtubePo, status);
+    assert.equal(reads, 1);
+    assert.equal((await (await request('/health/ready')).json()).discord, true);
+    assert.equal(reads, 1);
+});
+
 test('HTTP công khai chỉ đọc vẫn hoạt động; lệnh broadcast chưa xác thực không chạy', async t => {
     const { request, state } = await fixture(t);
     assert.equal((await request('/health/live')).status, 200);

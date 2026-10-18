@@ -284,7 +284,8 @@ test('YouTube đã Playing60giây gặp403 nhận ngân sách retry22giây mới
     } finally { f.cleanup(); }
 });
 
-async function fixture({ synchronousPlaying = false, demuxProbe, searchSoundcloud } = {}) {
+async function fixture({ synchronousPlaying = false, demuxProbe, searchSoundcloud,
+    youtubePoProvider = { options: extractorArgs => ({ extractorArgs }), snapshot: () => ({ clientRevision: 0 }) } } = {}) {
     const processes = [], ffmpegs = [], resources = [], timers = [], notices = [], logs = [];
     const clock = { now: 1792300000000 };
     const musicQueues = new Map();
@@ -327,6 +328,7 @@ async function fixture({ synchronousPlaying = false, demuxProbe, searchSoundclou
         getFfmpegPath: () => '/mock/ffmpeg',
         getPlaybackSec: mq => (mq.seekBase || 0) + Math.floor((mq.currentResource?.playbackDuration || 0) / 1000),
         AUDIO_EFFECTS: audioEffects,
+        youtubePoProvider,
         YT_DOWNLOAD_CLIENT_FALLBACKS: ['youtube:player_client=android,ios'],
         validateMusicUrl: url => url,
         getCookieFilePath: () => null,
@@ -387,6 +389,41 @@ async function fixture({ synchronousPlaying = false, demuxProbe, searchSoundclou
     };
     return f;
 }
+
+test('Provider PO sẵn sàng được chuyển vào pipe YouTube; provider tắt giữ client legacy', async () => {
+    for (const ready of [true, false]) {
+        const requestedClients = [];
+        const f = await fixture({ youtubePoProvider: {
+            options(extractorArgs) {
+                requestedClients.push(extractorArgs);
+                return ready ? { pluginDirs: '/mock/po-plugins', extractorArgs: [
+                    'youtube:player_client=mweb', 'youtubepot-bgutilhttp:base_url=http://127.0.0.1:4416'
+                ] } : { extractorArgs };
+            },
+            snapshot: () => ({ clientRevision: ready ? 1 : 0 })
+        } });
+        try {
+            f.context.YT_DOWNLOAD_CLIENT_FALLBACKS = ['youtube:player_client=default'];
+            await f.play({ effectKey: 'none', seekSec: 0, seekTransport: 'pipe' });
+            assert.deepEqual(requestedClients, ['youtube:player_client=default']);
+            assert.equal(f.processes.length, 1);
+            const { flags, options } = f.processes[0];
+            assert.equal(flags.ignoreConfig, true);
+            assert.equal(flags.output, '-');
+            assert.equal(options.buffer, false, 'Luồng audio vẫn đọc bằng backpressure, không gom stdout');
+            if (ready) {
+                assert.equal(flags.pluginDirs, '/mock/po-plugins');
+                assert.deepEqual(flags.extractorArgs, ['youtube:player_client=mweb',
+                    'youtubepot-bgutilhttp:base_url=http://127.0.0.1:4416']);
+            } else {
+                assert.equal(flags.pluginDirs, undefined);
+                assert.equal(flags.extractorArgs, 'youtube:player_client=default');
+            }
+            assert.equal(f.mq.current, f.current);
+            assert.deepEqual(f.mq.queue, [f.queued]);
+        } finally { f.cleanup(); }
+    }
+});
 
 test('Lỗi resource cũ khi đổi hiệu ứng không chuyển bài hoặc xoá hàng đợi mới', async () => {
     const f = await fixture({ synchronousPlaying: true });

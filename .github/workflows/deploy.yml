@@ -91,6 +91,8 @@ jobs:
           put musicSearch.js
           put musicEffectTransition.js
           put musicDirectAudio.js
+          put youtubePoProvider.js
+          put youtubePoProbe.js
           put communityFeatures.js
           put inviteEvents.js
           put monthlyLevels.js
@@ -118,6 +120,7 @@ jobs:
           put package-lock.json
           -mkdir scripts
           put scripts/check-syntax.js scripts/check-syntax.js
+          put scripts/setup-youtube-po.js scripts/setup-youtube-po.js
           put scripts/announce-music-update.js scripts/announce-music-update.js
           put scripts/announce-v2.js scripts/announce-v2.js
           put scripts/home-guild-operations.js scripts/home-guild-operations.js

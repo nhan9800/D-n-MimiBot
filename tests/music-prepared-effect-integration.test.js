@@ -11,9 +11,10 @@ const tick = () => new Promise(resolve => setImmediate(resolve));
 function deferred() { let resolve; let reject; const promise = new Promise((yes, no) => { resolve = yes; reject = no; }); return { promise, resolve, reject }; }
 function region(begin, end) { const start = source.indexOf(begin); const stop = source.indexOf(end, start); assert.ok(start >= 0 && stop > start); return source.slice(start, stop); }
 
-function fixture({ paused = false } = {}) {
+function fixture({ paused = false,
+    youtubePoProvider = { options: extractorArgs => ({ extractorArgs }), snapshot: () => ({ clientRevision: 0 }) } } = {}) {
     const ready = deferred(); const completion = deferred();
-    const events = []; const notices = []; const saved = []; const positions = [];
+    const events = []; const notices = []; const saved = []; const positions = []; const extractions = [];
     const track = { title: 'Bài đang nghe', url: 'https://www.youtube.com/watch?v=abcdefghijk', duration: 240 };
     const queue = [{ title: 'Bài tiếp', url: 'https://soundcloud.com/artist/next' }];
     const old = { playbackDuration: 10000, killed: false, kill() { this.killed = true; events.push('kill-old'); } };
@@ -31,8 +32,10 @@ function fixture({ paused = false } = {}) {
     candidate.dispose = candidate.dispose.bind(candidate);
     const context = vm.createContext({ createMediaResolver, createEffectTransitionController,
         createDirectAudioCandidate: options => { positions.push(options.seekSec); return candidate; },
-        ytDlpExec: async () => ({ url: 'https://rr1.googlevideo.com/videoplayback?expire=9999999999', acodec: 'opus', vcodec: 'none' }),
-        validateMusicUrl: url => url, getCookieFilePath: () => null, getYtCommonOpts: () => ({}),
+        ytDlpExec: async (url, options) => { extractions.push({ url, options }); return {
+            url: 'https://rr1.googlevideo.com/videoplayback?expire=9999999999', acodec: 'opus', vcodec: 'none' }; },
+        validateMusicUrl: url => url, getCookieFilePath: () => null,
+        YT_EXTRACTOR_ARGS: 'youtube:player_client=default', youtubePoProvider,
         getFfmpegPath: () => 'ffmpeg', spawn() {}, StartupAudioBuffer() {}, PcmFrameChunker() {},
         voiceLib: { AudioPlayerStatus: { Playing: 'playing', Paused: 'paused', AutoPaused: 'autopaused' }, createAudioResource() {}, StreamType: { Raw: 'raw' } },
         musicQueues: map, getPlaybackSec: null, setTimeout, clearTimeout,
@@ -44,8 +47,9 @@ function fixture({ paused = false } = {}) {
     vm.runInContext(source.match(/function killCurrentProcess\([^]*?\n\}/)[0], context);
     // getPlaybackSec is independent from the persistence/Discord bootstrap.
     vm.runInContext(source.match(/function getPlaybackSec\([^]*?\n\}/)[0], context);
+    vm.runInContext(region('function getYtCommonOpts()', '// Số kết quả sẽ lấy'), context);
     vm.runInContext(region('const effectMediaResolver =', '// Chuyển chuỗi thời gian'), context);
-    return { mq, old, candidate, ready, completion, events, positions, notices, saved, map,
+    return { mq, old, candidate, ready, completion, events, positions, notices, saved, map, extractions,
         change: key => vm.runInContext(`changeMusicEffect('guild', ${JSON.stringify(key)})`, context),
         cleanup() { map.delete('guild'); mq.playGeneration++; vm.runInContext('killCurrentProcess', context)(mq); } };
 }
@@ -63,6 +67,37 @@ test('Hiệu ứng production giữ audio cũ đến packet đầu, đổi đún
         assert.equal(f.mq.seekBase, 40); assert.equal(f.mq.effect, 'bassboost'); assert.equal(f.mq.transitioning, false);
         f.mq.onPlaybackEnd(); f.completion.resolve({ code: 0 }); await tick();
         assert.equal(f.events.filter(event => event === 'advance').length, 1);
+    } finally { f.cleanup(); }
+});
+
+test('Resolver hiệu ứng dùng options PO động và bỏ cache media khi provider trở về legacy', async () => {
+    const provider = { ready: true, revision: 1 };
+    const f = fixture({ youtubePoProvider: {
+        options(extractorArgs) {
+            return provider.ready ? { pluginDirs: '/mock/po-plugins', extractorArgs: [
+                'youtube:player_client=mweb', 'youtubepot-bgutilhttp:base_url=http://127.0.0.1:4416'
+            ] } : { extractorArgs };
+        },
+        snapshot: () => ({ clientRevision: provider.revision })
+    } });
+    try {
+        const pending = f.change('bassboost'); await tick();
+        assert.equal(f.extractions.length, 1);
+        const first = f.extractions[0];
+        assert.equal(first.url, f.mq.current.url);
+        assert.equal(first.options.ignoreConfig, true);
+        assert.equal(first.options.pluginDirs, '/mock/po-plugins');
+        assert.deepEqual(first.options.extractorArgs, ['youtube:player_client=mweb',
+            'youtubepot-bgutilhttp:base_url=http://127.0.0.1:4416']);
+        assert.equal(f.old.killed, false, 'Trích URL qua PO vẫn giữ bài cũ cho đến audio sẵn sàng');
+        f.ready.resolve(f.candidate.resource); assert.equal((await pending).applied, true);
+
+        provider.ready = false; provider.revision++;
+        assert.equal((await f.change('nightcore')).applied, true);
+        assert.equal(f.extractions.length, 2, 'Không tái dùng URL trích bởi phiên provider trước');
+        assert.equal(f.extractions[1].options.pluginDirs, undefined);
+        assert.equal(f.extractions[1].options.extractorArgs, 'youtube:player_client=default');
+        assert.equal(f.mq.queue.length, 1);
     } finally { f.cleanup(); }
 });
 

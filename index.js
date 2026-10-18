@@ -38,6 +38,9 @@ const { StartupAudioBuffer, PcmFrameChunker, monitorMusicResource } = require('.
 const { createMediaResolver, createEffectTransitionController } = require('./musicEffectTransition');
 const { createDirectAudioCandidate } = require('./musicDirectAudio');
 const { createMusicSearchCache, applySourcePolicy, chooseSoundcloudResult: rankSoundcloudResult } = require('./musicSearch');
+const { createYoutubePoProvider } = require('./youtubePoProvider');
+const { installYoutubePo } = require('./scripts/setup-youtube-po');
+const { runYoutubePoProbe } = require('./youtubePoProbe');
 const { buildProfilePayload, buildRankPayload } = require('./profileCard');
 const { applyPetDecayRealtime, buildPetEmbed, buildPetComponents, createPetPanelUpdater } = require('./petUi');
 const petPanels = createPetPanelUpdater({ getUserData });
@@ -3368,8 +3371,53 @@ async function ensureYtDlpBinary() {
     return ytDlpEnsurePromise;
 }
 
-// Thử tải ngay lúc khởi động (không chặn phần còn lại của bot nếu mạng chậm/lỗi)
-ensureYtDlpBinary().catch(() => null);
+// Provider độc lập không giữ Discord chờ cài đặt; chỉ nhận kết nối loopback.
+const youtubePoEnabled = process.env.MIMI_YOUTUBE_PO_ENABLED === '1'
+    || (process.platform === 'linux' && process.env.MIMI_YOUTUBE_PO_ENABLED !== '0');
+const youtubePoProvider = createYoutubePoProvider({
+    install: ({ signal }) => installYoutubePo({ rootDir: __dirname, signal, log: console.log }),
+    root: __dirname, log: console.log
+});
+let youtubePoVerification = null;
+process.once('exit', () => youtubePoProvider.stop());
+function getYoutubePoStatus() {
+    const checked = youtubePoVerification;
+    const outcomes = ['audio_received', 'http_403', 'auth_required', 'timeout', 'search_failed',
+        'source_failed', 'search_empty', 'invalid_audio', 'invalid_configuration', 'invalid_input'];
+    return { ...youtubePoProvider.snapshot(), verification: checked ? {
+        ok: checked.ok === true,
+        outcome: outcomes.includes(checked.outcome) ? checked.outcome : 'unknown',
+        bytes: Math.max(0, Math.min(65536, Number(checked.bytes) || 0)),
+        elapsedMs: Math.max(0, Math.min(60000, Number(checked.elapsedMs) || 0)),
+        pluginLoaded: checked.pluginLoaded === true,
+        tokenRequestObserved: checked.tokenRequestObserved === true,
+        searchResolved: checked.searchResolved === true
+    } : null };
+}
+
+async function verifyFirstYoutubePoSetup() {
+    // Một phép thử tải được chủ bot yêu cầu; receipt ngăn lặp lại mỗi restart.
+    const receiptPath = path.join(__dirname, 'data', 'youtube-po', 'verification-2026-10-18-v1.json');
+    try {
+        if (fs.existsSync(receiptPath)) {
+            youtubePoVerification = JSON.parse(fs.readFileSync(receiptPath, 'utf8'));
+            return;
+        }
+        const result = await runYoutubePoProbe({ ytDlpExec, getOptions: getYtCommonOpts,
+            query: 'JACK - J97 LƯU NIÊN Album TAM THÁI TỬ Track No.4', timeoutMs: 45000 });
+        youtubePoVerification = { checkedAt: new Date().toISOString(), ...result };
+        fs.writeFileSync(`${receiptPath}.tmp`, JSON.stringify(youtubePoVerification), { mode: 0o600 });
+        fs.renameSync(`${receiptPath}.tmp`, receiptPath);
+        console.log(`[YouTubePO] AUDIO_CHECK ${JSON.stringify(youtubePoVerification)}`);
+    } catch { console.warn('[YouTubePO] CHECK_FAILED'); }
+}
+
+// Thử tải binary/cài provider trong nền. Không đăng nhập YouTube hoặc mở cổng ngoài.
+ensureYtDlpBinary().then(async available => {
+    if (!available || !youtubePoEnabled) return;
+    const status = await youtubePoProvider.start();
+    if (status.ready) await verifyFirstYoutubePoSetup();
+}).catch(() => console.warn('[YouTubePO] SETUP_FAILED'));
 
 // Bot chạy PM2 liên tục nhiều ngày/tuần không restart, nên phải kiểm tra lại định kỳ:
 // chỉ kiểm tra lúc khởi động thì binary sẽ cũ dần và YouTube bắt đầu trả về HTTP 403 hàng loạt.
@@ -3512,10 +3560,11 @@ function getYtCommonOpts() {
     // thành --no-no-check-certificates không hợp lệ. Bỏ flag để giữ xác thực TLS mặc định.
     const opts = {
         noWarnings: true,
+        ignoreConfig: true,
         preferFreeFormats: true,
         jsRuntimes: 'node',
         remoteComponents: 'ejs:github',
-        extractorArgs: YT_EXTRACTOR_ARGS,
+        ...youtubePoProvider.options(YT_EXTRACTOR_ARGS),
         // YouTube signs the googlevideo URL with the address used while
         // extracting it. Keep metadata extraction on the same IPv4 path as
         // the streaming process; otherwise dual-stack hosts can extract over
@@ -3527,7 +3576,6 @@ function getYtCommonOpts() {
     if (c) opts.cookies = c;
     return opts;
 }
-const YT_COMMON_OPTS = getYtCommonOpts();
 
 // Số kết quả sẽ lấy khi tìm bằng từ khóa — lấy nhiều hơn 1 để có cái mà "lược bỏ"
 // nếu vài kết quả đầu bị riêng tư / giới hạn độ tuổi / không khả dụng.
@@ -3584,7 +3632,7 @@ async function searchYoutube(query) {
             dumpSingleJson: true,
             noPlaylist: true,
             skipDownload: true,
-            ...YT_COMMON_OPTS
+            ...getYtCommonOpts()
         }, { timeout: YT_META_TIMEOUT_MS });
         if (!info || (!info.id && !info.webpage_url)) return null;
         if (isBlockedVideo(info)) {
@@ -3605,7 +3653,7 @@ async function searchYoutube(query) {
         flatPlaylist: true,   // chỉ lấy metadata nhẹ, không trích format từng video
         skipDownload: true,
         ignoreErrors: true,
-        ...YT_COMMON_OPTS
+        ...getYtCommonOpts()
     }, { timeout: YT_META_TIMEOUT_MS });
 
     const flatEntries = (flat?.entries || []).filter(Boolean);
@@ -3758,7 +3806,7 @@ async function findRadioTrack(seedTrack, playedUrls) {
             skipDownload: true,
             playlistItems: '1-25',
             ignoreErrors: true,
-            ...YT_COMMON_OPTS
+            ...getYtCommonOpts()
         }, { timeout: YT_META_TIMEOUT_MS });
     } catch { return null; }
     const entries = raw?.entries ? raw.entries : [];
@@ -4502,7 +4550,7 @@ const musicEffectTransitions = createEffectTransitionController({
     getPosition: getPlaybackSec,
     resolveMedia: (track, { signal }) => {
         const cookie = getCookieFilePath();
-        const cacheKey = cookie ? `${fs.statSync(cookie).mtimeMs}` : 'public';
+        const cacheKey = `${cookie ? fs.statSync(cookie).mtimeMs : 'public'}:po-${youtubePoProvider.snapshot().clientRevision}`;
         return effectMediaResolver.resolve(track.url, { signal, cacheKey });
     },
     createCandidate: (media, { effectKey, positionSec, signal }) => createDirectAudioCandidate({
@@ -4514,7 +4562,9 @@ const musicEffectTransitions = createEffectTransitionController({
     commit: commitPreparedMusicEffect,
     notify: ({ guildId, mq, track, reason }) => {
         const cookie = getCookieFilePath();
-        effectMediaResolver.invalidate(track.url, { cacheKey: cookie ? `${fs.statSync(cookie).mtimeMs}` : 'public' });
+        effectMediaResolver.invalidate(track.url, {
+            cacheKey: `${cookie ? fs.statSync(cookie).mtimeMs : 'public'}:po-${youtubePoProvider.snapshot().clientRevision}`
+        });
         console.warn(`[Music] Giữ audio cũ khi chuẩn bị hiệu ứng server=${guildId} reason=${reason}`);
         mq.textChannel?.send(buildMusicNoticePayload('Chưa đổi được hiệu ứng',
             'Nguồn audio mới chưa sẵn sàng. Mimi giữ nguyên bài và hiệu ứng đang nghe; bạn có thể thử lại.', 0xF1C40F)).catch(() => null);
@@ -5323,6 +5373,7 @@ async function playNextTrack(guildId, opts = {}) {
         // Tuyệt đối không dùng concurrentFragments khi xuất pipe ra stdout ('-') để tránh
         // lỗi tạo file tạm '--Frag*' bị No such file or directory trên stream HLS/DASH dài.
         const ytdlOpts = {
+            ignoreConfig: true,
             output: '-',
             // Ưu tiên WebM/Ogg nhưng luôn có fallback `bestaudio/best`. Không khóa
             // acodec=opus vì một số YouTube client trả metadata nhưng không công bố
@@ -5349,7 +5400,7 @@ async function playNextTrack(guildId, opts = {}) {
             ytdlOpts.jsRuntimes = 'node';
             ytdlOpts.remoteComponents = 'ejs:github';
             const extArgs = YT_DOWNLOAD_CLIENT_FALLBACKS[clientAttempt] || 'youtube:player_client=default';
-            ytdlOpts.extractorArgs = extArgs;
+            Object.assign(ytdlOpts, youtubePoProvider.options(extArgs));
         }
         if (seekSec > 0 && seekTransport === 'section') {
             // Tải thẳng từ mốc thời gian khi tua hoặc khi đổi hiệu ứng -> không bắt ffmpeg đọc/bỏ qua hàng MB dữ liệu qua pipe
@@ -6342,7 +6393,8 @@ client.once('clientReady', async () => {
             logger: console,
             broadcastUpdateAnnouncement,
             cleanupDuplicateAnnouncements,
-            homeGuildId: HOME_GUILD_ID
+            homeGuildId: HOME_GUILD_ID,
+            getYoutubePoStatus
         });
     } catch (e) {
         console.error('❌ [InternalAPI] Không khởi động được:', e?.message);

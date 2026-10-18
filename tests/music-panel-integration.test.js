@@ -26,6 +26,7 @@ function fixture({ realBuild = false } = {}) {
     const timers = [];
     const context = vm.createContext({
         createMusicPanelWriter,
+        youtubePoProvider: { options: extractorArgs => ({ extractorArgs }), snapshot: () => ({ clientRevision: 0 }) },
         buildMusicDashboard: require('../communityPanels').buildMusicDashboard,
         normalizePayload: require('../discordUi').normalizePayload,
         AUDIO_EFFECTS: { none: { label: 'Tắt' } },
@@ -74,12 +75,13 @@ test('Tùy chọn metadata tạo argv yt-dlp hợp lệ, giữ cookie và xác t
     const calls = [];
     const context = vm.createContext({
         YT_EXTRACTOR_ARGS: 'youtube:player_client=android,ios,mweb',
+        youtubePoProvider: { options: extractorArgs => ({ extractorArgs }), snapshot: () => ({ clientRevision: 0 }) },
         rankSoundcloudResult,
         getCookieFilePath: () => '/tmp/cookies-test.txt', validateMusicUrl,
         ytDlpExec: async (url, flags, options) => { calls.push({ url, flags, options }); return { title: 'Bài thử', webpage_url: 'https://soundcloud.com/artist/track' }; }
     });
     vm.runInContext(region('const YT_EXTRACTOR_ARGS =', 'async function searchSoundcloud('), context);
-    vm.runInContext(region('function getYtCommonOpts()', 'const YT_COMMON_OPTS'), context);
+    vm.runInContext(region('function getYtCommonOpts()', '// Số kết quả sẽ lấy'), context);
     vm.runInContext(region('function normalizeMusicMatchText(', 'function getYtCommonOpts('), context);
     vm.runInContext(region('const YT_META_TIMEOUT_MS =', 'async function searchYoutube('), context);
     vm.runInContext(region('async function resolveDirectUrl(', '// Ưu tiên: YouTube'), context);
