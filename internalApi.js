@@ -235,6 +235,10 @@ function startInternalApi(deps) {
         stopAndLeaveVoice,
         broadcastUpdateAnnouncement,
         cleanupDuplicateAnnouncements,
+        // Guild đội ngũ đã được ứng dụng chọn rõ ràng. index.js truyền giá trị
+        // mặc định tương thích với HOME_GUILD_ID để API không trả empty chỉ vì
+        // hosting chưa inject lại biến môi trường sau khi rebuild.
+        homeGuildId = '',
         logger = console,
         // các field cấu hình guild được phép sửa qua API (allowlist — chống ghi bừa)
         editableSettingKeys = [
@@ -578,7 +582,10 @@ function startInternalApi(deps) {
             // ---- GET /internal/team ----
             // Chỉ đọc đội ngũ từ guild hỗ trợ đã chọn, không quét các cộng đồng khác.
             if (req.method === 'GET' && parts[1] === 'team') {
-                const targetGuildId = String(process.env.SUPPORT_SERVER_ID || process.env.MIMI_HOME_GUILD_ID || '').trim();
+                // Đội ngũ website luôn lấy từ server nhà mà ứng dụng đã chọn
+                // (HOME_GUILD_ID). TEAM_SERVER_ID vẫn cho phép chủ bot thay đổi
+                // rõ ràng mà không cần sửa mã; các biến cũ chỉ là fallback.
+                const targetGuildId = String(process.env.TEAM_SERVER_ID || homeGuildId || process.env.SUPPORT_SERVER_ID || process.env.MIMI_HOME_GUILD_ID || '').trim();
                 const guild = targetGuildId ? client.guilds.cache.get(targetGuildId) : null;
                 const team = [];
                 const founderRoleId = (process.env.FOUNDER_ROLE_ID || '').trim();

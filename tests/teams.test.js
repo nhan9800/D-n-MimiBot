@@ -17,7 +17,7 @@ function fakeMember(id, roles = []) {
     return { id, displayName: id, user: { bot: false, username: id, displayAvatarURL: () => null }, roles: { cache: new Collection(roles.map(role => [role.id, role])) } };
 }
 
-async function fixture(t, guilds, environment = {}) {
+async function fixture(t, guilds, environment = {}, dependencies = {}) {
     const env = { MIMI_API_TOKEN: 'team-test-token', MIMI_API_PORT: '0', MIMI_API_HOST: '127.0.0.1', MIMI_API_ALLOW_IPS: '',
         SUPPORT_SERVER_ID: '', MIMI_HOME_GUILD_ID: '', DEV_GUILD_ID: '', FOUNDER_ROLE_ID: '', FOUNDER_DISCORD_ID: '', DEV_DISCORD_ID: '', ...environment };
     const saved = Object.fromEntries(Object.keys(env).map(key => [key, process.env[key]]));
@@ -27,7 +27,7 @@ async function fixture(t, guilds, environment = {}) {
             if (value === undefined) delete process.env[key]; else process.env[key] = value;
         }
     });
-    const server = startInternalApi({ client: { guilds: { cache: new Collection(guilds.map(guild => [guild.id, guild])) }, isReady: () => true }, config: {}, musicQueues: new Map(), logger: { warn() {}, error() {}, info() {} } });
+    const server = startInternalApi({ client: { guilds: { cache: new Collection(guilds.map(guild => [guild.id, guild])) }, isReady: () => true }, config: {}, musicQueues: new Map(), logger: { warn() {}, error() {}, info() {} }, ...dependencies });
     await once(server, 'listening');
     t.after(() => new Promise(resolve => { server.close(resolve); server.closeAllConnections(); }));
     return () => fetch(`http://127.0.0.1:${server.address().port}/internal/team`, { headers: { Authorization: 'Bearer team-test-token' } }).then(response => response.json());
@@ -56,5 +56,15 @@ test('guild cấu hình không tồn tại không fallback sang server khác', a
     const unrelated = fakeGuild('other');
     const request = await fixture(t, [unrelated], { MIMI_HOME_GUILD_ID: 'missing-guild' });
     assert.deepEqual((await request()).team, []);
+    assert.equal(unrelated.calls, 0);
+});
+
+test('team dùng server nhà được ứng dụng truyền vào khi hosting chưa inject env', async t => {
+    const home = fakeGuild('1517068246493429852', [fakeMember('staff', [{ id: 'staff-role', name: 'Support Staff', position: 2 }])]);
+    const unrelated = fakeGuild('other', [fakeMember('other-admin', [{ id: 'admin', name: 'Admin', position: 2 }])]);
+    const request = await fixture(t, [home, unrelated], {}, { homeGuildId: '1517068246493429852' });
+    const result = await request();
+    assert.deepEqual(result.team.map(member => member.id), ['staff']);
+    assert.equal(result.source, 'discord_roles');
     assert.equal(unrelated.calls, 0);
 });

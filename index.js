@@ -6204,7 +6204,8 @@ client.once('clientReady', async () => {
             stopAndLeaveVoice,
             logger: console,
             broadcastUpdateAnnouncement,
-            cleanupDuplicateAnnouncements
+            cleanupDuplicateAnnouncements,
+            homeGuildId: HOME_GUILD_ID
         });
     } catch (e) {
         console.error('❌ [InternalAPI] Không khởi động được:', e?.message);
