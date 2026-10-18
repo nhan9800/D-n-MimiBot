@@ -132,7 +132,7 @@ test('completion luôn resolve và lỗi FFmpeg không làm lộ URL ký số ho
     const f = fixture();
     const candidate = f.create();
     t.after(() => candidate.dispose());
-    const rejected = assert.rejects(candidate.ready, { code: 'MUSIC_DIRECT_FAILED' });
+    const rejected = assert.rejects(candidate.ready, { code: 'MUSIC_DIRECT_403' });
     f.child.stderr.write(`HTTP error 403 Forbidden while opening ${signedUrl}\nMimi-Audio/1.0`);
     f.child.exitCode = 1;
     f.child.emit('close', 1);

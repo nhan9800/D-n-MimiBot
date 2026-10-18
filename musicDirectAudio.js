@@ -170,7 +170,7 @@ function createDirectAudioCandidate({ media, seekSec = 0, effectFilter = '', ffm
         processFinished = true;
         const normalizedCode = Number.isInteger(code) ? code : null;
         const text = code === 0 ? '' : safeAudioError(stderr, normalizedCode);
-        if (code !== 0) rejectStartup(candidateError(text));
+        if (code !== 0) rejectStartup(candidateError(text, directFailureCode(text)));
         finish(normalizedCode, text);
     });
     listen(process.stderr, 'data', chunk => {
