@@ -48,10 +48,15 @@ function validateDirectMediaUrl(value) {
     const host = parsed.hostname.toLowerCase();
     const google = /(^|\.)googlevideo\.com$/.test(host);
     const soundcloud = /(^|\.)sndcdn\.com$/.test(host);
+    // yt-dlp SoundCloud hiện trả luồng AAC/HLS ký số trên miền CDN mới này.
+    // Miền này là hạ tầng phát của SoundCloud, khác với trang `soundcloud.com`
+    // nhưng vẫn phải được allowlist theo hậu tố cố định; không mở toàn bộ
+    // `*.soundcloud.*` để tránh biến resolver thành SSRF proxy.
+    const soundcloudStreaming = /(^|\.)media-streaming\.soundcloud\.cloud$/.test(host);
     // Akamai chỉ được dùng khi tên CDN gắn rõ với SoundCloud, không mở cả *.akamai*.
     const akamaiSoundcloud = /^(?:[a-z0-9-]+\.)*(?:soundcloud|sndcdn)(?:-[a-z0-9-]+)?\.(?:akamaized\.net|akamaihd\.net)$/.test(host);
     if (parsed.protocol !== 'https:' || parsed.username || parsed.password || parsed.port
-        || !(google || soundcloud || akamaiSoundcloud)) {
+        || !(google || soundcloud || soundcloudStreaming || akamaiSoundcloud)) {
         throw new Error('CDN âm thanh không nằm trong nguồn được hỗ trợ.');
     }
     parsed.hash = '';

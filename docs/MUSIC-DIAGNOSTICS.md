@@ -47,3 +47,19 @@ Nếu trong30giây có ít nhất3 lần thiếu packet hoặc trễ nhịp trê
 `underruns` là lần resource không có packet để voice đọc; `lateReads` là lần nhịp đọc cách nhau quá50ms. Đây là hai tín hiệu khác nhau, cần ghép với log nguồn/FFmpeg. Pause, buffering, EOF và thế hệ cũ không được tính thành giật; timer/listener được dọn khi stop/đóng stream. Không log title/URL/token hoặc log mỗi20ms. OpusScript là fallbackWASM; [discord.js](https://discordjs.guide/voice) khuyến nghị codec native cho hiệu năng. Không coi codec fallback tự nó là bằng chứng CPU quá tải.
 
 Nếu không có thiếu packet/trễ nhịp mà người nghe vẫn bị giật, cần đối chiếu mạngUDP/Discord và client nghe. Không suy đoán đã hết lỗi chỉ vì healthready200.
+
+## Chẩn đoán SoundCloud và đổi hiệu ứng
+
+CDN `*.media-streaming.soundcloud.cloud` được phép dùng cùng `*.sndcdn.com`;
+không mở các miền SoundCloud tùy ý. Resolver SoundCloud không dùng cookie/PO
+của YouTube. Bài cũ tiếp tục phát trong lúc chuẩn bị candidate, chỉ bàn giao khi
+có packet; lỗi chuẩn bị giữ nguyên bài, hiệu ứng và queue.
+
+Khi cần đo trực tiếp trên host, đặt file ignored `music-effect-check.json` cạnh
+`index.js`: `caseId`, `url` dạng HTTPS soundcloud.com/artist/track,
+`seekSec` (ví dụ45), `effectKey: "bassboost"`. Startup dùng cùng resolver và
+candidate của menu, tối đa8giây metadata/15giây toàn bộ. Candidate được dọn
+sau packet đầu; không tham gia voice/gửi tin Discord. Receipt0600 ở
+`data/music-effect-checks/` và log `[MusicEffect] CHECK` chỉ chứa số đo/mã lỗi.
+Cùng case không chạy lại sau restart. Phép đo chứng minh chuẩn bị audio tại host,
+chưa chứng minh âm thanh nghe được qua Discord hay độ ổn định cả bài.

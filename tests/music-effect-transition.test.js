@@ -21,11 +21,14 @@ function fakeTimers() {
 function mediaInfo(url = CDN) { return { url, acodec: 'opus', vcodec: 'none', format_id: '251', http_headers: { 'User-Agent': 'Mimi audio' } }; }
 
 test('Direct media chỉ chấp nhận HTTPS CDN của nguồn, chặn IP/nội bộ/userinfo/domain giả và Akamai chung', () => {
-    for (const url of [CDN, 'https://cf-media.sndcdn.com/audio.mp3', 'https://soundcloud.akamaized.net/audio.mp3']) {
+    for (const url of [CDN, 'https://cf-media.sndcdn.com/audio.mp3',
+        'https://playback.media-streaming.soundcloud.cloud/abc/aac_160k/playlist.m3u8?expires=9999999999',
+        'https://soundcloud.akamaized.net/audio.mp3']) {
         assert.equal(validateDirectMediaUrl(url), url);
     }
     for (const url of ['http://cf-media.sndcdn.com/a', 'https://127.0.0.1/a', 'https://[::1]/a', 'https://169.254.169.254/a',
         'https://localhost/a', 'https://googlevideo.com.evil.test/a', 'https://evilgooglevideo.com/a',
+        'https://media-streaming.soundcloud.cloud.evil.test/a', 'https://evil.soundcloud.cloud/a',
         'https://user:password@cf-media.sndcdn.com/a', 'https://cf-media.sndcdn.com:444/a', 'https://other.akamaized.net/a', 'file:///tmp/a']) {
         assert.throws(() => validateDirectMediaUrl(url), /CDN|URL/);
     }
@@ -42,6 +45,21 @@ test('Chọn audio riêng có thể seek, giữ header an toàn và cache hết 
     assert.equal(selected.formatId, '251');
     assert.equal(selected.expiresAt, NOW + 120000);
     assert.deepEqual(selected.headers, { 'user-agent': 'Extractor', referer: 'https://www.youtube.com/' });
+});
+
+test('SoundCloud CDN mới media-streaming.soundcloud.cloud được chọn cho đổi hiệu ứng', () => {
+    const url = `https://playback.media-streaming.soundcloud.cloud/track/aac_160k/playlist.m3u8?expires=${Math.floor((NOW + 180000) / 1000)}&Signature=private`;
+    const selected = selectMediaAudio({
+        url,
+        protocol: 'm3u8_native',
+        acodec: 'mp4a.40.2',
+        vcodec: 'none',
+        abr: 160,
+        http_headers: { 'User-Agent': 'SoundCloud player' }
+    }, { now: NOW });
+    assert.equal(selected.url, url);
+    assert.equal(selected.formatId, undefined);
+    assert.equal(selected.headers['user-agent'], 'SoundCloud player');
 });
 
 test('Không chọn media hết hạn, video hoặc header có CRLF; lỗi không chứa signed URL/header', () => {

@@ -21,7 +21,35 @@ test('SoundCloud fallback rút gọn hậu tố Remix/Audio Lyrics để tìm đ
     const match = source.slice(start).match(/function buildSoundcloudFallbackQuery\([\s\S]*?\n}\s*/);
     assert.ok(match, 'Có helper rút gọn truy vấn fallback');
     const buildQuery = vm.runInNewContext(`(${match[0].trim()})`);
-    assert.equal(buildQuery('LƯU NIÊN REMIX (VNN Mix) - JACK - J97 / Audio Lyrics', 'JACK - J97'), 'JACK - J97 LƯU NIÊN REMIX - JACK - J97');
+    assert.equal(buildQuery('LƯU NIÊN REMIX (VNN Mix) - JACK - J97 / Audio Lyrics', 'JACK - J97'), 'JACK - J97 LƯU NIÊN REMIX');
+    assert.equal(buildQuery('Thương Nhau Đến Thế Remix (Bản Siêu Cuốn) Gia Huy x PiLong Remix x SKY Tương Tư Anh Như Nắm Tro Tàn Remix TikTok', 'Air Remix'),
+        'Air Remix Thương Nhau Đến Thế Remix Gia Huy');
+    assert.equal(buildQuery('Thương Nhau Đến Thế (slowed reverb) Official Audio', ''), 'Thương Nhau Đến Thế slowed reverb');
+    assert.equal(buildQuery('Thương Nhau Đến Thế Đây Là Một Tiêu Đề Dài (Remix)', ''), 'Thương Nhau Đến Thế Đây Là Một Tiêu remix');
+});
+
+test('SoundCloud thật chỉ đọc metadata phẳng và giới hạn thời gian tìm dự phòng', async () => {
+    const source = fs.readFileSync(path.join(__dirname, '..', 'index.js'), 'utf8');
+    const start = source.indexOf('async function searchSoundcloud(');
+    const body = source.slice(start).match(/async function searchSoundcloud\([^]*?\n\}/)[0];
+    const calls = [];
+    const search = vm.runInNewContext(`(${body})`, {
+        ytDlpExec: async (...args) => { calls.push(args); return { entries: [{ title: 'Thương Nhau Đến Thế Remix',
+            webpage_url: 'https://soundcloud.com/artist/thuong-nhau', duration: 247 }] }; },
+        chooseSoundcloudResult: require('../musicSearch').chooseSoundcloudResult
+    });
+    const result = await search('Thương Nhau Đến Thế Remix', { timeoutMs: 5500 });
+    assert.equal(result.source, 'SoundCloud');
+    assert.equal(result.url, 'https://soundcloud.com/artist/thuong-nhau');
+    assert.equal(calls[0][0], 'scsearch5:Thương Nhau Đến Thế Remix');
+    assert.equal(calls[0][1].flatPlaylist, true);
+    assert.equal(calls[0][1].skipDownload, true);
+    assert.equal(calls[0][1].ignoreConfig, true);
+    assert.equal(calls[0][2].timeout, 5500);
+    await search('Bài dài', { timeoutMs: 999999 });
+    assert.equal(calls[1][2].timeout, 7000);
+    await search('Bài thường');
+    assert.equal(calls[2][2].timeout, 8000);
 });
 
 test('Link nhạc được kiểm tra theo hostname thực, không theo chuỗi con', () => {

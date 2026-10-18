@@ -11,12 +11,12 @@ const tick = () => new Promise(resolve => setImmediate(resolve));
 function deferred() { let resolve; let reject; const promise = new Promise((yes, no) => { resolve = yes; reject = no; }); return { promise, resolve, reject }; }
 function region(begin, end) { const start = source.indexOf(begin); const stop = source.indexOf(end, start); assert.ok(start >= 0 && stop > start); return source.slice(start, stop); }
 
-function fixture({ paused = false,
+function fixture({ paused = false, soundcloud = false,
     youtubeCookieSource = { read: () => ({ path: null, revision: 'guest' }) },
     youtubePoProvider = { options: extractorArgs => ({ extractorArgs }), snapshot: () => ({ clientRevision: 0 }) } } = {}) {
     const ready = deferred(); const completion = deferred();
     const events = []; const notices = []; const saved = []; const positions = []; const extractions = [];
-    const track = { title: 'Bài đang nghe', url: 'https://www.youtube.com/watch?v=abcdefghijk', duration: 240 };
+    const track = { title: 'Bài đang nghe', url: soundcloud ? 'https://soundcloud.com/artist/track' : 'https://www.youtube.com/watch?v=abcdefghijk', duration: 240 };
     const queue = [{ title: 'Bài tiếp', url: 'https://soundcloud.com/artist/next' }];
     const old = { playbackDuration: 10000, killed: false, kill() { this.killed = true; events.push('kill-old'); } };
     const player = Object.assign(new EventEmitter(), { state: { status: paused ? 'paused' : 'playing', resource: old },
@@ -34,9 +34,9 @@ function fixture({ paused = false,
     const context = vm.createContext({ createMediaResolver, createEffectTransitionController,
         createDirectAudioCandidate: options => { positions.push(options.seekSec); return candidate; },
         ytDlpExec: async (url, options) => { extractions.push({ url, options }); return {
-            url: 'https://rr1.googlevideo.com/videoplayback?expire=9999999999', acodec: 'opus', vcodec: 'none' }; },
+            url: soundcloud ? 'https://playback.media-streaming.soundcloud.cloud/track/playlist.m3u8?expires=9999999999' : 'https://rr1.googlevideo.com/videoplayback?expire=9999999999', acodec: 'opus', vcodec: 'none' }; },
         validateMusicUrl: url => url, getCookieFilePath: () => null,
-        YT_EXTRACTOR_ARGS: 'youtube:player_client=default', youtubePoProvider, youtubeCookieSource,
+        YT_EXTRACTOR_ARGS: 'youtube:player_client=default', YT_URL_REGEX: /^https?:\/\/(www\.|m\.)?(youtube\.com|youtu\.be|music\.youtube\.com)\//i, youtubePoProvider, youtubeCookieSource,
         getFfmpegPath: () => 'ffmpeg', spawn() {}, StartupAudioBuffer() {}, PcmFrameChunker() {},
         voiceLib: { AudioPlayerStatus: { Playing: 'playing', Paused: 'paused', AutoPaused: 'autopaused' }, createAudioResource() {}, StreamType: { Raw: 'raw' } },
         musicQueues: map, getPlaybackSec: null, setTimeout, clearTimeout,
@@ -100,6 +100,28 @@ test('Resolver hiệu ứng dùng options PO động và bỏ cache media khi pr
         assert.equal(f.extractions[1].options.pluginDirs, undefined);
         assert.equal(f.extractions[1].options.extractorArgs, 'youtube:player_client=default');
         assert.equal(f.mq.queue.length, 1);
+    } finally { f.cleanup(); }
+});
+
+test('Hiệu ứng SoundCloud dùng CDN mới và không đưa cookie/plugin YouTube vào extraction', async () => {
+    const f = fixture({ soundcloud: true,
+        youtubeCookieSource: { read: () => ({ path: '/mock/private-cookie.txt', revision: 'auth-A' }) },
+        youtubePoProvider: { options: () => ({ cookies: '/mock/private-cookie.txt', pluginDirs: '/mock/po', extractorArgs: 'youtube:player_client=mweb' }), snapshot: () => ({ clientRevision: 1 }) }
+    });
+    try {
+        const changing = f.change('bassboost'); await tick();
+        assert.equal(f.extractions.length, 1);
+        assert.equal(f.extractions[0].options.cookies, undefined);
+        assert.equal(f.extractions[0].options.pluginDirs, undefined);
+        assert.equal(f.extractions[0].options.extractorArgs, undefined);
+        assert.equal(f.extractions[0].options.ignoreConfig, true);
+        assert.equal(f.extractions[0].options.forceIpv4, true);
+        assert.equal(f.old.killed, false);
+        f.ready.resolve(f.candidate.resource);
+        assert.equal((await changing).applied, true);
+        assert.equal(f.mq.effect, 'bassboost');
+        assert.equal(f.mq.queue.length, 1);
+        assert.equal(f.notices.length, 0);
     } finally { f.cleanup(); }
 });
 

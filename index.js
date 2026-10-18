@@ -46,6 +46,7 @@ const { createYoutubeCookieVerification } = require('./youtubeCookieVerification
 const { classifyMusicSourceError } = require('./musicSourceErrors');
 const { resolveYoutubeDirectTrack } = require('./youtubeDirectTrack');
 const { runYoutubeLinkCheck } = require('./youtubeLinkCheck');
+const { runMusicEffectCheck } = require('./musicEffectCheck');
 const youtubeCookieSource = createYoutubeCookieSource({ rootDir: __dirname });
 const { buildProfilePayload, buildRankPayload } = require('./profileCard');
 const { applyPetDecayRealtime, buildPetEmbed, buildPetComponents, createPetPanelUpdater } = require('./petUi');
@@ -3456,8 +3457,8 @@ async function verifyFirstYoutubePoSetup() {
 
 // Thử tải binary/cài provider trong nền. Không đăng nhập YouTube hoặc mở cổng ngoài.
 ensureYtDlpBinary().then(async available => {
-    if (!available || !youtubePoEnabled) return;
-    const status = await youtubePoProvider.start();
+    if (!available) return;
+    const status = youtubePoEnabled ? await youtubePoProvider.start() : { ready: false };
     if (status.ready) {
         await verifyFirstYoutubePoSetup();
         youtubeCookieVerifier.start();
@@ -3474,6 +3475,22 @@ ensureYtDlpBinary().then(async available => {
             console.log(`[YouTubeLink] CHECK ${JSON.stringify(receipt)}`);
         }).catch(() => console.warn('[YouTubeLink] CHECK_FAILED'));
     }
+    // Request riêng cho SoundCloud: chuẩn bị packet thật rồi dọn, không vào voice.
+    // Dùng đúng resolver/candidate của menu hiệu ứng; không chạy lại cùng receipt.
+    runMusicEffectCheck({
+        requestPath: path.join(__dirname, 'music-effect-check.json'),
+        receiptDir: path.join(__dirname, 'data', 'music-effect-checks'),
+        signal: youtubeDiagnosticController.signal,
+        resolveMedia: (track, { signal }) => effectMediaResolver.resolve(track.url, { signal, cacheKey: 'soundcloud' }),
+        createCandidate: (media, { positionSec, effectKey, signal }) => createDirectAudioCandidate({
+            media, seekSec: positionSec, effectFilter: AUDIO_EFFECTS[effectKey]?.af || '',
+            ffmpegPath: getFfmpegPath(), spawn,
+            createAudioResource: voiceLib.createAudioResource, StreamType: voiceLib.StreamType,
+            StartupAudioBuffer, PcmFrameChunker, signal
+        })
+    }).then(receipt => {
+        if (receipt) console.log(`[MusicEffect] CHECK ${JSON.stringify(receipt)}`);
+    }).catch(() => console.warn('[MusicEffect] CHECK_FAILED'));
 }).catch(() => console.warn('[YouTubePO] SETUP_FAILED'));
 
 // Bot chạy PM2 liên tục nhiều ngày/tuần không restart, nên phải kiểm tra lại định kỳ:
@@ -3573,11 +3590,21 @@ function chooseSoundcloudResult(entries, query, { author = '', duration = 0 } = 
 async function searchSoundcloud(query, hints = {}) {
     if (!ytDlpExec) return null;
     try {
-        const info = await ytDlpExec(`scsearch5:${query}`, {
+        // Fallback có hạn ngắn hơn nguồn chính để phòng thoại không im lặng
+        // thêm một chu kỳ dài. Bỏ cấu hình yt-dlp ngoài dự án trên hosting.
+        const timeoutMs = Number.isFinite(hints.timeoutMs)
+            ? Math.max(2500, Math.min(7000, Math.floor(hints.timeoutMs)))
+            : 8000;
+        const info = await ytDlpExec(`scsearch5:${String(query || '').slice(0, 140)}`, {
             dumpSingleJson: true,
+            // Chỉ lấy metadata của năm kết quả; chưa extract format/audio
+            // cả năm bài trước khi chọn đúng một bài để phát.
+            flatPlaylist: true,
+            noPlaylist: true,
             skipDownload: true,
-            noWarnings: true
-        }, { timeout: 8000 });
+            noWarnings: true,
+            ignoreConfig: true
+        }, { timeout: timeoutMs });
         const entries = Array.isArray(info?.entries) ? info.entries.filter(Boolean) : (info ? [info] : []);
         const item = chooseSoundcloudResult(entries, query, hints);
         if (!item || (!item.url && !item.webpage_url)) return null;
@@ -3599,16 +3626,34 @@ async function searchSoundcloud(query, hints = {}) {
 // không kéo dài thời gian chờ khi nguồn YouTube bị 403.
 function buildSoundcloudFallbackQuery(title, author = '') {
     const raw = String(title || '').trim();
-    const cleaned = raw
-        .replace(/\([^)]*(?:mix|official|audio|lyrics|video|mv)[^)]*\)/gi, ' ')
-        .replace(/\[[^\]]*(?:mix|official|audio|lyrics|video|mv)[^\]]*\]/gi, ' ')
+    let cleaned = raw
+        // Bỏ nhãn quảng bá trong ngoặc. Loại bản thu được thêm lại bên dưới
+        // để vẫn giữ yêu cầu remix/slowed khi nó nằm trong dấu ngoặc.
+        .replace(/\([^)]*\)|\[[^\]]*\]/g, ' ')
         .replace(/\b(?:official\s+)?(?:audio|lyrics|lyric\s+video|music\s+video|mv|4k)\b/gi, ' ')
+        .replace(/\b(?:tiktok|viral|trend|full\s+version)\b.*$/i, ' ')
         .replace(/[|/]+/g, ' ')
         .replace(/\s+/g, ' ')
         .trim();
     const artist = String(author || '').replace(/[|/]+/g, ' ').replace(/\s+/g, ' ').trim();
-    const query = [artist, cleaned || raw].filter(Boolean).join(' ').trim();
-    return query.slice(0, 180) || raw.slice(0, 180);
+    // Tránh lặp nghệ sĩ ở cả đầu lẫn cuối truy vấn. Chỉ bỏ đúng cụm nghệ sĩ,
+    // vẫn giữ nguyên chữ và dấu tiếng Việt trong tên bài.
+    if (artist) {
+        const escaped = artist.split(/\s+/).filter(Boolean)
+            .map(part => part.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')).join('\\s*[-–—|/]?\\s*');
+        if (escaped) cleaned = cleaned.replace(new RegExp(`(?:^|[\\s-–—|/])${escaped}(?=$|[\\s-–—|/])`, 'ig'), ' ');
+    }
+    cleaned = cleaned.replace(/\s+/g, ' ').replace(/^[\s\-–—|/]+|[\s\-–—|/]+$/g, '').trim();
+    // Tiêu đề mix/TikTok dài thường ghép nhiều tên bài và từ quảng bá.
+    // Dùng cụm đầu làm khóa tìm kiếm nhưng giữ rõ loại bản thu đã yêu cầu.
+    const titleWords = (cleaned || raw).split(/\s+/).filter(Boolean).slice(0, 8);
+    let titleKey = titleWords.join(' ').replace(/\s+(?:x|feat|ft)$/i, '');
+    for (const variant of ['remix', 'cover', 'karaoke', 'instrumental', 'slowed', 'reverb', 'nightcore', 'sped up']) {
+        const pattern = new RegExp(`\\b${variant.replace(' ', '\\s+')}\\b`, 'i');
+        if (pattern.test(raw) && !pattern.test(titleKey)) titleKey += ` ${variant}`;
+    }
+    const query = [artist, titleKey].filter(Boolean).join(' ').trim();
+    return query.slice(0, 140) || raw.slice(0, 140);
 }
 
 function getYtCommonOpts() {
@@ -4515,7 +4560,9 @@ function spawnFfmpegAudio(inputStream, { pipeSeekSec = 0, effectKey = 'none' } =
 // Credential chỉ truyền cho yt-dlp tại máy host, không lưu trong track hoặc log.
 const effectMediaResolver = createMediaResolver({
     extract: (url, { signal }) => ytDlpExec(validateMusicUrl(url), {
-        ...getYtCommonOpts(), dumpSingleJson: true, skipDownload: true, noPlaylist: true,
+        // Cookie/PO của YouTube không tham gia extraction SoundCloud.
+        ...(YT_URL_REGEX.test(url) ? getYtCommonOpts() : { ignoreConfig: true, forceIpv4: true, noWarnings: true }),
+        dumpSingleJson: true, skipDownload: true, noPlaylist: true,
         format: 'bestaudio[ext=webm]/bestaudio[ext=ogg]/bestaudio/best',
         socketTimeout: 6, retries: 0, extractorRetries: 1
     }, { timeout: 8000, signal, maxBuffer: 4 << 20 })
@@ -5555,7 +5602,13 @@ async function playNextTrack(guildId, opts = {}) {
                 console.warn(`🔄 [Music] Nguồn YouTube gặp sự cố ("${next.title}") -> Tự động tìm nguồn phát SoundCloud...`);
                 try {
                     const scQuery = buildSoundcloudFallbackQuery(next.title, next.author);
-                    const scTrack = await searchSoundcloud(scQuery, { author: next.author, duration: next.duration });
+                    const scTrack = await searchSoundcloud(scQuery, {
+                        author: next.author,
+                        duration: next.duration,
+                        // Tìm dự phòng ngắn hơn nguồn chính; không giữ phòng
+                        // thoại im lặng thêm khi SoundCloud cũng không có bài.
+                        timeoutMs: 5500
+                    });
                     if (!isCurrentPlayback()) return;
                     next.scFallbackAttempted = true;
                     if (scTrack && scTrack.url) {
