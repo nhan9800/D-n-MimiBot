@@ -479,7 +479,15 @@ test('PO sẵn sàng: hết22giây dừng nguồn đúng một lần, YouTube t�
         f.clock.now += deadline.delay;
         deadline.callback(); await tick();
         assert.equal(firstSource.killed, true);
-        assert.equal(f.processes.length, 2, 'Hết deadline chỉ mở bài chờ, không thử client thứ2');
+        assert.equal(f.processes.length, 2, 'Hết deadline mở đúng một lượt HLS, chưa mở client YouTube thứ2');
+        assert.equal(f.processes[1].flags.format.includes('protocol=m3u8_native'), true);
+        assert.equal(f.mq.current, f.current);
+        assert.deepEqual(f.mq.queue, [f.queued]);
+        const hlsDeadline = f.timers.find(timer => !timer.cleared);
+        assert.equal(hlsDeadline.delay, 10000);
+        f.clock.now += hlsDeadline.delay;
+        hlsDeadline.callback(); await tick();
+        assert.equal(f.processes.length, 3, 'HLS hết hạn mới chuyển sang bài chờ');
         assert.equal(f.mq.current, f.queued);
         assert.equal(f.mq.queue.length, 0);
         assert.equal(f.current.url, originalUrl);
@@ -491,14 +499,14 @@ test('PO sẵn sàng: hết22giây dừng nguồn đúng một lần, YouTube t�
         deadline.callback();
         await firstSource.rejectPlayback(new Error('HTTP Error 403: Forbidden đến muộn'));
         await tick();
-        assert.equal(f.processes.length, 2);
+        assert.equal(f.processes.length, 3);
         assert.equal(f.mq.currentResource, queuedResource);
         assert.equal(f.mq.current, f.queued);
         assert.equal(searches, 0);
     } finally { packet.resolve({ stream: f.processes[0]?.stdout, type: 'opus' }); f.cleanup(); }
 });
 
-test('PO sẵn sàng:403 nhanh chỉ cấp retry phần còn lại của16giây, không khởi tạo deadline mới', async () => {
+test('PO sẵn sàng:403 thử HLS một lần với deadline riêng rồi giữ chính sách nguồn', async () => {
     let searches = 0;
     const f = await fixture({ searchSoundcloud: async () => { searches++; return null; },
         youtubePoProvider: { options: extractorArgs => ({ extractorArgs }), snapshot: () => ({ ready: true, clientRevision: 1 }) }
@@ -514,16 +522,18 @@ test('PO sẵn sàng:403 nhanh chỉ cấp retry phần còn lại của16giây,
         await f.processes[0].rejectPlayback(new Error('HTTP Error 403: Forbidden')); await tick();
         assert.equal(f.processes.length, 2);
         assert.equal(firstDeadline.cleared, true);
-        assert.equal(f.processes[1].flags.extractorArgs, 'youtube:player_client=web_embedded');
+        assert.equal(f.processes[1].flags.extractorArgs, 'youtube:player_client=default');
+        assert.match(f.processes[1].flags.format, /protocol=m3u8_native/);
+        assert.equal(f.ffmpegs.length, 1, 'HLS AAC phải qua FFmpeg thay vì demux passthrough');
         const secondDeadline = f.timers.find(timer => !timer.cleared);
-        assert.equal(secondDeadline.delay, 13000);
-        assert.equal(f.clock.now + secondDeadline.delay, beganAt + 16000);
+        assert.equal(secondDeadline.delay, 10000);
+        assert.equal(f.clock.now + secondDeadline.delay, beganAt + 13000);
         assert.equal(f.mq.current, f.current);
         assert.deepEqual(f.mq.queue, [f.queued]);
         f.clock.now += secondDeadline.delay;
         secondDeadline.callback(); await tick();
         assert.equal(f.processes[1].killed, true);
-        assert.equal(f.processes.length, 3, 'Không mở client thứ3 sau deadline, chỉ chuyển bài chờ');
+        assert.equal(f.processes.length, 3, 'HLS hết deadline không mở client YouTube thứ ba; queue chuyển bài kế');
         assert.equal(f.mq.current, f.queued);
         assert.equal(searches, 0);
         assert.equal(f.notices.filter(notice => notice.title === 'Không thể phát bài này').length, 1);

@@ -3582,6 +3582,12 @@ const YT_DOWNLOAD_CLIENT_FALLBACKS = [
     'youtube:player_client=web_embedded'
 ];
 
+// Một số IP bị YouTube từ chối các URL DASH googlevideo nhưng vẫn cho phép
+// playlist HLS. HLS trả audio AAC/MP4 qua nhiều fragment nên phải đi qua
+// FFmpeg; không dùng demux passthrough như luồng WebM/Opus bình thường.
+const YT_HLS_AUDIO_FORMAT =
+    'bestaudio[protocol=m3u8_native]/bestaudio[protocol=m3u8]/bestaudio[ext=webm]/bestaudio[ext=ogg]/bestaudio/best';
+
 function normalizeMusicMatchText(value) {
     return String(value || '').normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase()
         .replace(/[^a-z0-9]+/g, ' ').trim();
@@ -5268,7 +5274,11 @@ async function playNextTrack(guildId, opts = {}) {
             : 'pipe';
     // Khi tải bị 403, lần thử sau dùng bộ player_client tiếp theo.
     const clientAttempt = Math.max(0, Math.floor(opts.clientAttempt || 0));
-    const useFfmpeg = seekSec > 0 || effectKey !== 'none';
+    // HLS AAC/MP4 không đi được qua demux passthrough của voice; ép qua
+    // FFmpeg giống đường hiệu ứng để Discord nhận PCM ổn định.
+    const youtubeHlsAttempt = opts.youtubeHlsAttempt === true;
+    const youtubeHlsTried = opts.youtubeHlsTried === true;
+    const useFfmpeg = youtubeHlsAttempt || seekSec > 0 || effectKey !== 'none';
     const ffmpegPath = useFfmpeg ? getFfmpegPath() : null;
     // Khi binary còn đang tải, giữ nguyên bài đang nghe thay vì huỷ luồng rồi mới báo lỗi.
     if (opts.replayCurrent && !opts.effectRecovery && !clientAttempt && useFfmpeg && mq.currentResource && ffmpegPath !== 'ffmpeg' && !fs.existsSync(ffmpegPath)) {
@@ -5494,6 +5504,11 @@ async function playNextTrack(guildId, opts = {}) {
         // discord.js/voice sẽ tự demux Opus từ webm mà KHÔNG cần cài thêm ffmpeg riêng.
         // Tuyệt đối không dùng concurrentFragments khi xuất pipe ra stdout ('-') để tránh
         // lỗi tạo file tạm '--Frag*' bị No such file or directory trên stream HLS/DASH dài.
+        // Giữ literal dự phòng trong hàm để các bộ kiểm thử tách riêng coordinator
+        // khỏi phần bootstrap vẫn có thể chạy đường HLS mà không cần biến toàn cục.
+        const hlsFormat = typeof YT_HLS_AUDIO_FORMAT === 'string'
+            ? YT_HLS_AUDIO_FORMAT
+            : 'bestaudio[protocol=m3u8_native]/bestaudio[protocol=m3u8]/bestaudio[ext=webm]/bestaudio[ext=ogg]/bestaudio/best';
         const ytdlOpts = {
             ignoreConfig: true,
             output: '-',
@@ -5501,7 +5516,9 @@ async function playNextTrack(guildId, opts = {}) {
             // acodec=opus vì một số YouTube client trả metadata nhưng không công bố
             // format Opus, khiến yt-dlp báo Requested format is not available rồi
             // chuyển nhầm sang SoundCloud.
-            format: isYoutubePlayback ? 'bestaudio[ext=webm]/bestaudio[ext=ogg]/bestaudio/best' : 'bestaudio/best',
+            format: isYoutubePlayback && youtubeHlsAttempt
+                ? hlsFormat
+                : isYoutubePlayback ? 'bestaudio[ext=webm]/bestaudio[ext=ogg]/bestaudio/best' : 'bestaudio/best',
             noPlaylist: true,
             noWarnings: true,
             quiet: true,
@@ -5608,6 +5625,29 @@ async function playNextTrack(guildId, opts = {}) {
             const authRequired = /Sign in to confirm|not a bot|needs_auth|login required|authentication required/i.test(rawErr);
             const nextClient = YT_DOWNLOAD_CLIENT_FALLBACKS[nextAttempt] || '';
             const authCompatibleClient = /player_client=web_embedded/i.test(nextClient);
+
+            // Có host bị YouTube từ chối URL DASH sau khi đã cấp PO Token,
+            // nhưng vẫn tải được playlist HLS. Thử đúng một lần bằng đường
+            // HLS + FFmpeg với deadline mới ngắn; nếu HLS cũng bị chặn thì
+            // mới quay về client dự phòng/SoundCloud. Không lặp HLS vô hạn.
+            const poReady = youtubePoProvider.snapshot().ready === true;
+            if (isYoutubePlayback && isRetryable && poReady && !youtubeHlsAttempt && !youtubeHlsTried) {
+                const hlsDeadline = Date.now() + 10000;
+                console.warn(`🔁 [Music] Thử luồng HLS YouTube cho "${next.title}" trước khi đổi nguồn.`);
+                playNextTrack(guildId, {
+                    ...opts,
+                    replayCurrent: true,
+                    expectedTrack: next,
+                    seekSec: Math.max(seekSec, getPlaybackSec(mq)),
+                    effectKey,
+                    seekTransport: 'pipe',
+                    sourceDeadline: hlsDeadline,
+                    clientAttempt,
+                    youtubeHlsAttempt: true,
+                    youtubeHlsTried: true
+                }).catch(e => console.error(`❌ [Music] Lỗi khi thử HLS YouTube cho "${next.title}":`, classifyMusicSourceError(e).code));
+                return;
+            }
             if (isYoutubePlayback && isRetryable && Date.now() < sourceDeadline - 2000 && (!authRequired || authCompatibleClient) && nextAttempt < YT_DOWNLOAD_CLIENT_FALLBACKS.length) {
                 console.warn(`🔁 [Music] Thử lại client #${nextAttempt} cho "${next.title}".`);
                 playNextTrack(guildId, {
@@ -5621,7 +5661,9 @@ async function playNextTrack(guildId, opts = {}) {
                     // pipe và lại phải đọc toàn bộ phần đầu bài.
                     seekTransport,
                     sourceDeadline,
-                    clientAttempt: nextAttempt
+                    clientAttempt: nextAttempt,
+                    youtubeHlsAttempt: false,
+                    youtubeHlsTried
                 }).catch(e => console.error(`❌ [Music] Lỗi khi thử lại client cho "${next.title}":`, classifyMusicSourceError(e).code));
                 return;
             }
@@ -5657,7 +5699,9 @@ async function playNextTrack(guildId, opts = {}) {
                             seekSec: 0,
                             effectKey,
                             sourceDeadline: Date.now() + 12000,
-                            clientAttempt: 0
+                            clientAttempt: 0,
+                            youtubeHlsAttempt: false,
+                            youtubeHlsTried: true
                         });
                     }
                 } catch (scErr) {
