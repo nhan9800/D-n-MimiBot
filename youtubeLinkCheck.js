@@ -9,6 +9,7 @@ const OUTCOMES = new Set(['audio_received', 'invalid_audio', 'http_403', 'auth_r
     'search_failed', 'source_failed', 'search_empty', 'invalid_configuration', 'invalid_input', 'aborted', 'cancelled']);
 const FLAGS = ['containerHeaderRecognized', 'pluginLoaded', 'tokenRequestObserved', 'searchResolved',
     'providerRequestFailed', 'mediaDownloadFailed', 'downloadStarted'];
+const CLIENTS = new Set(['default', 'web_safari', 'web_embedded']);
 
 function boundedNumber(value, maximum) {
     return Number.isFinite(value) ? Math.max(0, Math.min(maximum, Math.floor(value))) : 0;
@@ -94,7 +95,8 @@ async function runYoutubeLinkCheck({ requestPath, receiptDir, resolveTrack, prob
     let request;
     try { request = await readJsonFile(fs, requestPath, 4096); } catch { return null; }
     if (!request || typeof request !== 'object' || Array.isArray(request)
-        || typeof request.caseId !== 'string' || !/^[A-Za-z0-9][A-Za-z0-9-]{0,63}$/.test(request.caseId)) return null;
+        || typeof request.caseId !== 'string' || !/^[A-Za-z0-9][A-Za-z0-9-]{0,63}$/.test(request.caseId)
+        || (request.client !== undefined && (typeof request.client !== 'string' || !CLIENTS.has(request.client)))) return null;
     const videoId = youtubeId(request.url);
     if (!videoId || signal?.aborted) return null;
     const directory = path.resolve(receiptDir);
@@ -146,8 +148,12 @@ async function runYoutubeLinkCheck({ requestPath, receiptDir, resolveTrack, prob
         else {
             const remaining = Math.min(45000, Math.max(1, 50000 - (now() - began)));
             try {
-                const result = await boundedCall(childSignal => probe({ videoUrl: `https://www.youtube.com/watch?v=${videoId}`,
-                    timeoutMs: remaining, signal: childSignal }), remaining, controller.signal, schedule, cancel);
+                const result = await boundedCall(childSignal => {
+                    const probeInput = { videoUrl: `https://www.youtube.com/watch?v=${videoId}`,
+                        timeoutMs: remaining, signal: childSignal };
+                    if (request.client) probeInput.client = request.client;
+                    return probe(probeInput);
+                }, remaining, controller.signal, schedule, cancel);
                 audio = safeAudio(result, videoId);
             } catch (error) {
                 audio = safeAudio({ outcome: totalTimedOut || error?.code === 'TIMEOUT' ? 'timeout' : controller.signal.aborted ? 'aborted' : 'source_failed',

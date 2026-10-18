@@ -49,7 +49,7 @@ function fixture({ paused = false, soundcloud = false,
     // getPlaybackSec is independent from the persistence/Discord bootstrap.
     vm.runInContext(source.match(/function getPlaybackSec\([^]*?\n\}/)[0], context);
     vm.runInContext(source.match(/function getMusicSourceCacheKey\([^]*?\n\}/)[0], context);
-    vm.runInContext(region('function getYtCommonOpts()', '// Số kết quả sẽ lấy'), context);
+    vm.runInContext(region('function getYtCommonOpts', '// Số kết quả sẽ lấy'), context);
     vm.runInContext(region('const effectMediaResolver =', '// Chuyển chuỗi thời gian'), context);
     return { mq, old, candidate, ready, completion, events, positions, notices, saved, map, extractions,
         change: key => vm.runInContext(`changeMusicEffect('guild', ${JSON.stringify(key)})`, context),

@@ -59,6 +59,15 @@ test('Giữ metadata nguồn YouTube và probe đúng ID đã bỏ playlist, rec
     assert.ok(f.timers.every(timer => timer.cleared));
 });
 
+test('Client thử nghiệm chỉ truyền web_safari/web_embedded vào probe, không nới lỏng request', async t => {
+    const f = await fixture(t);
+    await f.request({ caseId: CASE, url: URL, client: 'web_safari' });
+    await runYoutubeLinkCheck(f.input);
+    assert.equal(f.calls[1][1].client, 'web_safari');
+    await f.request({ caseId: CASE, url: URL, client: 'android' });
+    assert.equal(await runYoutubeLinkCheck(f.input), null);
+});
+
 test('Receipt complete được sanitize lại, restart không gọi nguồn nhạc lần nữa', async t => {
     const f = await fixture(t);
     const result = await runYoutubeLinkCheck(f.input);

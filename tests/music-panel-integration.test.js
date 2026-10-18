@@ -83,7 +83,7 @@ test('Tùy chọn metadata tạo argv yt-dlp hợp lệ, giữ cookie và xác t
         ytDlpExec: async (url, flags, options) => { calls.push({ url, flags, options }); return { title: 'Bài thử', webpage_url: 'https://soundcloud.com/artist/track' }; }
     });
     vm.runInContext(region('const YT_EXTRACTOR_ARGS =', 'async function searchSoundcloud('), context);
-    vm.runInContext(region('function getYtCommonOpts()', '// Số kết quả sẽ lấy'), context);
+    vm.runInContext(region('function getYtCommonOpts', '// Số kết quả sẽ lấy'), context);
     vm.runInContext(region('function normalizeMusicMatchText(', 'function getYtCommonOpts('), context);
     vm.runInContext(region('const YT_META_TIMEOUT_MS =', 'async function searchYoutube('), context);
     vm.runInContext(region('async function resolveDirectUrl(', '// Ưu tiên: YouTube'), context);

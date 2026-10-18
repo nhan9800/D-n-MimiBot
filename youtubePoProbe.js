@@ -43,7 +43,7 @@ function waitWithSignal(promise, signal) {
  * Một flat search và một lần tải audio có hạn. getOptions dùng chính cấu hình
  * production; helper không mở cookie, không trả/log token hoặc signed media URL.
  */
-function runYoutubePoProbe({ ytDlpExec, getOptions, query = 'JACK J97 Lưu Niên', videoUrl,
+function runYoutubePoProbe({ ytDlpExec, getOptions, query = 'JACK J97 Lưu Niên', videoUrl, clientArgs,
     timeoutMs = 45000, maxBytes = 65536, now = Date.now, timers = {}, signal: parentSignal } = {}) {
     const beganAt = now();
     const budget = Math.max(1, Math.min(60000, Number(timeoutMs) || 45000));
@@ -143,7 +143,7 @@ function runYoutubePoProbe({ ytDlpExec, getOptions, query = 'JACK J97 Lưu Niên
                 phase = 'search';
                 const text = String(query || '').trim().slice(0, 180);
                 if (!text) return finish('invalid_input');
-                const options = getOptions();
+                const options = typeof clientArgs === 'string' ? getOptions(clientArgs) : getOptions();
                 const found = await waitWithSignal(ytDlpExec(`ytsearch1:${text}`, {
                     ...options, dumpSingleJson: true, flatPlaylist: true, skipDownload: true,
                     noWarnings: true, ignoreConfig: true, retries: 0, extractorRetries: 0,
@@ -160,7 +160,8 @@ function runYoutubePoProbe({ ytDlpExec, getOptions, query = 'JACK J97 Lưu Niên
             audioBeganAt = now();
             // quiet có thể ẩn marker yêu cầu PO Token. Chỉ bỏ cờ này trong probe;
             // stderr vẫn được giữ riêng, có hạn và không được trả về báo cáo.
-            const { quiet: _quiet, ...options } = getOptions();
+            const { quiet: _quiet, ...options } = typeof clientArgs === 'string'
+                ? getOptions(clientArgs) : getOptions();
             const url = `https://www.youtube.com/watch?v=${videoId}`;
             child = ytDlpExec.exec(url, {
                 ...options, format: 'bestaudio[ext=webm]/bestaudio[ext=ogg]/bestaudio/best',

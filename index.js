@@ -3468,7 +3468,11 @@ ensureYtDlpBinary().then(async available => {
             receiptDir: path.join(__dirname, 'data', 'youtube-po', 'link-checks'),
             signal: youtubeDiagnosticController.signal,
             resolveTrack,
-            probe: options => runYoutubePoProbe({ ytDlpExec, getOptions: getYtCommonOpts, ...options })
+            probe: options => {
+                const clientArgs = options?.client === 'web_safari' ? 'youtube:player_client=web_safari'
+                    : options?.client === 'web_embedded' ? 'youtube:player_client=web_embedded' : undefined;
+                return runYoutubePoProbe({ ytDlpExec, getOptions: getYtCommonOpts, clientArgs, ...options });
+            }
         }).then(receipt => {
             if (!receipt) return;
             youtubeLinkVerification = receipt;
@@ -3656,7 +3660,7 @@ function buildSoundcloudFallbackQuery(title, author = '') {
     return query.slice(0, 140) || raw.slice(0, 140);
 }
 
-function getYtCommonOpts() {
+function getYtCommonOpts(clientArgs = YT_EXTRACTOR_ARGS) {
     // yt-dlp-exec đổi boolean false thành --no-<flag>; noCheckCertificates:false
     // thành --no-no-check-certificates không hợp lệ. Bỏ flag để giữ xác thực TLS mặc định.
     const opts = {
@@ -3665,7 +3669,7 @@ function getYtCommonOpts() {
         preferFreeFormats: true,
         jsRuntimes: 'node',
         remoteComponents: 'ejs:github',
-        ...youtubePoProvider.options(YT_EXTRACTOR_ARGS),
+        ...youtubePoProvider.options(clientArgs),
         // YouTube signs the googlevideo URL with the address used while
         // extracting it. Keep metadata extraction on the same IPv4 path as
         // the streaming process; otherwise dual-stack hosts can extract over
