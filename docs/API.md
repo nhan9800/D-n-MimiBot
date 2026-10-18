@@ -11,7 +11,7 @@ Internal API chạy cùng bot, tùy chọn theo `MIMI_API_TOKEN`. Website ở re
 | GET | `/internal/status` | Bearer service | Trạng thái và số liệu bot |
 | GET | `/internal/commands` | Bearer service | Danh mục lệnh slash |
 | GET | `/internal/team` | Bearer service | Đội ngũ từ guild hỗ trợ đã chọn; rỗng khi chưa cấu hình |
-| GET | `/internal/communities` | Bearer service | Danh sách guild đã opt-in công khai qua `MIMI_PUBLIC_COMMUNITY_GUILDS` |
+| GET | `/internal/communities` | Bearer service | Danh sách guild đã opt-in công khai qua `MIMI_PUBLIC_COMMUNITY_GUILDS`, kèm chủ server tối thiểu |
 | GET | `/internal/guilds/:guildId/settings` | Bearer + dashboard key | Cấu hình guild |
 | GET | `/internal/guilds/:guildId/stats` | Bearer + dashboard key | Thống kê tổng hợp riêng của guild |
 | PATCH | `/internal/guilds/:guildId/settings` | Bearer + dashboard key | Sửa các trường được phép |
@@ -26,9 +26,11 @@ Internal API chạy cùng bot, tùy chọn theo `MIMI_API_TOKEN`. Website ở re
 Không có endpoint `/internal/health` trong phiên bản hiện tại. Dùng `/health/live` và `/health/ready`.
 
 `/internal/communities` chỉ trả các guild được cho phép công khai bằng biến môi trường
-`MIMI_PUBLIC_COMMUNITY_GUILDS` (danh sách ID phân tách bằng dấu phẩy). Nếu biến này trống,
-bot chỉ dùng `SUPPORT_SERVER_ID` hoặc `MIMI_HOME_GUILD_ID` làm fallback; bot không tự công khai
-toàn bộ các server đang tham gia. Endpoint stats của từng guild luôn yêu cầu dashboard key đúng guild.
+`MIMI_PUBLIC_COMMUNITY_GUILDS` (danh sách ID phân tách bằng dấu phẩy). Đặt giá trị `all` hoặc `*`
+khi đã quyết định công khai toàn bộ guild bot đang tham gia; portal sẽ thống kê từng guild và
+trả `owner: { id, username, displayName, avatarUrl }` tối thiểu. Nếu biến này trống, bot chỉ
+dùng `SUPPORT_SERVER_ID` hoặc `MIMI_HOME_GUILD_ID` làm fallback; bot không tự công khai toàn bộ
+các server đang tham gia. Endpoint stats của từng guild luôn yêu cầu dashboard key đúng guild.
 
 ## Header và quyền
 

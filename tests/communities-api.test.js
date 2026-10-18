@@ -4,14 +4,26 @@ const { once } = require('node:events');
 const { Collection } = require('discord.js');
 const { startInternalApi } = require('../internalApi');
 
-function member(id, status = 'offline') {
-    return { id, user: { id, bot: false }, presence: { status } };
+function member(id, status = 'offline', username = id) {
+    return {
+        id,
+        displayName: username,
+        user: {
+            id,
+            username,
+            globalName: username,
+            bot: false,
+            displayAvatarURL: () => `https://cdn.example.test/${id}.webp`
+        },
+        presence: { status }
+    };
 }
 
-function guild(id, name, members) {
+function guild(id, name, members, ownerId = members[0]?.id) {
     return {
         id,
         name,
+        ownerId,
         memberCount: members.length,
         premiumSubscriptionCount: 3,
         iconURL: () => `https://cdn.example.test/${id}.png`,
@@ -73,4 +85,36 @@ test('communities không tự quét guild khi chưa cấu hình allowlist hoặc
     const payload = await (await request()).json();
     assert.deepEqual(payload.communities, []);
     assert.equal(payload.source, 'unconfigured');
+});
+
+test('communities hỗ trợ wildcard để thống kê toàn bộ guild và trả owner tối thiểu', async t => {
+    const request = await fixture(t, [
+        guild('one', 'One', [member('owner-one', 'online', 'Owner One'), member('member-one')]),
+        guild('two', 'Two', [member('owner-two', 'offline', 'Owner Two')])
+    ], { MIMI_PUBLIC_COMMUNITY_GUILDS: '*' });
+    const payload = await (await request()).json();
+    assert.equal(payload.source, 'discord_all');
+    assert.equal(payload.count, 2);
+    assert.deepEqual(payload.communities.map(item => item.id), ['one', 'two']);
+    assert.deepEqual(payload.communities[0].owner, {
+        id: 'owner-one',
+        username: 'Owner One',
+        displayName: 'Owner One',
+        avatarUrl: 'https://cdn.example.test/owner-one.webp'
+    });
+});
+
+test('communities fetch owner khi owner chưa có trong cache và không lộ dữ liệu member khác', async t => {
+    let fetches = 0;
+    const owner = member('fetched-owner', 'online', 'Fetched Owner');
+    const target = guild('fetch-owner', 'Fetch Owner', [member('member-only')], 'fetched-owner');
+    target.fetchOwner = async () => { fetches += 1; return owner; };
+    const request = await fixture(t, [target], { MIMI_PUBLIC_COMMUNITY_GUILDS: 'fetch-owner' });
+    const first = await (await request()).json();
+    const second = await (await request()).json();
+    assert.equal(fetches, 1);
+    assert.equal(first.communities[0].owner.id, 'fetched-owner');
+    assert.equal(first.communities[0].owner.displayName, 'Fetched Owner');
+    assert.equal(second.communities[0].owner.username, 'Fetched Owner');
+    assert.equal(Object.hasOwn(first.communities[0].owner, 'email'), false);
 });

@@ -197,6 +197,27 @@ function publicGuildStats(guild, guildConfig, musicQueue) {
     };
 }
 
+/**
+ * Chuyển chủ server thành dữ liệu công khai tối thiểu cho portal cộng đồng.
+ * Guild owner thường đã nằm trong member cache; chỉ gọi fetchOwner khi cache
+ * thiếu và caller cho phép fetch. Không trả email, quyền hay dữ liệu riêng tư.
+ */
+function publicGuildOwner(guild, ownerMember = null) {
+    const ownerId = String(guild?.ownerId || guild?.owner_id || '').trim() || null;
+    const member = ownerMember?.user ? ownerMember : null;
+    const user = member?.user || ownerMember || null;
+    if (!ownerId && !user?.id) return null;
+    const id = String(user?.id || ownerId);
+    return {
+        id,
+        username: user?.username || user?.globalName || null,
+        displayName: member?.displayName || user?.globalName || user?.username || id,
+        avatarUrl: typeof user?.displayAvatarURL === 'function'
+            ? user.displayAvatarURL({ size: 128, forceStatic: false }) || null
+            : typeof user?.avatarURL === 'function' ? user.avatarURL({ size: 128 }) || null : null
+    };
+}
+
 // ---------------------------------------------------------------------
 // Server chính
 // ---------------------------------------------------------------------
@@ -247,6 +268,10 @@ function startInternalApi(deps) {
     }
 
     const isLimited = createRateLimiter({ windowMs: 10_000, max: 90 });
+    // Owner avatar/name thay đổi ít hơn nhiều so với dữ liệu guild. Cache ngắn
+    // giúp endpoint cộng đồng không gọi Discord REST cho cả 29 guild mỗi lượt.
+    const communityOwnerCache = new Map();
+    const COMMUNITY_OWNER_CACHE_MS = 5 * 60 * 1000;
 
     function send(res, status, body, reqId) {
         // socket có thể đã bị huỷ (client ngắt, payload quá lớn) — ghi tiếp là vô ích
@@ -603,38 +628,61 @@ function startInternalApi(deps) {
             }
 
             // ---- GET /internal/communities ----
-            // Chỉ công khai các guild đã được chủ bot chọn rõ ràng qua
-            // MIMI_PUBLIC_COMMUNITY_GUILDS. Không quét/toàn bộ server bot đang tham gia
-            // để tránh lộ tên và số liệu của cộng đồng chưa đồng ý xuất hiện trên web.
+            // Mặc định chỉ công khai các guild đã được chủ bot chọn rõ ràng qua
+            // MIMI_PUBLIC_COMMUNITY_GUILDS. Đặt giá trị "all" hoặc "*" khi chủ bot
+            // muốn dashboard giới thiệu toàn bộ guild bot đang phục vụ (ví dụ thống kê
+            // 29 server); đây là một cờ chủ động vì tên server/chủ server là dữ liệu công khai.
             if (req.method === 'GET' && parts[1] === 'communities') {
                 const configuredIds = (process.env.MIMI_PUBLIC_COMMUNITY_GUILDS || '')
                     .split(',').map(value => value.trim()).filter(Boolean);
+                const showAll = configuredIds.some(value => value.toLowerCase() === 'all' || value === '*');
                 const fallbackId = String(process.env.SUPPORT_SERVER_ID || process.env.MIMI_HOME_GUILD_ID || '').trim();
-                const ids = [...new Set(configuredIds.length ? configuredIds : (fallbackId ? [fallbackId] : []))];
-                const communities = ids.map(id => client.guilds.cache.get(id)).filter(Boolean).map(guild => ({
-                    id: guild.id,
-                    name: guild.name,
-                    iconUrl: guild.iconURL?.({ size: 256 }) || null,
-                    memberCount: Number(guild.memberCount || 0),
-                    boostCount: Number(guild.premiumSubscriptionCount || 0),
-                    onlineCount: (() => {
-                        const members = guild.members?.cache;
-                        if (!members) return null;
-                        const humans = members.filter(member => !member.user?.bot);
-                        const presenceKnown = humans.some(member => ['online', 'idle', 'dnd', 'offline'].includes(member.presence?.status));
-                        return presenceKnown ? humans.filter(member => ['online', 'idle', 'dnd'].includes(member.presence?.status)).size : null;
-                    })(),
-                    features: {
-                        music: !!musicQueues.get(guild.id)?.connection,
-                        ticket: !!getGuildConfig(guild.id)?.isTicketSetup,
-                        level: !!getGuildConfig(guild.id)?.levelSystem?.enabled
+                const ids = showAll
+                    ? [...client.guilds.cache.keys()]
+                    : [...new Set(configuredIds.length ? configuredIds : (fallbackId ? [fallbackId] : []))];
+                const guilds = ids.map(id => client.guilds.cache.get(id)).filter(Boolean);
+                const communities = await Promise.all(guilds.map(async guild => {
+                    // Owner thường đã nằm trong member/user cache. Chỉ gọi Discord khi
+                    // cần thiết để tên owner không bị trống trên bảng cộng đồng.
+                    const ownerId = String(guild.ownerId || guild.owner_id || '').trim();
+                    let ownerMember = ownerId ? guild.members?.cache?.get?.(ownerId) || null : null;
+                    let owner = ownerMember?.user || client.users?.cache?.get?.(ownerId) || null;
+                    const cached = communityOwnerCache.get(guild.id);
+                    if (!ownerMember && !owner && cached && Date.now() - cached.at <= COMMUNITY_OWNER_CACHE_MS) {
+                        ownerMember = cached.member || null;
+                        owner = ownerMember?.user || cached.user || null;
                     }
+                    if (!owner && guild.fetchOwner) {
+                        ownerMember = await guild.fetchOwner().catch(() => null);
+                        owner = ownerMember?.user || ownerMember || null;
+                        if (owner) communityOwnerCache.set(guild.id, { at: Date.now(), member: ownerMember, user: owner });
+                    }
+                    return {
+                        id: guild.id,
+                        name: guild.name,
+                        iconUrl: guild.iconURL?.({ size: 256 }) || null,
+                        memberCount: Number(guild.memberCount || 0),
+                        boostCount: Number(guild.premiumSubscriptionCount || 0),
+                        owner: publicGuildOwner(guild, ownerMember || owner),
+                        onlineCount: (() => {
+                            const members = guild.members?.cache;
+                            if (!members) return null;
+                            const humans = members.filter(member => !member.user?.bot);
+                            const presenceKnown = humans.some(member => ['online', 'idle', 'dnd', 'offline'].includes(member.presence?.status));
+                            return presenceKnown ? humans.filter(member => ['online', 'idle', 'dnd'].includes(member.presence?.status)).size : null;
+                        })(),
+                        features: {
+                            music: !!musicQueues.get(guild.id)?.connection,
+                            ticket: !!getGuildConfig(guild.id)?.isTicketSetup,
+                            level: !!getGuildConfig(guild.id)?.levelSystem?.enabled
+                        }
+                    };
                 }));
                 return send(res, 200, {
                     ok: true,
                     communities,
                     count: communities.length,
-                    source: communities.length ? 'discord' : (ids.length ? 'unavailable' : 'unconfigured'),
+                    source: communities.length ? (showAll ? 'discord_all' : 'discord') : (ids.length ? 'unavailable' : 'unconfigured'),
                     updatedAt: new Date().toISOString()
                 }, reqId);
             }
