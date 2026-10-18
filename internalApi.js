@@ -616,10 +616,17 @@ function startInternalApi(deps) {
                     addMember(founder, { role: 'Founder & Community Owner', color: '#ff6b81', description: 'Người vận hành cộng đồng được cấu hình.', group: 'core', priority: 1, isDev: false });
                     addMember(await fetchMemberSafe(devUserId), { role: 'Core Developer', color: '#2ecc71', description: 'Thành viên phát triển được cấu hình.', group: 'core', priority: 2, isDev: true });
                     for (const member of guild.members.cache.values()) {
-                        const matchingRole = member.roles.cache.filter(role => /admin|quản trị|manager|moderator|support|staff|partner|đối tác/i.test(role.name)).sort((a, b) => b.position - a.position).first();
+                        // Role trong server chính thường dùng tên tiếng Việt ngắn (BQT,
+                        // Điều hành, Quản lý, Nhân sự, Dev). Giữ allowlist theo ngữ
+                        // nghĩa để không đưa toàn bộ thành viên lên website, đồng
+                        // thời nhận được các tên role cũ bằng tiếng Anh.
+                        const matchingRole = member.roles.cache
+                            .filter(role => /bqt|admin|quản trị|quản lý|điều hành|nhân sự|manager|moderator|mod\b|support|staff|dev\b|developer|owner|chủ server|lead|helper|trợ lý|team|partner|đối tác/i.test(role.name))
+                            .sort((a, b) => b.position - a.position)
+                            .first();
                         if (!matchingRole) continue;
                         const isPartner = /partner|đối tác/i.test(matchingRole.name);
-                        const isAdmin = /admin|quản trị|manager|moderator/i.test(matchingRole.name);
+                        const isAdmin = /bqt|admin|quản trị|quản lý|điều hành|nhân sự|manager|moderator|mod\b|support|staff|dev\b|developer|owner|chủ server|lead|helper|trợ lý|team/i.test(matchingRole.name);
                         addMember(member, {
                             role: matchingRole.name,
                             color: matchingRole.hexColor && matchingRole.hexColor !== '#000000' ? matchingRole.hexColor : '#9b59b6',
