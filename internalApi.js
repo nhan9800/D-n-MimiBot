@@ -126,6 +126,75 @@ function publicPlayerState(guildId, mq, voiceLib) {
     };
 }
 
+/**
+ * Chỉ trả các số liệu tổng hợp của đúng guild đã xác thực dashboard key.
+ * Không đưa danh sách thành viên, tên người dùng hay dữ liệu cấu hình nhạy cảm
+ * ra ngoài. Các trường được tính từ cache hiện tại nên giao diện luôn phản ánh
+ * trạng thái bot đang thấy, thay vì hiển thị số liệu tĩnh.
+ */
+function publicGuildStats(guild, guildConfig, musicQueue) {
+    if (!guild) return null;
+    const members = guild.members?.cache;
+    const channels = guild.channels?.cache;
+    const roles = guild.roles?.cache;
+    const humanCount = members ? members.filter(member => !member.user?.bot).size : null;
+    const botCount = members ? members.filter(member => member.user?.bot).size : null;
+    const onlineCount = members
+        ? members.filter(member => !member.user?.bot && ['online', 'idle', 'dnd'].includes(member.presence?.status)).size
+        : null;
+    const channelSummary = channels ? {
+        total: channels.size,
+        text: channels.filter(channel => channel.type === 0).size,
+        voice: channels.filter(channel => channel.type === 2).size,
+        category: channels.filter(channel => channel.type === 4).size
+    } : null;
+    const level = guildConfig?.levelSystem || {};
+    const monthly = level.monthly || {};
+    const configured = {
+        setup: !!guildConfig?.isSetupCompleted,
+        verify: !!guildConfig?.isVerifySetup,
+        ticket: !!guildConfig?.isTicketSetup,
+        feedback: !!guildConfig?.isFeedbackSetup,
+        levelChat: !!level.enabled,
+        levelVoice: !!(level.voiceEnabled ?? level.enabled),
+        music: !!musicQueue?.connection
+    };
+    const queueCount = Array.isArray(musicQueue?.queue) ? musicQueue.queue.length : 0;
+    return {
+        guild: {
+            id: guild.id,
+            name: guild.name,
+            iconUrl: guild.iconURL?.({ size: 256 }) || null,
+            memberCount: Number(guild.memberCount || 0),
+            boostCount: Number(guild.premiumSubscriptionCount || 0)
+        },
+        members: { total: Number(guild.memberCount || 0), humans: humanCount, bots: botCount, online: onlineCount },
+        channels: channelSummary,
+        roles: roles ? Math.max(0, roles.size - 1) : null,
+        music: {
+            connected: !!musicQueue?.connection,
+            queueCount,
+            hasTrack: !!musicQueue?.current,
+            voiceChannelId: musicQueue?.voiceChannelId || null
+        },
+        features: configured,
+        levels: {
+            chatUsers: level.users && typeof level.users === 'object' ? Object.keys(level.users).length : 0,
+            voiceUsers: level.voiceUsers && typeof level.voiceUsers === 'object' ? Object.keys(level.voiceUsers).length : 0,
+            monthlyChat: !!monthly.enabled?.chat,
+            monthlyVoice: !!monthly.enabled?.voice
+        },
+        invites: {
+            eventEnabled: !!guildConfig?.inviteAnnouncements?.enabled,
+            trackedMembers: guildConfig?.inviteTracking?.members && typeof guildConfig.inviteTracking.members === 'object'
+                ? Object.keys(guildConfig.inviteTracking.members).length : 0,
+            eventMembers: guildConfig?.inviteEvent?.members && typeof guildConfig.inviteEvent.members === 'object'
+                ? Object.keys(guildConfig.inviteEvent.members).length : 0
+        },
+        updatedAt: new Date().toISOString()
+    };
+}
+
 // ---------------------------------------------------------------------
 // Server chính
 // ---------------------------------------------------------------------
@@ -531,6 +600,39 @@ function startInternalApi(deps) {
                 return send(res, 200, { ok: true, team, count: team.length, source: guild ? 'discord_roles' : 'unconfigured', updatedAt: new Date().toISOString() }, reqId);
             }
 
+            // ---- GET /internal/communities ----
+            // Chỉ công khai các guild đã được chủ bot chọn rõ ràng qua
+            // MIMI_PUBLIC_COMMUNITY_GUILDS. Không quét/toàn bộ server bot đang tham gia
+            // để tránh lộ tên và số liệu của cộng đồng chưa đồng ý xuất hiện trên web.
+            if (req.method === 'GET' && parts[1] === 'communities') {
+                const configuredIds = (process.env.MIMI_PUBLIC_COMMUNITY_GUILDS || '')
+                    .split(',').map(value => value.trim()).filter(Boolean);
+                const fallbackId = String(process.env.SUPPORT_SERVER_ID || process.env.MIMI_HOME_GUILD_ID || '').trim();
+                const ids = [...new Set(configuredIds.length ? configuredIds : (fallbackId ? [fallbackId] : []))];
+                const communities = ids.map(id => client.guilds.cache.get(id)).filter(Boolean).map(guild => ({
+                    id: guild.id,
+                    name: guild.name,
+                    iconUrl: guild.iconURL?.({ size: 256 }) || null,
+                    memberCount: Number(guild.memberCount || 0),
+                    boostCount: Number(guild.premiumSubscriptionCount || 0),
+                    onlineCount: guild.members?.cache
+                        ? guild.members.cache.filter(member => !member.user?.bot && ['online', 'idle', 'dnd'].includes(member.presence?.status)).size
+                        : null,
+                    features: {
+                        music: !!musicQueues.get(guild.id)?.connection,
+                        ticket: !!getGuildConfig(guild.id)?.isTicketSetup,
+                        level: !!getGuildConfig(guild.id)?.levelSystem?.enabled
+                    }
+                }));
+                return send(res, 200, {
+                    ok: true,
+                    communities,
+                    count: communities.length,
+                    source: communities.length ? 'discord' : (ids.length ? 'unavailable' : 'unconfigured'),
+                    updatedAt: new Date().toISOString()
+                }, reqId);
+            }
+
             // ---- GET /internal/user?q=... ----
             // Tra cứu thông tin tài khoản Discord để liên kết đánh giá trên website
             if (req.method === 'GET' && parts[1] === 'user') {
@@ -621,6 +723,18 @@ function startInternalApi(deps) {
                             isTtsSetup: !!gc.isTtsSetup,
                             isVoiceRoomSetup: !!gc.isVoiceRoomSetup
                         }
+                    }, reqId);
+                }
+
+                // GET stats — số liệu tổng hợp riêng của guild cho Dashboard.
+                // Giữ sau cùng một lớp dashboard-key như settings/player để không
+                // biến endpoint thành danh sách server công khai.
+                if (req.method === 'GET' && (parts[3] === 'stats' || parts[3] === 'overview')) {
+                    if (!botInGuild) return fail(res, 404, 'BOT_NOT_IN_GUILD', 'Bot chưa ở trong server này.', reqId);
+                    const gc = getGuildConfig(guildId);
+                    return send(res, 200, {
+                        ok: true,
+                        stats: publicGuildStats(guild, gc, musicQueues.get(guildId))
                     }, reqId);
                 }
 
