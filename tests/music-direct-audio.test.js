@@ -100,6 +100,17 @@ test('SoundCloud HLS đặt mốc tua sau input để không thoát mã 0 nhưng
     assert.equal(args.includes('-fflags'), false, 'HLS không dùng input fastseek');
 });
 
+test('SoundCloud media-streaming CDN vẫn dùng output seek khi extractor làm mất protocol', () => {
+    const f = fixture({ media: {
+        url: 'https://playback.media-streaming.soundcloud.cloud/track/playlist?expires=9999999999',
+        headers: { 'User-Agent': 'Mimi-Audio/1.0' }
+    } });
+    const candidate = f.create(); candidate.dispose();
+    const args = f.calls[0].args;
+    assert.ok(args.indexOf('-i') < args.indexOf('-ss'));
+    assert.equal(args.includes('-fflags'), false);
+});
+
 test('ready đợi gói đầu tiên mà không tiêu thụ gói; PCM chỉ mã hóa tối đa hai frame mỗi lượt', { timeout: 2000 }, async t => {
     const f = fixture();
     const candidate = f.create();

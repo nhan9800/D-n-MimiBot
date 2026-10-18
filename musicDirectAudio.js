@@ -51,7 +51,9 @@ function directArgs(media, seekSec, effectFilter) {
     // input-seek và FFmpeg sẽ thoát mã 0 nhưng không phát ra PCM. Với HLS,
     // đặt -ss sau -i để demuxer đọc segment rồi cắt ở output; vẫn giữ seek
     // trước input cho nguồn có Range để không quay lại lỗi load chậm.
-    const isHls = /m3u8|hls/i.test(String(media.protocol || '')) || /\.m3u8(?:\?|$)/i.test(url.pathname + url.search);
+    const isHls = /m3u8|hls/i.test(String(media.protocol || ''))
+        || /\.m3u8(?:\?|$)/i.test(url.pathname + url.search)
+        || /(^|\.)media-streaming\.soundcloud\.cloud$/i.test(url.hostname);
     if (isHls) {
         args.push('-i', media.url);
         if (seekSec > 0) args.push('-ss', String(seekSec));
