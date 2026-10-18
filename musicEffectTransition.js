@@ -121,7 +121,8 @@ function selectMediaAudio(info, { now = Date.now() } = {}) {
                 const headers = safeHeaders(info.http_headers, item.http_headers);
                 const directFile = !/m3u8|dash|hls/i.test(String(item.protocol || '')) && !/\.m3u8(?:\?|$)/i.test(url);
                 const bitrate = Math.max(0, Math.min(1000, Number(item.abr) || Number(item.tbr) || 0));
-                candidates.push({ url, headers, expiresAt: Math.min(now + MAX_MEDIA_TTL_MS, expires - EXPIRY_MARGIN_MS),
+                candidates.push({ url, headers, ...(typeof item.protocol === 'string' && item.protocol ? { protocol: item.protocol.slice(0, 64) } : {}),
+                    expiresAt: Math.min(now + MAX_MEDIA_TTL_MS, expires - EXPIRY_MARGIN_MS),
                     formatId: item.format_id == null ? undefined : String(item.format_id),
                     score: (directFile ? 2000 : 0) + (item.acodec === 'opus' ? 100 : 0) + bitrate });
             } catch { /* Một format không hợp lệ không được chặn format audio hợp lệ còn lại. */ }

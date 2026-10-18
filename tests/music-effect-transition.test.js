@@ -43,6 +43,7 @@ test('Chọn audio riêng có thể seek, giữ header an toàn và cache hết 
     ] }, { now: NOW });
     assert.equal(selected.url, `${CDN}?expire=${expiry}`);
     assert.equal(selected.formatId, '251');
+    assert.equal(selected.protocol, undefined);
     assert.equal(selected.expiresAt, NOW + 120000);
     assert.deepEqual(selected.headers, { 'user-agent': 'Extractor', referer: 'https://www.youtube.com/' });
 });
@@ -59,6 +60,7 @@ test('SoundCloud CDN mới media-streaming.soundcloud.cloud được chọn cho 
     }, { now: NOW });
     assert.equal(selected.url, url);
     assert.equal(selected.formatId, undefined);
+    assert.equal(selected.protocol, 'm3u8_native');
     assert.equal(selected.headers['user-agent'], 'SoundCloud player');
 });
 
