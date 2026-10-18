@@ -427,6 +427,112 @@ test('Provider PO sẵn sàng được chuyển vào pipe YouTube; provider tắ
     }
 });
 
+test('PO sẵn sàng: packet đến giây17 trong cửa sổ22giây vẫn phát cùng nguồn và giữ queue', async () => {
+    const packet = deferred(); let searches = 0;
+    const f = await fixture({ synchronousPlaying: true,
+        demuxProbe: () => packet.promise,
+        searchSoundcloud: async () => { searches++; return null; },
+        youtubePoProvider: { options: extractorArgs => ({ extractorArgs }), snapshot: () => ({ ready: true, clientRevision: 1 }) }
+    });
+    try {
+        f.current.allowSourceFallback = false;
+        f.context.YT_DOWNLOAD_CLIENT_FALLBACKS = ['youtube:player_client=default', 'youtube:player_client=web_embedded'];
+        const starting = f.play({ effectKey: 'none', seekSec: 0, seekTransport: 'pipe' });
+        await tick();
+        const deadline = f.timers.find(timer => !timer.cleared);
+        assert.equal(deadline.delay, 22000, 'PO cold challenge dùng trọn deadline chung, không bị cắt ở12giây');
+        assert.equal(f.processes.length, 1);
+        assert.equal(f.processes[0].flags.downloadSections, undefined);
+        f.clock.now += 17000;
+        packet.resolve({ stream: f.mq.currentBuffer, type: 'opus' });
+        await starting; await tick();
+        assert.equal(f.player.state.status, 'playing');
+        assert.equal(deadline.cleared, true);
+        assert.equal(f.processes.length, 1);
+        assert.equal(f.processes[0].killed, false);
+        assert.equal(f.mq.current, f.current);
+        assert.deepEqual(f.mq.queue, [f.queued]);
+        assert.equal(searches, 0);
+        assert.equal(f.notices.length, 0);
+        deadline.callback(); await tick();
+        assert.equal(f.processes.length, 1, 'Timer đã hủy không được đổi nguồn sau Playing');
+        assert.equal(f.mq.current, f.current);
+    } finally { packet.resolve({ stream: f.mq.currentBuffer, type: 'opus' }); f.cleanup(); }
+});
+
+test('PO sẵn sàng: hết22giây dừng nguồn đúng một lần, YouTube tường minh không đổi SoundCloud', async () => {
+    const packet = deferred(); let probes = 0, searches = 0;
+    const f = await fixture({
+        demuxProbe: stream => ++probes === 1 ? packet.promise : Promise.resolve({ stream, type: 'opus' }),
+        searchSoundcloud: async () => { searches++; return { url: 'https://soundcloud.com/artist/unwanted' }; },
+        youtubePoProvider: { options: extractorArgs => ({ extractorArgs }), snapshot: () => ({ ready: true, clientRevision: 1 }) }
+    });
+    try {
+        f.current.allowSourceFallback = false;
+        f.context.YT_DOWNLOAD_CLIENT_FALLBACKS = ['youtube:player_client=default', 'youtube:player_client=web_embedded'];
+        const originalUrl = f.current.url;
+        const starting = f.play({ effectKey: 'none', seekSec: 0, seekTransport: 'pipe' });
+        await tick();
+        const firstSource = f.processes[0];
+        const deadline = f.timers.find(timer => !timer.cleared);
+        assert.equal(deadline.delay, 22000);
+        f.clock.now += deadline.delay;
+        deadline.callback(); await tick();
+        assert.equal(firstSource.killed, true);
+        assert.equal(f.processes.length, 2, 'Hết deadline chỉ mở bài chờ, không thử client thứ2');
+        assert.equal(f.mq.current, f.queued);
+        assert.equal(f.mq.queue.length, 0);
+        assert.equal(f.current.url, originalUrl);
+        assert.equal(searches, 0);
+        assert.equal(f.notices.filter(notice => notice.title === 'Không thể phát bài này').length, 1);
+        assert.equal(f.notices.filter(notice => /SoundCloud/.test(notice.title)).length, 0);
+        const queuedResource = f.mq.currentResource;
+        packet.resolve({ stream: firstSource.stdout, type: 'opus' }); await starting;
+        deadline.callback();
+        await firstSource.rejectPlayback(new Error('HTTP Error 403: Forbidden đến muộn'));
+        await tick();
+        assert.equal(f.processes.length, 2);
+        assert.equal(f.mq.currentResource, queuedResource);
+        assert.equal(f.mq.current, f.queued);
+        assert.equal(searches, 0);
+    } finally { packet.resolve({ stream: f.processes[0]?.stdout, type: 'opus' }); f.cleanup(); }
+});
+
+test('PO sẵn sàng:403 nhanh chỉ cấp retry phần còn lại của22giây, không khởi tạo deadline mới', async () => {
+    let searches = 0;
+    const f = await fixture({ searchSoundcloud: async () => { searches++; return null; },
+        youtubePoProvider: { options: extractorArgs => ({ extractorArgs }), snapshot: () => ({ ready: true, clientRevision: 1 }) }
+    });
+    try {
+        f.current.allowSourceFallback = false;
+        f.context.YT_DOWNLOAD_CLIENT_FALLBACKS = ['youtube:player_client=default', 'youtube:player_client=web_embedded', 'youtube:player_client=android'];
+        const beganAt = f.clock.now;
+        await f.play({ effectKey: 'none', seekSec: 0, seekTransport: 'pipe' });
+        const firstDeadline = f.timers.find(timer => !timer.cleared);
+        assert.equal(firstDeadline.delay, 22000);
+        f.clock.now += 3000;
+        await f.processes[0].rejectPlayback(new Error('HTTP Error 403: Forbidden')); await tick();
+        assert.equal(f.processes.length, 2);
+        assert.equal(firstDeadline.cleared, true);
+        assert.equal(f.processes[1].flags.extractorArgs, 'youtube:player_client=web_embedded');
+        const secondDeadline = f.timers.find(timer => !timer.cleared);
+        assert.equal(secondDeadline.delay, 19000);
+        assert.equal(f.clock.now + secondDeadline.delay, beganAt + 22000);
+        assert.equal(f.mq.current, f.current);
+        assert.deepEqual(f.mq.queue, [f.queued]);
+        f.clock.now += secondDeadline.delay;
+        secondDeadline.callback(); await tick();
+        assert.equal(f.processes[1].killed, true);
+        assert.equal(f.processes.length, 3, 'Không mở client thứ3 sau deadline, chỉ chuyển bài chờ');
+        assert.equal(f.mq.current, f.queued);
+        assert.equal(searches, 0);
+        assert.equal(f.notices.filter(notice => notice.title === 'Không thể phát bài này').length, 1);
+        firstDeadline.callback(); secondDeadline.callback(); await tick();
+        assert.equal(f.processes.length, 3);
+        assert.equal(f.mq.current, f.queued);
+    } finally { f.cleanup(); }
+});
+
 test('Lỗi resource cũ khi đổi hiệu ứng không chuyển bài hoặc xoá hàng đợi mới', async () => {
     const f = await fixture({ synchronousPlaying: true });
     try {

@@ -8,7 +8,9 @@ FFmpeg dùng `-ss` trước `-i` và `-fflags +fastseek`, áp bộ lọc rồi x
 
 Phép đo local với FFmpeg6.1.1, MP3noise60giây, HTTP loopback có Range/throttle64KB/s, tua45giây: pipe+atrim có byte PCM đầu12.624giây; input-seek mặc định13.307giây; thêm fastseek còn0.375giây. Đây là nguồn tổng hợp, không phải thời gian phát Discord hay đảm bảo mọi CDN. Biên bản ngoài Git: `MimiBot-backups/music-runtime-2026-10-18/direct-seek-options-probe.json`.
 
-Tìm kiếm metadata có deadline8giây, cache RAM120giây và gộp truy vấn trùng. Các client YouTube chia sẻ ngân sách22giây, mỗi lượt bắt đầu tối đa12giây; timeout đi qua cùng coordinator phục hồi nguồn. Chọn nguồn YouTube hoặc dán URL YouTube giữ đúng nguồn, không tự thay bằng SoundCloud; chỉ chế độ auto được dùng nguồn dự phòng. Đối sánh dự phòng loại bản đổi tốc độ không yêu cầu, kể cả khi truy vấn chứa Remix.
+Tìm kiếm từ khóa có deadline8giây, cache RAM120giây và gộp truy vấn trùng. Link YouTube trực tiếp chỉ lấy nhãn oEmbed công khai tối đa3giây; lỗi metadata vẫn đưa đúng ID video vào queue, không trích toàn bộ format/PO hai lần. Thời lượng chưa biết hiển thị theo trạng thái hiện có; quyền truy cập được kiểm tra ở bước audio.
+
+Các client YouTube chia sẻ ngân sách22giây. Khi PO provider ready, client đầu được dùng trọn phần ngân sách còn lại để tránh bị kill ở12giây rồi làm lại challenge; lỗi403 sớm vẫn có thể retry trong phần còn lại. Nguồn khác giữ tối đa12giây/lượt. Timeout đi qua cùng coordinator phục hồi nguồn. Chọn nguồn YouTube hoặc dán URL YouTube giữ đúng nguồn, không tự thay bằng SoundCloud; chỉ chế độ auto được dùng nguồn dự phòng. Đối sánh dự phòng loại bản đổi tốc độ không yêu cầu, kể cả khi truy vấn chứa Remix.
 
 Lỗi YouTube403 là chặn từ nhà cung cấp; cache, EJS hay đổi engine không bảo đảm hết chặn IP/xác thực. Không báo đã sửa triệt để nếu chưa phát được bài trên host. Lavalink vẫn chịu giới hạn nguồn YouTube; muốn độc lập cần nguồn audio được phép phát khác hoặc kho riêng. Không tự cấu hình tài khoản/cookie, dịch vụ trả phí hoặc node mới trong đợt sửa này.
 

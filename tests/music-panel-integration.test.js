@@ -13,6 +13,7 @@ const { validateMusicUrl } = require('../musicSources');
 const { createMusicPanelWriter } = require('../musicPanelUpdater');
 const { createMusicSearchCache, applySourcePolicy, chooseSoundcloudResult: rankSoundcloudResult } = require('../musicSearch');
 const { classifyMusicSourceError } = require('../musicSourceErrors');
+const { resolveYoutubeDirectTrack } = require('../youtubeDirectTrack');
 const source = fs.readFileSync(path.join(__dirname, '..', 'index.js'), 'utf8');
 
 // Chỉ chạy vùng function cần kiểm tra, không import bootstrap/login/cron của bot.
@@ -202,6 +203,79 @@ function resolverFixture({ youtube, soundcloud } = {}) {
     vm.runInContext(region('async function resolveTrackUncached(', '// Trích ID video'), context);
     return { resolve: vm.runInContext('resolveTrack', context), calls };
 }
+
+function directYoutubeResolverFixture({ getMetadata } = {}) {
+    const metadata = [], extractions = [], soundcloud = [], timers = [];
+    const context = vm.createContext({ createMusicSearchCache, applySourcePolicy, validateMusicUrl, URL,
+        YT_URL_REGEX: /^https?:\/\/(www\.|m\.)?(youtube\.com|youtu\.be|music\.youtube\.com)\//i,
+        SPOTIFY_URL_REGEX: /^https?:\/\/(open\.)?spotify\.com\//i,
+        resolveYoutubeDirectTrack: options => resolveYoutubeDirectTrack({ ...options,
+            getMetadata: async (url, input) => { metadata.push({ url, ...input }); return getMetadata(url, input); },
+            timers: { setTimeout(callback, delay) { const job = { callback, delay, cleared: false }; timers.push(job); return job; },
+                clearTimeout(job) { if (job) job.cleared = true; } } }),
+        ytDlpExec: async (...args) => { extractions.push(args); throw new Error('Không trích format trong nhận link trực tiếp'); },
+        searchSoundcloud: async (...args) => { soundcloud.push(args); throw new Error('Không đổi nguồn link YouTube'); },
+        getYtCommonOpts: () => ({}), resolveSpotifyQuery: async () => null,
+        resolveDirectUrl: async () => { throw new Error('Không dùng resolver nguồn khác'); }
+    });
+    vm.runInContext(region('function normalizeYoutubeUrl(', 'function getCookieFilePath('), context);
+    vm.runInContext(region('const YT_META_TIMEOUT_MS =', '// ====================================================================='), context);
+    vm.runInContext(region('async function resolveTrackUncached(', '// Trích ID video'), context);
+    return { resolve: vm.runInContext('resolveTrack', context), metadata, extractions, soundcloud, timers };
+}
+
+test('Link radio người dùng qua searchYoutube/resolveTrack thật giữ video và nguồn, không extract format hoặc gọi SoundCloud', async () => {
+    const url = 'https://www.youtube.com/watch?v=ktHhTtTrUXU&list=RDktHhTtTrUXU&start_radio=1';
+    const canonical = 'https://www.youtube.com/watch?v=ktHhTtTrUXU';
+    const f = directYoutubeResolverFixture({ getMetadata: async () => ({ title: 'Bài đã chọn', author_name: 'Nghệ sĩ Việt',
+        thumbnail_url: 'https://i.ytimg.com/vi/ktHhTtTrUXU/hqdefault.jpg' }) });
+    const track = await f.resolve(url);
+    assert.equal(track.url, canonical);
+    assert.equal(track.title, 'Bài đã chọn');
+    assert.equal(track.author, 'Nghệ sĩ Việt');
+    assert.equal(track.requestedSource, 'youtube');
+    assert.equal(track.allowSourceFallback, false);
+    assert.equal(track.source, 'YouTube');
+    assert.equal(f.metadata.length, 1);
+    assert.equal(f.metadata[0].url, canonical);
+    assert.equal(f.metadata[0].signal.aborted, true);
+    assert.equal(f.extractions.length, 0);
+    assert.equal(f.soundcloud.length, 0);
+    assert.equal((await f.resolve(canonical)).url, canonical);
+    assert.equal(f.metadata.length, 1, 'Link radio và link sạch dùng chung cache video đã chọn');
+    assert.equal(f.timers[0].delay, 3000);
+    assert.equal(f.timers[0].cleared, true);
+});
+
+test('Metadata link YouTube treo vẫn trả track đưa vào queue sau3giây, giữ lựa chọn nguồn và bỏ kết quả muộn', async () => {
+    let complete;
+    const pending = new Promise(resolve => { complete = resolve; });
+    const f = directYoutubeResolverFixture({ getMetadata: () => pending });
+    const resolving = f.resolve('https://www.youtube.com/watch?v=ktHhTtTrUXU&list=RDktHhTtTrUXU&start_radio=1');
+    await new Promise(resolve => setImmediate(resolve));
+    assert.equal(f.metadata.length, 1);
+    assert.equal(f.timers.length, 1);
+    assert.equal(f.timers[0].delay, 3000);
+    f.timers[0].callback();
+    const track = await resolving;
+    assert.equal(track.title, 'YouTube · ktHhTtTrUXU');
+    assert.equal(track.url, 'https://www.youtube.com/watch?v=ktHhTtTrUXU');
+    assert.equal(track.duration, 0, 'Chưa có duration không được cản trở nhận link');
+    assert.equal(track.requestedSource, 'youtube');
+    assert.equal(track.allowSourceFallback, false);
+    const queued = require('../musicStore').MusicStore.normalizeTrack(track);
+    assert.equal(queued.url, track.url, 'Track fallback vẫn tương thích chuẩn hóa queue/session thật');
+    assert.equal(queued.title, track.title);
+    assert.equal(queued.allowSourceFallback, false);
+    assert.equal(f.metadata[0].signal.aborted, true);
+    assert.equal(f.timers[0].cleared, true);
+    assert.equal(f.extractions.length, 0);
+    assert.equal(f.soundcloud.length, 0);
+    complete({ title: 'Kết quả đến muộn' });
+    await new Promise(resolve => setImmediate(resolve));
+    assert.equal((await f.resolve(track.url)).title, track.title);
+    assert.equal(f.metadata.length, 1);
+});
 
 test('Resolver thật giữ nguồn YouTube bắt buộc và link YouTube trực tiếp', async () => {
     const f = resolverFixture();

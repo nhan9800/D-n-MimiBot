@@ -56,7 +56,15 @@ function runYoutubePoProbe({ ytDlpExec, getOptions, query = 'JACK J97 Lưu Niên
     let pluginLoaded = false, tokenRequestObserved = false, searchResolved = false;
     let providerRequestFailed = false, mediaDownloadFailed = false, downloadStarted = false;
     let forbidden = false, authRequired = false, sourceTimedOut = false;
-    const state = () => ({ elapsedMs: Math.max(0, now() - beganAt), bytes, videoId,
+    let audioBeganAt = null, firstByteMs = null;
+    // Đồng hồ kiểm tra được inject; chỉ trả số nguyên có hạn, không phát sinh NaN
+    // hoặc số âm nếu đồng hồ hệ thống nhảy trong lúc lấy metadata/audio.
+    const elapsedSince = timestamp => {
+        if (timestamp === null) return 0;
+        const elapsed = now() - timestamp;
+        return Number.isFinite(elapsed) ? Math.min(60000, Math.max(0, Math.floor(elapsed))) : 0;
+    };
+    const state = () => ({ elapsedMs: elapsedSince(beganAt), firstByteMs, audioElapsedMs: elapsedSince(audioBeganAt), bytes, videoId,
         containerHeaderRecognized: recognizesAudioContainer(header), pluginLoaded, tokenRequestObserved, searchResolved,
         providerRequestFailed, mediaDownloadFailed, downloadStarted });
     const inspectError = error => {
@@ -80,6 +88,7 @@ function runYoutubePoProbe({ ytDlpExec, getOptions, query = 'JACK J97 Lưu Niên
         const onStdout = chunk => {
             if (complete) return;
             const data = Buffer.isBuffer(chunk) ? chunk : Buffer.from(chunk);
+            if (data.length > 0 && firstByteMs === null) firstByteMs = elapsedSince(audioBeganAt);
             const accepted = data.subarray(0, Math.max(0, byteLimit - bytes));
             if (header.length < 64) header = Buffer.concat([header, accepted.subarray(0, 64 - header.length)]);
             bytes += accepted.length;
@@ -148,6 +157,7 @@ function runYoutubePoProbe({ ytDlpExec, getOptions, query = 'JACK J97 Lưu Niên
             }
             if (complete) return;
             phase = 'audio';
+            audioBeganAt = now();
             // quiet có thể ẩn marker yêu cầu PO Token. Chỉ bỏ cờ này trong probe;
             // stderr vẫn được giữ riêng, có hạn và không được trả về báo cáo.
             const { quiet: _quiet, ...options } = getOptions();

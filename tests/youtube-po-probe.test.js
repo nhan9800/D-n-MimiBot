@@ -75,6 +75,8 @@ test('Probe dùng options production cho search/audio, chỉ nhận64KiB rồi k
     assert.equal(result.phase, 'audio');
     assert.equal(result.bytes, 65536);
     assert.equal(result.elapsedMs, 1234);
+    assert.equal(result.firstByteMs, 1234);
+    assert.equal(result.audioElapsedMs, 1234);
     assert.equal(result.videoId, ID);
     assert.equal(result.searchResolved, true);
     assert.equal(result.containerHeaderRecognized, true);
@@ -128,6 +130,7 @@ for (const [message, outcome] of [
         assert.equal(result.outcome, outcome);
         assert.equal(result.videoId, ID);
         assert.equal(result.bytes, 0);
+        assert.equal(result.firstByteMs, null);
         assert.equal(result.mediaDownloadFailed, outcome === 'http_403');
         assert.equal(result.providerRequestFailed, false);
         assert.doesNotMatch(JSON.stringify(result), /private|secret\.test|token=|stderr|ERROR:/);
@@ -219,10 +222,52 @@ test('Search treo nằm trong cùng deadline, kết quả search muộn không �
     const probing = runYoutubePoProbe({ ...f.dependencies, query: 'Một bài', timeoutMs: 5000 });
     await tick();
     f.advance(5000); f.timers[0].callback();
-    assert.equal((await probing).outcome, 'timeout');
+    const result = await probing;
+    assert.equal(result.outcome, 'timeout');
+    assert.equal(result.firstByteMs, null);
+    assert.equal(result.audioElapsedMs, 0);
     assert.equal(f.searches[0].processOptions.signal.aborted, true);
     pendingSearch.resolve({ entries: [{ id: ID }] }); await tick();
     assert.equal(f.streams.length, 0);
+});
+
+test('Đo byte đầu từ lúc tải audio, tách thời gian search và giữ mốc đầu khi tải tiếp', async () => {
+    const searching = deferred();
+    const f = fixture(searching.promise);
+    const probing = runYoutubePoProbe({ ...f.dependencies, query: 'Bài kiểm tra thời gian' });
+    f.advance(5000);
+    searching.resolve({ entries: [{ id: ID }] });
+    await tick();
+    const child = f.streams[0];
+    f.advance(19000);
+    child.stdout.emit('data', Buffer.alloc(0));
+    f.advance(1000);
+    child.stdout.write(Buffer.from([0x1a, 0x45, 0xdf, 0xa3]));
+    f.advance(2500.9);
+    child.stdout.write(Buffer.alloc(65532));
+    const result = await probing;
+    assert.equal(result.ok, true);
+    assert.equal(result.firstByteMs, 20000, 'Không tính 5 giây search hoặc chunk rỗng');
+    assert.equal(result.audioElapsedMs, 22500);
+    assert.equal(result.elapsedMs, 27500);
+    assert.equal(result.bytes, 65536);
+    assert.doesNotMatch(JSON.stringify(result), /googlevideo|token=|stderr/);
+});
+
+test('Link chính xác đo audio ngay, firstByte bằng 0 không bị ghi đè bởi chunk tiếp theo', async () => {
+    const f = fixture();
+    const probing = runYoutubePoProbe({ ...f.dependencies, videoUrl: 'https://youtu.be/ktHhTtTrUXU' });
+    await tick();
+    assert.equal(f.searches.length, 0);
+    const child = f.streams[0];
+    assert.equal(child.url, 'https://www.youtube.com/watch?v=ktHhTtTrUXU');
+    child.stdout.write(Buffer.from('OggS'));
+    f.advance(20000);
+    child.stdout.write(Buffer.alloc(65532));
+    const result = await probing;
+    assert.equal(result.firstByteMs, 0);
+    assert.equal(result.audioElapsedMs, 20000);
+    assert.equal(result.searchResolved, false);
 });
 
 test('Search chỉ chọn ID YouTube11ký tự; dữ liệu URL tùy ý không được tải', async () => {

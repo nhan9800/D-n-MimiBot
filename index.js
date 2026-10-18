@@ -44,6 +44,8 @@ const { runYoutubePoProbe } = require('./youtubePoProbe');
 const { createYoutubeCookieSource } = require('./youtubeCookies');
 const { createYoutubeCookieVerification } = require('./youtubeCookieVerification');
 const { classifyMusicSourceError } = require('./musicSourceErrors');
+const { resolveYoutubeDirectTrack } = require('./youtubeDirectTrack');
+const { runYoutubeLinkCheck } = require('./youtubeLinkCheck');
 const youtubeCookieSource = createYoutubeCookieSource({ rootDir: __dirname });
 const { buildProfilePayload, buildRankPayload } = require('./profileCard');
 const { applyPetDecayRealtime, buildPetEmbed, buildPetComponents, createPetPanelUpdater } = require('./petUi');
@@ -3383,6 +3385,8 @@ const youtubePoProvider = createYoutubePoProvider({
     root: __dirname, log: console.log
 });
 let youtubePoVerification = null;
+let youtubeLinkVerification = null;
+const youtubeDiagnosticController = new AbortController();
 const youtubeCookieVerifier = createYoutubeCookieVerification({
     readCookieSource: () => youtubeCookieSource.read(),
     isProviderReady: () => youtubePoProvider.snapshot().ready,
@@ -3408,14 +3412,16 @@ const youtubeCookieVerifier = createYoutubeCookieVerification({
         console.log(`[YouTubeCookies] AUDIO_CHECK ${JSON.stringify(youtubePoVerification)}`);
     }
 });
-process.once('exit', () => { youtubeCookieVerifier.stop(); youtubePoProvider.stop(); });
+process.once('exit', () => {
+    youtubeDiagnosticController.abort(); youtubeCookieVerifier.stop(); youtubePoProvider.stop();
+});
 function getYoutubePoStatus() {
     const checked = youtubePoVerification;
     const outcomes = ['audio_received', 'http_403', 'auth_required', 'timeout', 'search_failed',
         'source_failed', 'search_empty', 'invalid_audio', 'invalid_configuration', 'invalid_input',
         'cancelled', 'aborted', 'interrupted'];
     return { ...youtubePoProvider.snapshot(), cookies: youtubeCookieSource.snapshot(),
-        cookieCheck: youtubeCookieVerifier.snapshot(), verification: checked ? {
+        cookieCheck: youtubeCookieVerifier.snapshot(), linkCheck: youtubeLinkVerification, verification: checked ? {
         ok: checked.ok === true,
         outcome: outcomes.includes(checked.outcome) ? checked.outcome : 'unknown',
         bytes: Math.max(0, Math.min(65536, Number(checked.bytes) || 0)),
@@ -3455,6 +3461,18 @@ ensureYtDlpBinary().then(async available => {
     if (status.ready) {
         await verifyFirstYoutubePoSetup();
         youtubeCookieVerifier.start();
+        // Chỉ chạy khi người vận hành đặt request công khai; receipt không lặp mỗi restart.
+        runYoutubeLinkCheck({
+            requestPath: path.join(__dirname, 'youtube-link-check.json'),
+            receiptDir: path.join(__dirname, 'data', 'youtube-po', 'link-checks'),
+            signal: youtubeDiagnosticController.signal,
+            resolveTrack,
+            probe: options => runYoutubePoProbe({ ytDlpExec, getOptions: getYtCommonOpts, ...options })
+        }).then(receipt => {
+            if (!receipt) return;
+            youtubeLinkVerification = receipt;
+            console.log(`[YouTubeLink] CHECK ${JSON.stringify(receipt)}`);
+        }).catch(() => console.warn('[YouTubeLink] CHECK_FAILED'));
     }
 }).catch(() => console.warn('[YouTubePO] SETUP_FAILED'));
 
@@ -3663,22 +3681,11 @@ const YT_META_TIMEOUT_MS = 8000;
 async function searchYoutube(query) {
     const isDirectUrl = YT_URL_REGEX.test(query.trim());
 
-    // Trường hợp dán thẳng link YouTube: kiểm tra luôn, báo lỗi rõ ràng nếu link đó bị chặn.
+    // Link đã chỉ rõ video: metadata nhẹ không cần extract format/PO lần thứ nhất.
+    // Đường audio phía dưới vẫn kiểm tra quyền truy cập và nguồn YouTube đã chọn.
     if (isDirectUrl) {
         const cleanUrl = normalizeYoutubeUrl(query.trim()); // Bỏ ?si=, &list=... để yt-dlp không hiểu nhầm
-        const info = await ytDlpExec(cleanUrl, {
-            dumpSingleJson: true,
-            noPlaylist: true,
-            skipDownload: true,
-            ...getYtCommonOpts()
-        }, { timeout: YT_META_TIMEOUT_MS });
-        if (!info || (!info.id && !info.webpage_url)) return null;
-        if (isBlockedVideo(info)) {
-            const err = new Error('Video này đang ở chế độ riêng tư hoặc bị giới hạn độ tuổi, bot không thể phát.');
-            err.code = 'RESTRICTED_VIDEO';
-            throw err;
-        }
-        return toTrack(info);
+        return resolveYoutubeDirectTrack({ url: cleanUrl });
     }
 
     // 🚀 TÌM BẰNG TỪ KHÓA — TỐI ƯU TỐC ĐỘ:
@@ -5391,7 +5398,10 @@ async function playNextTrack(guildId, opts = {}) {
     // Tính cả thời gian chờ demux. Pipe phải giải mã phần bị tua qua, nên cho
     // thêm thời gian có giới hạn với mix dài thay vì luôn ngắt ở 45 giây.
     const startupBudgetMs = seekSec === 0
-        ? Math.max(1, Math.min(12000, sourceDeadline - Date.now()))
+        // PO có thể cần challenge mới cho từng video. Dùng trọn ngân sách hiện có
+        // cho client đầu thay vì kill ở12s rồi bắt client khác làm lại từ đầu.
+        ? Math.max(1, Math.min(isYoutubePlayback && youtubePoProvider.snapshot().ready ? 22000 : 12000,
+            sourceDeadline - Date.now()))
         : seekTransport === 'pipe' ? Math.min(180000, 45000 + seekSec * 100) : 45000;
     transitionSafety = setTimeout(() => {
         if (!isCurrentPlayback() || sourceRecovering || playbackStarted) return;

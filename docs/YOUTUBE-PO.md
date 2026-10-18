@@ -55,6 +55,22 @@ trả HTTP403 sau 18.729 giây với 0 byte. Đây là lỗi còn tồn tại đ
 chưa được coi là khắc phục chỉ vì cài đặt thành công. Receipt kiểm tra bổ sung
 có phiên bản riêng để giữ bằng chứng lượt đầu và không chạy lại mỗi restart.
 
+## Kiểm tra một link cụ thể
+
+Người vận hành có thể đặt `youtube-link-check.json` cạnh `index.js`, gồm
+`caseId` (chữ/số/dấu gạch ngang, tối đa64ký tự) và `url` video YouTube HTTPS.
+File này bị loại khỏi Git/SFTP. Khi provider ready ở startup, `youtubeLinkCheck.js`
+kiểm tra metadata qua resolver thật tối đa4giây rồi tải đúng video tối đa64KiB/45giây,
+tổng không quá50giây. Không tham gia voice hoặc gửi tin Discord.
+
+Receipt riêng tư trong `data/youtube-po/link-checks/` được dành chỗ trước khi gọi
+nguồn. Cùng `caseId` không tải lại sau restart; chỉ tạo case mới khi cần một phép
+đo mới có chủ đích. Kết quả đã lọc xuất hiện ở `[YouTubeLink] CHECK` và
+`/health/live.youtubePo.linkCheck`. `firstByteMs` đo từ lúc bắt đầu audio đến byte
+đầu, `audioElapsedMs` đến kết thúc phép đo; metadata có đồng hồ riêng.
+Thành công đòi đúng video, bytes>0 và header audio hợp lệ. Đây chưa phải phép nghe
+Discord hoặc kiểm tra toàn bài. Không đặt cookie/token trong request hay receipt.
+
 ## Tài liệu gốc
 
 Phần bổ sung tài khoản phụ: [hướng dẫn cookies trên VibeHost](YOUTUBE-COOKIES.md).

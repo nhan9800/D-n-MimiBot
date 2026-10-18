@@ -21,6 +21,7 @@ RUNTIME_FILES.push('musicSearch.js', 'musicEffectTransition.js', 'musicDirectAud
 RUNTIME_FILES.push('youtubePoProvider.js', 'youtubePoProbe.js', 'scripts/setup-youtube-po.js');
 RUNTIME_FILES.push('youtubeCookies.js', 'youtubeCookieVerification.js');
 RUNTIME_FILES.push('musicSourceErrors.js');
+RUNTIME_FILES.push('youtubeDirectTrack.js', 'youtubeLinkCheck.js');
 RUNTIME_FILES.push('communityFeatures.js', 'communityCommands.js');
 RUNTIME_FILES.push('bannedWordFilter.js', 'confessionUi.js', 'confessionService.js');
 RUNTIME_FILES.push('inviteEvents.js', 'monthlyLevels.js');
