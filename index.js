@@ -4654,7 +4654,7 @@ function createSoundcloudPipeCandidate({ track, seekSec = 0, effectKey = 'none',
         dispose();
         throw error;
     }
-    return { resource, process, ffmpeg, pcmBuffer, pcmChunker, ready, completion, dispose };
+    return { resource, process, ffmpeg, pcmBuffer, pcmChunker, ready, completion, dispose, transport: 'pipe' };
 }
 
 function commitPreparedMusicEffect({ guildId, mq, track, effectKey, candidate, positionSec, capturedGeneration }) {
@@ -4715,12 +4715,12 @@ function commitPreparedMusicEffect({ guildId, mq, track, effectKey, candidate, p
     readyTimer.unref?.();
     mq.clearAudioDiagnostics = monitorMusicResource(candidate.resource, {
         player: mq.player, active: () => active() && mq.player.state.status === voiceLib.AudioPlayerStatus.Playing,
-        report: stats => console.warn(`[MusicAudio] server=${guildId} effect=${effectKey} transport=direct underruns=${stats.underruns} lateReads=${stats.lateReads} maxGapMs=${stats.maxGapMs}`)
+        report: stats => console.warn(`[MusicAudio] server=${guildId} effect=${effectKey} transport=${candidate.transport || 'direct'} underruns=${stats.underruns} lateReads=${stats.lateReads} maxGapMs=${stats.maxGapMs}`)
     });
     mq.player.play(candidate.resource);
     if (paused) mq.player.pause(true);
     persistSession(guildId);
-    console.log(`[MusicAudio] server=${guildId} effect=${effectKey} transport=direct seek=${positionSec}`);
+    console.log(`[MusicAudio] server=${guildId} effect=${effectKey} transport=${candidate.transport || 'direct'} seek=${positionSec}`);
     refreshMusicPanel(mq).catch(() => null);
     startProgressUpdater(guildId);
     return true;
