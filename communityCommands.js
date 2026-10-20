@@ -59,6 +59,30 @@ function buildLevelLeaderboard({ voice = false, period = 'tong', month, guildNam
         .setFooter({ text: period === 'tong' ? 'Top 10 thành viên trong máy chủ · Không tính bot' : 'Top 10 EXP kiếm được trong tháng · Top 3 nhận role tháng sau · Giờ Việt Nam' })], allowedMentions: { parse: [] } };
 }
 
+/**
+ * Dựng bảng xếp hạng event lời mời dùng chung cho `/invites event` và
+ * lối tắt `/topinvites`, tránh để hai lệnh lệch nội dung. Chuẩn hóa số đếm
+ * trước khi sắp xếp vì snapshot cấu hình cũ có thể lưu chúng dưới dạng chuỗi.
+ */
+function buildInviteEventLeaderboard({ event, enabled = false, page = 1 }) {
+    const rows = Object.entries(event?.counts || {})
+        .map(([id, count]) => [id, numeric(count)])
+        .filter(([, count]) => count > 0)
+        .sort((a, b) => b[1] - a[1] || a[0].localeCompare(b[0]));
+    const safePage = Math.max(1, Number.isInteger(page) ? page : 1);
+    const pages = Math.max(1, Math.ceil(rows.length / 10));
+    const content = rows.slice((safePage - 1) * 10, safePage * 10)
+        .map(([id, count], i) => `**#${(safePage - 1) * 10 + i + 1}** <@${id}> · **${count}** người`)
+        .join('\n') || 'Chưa có lượt mời được xác định.';
+    return {
+        pages,
+        rows,
+        payload: { flags: MessageFlags.Ephemeral, embeds: [new EmbedBuilder().setColor(0x57CBB2).setTitle('🔗 Event lời mời · Top người mời')
+            .setDescription(`Bắt đầu <t:${Math.floor(event.startedAtMs / 1000)}:f> · ${enabled ? 'Đang đếm' : 'Tạm dừng'}\n\n${content}`)
+            .setFooter({ text: `Trang ${safePage}/${pages} · Ra/vào lại không tăng số · Rời máy chủ không trừ lượt đã ghi nhận` })], allowedMentions: { parse: [] } }
+    };
+}
+
 async function handleCommunityCommand(interaction, dependencies) {
     const { commandName, options, guild } = interaction;
     const { getConfig, save, getStaffMention, getCurrentLevelExp, buildRankPayload, voiceTracker, inviteEvents, monthlyLevels, now = Date.now } = dependencies;
@@ -135,14 +159,13 @@ async function handleCommunityCommand(interaction, dependencies) {
             const event = config.inviteEvent;
             if (!event) return reply('Chưa có event lời mời. Quản trị dùng `/invitesetup bat:true kenh:...`.');
             const inviter = options.getUser('nguoi_moi');
-            const rows = Object.entries(event.counts || {}).sort((a, b) => b[1] - a[1] || a[0].localeCompare(b[0]));
-            const page = options.getInteger('trang') || 1, pages = Math.max(1, Math.ceil(rows.length / 10));
-            if (page > pages) return reply(`Chỉ có ${pages} trang dữ liệu.`);
-            const content = inviter ? `**Người mời:** <@${inviter.id}>\n**Đã mời:** ${numeric(event.counts?.[inviter.id])} thành viên riêng biệt`
-                : rows.slice((page - 1) * 10, page * 10).map(([id, count], i) => `**#${(page - 1) * 10 + i + 1}** <@${id}> · **${count}** người`).join('\n') || 'Chưa có lượt mời được xác định.';
+            const page = options.getInteger('trang') || 1;
+            const leaderboard = buildInviteEventLeaderboard({ event, enabled: config.inviteAnnouncements?.enabled, page });
+            if (page > leaderboard.pages) return reply(`Chỉ có ${leaderboard.pages} trang dữ liệu.`);
+            if (!inviter) return interaction.reply(leaderboard.payload);
             return interaction.reply({ flags: MessageFlags.Ephemeral, embeds: [new EmbedBuilder().setColor(0x57CBB2).setTitle('🔗 Event lời mời')
-                .setDescription(`Bắt đầu <t:${Math.floor(event.startedAtMs / 1000)}:f> · ${config.inviteAnnouncements?.enabled ? 'Đang đếm' : 'Tạm dừng'}\n\n${content}`)
-                .setFooter({ text: `Trang ${page}/${pages} · Ra/vào lại không tăng số · Rời máy chủ không trừ lượt đã ghi nhận` })], allowedMentions: { parse: [] } });
+                .setDescription(`Bắt đầu <t:${Math.floor(event.startedAtMs / 1000)}:f> · ${config.inviteAnnouncements?.enabled ? 'Đang đếm' : 'Tạm dừng'}\n\n**Người mời:** <@${inviter.id}>\n**Đã mời:** ${numeric(event.counts?.[inviter.id])} thành viên riêng biệt`)
+                .setFooter({ text: `Trang ${page}/${leaderboard.pages} · Ra/vào lại không tăng số · Rời máy chủ không trừ lượt đã ghi nhận` })], allowedMentions: { parse: [] } });
         }
         if (sub === 'thanh_vien') {
             const user = options.getUser('nguoi_dung') || interaction.user;
@@ -162,6 +185,15 @@ async function handleCommunityCommand(interaction, dependencies) {
         return interaction.reply({ flags: MessageFlags.Ephemeral, embeds: [new EmbedBuilder().setColor(0x5865F2)
             .setTitle('🔗 Thành viên qua lời mời').setDescription(`**Người mời:** <@${inviter.id}>\n**Đang tham gia:** ${active} · **Đã rời:** ${members.length - active}\n\n${lines.join('\n') || 'Chưa có lượt tham gia được xác định.'}`)
             .setFooter({ text: `Trang ${page}/${pages} · Chỉ gồm dữ liệu ghi nhận sau cập nhật` })], allowedMentions: { parse: [] } });
+    }
+
+    if (commandName === 'topinvites') {
+        const event = config.inviteEvent;
+        if (!event) return reply('Chưa có event lời mời. Quản trị dùng `/invitesetup bat:true kenh:...`.');
+        const leaderboard = buildInviteEventLeaderboard({ event, enabled: config.inviteAnnouncements?.enabled, page: options.getInteger('trang') || 1 });
+        const page = options.getInteger('trang') || 1;
+        if (page > leaderboard.pages) return reply(`Chỉ có ${leaderboard.pages} trang dữ liệu.`);
+        return interaction.reply(leaderboard.payload);
     }
 
     if (commandName === 'levelsetup') {
@@ -229,4 +261,4 @@ async function handleCommunityCommand(interaction, dependencies) {
     throw new Error('Unsupported community command');
 }
 
-module.exports = { handleCommunityCommand, buildMemberNotice, buildLevelLeaderboard, verifyChannel, imageUrl, rankedMembers };
+module.exports = { handleCommunityCommand, buildMemberNotice, buildLevelLeaderboard, buildInviteEventLeaderboard, verifyChannel, imageUrl, rankedMembers };

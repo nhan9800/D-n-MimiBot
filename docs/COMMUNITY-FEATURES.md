@@ -19,6 +19,7 @@
 | `/invites thanh_vien nguoi_dung:...` | Nguồn tham gia của một người. |
 | `/invitesetup bat:true kenh:...` | Bật thông báo người mời và số thứ tự riêng trong event. `bat:false` tạm dừng đếm/thông báo, giữ số cũ. Bỏ các option xem trạng thái. |
 | `/invites event nguoi_moi:...` | Xem số riêng của người mời; bỏ người mời để xem top event, `trang` phân trang. |
+| `/topinvites trang:...` | Lối tắt xem bảng top người mời của event hiện tại; phân trang 10 người, không thay đổi dữ liệu. |
 | `/invites reset xac_nhan:true` | Quản trị bắt đầu event mới từ 0, giữ nguyên `inviteTracking` và trạng thái bật/tắt thông báo. |
 | `/boostsetup bat:true kenh:...` | Bật cảm ơn Boost ở kênh đã chọn. `bat:false` tắt, gọi không option xem cấu hình. |
 | `/goodbye bat:true kenh:...` | Tạm biệt ở kênh đã chọn; cấu hình riêng, không thay Welcome. `bat:false` tắt. |

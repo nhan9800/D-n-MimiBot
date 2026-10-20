@@ -149,6 +149,19 @@ test('Bảng event và bảng level tháng phân biệt rõ tổng/tháng trư�
     await f.run('toplv', { ky: 'thang' }); assert.match(text(f.edited.at(-1)), /45 EXP/);
 });
 
+test('Lệnh /topinvites hiển thị top event theo số lượt, phân trang và không ghi dữ liệu', async () => {
+    const counts = Object.fromEntries(Array.from({ length: 11 }, (_, i) => [`inviter${i}`, String(11 - i)]));
+    const config = { inviteEvent: { startedAtMs: 100000, counts, members: {} }, inviteAnnouncements: { enabled: true } };
+    const f = fixture(config);
+    const before = f.saves;
+    await f.run('topinvites', { trang: 2 });
+    const result = f.replies.at(-1);
+    assert.match(text(result), /#11.*inviter10/);
+    assert.match(text(result), /Trang 2\/2/);
+    assert.deepEqual(result.allowedMentions.parse, []);
+    assert.equal(f.saves, before);
+});
+
 test('Levelsetup tháng defer trước tạo role, xem trạng thái không tạo role và thiếu quyền không gọi service', async () => {
     const f = fixture(); const configured = [];
     f.dependencies.monthlyLevels = { async configure(guild, kind, enabled) {

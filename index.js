@@ -6682,6 +6682,9 @@ client.once('clientReady', async () => {
             .addSubcommand(s => s.setName('reset').setDescription('Quản trị: reset số liệu event, giữ lịch sử lời mời')
                 .addBooleanOption(o => o.setName('xac_nhan').setDescription('Xác nhận reset về 0 để bắt đầu event mới').setRequired(true))),
         new SlashCommandBuilder()
+            .setName('topinvites').setDescription('Xem top người mời trong event hiện tại')
+            .addIntegerOption(o => o.setName('trang').setDescription('Trang top lời mời').setMinValue(1)),
+        new SlashCommandBuilder()
             .setName('invitesetup').setDescription('Bật/tắt thông báo người mời và số thứ tự trong event')
             .setDefaultMemberPermissions(PermissionFlagsBits.ManageGuild)
             .addBooleanOption(o => o.setName('bat').setDescription('Bật/tắt đếm và thông báo; bỏ trống xem cấu hình'))
@@ -13522,7 +13525,7 @@ client.on('interactionCreate', async interaction => {
 
         // Các tính năng cộng đồng có cùng kiểm tra quyền cho mọi server.
         if (commandName === 'level' || commandName === 'leaderboard' || commandName === 'toplv' ||
-            commandName === 'levelsetup' || commandName === 'ticketroles' || commandName === 'invites' || commandName === 'invitesetup' ||
+            commandName === 'levelsetup' || commandName === 'ticketroles' || commandName === 'invites' || commandName === 'topinvites' || commandName === 'invitesetup' ||
             commandName === 'boostsetup' || commandName === 'goodbye') {
             return handleCommunityCommand(interaction, {
                 getConfig: getGuildConfig, save: saveConfig, getStaffMention: getAdminRoleMention,
