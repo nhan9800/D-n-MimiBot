@@ -98,6 +98,15 @@ test('Mỗi slash command đăng ký có nhánh handler thực tế', () => {
     assert.deepEqual(commands.filter(command => !handled.has(command.name)).map(command => command.name), [], 'Không đăng ký lệnh chỉ tồn tại trong menu');
 });
 
+test('Setupcategory không hướng dẫn lệnh /category add chưa được đăng ký', () => {
+    const begin = source.indexOf("if (commandName === 'setupcategory')");
+    const end = source.indexOf("if (commandName === 'setup')", begin);
+    assert.ok(begin >= 0 && end > begin, 'Phải tìm được handler setupcategory');
+    const handler = source.slice(begin, end);
+    assert.doesNotMatch(handler, /\/category add/);
+    assert.match(handler, /gửi nội dung trực tiếp vào kênh này/);
+});
+
 test('Lệnh thay đổi quyền/cấu hình máy chủ mặc định giới hạn cho quản trị', () => {
     const protectedNames = [
         'antiraid', 'addrole', 'removerole', 'clear', 'kick', 'ban', 'mute', 'unmute',

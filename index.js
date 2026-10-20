@@ -13913,7 +13913,7 @@ if (commandName === 'setupcategory') {
 
     saveConfig();
 
-    return interaction.editReply('✅ Đã **BẬT** Danh Mục và tạo kênh ' + chan.toString() + '. Dùng `/category add` (nếu có) để thêm nội dung!');
+    return interaction.editReply('✅ Đã **BẬT** Danh Mục và tạo kênh ' + chan.toString() + '. Hãy gửi nội dung trực tiếp vào kênh này để sử dụng.');
 
 }
 
