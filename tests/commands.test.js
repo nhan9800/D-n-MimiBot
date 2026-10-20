@@ -98,20 +98,28 @@ test('Mỗi slash command đăng ký có nhánh handler thực tế', () => {
     assert.deepEqual(commands.filter(command => !handled.has(command.name)).map(command => command.name), [], 'Không đăng ký lệnh chỉ tồn tại trong menu');
 });
 
-test('Setupcategory không hướng dẫn lệnh /category add chưa được đăng ký', () => {
+test('Category add được đăng ký cho quản trị và setupcategory hướng dẫn đúng cú pháp', () => {
+    const command = commands.find(item => item.name === 'category');
+    assert.ok(command, 'Có đăng ký /category');
+    assert.ok(command.default_member_permissions !== undefined, '/category phải giới hạn quyền Quản lý máy chủ');
+    const add = command.options.find(item => item.name === 'add');
+    assert.ok(add, 'Có subcommand /category add');
+    assert.deepEqual(add.options.map(item => ({ name: item.name, required: item.required, max_length: item.max_length })),
+        [{ name: 'noi_dung', required: true, max_length: 4000 }]);
+
     const begin = source.indexOf("if (commandName === 'setupcategory')");
     const end = source.indexOf("if (commandName === 'setup')", begin);
     assert.ok(begin >= 0 && end > begin, 'Phải tìm được handler setupcategory');
     const handler = source.slice(begin, end);
-    assert.doesNotMatch(handler, /\/category add/);
-    assert.match(handler, /gửi nội dung trực tiếp vào kênh này/);
+    assert.match(handler, /\/category add noi_dung:/);
+    assert.doesNotMatch(handler, /\/category add` \(nếu có\)/);
 });
 
 test('Lệnh thay đổi quyền/cấu hình máy chủ mặc định giới hạn cho quản trị', () => {
     const protectedNames = [
         'antiraid', 'addrole', 'removerole', 'clear', 'kick', 'ban', 'mute', 'unmute',
         'setup', 'setupverify', 'setupattendance', 'resetverify', 'resetsetup',
-        'reactionrole-add', 'reactionrole-remove', 'levelsetup', 'dj', 'dashboard', 'ticketroles', 'boostsetup', 'goodbye', 'invitesetup'
+        'reactionrole-add', 'reactionrole-remove', 'levelsetup', 'dj', 'dashboard', 'ticketroles', 'boostsetup', 'goodbye', 'invitesetup', 'category'
     ];
     for (const name of protectedNames) {
         const command = commands.find(command => command.name === name);

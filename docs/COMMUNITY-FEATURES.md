@@ -24,7 +24,7 @@
 | `/boostsetup bat:true kenh:...` | Bật cảm ơn Boost ở kênh đã chọn. `bat:false` tắt, gọi không option xem cấu hình. |
 | `/goodbye bat:true kenh:...` | Tạm biệt ở kênh đã chọn; cấu hình riêng, không thay Welcome. `bat:false` tắt. |
 | `/setupconfession kenh:...` | Tạo/làm mới bảng **Trạm sẻ chia** theo kiểu mới. Thành viên chọn đăng công khai hoặc ẩn danh. |
-| `/confess` hoặc `/confession` | Gửi bài bằng lệnh nhanh; có `che_do:anonymous/public`. Bài mới có số, nút Thích và luồng trả lời. |
+| `/confession` | Gửi bài bằng lệnh nhanh; có `che_do:anonymous/public`. Bài mới có số, nút Thích và luồng trả lời. |
 
 Hai lệnh Boost/Tạm biệt hỗ trợ `tin_nhan`, `noi_dung`, `anh_nho`, `anh_lon`; biến `{user}`, `{username}`, `{server}`, `{count}`, `{boosts}` và `\n`. Ảnh dùng URL HTTPS hoặc `xóa`. Cấu hình cần ManageGuild và bot phải ViewChannel/SendMessages/EmbedLinks ở kênh đích. Mặc định hai thông báo tắt cho đến khi quản trị chọn kênh.
 

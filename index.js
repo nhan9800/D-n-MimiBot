@@ -6713,11 +6713,6 @@ client.once('clientReady', async () => {
             .setDefaultMemberPermissions(PermissionFlagsBits.Administrator)
             .addBooleanOption(o => o.setName('force').setDescription('Bắt buộc gửi lại ngay cả khi đã gửi rồi').setRequired(false)),
         new SlashCommandBuilder()
-            .setName('confess')
-            .setDescription('Gửi tâm sự công khai hoặc ẩn danh vào kênh Confession')
-            .addStringOption(o => o.setName('nội_dung').setDescription('Nội dung muốn chia sẻ').setMaxLength(3000).setRequired(true))
-            .addStringOption(o => o.setName('che_do').setDescription('Cách đăng; mặc định ẩn danh').addChoices({ name: 'Ẩn danh', value: 'anonymous' }, { name: 'Công khai', value: 'public' })),
-        new SlashCommandBuilder()
             .setName('setupconfession').setDescription('Chọn kênh và làm mới Trạm sẻ chia')
             .setDefaultMemberPermissions(PermissionFlagsBits.ManageGuild)
             .addChannelOption(o => o.setName('kenh').setDescription('Kênh confession; để trống dùng kênh đã chọn').addChannelTypes(ChannelType.GuildText)),
@@ -6842,6 +6837,19 @@ client.once('clientReady', async () => {
                     { name: '🔌 Tắt', value: 'off' }
                 )
             ),
+
+        new SlashCommandBuilder()
+            .setName('category')
+            .setDescription('Quản lý nội dung kênh danh mục')
+            .setDefaultMemberPermissions(PermissionFlagsBits.ManageGuild)
+            .addSubcommand(sub => sub
+                .setName('add')
+                .setDescription('Đăng nội dung vào kênh danh mục')
+                .addStringOption(option => option
+                    .setName('noi_dung')
+                    .setDescription('Nội dung muốn đăng; dùng \\n để xuống dòng')
+                    .setMaxLength(4000)
+                    .setRequired(true))),
 
         new SlashCommandBuilder()
             .setName('dashboard')
@@ -13124,9 +13132,6 @@ client.on('interactionCreate', async interaction => {
             return interaction.editReply('🔓 Kênh này đã được **mở khóa**. Mọi người có thể nhắn tin bình thường.');
         }
 
-        if (commandName === 'confess') {
-            return confessionService.publish(interaction, options.getString('che_do') || 'anonymous', options.getString('nội_dung'));
-        }
         if (commandName === 'setupconfession') return confessionService.setup(interaction);
 
         if (commandName === 'resetsetup') {
@@ -13889,6 +13894,61 @@ if (commandName === 'setupticket') {
     });
 }
 
+if (commandName === 'category') {
+    const isCategoryAdmin = interaction.memberPermissions?.has(PermissionFlagsBits.ManageGuild) ||
+        interaction.member?.permissions?.has(PermissionFlagsBits.ManageGuild) ||
+        interaction.member?.permissions?.has(PermissionFlagsBits.Administrator);
+    if (!isCategoryAdmin) {
+        return interaction.reply({ content: '❌ Bạn cần quyền **Quản lý máy chủ** để thêm nội dung danh mục.', flags: MessageFlags.Ephemeral });
+    }
+
+    if (options.getSubcommand() !== 'add') {
+        return interaction.reply({ content: '❌ Lệnh này hiện chỉ hỗ trợ `/category add`.', flags: MessageFlags.Ephemeral });
+    }
+
+    const content = (options.getString('noi_dung') || '').replace(/\\n/g, '\n').trim();
+    if (!content) {
+        return interaction.reply({ content: '❌ Vui lòng nhập nội dung cần đăng.', flags: MessageFlags.Ephemeral });
+    }
+    if (!gConfig.isCategorySetup || !gConfig.categoryChannelId) {
+        return interaction.reply({ content: '❌ Danh mục chưa được bật. Hãy dùng `/setupcategory trạng_thái:on` trước.', flags: MessageFlags.Ephemeral });
+    }
+
+    await interaction.deferReply({ flags: MessageFlags.Ephemeral });
+    const categoryChannel = guild.channels.cache.get(gConfig.categoryChannelId) ||
+        await guild.channels.fetch(gConfig.categoryChannelId).catch(() => null);
+    if (!categoryChannel || categoryChannel.guildId !== guild.id || categoryChannel.type !== ChannelType.GuildText) {
+        return interaction.editReply({ content: '❌ Không tìm thấy kênh danh mục đã lưu. Hãy chạy lại `/setupcategory trạng_thái:on`.' });
+    }
+
+    const botMember = guild.members.me || await guild.members.fetch(client.user.id).catch(() => null);
+    const permissions = botMember ? categoryChannel.permissionsFor(botMember) : null;
+    if (!permissions?.has([PermissionFlagsBits.ViewChannel, PermissionFlagsBits.SendMessages])) {
+        return interaction.editReply({ content: '❌ Mimi thiếu quyền **Xem kênh** hoặc **Gửi tin nhắn** tại kênh danh mục.' });
+    }
+
+    const chunks = [];
+    let remaining = content;
+    while (remaining.length > 2000) {
+        let cut = remaining.lastIndexOf('\n', 2000);
+        if (cut < 1000) cut = 2000;
+        chunks.push(remaining.slice(0, cut));
+        remaining = remaining.slice(cut).replace(/^\n/, '');
+    }
+    if (remaining) chunks.push(remaining);
+
+    let sent = 0;
+    try {
+        for (const chunk of chunks) {
+            await categoryChannel.send({ content: chunk, allowedMentions: { parse: [] } });
+            sent++;
+        }
+    } catch {
+        return interaction.editReply({ content: sent ? `⚠️ Đã đăng ${sent}/${chunks.length} phần nội dung; phần còn lại chưa gửi được.` : '❌ Không thể gửi nội dung vào kênh danh mục. Kiểm tra quyền của Mimi.' });
+    }
+    return interaction.editReply({ content: `✅ Đã thêm nội dung vào ${categoryChannel}.` });
+}
+
 if (commandName === 'setupcategory') {
 
     await interaction.deferReply({ flags: MessageFlags.Ephemeral });
@@ -13913,7 +13973,7 @@ if (commandName === 'setupcategory') {
 
     saveConfig();
 
-    return interaction.editReply('✅ Đã **BẬT** Danh Mục và tạo kênh ' + chan.toString() + '. Hãy gửi nội dung trực tiếp vào kênh này để sử dụng.');
+    return interaction.editReply('✅ Đã **BẬT** Danh Mục và tạo kênh ' + chan.toString() + '. Dùng `/category add noi_dung:...` để thêm nội dung.');
 
 }
 
@@ -14861,6 +14921,7 @@ if (commandName === 'changelog') {
                 fields: [
                     { name: '`/setup`', value: 'Tự động tạo đầy đủ: kênh Welcome, Ticket, Chấm công và toàn bộ bảng nút tương tác.\nBot sẽ phân quyền và gửi bảng điều khiển vào các kênh tương ứng.' },
                     { name: '`/setupdonate`', value: 'Tạo hoặc làm mới riêng kênh **☕-donate** (thông tin chuyển khoản + mã QR).\nĐã tách khỏi `/setup` để bật/làm mới độc lập bất cứ lúc nào.' },
+                    { name: '`/category add noi_dung:...`', value: 'Quản trị viên đăng nội dung vào kênh `#danh-muc` sau khi bật bằng `/setupcategory trạng_thái:on`. Nội dung dài được tự chia thành nhiều tin nhắn.' },
                     { name: '`/resetsetup`', value: 'Dọn sạch các bảng nút bấm cũ và gửi lại bộ bảng mới tại phòng tương tác chính.\n⚠️ Dữ liệu giải trí (XP, xu) được bảo toàn, chỉ làm mới giao diện.' },
                 ]
             },
