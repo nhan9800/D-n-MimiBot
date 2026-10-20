@@ -298,6 +298,18 @@ test('Timeout candidate hoặc metadata giữ bài cũ và thông báo đúng m�
     }
 });
 
+test('Timeout theo request cho phép SoundCloud có thêm thời gian chuẩn bị nhưng vẫn báo đúng hạn', async () => {
+    const f = controllerFixture();
+    const changing = f.controller.change('g1', 'bassboost', { timeoutMs: 30000 });
+    await tick();
+    const deadline = f.timers.jobs[0];
+    assert.equal(deadline.delay, 30000);
+    deadline.callback();
+    assert.equal((await changing).reason, 'timeout');
+    assert.equal(f.candidates[0].disposed, 1);
+    assert.equal(f.notices.length, 1);
+});
+
 test('Factory trả resource sau cancel vẫn bị dọn, ready reject muộn không thành unhandled rejection', async () => {
     const factory = deferred(); const f = controllerFixture({ createCandidate: () => factory.promise });
     const changing = f.controller.change('g1', 'bassboost'); await tick();

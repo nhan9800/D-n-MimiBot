@@ -227,7 +227,7 @@ function createEffectTransitionController({ resolveMedia, createCandidate, getCu
         dispose(request);
         return true;
     };
-    const change = async (guildId, effectKey, { expectedTrack, expectedGeneration } = {}) => {
+    const change = async (guildId, effectKey, { expectedTrack, expectedGeneration, timeoutMs: requestTimeoutMs = timeoutMs } = {}) => {
         const mq = getCurrent(guildId);
         if (!mq?.current || (expectedTrack && mq.current !== expectedTrack)
             || (expectedGeneration != null && mq.playGeneration !== expectedGeneration)) return { applied: false, reason: 'stale' };
@@ -244,10 +244,11 @@ function createEffectTransitionController({ resolveMedia, createCandidate, getCu
             if (request.controller.signal.aborted) throw request.controller.signal.reason;
             if (pending.get(guildId) !== request || !valid()) { request.reason = 'stale'; throw abortError(); }
         };
+        const boundedTimeoutMs = Math.max(1000, Math.min(60000, Number(requestTimeoutMs) || timeoutMs));
         request.timer = setTimer(() => {
             if (pending.get(guildId) !== request) return;
             cancel(guildId, 'timeout');
-        }, timeoutMs);
+        }, boundedTimeoutMs);
         request.timer?.unref?.();
         let positionSec = 0;
         try {

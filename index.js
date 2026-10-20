@@ -4579,6 +4579,84 @@ const effectMediaResolver = createMediaResolver({
     }, { timeout: 8000, signal, maxBuffer: 4 << 20 })
 });
 
+// SoundCloud không ổn định khi mở lại CDN HLS đã ký cho một hiệu ứng mới.
+// Chuẩn bị lại qua yt-dlp → FFmpeg trong nền, giữ bài cũ cho tới khi PCM đầu tiên
+// sẵn sàng rồi mới bàn giao quyền sở hữu cho candidate.
+function createSoundcloudPipeCandidate({ track, seekSec = 0, effectKey = 'none', signal } = {}) {
+    if (!track?.url || signal?.aborted) throw new Error('Nguồn SoundCloud không sẵn sàng.');
+    const process = ytDlpExec.exec(validateMusicUrl(track.url), {
+        ignoreConfig: true, output: '-', noPlaylist: true, noWarnings: true, quiet: true, noPart: true,
+        format: 'bestaudio/best', socketTimeout: 6, retries: 1, fragmentRetries: 1,
+        skipUnavailableFragments: true, bufferSize: '1024K', forceIpv4: true
+    }, { stdio: ['ignore', 'pipe', 'pipe'], buffer: false });
+    let sourceBuffer, ffmpeg, pcmBuffer, pcmChunker, resource;
+    let disposed = false, readySettled = false, processDone = false, ffmpegDone = false, completionSettled = false;
+    let resolveReady, rejectReady, resolveCompletion;
+    const ready = new Promise((resolve, reject) => { resolveReady = resolve; rejectReady = reject; });
+    ready.catch(() => {});
+    const completion = new Promise(resolve => { resolveCompletion = resolve; });
+    const finish = () => {
+        if (completionSettled || (!disposed && (!processDone || !ffmpegDone))) return;
+        completionSettled = true;
+        resolveCompletion({ code: disposed ? null : 0, errorText: disposed ? 'Đã hủy candidate SoundCloud.' : '' });
+    };
+    const failReady = message => {
+        if (readySettled || disposed) return;
+        readySettled = true;
+        rejectReady(new Error(message || 'Không nhận được packet SoundCloud.'));
+    };
+    const dispose = () => {
+        if (disposed) return;
+        failReady('Đã hủy chuẩn bị hiệu ứng SoundCloud.');
+        disposed = true;
+        signal?.removeEventListener('abort', dispose);
+        try { process.kill?.('SIGKILL'); } catch {}
+        try { ffmpeg?.kill?.('SIGKILL'); } catch {}
+        for (const stream of [sourceBuffer, pcmBuffer, pcmChunker, resource?.playStream, process.stdout, process.stderr]) {
+            try { stream?.destroy?.(); } catch {}
+        }
+        finish();
+    };
+    process.then(() => { processDone = true; finish(); }, error => {
+        processDone = true;
+        failReady(/403|forbidden/i.test(String(error?.message)) ? 'SoundCloud từ chối tải nguồn.' : 'SoundCloud không tải được audio.');
+        finish();
+    });
+    process.stdout?.on?.('error', error => failReady(error?.message));
+    try {
+        sourceBuffer = new StartupAudioBuffer({ highWaterMark: 1 << 22, prebufferBytes: 32 << 10, maxWaitMs: 1500 });
+        process.stdout.pipe(sourceBuffer);
+        ffmpeg = spawnFfmpegAudio(sourceBuffer, { pipeSeekSec: Math.max(0, Math.floor(Number(seekSec) || 0)), effectKey });
+        if (!ffmpeg) throw new Error('FFmpeg chưa sẵn sàng.');
+        ffmpeg.on('error', error => failReady(error?.message));
+        ffmpeg.on('close', code => {
+            ffmpegDone = true;
+            if (code !== 0 && !disposed) failReady('Bộ xử lý SoundCloud kết thúc trước packet đầu tiên.');
+            finish();
+        });
+        pcmBuffer = new StartupAudioBuffer({ highWaterMark: 192000 * 3, prebufferBytes: 96000, maxWaitMs: 1000 });
+        ffmpeg.stdout.on('error', error => { pcmBuffer.destroy(error); failReady(error?.message); });
+        ffmpeg.stdout.pipe(pcmBuffer);
+        pcmChunker = new PcmFrameChunker({ highWaterMark: 15360 });
+        pcmBuffer.pipe(pcmChunker);
+        resource = voiceLib.createAudioResource(pcmChunker, { inputType: voiceLib.StreamType.Raw, inlineVolume: true });
+        const checkReady = () => {
+            if (!readySettled && !disposed && resource?.playStream?.readableLength > 0) {
+                readySettled = true;
+                resolveReady(resource);
+            }
+        };
+        resource.playStream.on('readable', checkReady);
+        resource.playStream.on('error', error => failReady(error?.message));
+        signal?.addEventListener('abort', dispose, { once: true });
+        if (signal?.aborted) dispose(); else checkReady();
+    } catch (error) {
+        dispose();
+        throw error;
+    }
+    return { resource, process, ffmpeg, pcmBuffer, pcmChunker, ready, completion, dispose };
+}
+
 function commitPreparedMusicEffect({ guildId, mq, track, effectKey, candidate, positionSec, capturedGeneration }) {
     if (musicQueues.get(guildId) !== mq || mq.current !== track || mq.playGeneration !== capturedGeneration) return false;
     if (candidate.resource.ended || candidate.resource.audioPlayer) throw new Error('Resource âm thanh mới không còn sẵn sàng.');
@@ -4589,7 +4667,7 @@ function commitPreparedMusicEffect({ guildId, mq, track, effectKey, candidate, p
     const genId = (mq.playGeneration = (mq.playGeneration || 0) + 1);
     mq.transitioning = true;
     killCurrentProcess(mq);
-    mq.currentFfmpeg = candidate.process;
+    mq.currentFfmpeg = candidate.ffmpeg || candidate.process;
     mq.currentPcmBuffer = candidate.pcmBuffer;
     mq.currentPcmChunker = candidate.pcmChunker;
     mq.disposeDirectAudio = candidate.dispose;
@@ -4652,15 +4730,19 @@ const musicEffectTransitions = createEffectTransitionController({
     getCurrent: guildId => musicQueues.get(guildId),
     getPosition: getPlaybackSec,
     resolveMedia: (track, { signal }) => {
+        const soundcloud = track?.source === 'SoundCloud' || /(?:^|\.)soundcloud\.com\//i.test(String(track?.url || ''));
+        if (soundcloud) return Promise.resolve({ pipeSource: track.url });
         const cacheKey = getMusicSourceCacheKey();
         return effectMediaResolver.resolve(track.url, { signal, cacheKey });
     },
-    createCandidate: (media, { effectKey, positionSec, signal }) => createDirectAudioCandidate({
-        media, seekSec: positionSec, effectFilter: AUDIO_EFFECTS[effectKey]?.af || '',
-        ffmpegPath: getFfmpegPath(), spawn,
-        createAudioResource: voiceLib.createAudioResource, StreamType: voiceLib.StreamType,
-        StartupAudioBuffer, PcmFrameChunker, signal
-    }),
+    createCandidate: (media, { track, effectKey, positionSec, signal }) => media?.pipeSource
+        ? createSoundcloudPipeCandidate({ track, seekSec: positionSec, effectKey, signal })
+        : createDirectAudioCandidate({
+            media, seekSec: positionSec, effectFilter: AUDIO_EFFECTS[effectKey]?.af || '',
+            ffmpegPath: getFfmpegPath(), spawn,
+            createAudioResource: voiceLib.createAudioResource, StreamType: voiceLib.StreamType,
+            StartupAudioBuffer, PcmFrameChunker, signal
+        }),
     commit: commitPreparedMusicEffect,
     notify: ({ guildId, mq, track, reason }) => {
         effectMediaResolver.invalidate(track.url, {
@@ -4676,29 +4758,13 @@ const musicEffectTransitions = createEffectTransitionController({
 function changeMusicEffect(guildId, effectKey, options = {}) {
     const mq = musicQueues.get(guildId);
     if (!mq || !mq.current || !AUDIO_EFFECTS[effectKey]) return Promise.resolve({ applied: false });
-    // SoundCloud hiện thường trả CDN HLS chỉ dùng được cho lần phát trực tiếp;
-    // một số host từ chối mở lại URL CDN đó cho phiên hiệu ứng (hoặc đóng ngay
-    // trước packet đầu tiên). Dùng cùng đường pipe yt-dlp đã phát bài thành công
-    // để đổi hiệu ứng, giữ vị trí hiện tại và tránh làm bot rơi khỏi voice.
+    mq.cancelEffectPreparation = () => musicEffectTransitions.cancel(guildId);
     const soundcloudTrack = mq.current.source === 'SoundCloud'
         || /(?:^|\.)soundcloud\.com\//i.test(String(mq.current.url || ''));
-    if (soundcloudTrack) {
-        const track = mq.current;
-        const positionSec = Math.max(0, Math.floor(Number(getPlaybackSec(mq)) || 0));
-        return playNextTrack(guildId, {
-            ...options,
-            replayCurrent: true,
-            expectedTrack: track,
-            seekSec: positionSec,
-            effectKey,
-            // Pipe đọc SoundCloud bằng yt-dlp rồi áp filter cục bộ; không phụ
-            // thuộc URL HLS ký ngắn hạn được chọn cho direct transition.
-            seekTransport: 'pipe',
-            sourceDeadline: Date.now() + Math.max(30000, Math.min(90000, 45000 + positionSec * 100))
-        }).then(result => result?.applied ? { ...result, reason: 'soundcloud_pipe' } : { applied: false, reason: 'failed' });
-    }
-    mq.cancelEffectPreparation = () => musicEffectTransitions.cancel(guildId);
-    return musicEffectTransitions.change(guildId, effectKey, options);
+    return musicEffectTransitions.change(guildId, effectKey, {
+        ...options,
+        timeoutMs: soundcloudTrack ? 30000 : 10000
+    });
 }
 
 // Chuyển chuỗi thời gian người dùng nhập thành số giây. Chấp nhận nhiều định dạng:
