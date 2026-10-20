@@ -71,6 +71,29 @@ nguồn. Cùng `caseId` không tải lại sau restart; chỉ tạo case mới k
 Thành công đòi đúng video, bytes>0 và header audio hợp lệ. Đây chưa phải phép nghe
 Discord hoặc kiểm tra toàn bài. Không đặt cookie/token trong request hay receipt.
 
+Để đo riêng HLS bằng PO/cookies production hiện có, request có thể thêm
+`transport: "hls"`; bỏ qua hoặc dùng `"default"` giữ cách chọn audio thông thường.
+HLS chỉ chọn audio có protocol `m3u8_native`/`m3u8`, không rơi về DASH/HTTPS khi
+thiếu format hoặc tải lỗi. Vì vậy kết quả `source_failed` có thể là video/client
+không có audio HLS; không suy ra mọi transport đều bị chặn. `client` tùy chọn
+chỉ nhận `default`, `web_safari` hoặc `web_embedded`; không nhận extractor args tùy ý.
+
+```json
+{
+  "caseId": "ktHhTtTrUXU-hls-20261020-v1",
+  "url": "https://www.youtube.com/watch?v=ktHhTtTrUXU",
+  "transport": "hls"
+}
+```
+
+Giới hạn vẫn là 64 KiB audio/45 giây và tổng 50 giây. Probe chỉ trả enum, cờ,
+byte và thời gian; không lưu audio, cookie, token hay stderr. Receipt gắn cả
+`client` lẫn `transport` với `caseId`/video; sửa selector nhưng dùng lại case cũ
+sẽ không công bố kết quả cũ hoặc tự tải lại. Receipt đời trước thiếu selector
+chỉ được xem là `default`/`default`. Hãy đặt case mới cho phép đo khác có chủ đích.
+Thành công HLS yêu cầu probe xác nhận transport HLS cùng byte/header audio hợp lệ;
+nó vẫn chưa chứng minh phát Discord, toàn bài hoặc đổi hiệu ứng thành công.
+
 ## Tài liệu gốc
 
 Phần bổ sung tài khoản phụ: [hướng dẫn cookies trên VibeHost](YOUTUBE-COOKIES.md).

@@ -43,7 +43,7 @@ function waitWithSignal(promise, signal) {
  * Một flat search và một lần tải audio có hạn. getOptions dùng chính cấu hình
  * production; helper không mở cookie, không trả/log token hoặc signed media URL.
  */
-function runYoutubePoProbe({ ytDlpExec, getOptions, query = 'JACK J97 Lưu Niên', videoUrl, clientArgs,
+function runYoutubePoProbe({ ytDlpExec, getOptions, query = 'JACK J97 Lưu Niên', videoUrl, clientArgs, transport = 'default',
     timeoutMs = 45000, maxBytes = 65536, now = Date.now, timers = {}, signal: parentSignal } = {}) {
     const beganAt = now();
     const budget = Math.max(1, Math.min(60000, Number(timeoutMs) || 45000));
@@ -65,6 +65,7 @@ function runYoutubePoProbe({ ytDlpExec, getOptions, query = 'JACK J97 Lưu Niên
         return Number.isFinite(elapsed) ? Math.min(60000, Math.max(0, Math.floor(elapsed))) : 0;
     };
     const state = () => ({ elapsedMs: elapsedSince(beganAt), firstByteMs, audioElapsedMs: elapsedSince(audioBeganAt), bytes, videoId,
+        transport: transport === 'hls' ? 'hls' : 'default',
         containerHeaderRecognized: recognizesAudioContainer(header), pluginLoaded, tokenRequestObserved, searchResolved,
         providerRequestFailed, mediaDownloadFailed, downloadStarted });
     const inspectError = error => {
@@ -136,6 +137,7 @@ function runYoutubePoProbe({ ytDlpExec, getOptions, query = 'JACK J97 Lưu Niên
             if (typeof ytDlpExec !== 'function' || typeof ytDlpExec.exec !== 'function' || typeof getOptions !== 'function') {
                 return finish('invalid_configuration');
             }
+            if (transport !== 'default' && transport !== 'hls') return finish('invalid_input');
             if (videoUrl != null) {
                 videoId = canonicalVideoId(videoUrl);
                 if (!videoId) return finish('invalid_input');
@@ -163,8 +165,13 @@ function runYoutubePoProbe({ ytDlpExec, getOptions, query = 'JACK J97 Lưu Niên
             const { quiet: _quiet, ...options } = typeof clientArgs === 'string'
                 ? getOptions(clientArgs) : getOptions();
             const url = `https://www.youtube.com/watch?v=${videoId}`;
+            // Probe HLS đo đúng giao thức này; tuyệt đối không rơi về DASH/HTTPS
+            // rồi báo thành công HLS. Không có format phù hợp là source_failed.
+            const format = transport === 'hls'
+                ? 'bestaudio[protocol=m3u8_native]/bestaudio[protocol=m3u8]'
+                : 'bestaudio[ext=webm]/bestaudio[ext=ogg]/bestaudio/best';
             child = ytDlpExec.exec(url, {
-                ...options, format: 'bestaudio[ext=webm]/bestaudio[ext=ogg]/bestaudio/best',
+                ...options, format, ...(transport === 'hls' ? { hlsPreferNative: true } : {}),
                 output: '-', noPlaylist: true, noPart: true, ignoreConfig: true, verbose: true,
                 socketTimeout: 8, retries: 0, fragmentRetries: 0, extractorRetries: 0,
             }, { stdio: ['ignore', 'pipe', 'pipe'], buffer: false, signal: controller.signal });

@@ -3586,7 +3586,7 @@ const YT_DOWNLOAD_CLIENT_FALLBACKS = [
 // playlist HLS. HLS trả audio AAC/MP4 qua nhiều fragment nên phải đi qua
 // FFmpeg; không dùng demux passthrough như luồng WebM/Opus bình thường.
 const YT_HLS_AUDIO_FORMAT =
-    'bestaudio[protocol=m3u8_native]/bestaudio[protocol=m3u8]/bestaudio[ext=webm]/bestaudio[ext=ogg]/bestaudio/best';
+    'bestaudio[protocol=m3u8_native]/bestaudio[protocol=m3u8]';
 
 function normalizeMusicMatchText(value) {
     return String(value || '').normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase()
@@ -3831,7 +3831,7 @@ async function resolveDirectUrl(url) {
 
 // 🎯 Bộ giải mã nguồn TỔNG QUÁT: nhận query (từ khóa hoặc URL bất kỳ) -> trả 1 track phát được.
 // Ưu tiên: YouTube (logic cũ, chống 403) -> Spotify (oEmbed -> tìm YouTube) -> nguồn yt-dlp khác -> tìm YouTube.
-async function resolveTrackUncached(query, preferredSource = 'auto') {
+async function resolveTrackUncached(query, preferredSource = 'youtube') {
     let q = String(query || '').trim();
     if (!q) return null;
     if (/^sc:\s*/i.test(q)) { q = q.replace(/^sc:\s*/i, ''); preferredSource = 'soundcloud'; }
@@ -3848,7 +3848,7 @@ async function resolveTrackUncached(query, preferredSource = 'auto') {
     }
     if (/^https?:\/\//i.test(q)) return resolveDirectUrl(q);
     if (preferredSource === 'soundcloud') return searchSoundcloud(q);
-    if (preferredSource === 'youtube') return searchYoutube(q);
+    if (preferredSource !== 'auto') return searchYoutube(q);
     try {
         const track = await searchYoutube(q);
         if (track) return track;
@@ -3858,7 +3858,7 @@ async function resolveTrackUncached(query, preferredSource = 'auto') {
 
 // Chỉ giữ metadata trong RAM; không cache URL audio có chữ ký hoặc ghi dữ liệu host.
 const musicSearchCache = createMusicSearchCache();
-async function resolveTrack(query, preferredSource = 'auto') {
+async function resolveTrack(query, preferredSource = 'youtube') {
     let q = String(query || '').trim();
     if (/^sc:\s*/i.test(q)) { q = q.replace(/^sc:\s*/i, ''); preferredSource = 'soundcloud'; }
     if (/^yt:\s*/i.test(q)) { q = q.replace(/^yt:\s*/i, ''); preferredSource = 'youtube'; }
@@ -5281,7 +5281,7 @@ async function playNextTrack(guildId, opts = {}) {
     const useFfmpeg = youtubeHlsAttempt || seekSec > 0 || effectKey !== 'none';
     const ffmpegPath = useFfmpeg ? getFfmpegPath() : null;
     // Khi binary còn đang tải, giữ nguyên bài đang nghe thay vì huỷ luồng rồi mới báo lỗi.
-    if (opts.replayCurrent && !opts.effectRecovery && !clientAttempt && useFfmpeg && mq.currentResource && ffmpegPath !== 'ffmpeg' && !fs.existsSync(ffmpegPath)) {
+    if (opts.replayCurrent && !opts.sourceRecovery && !opts.effectRecovery && !clientAttempt && useFfmpeg && mq.currentResource && ffmpegPath !== 'ffmpeg' && !fs.existsSync(ffmpegPath)) {
         mq.textChannel?.send(buildMusicNoticePayload('Chưa thể đổi hiệu ứng hoặc tua',
             'Bộ xử lý âm thanh chưa sẵn sàng. Mimi giữ nguyên bài đang phát; hãy thử lại sau.', 0xF1C40F)).catch(() => null);
         return { applied: false };
@@ -5483,12 +5483,17 @@ async function playNextTrack(guildId, opts = {}) {
 
     // Tính cả thời gian chờ demux. Pipe phải giải mã phần bị tua qua, nên cho
     // thêm thời gian có giới hạn với mix dài thay vì luôn ngắt ở 45 giây.
-    const startupBudgetMs = seekSec === 0
+    const normalStartupBudgetMs = seekSec === 0
         // PO có thể cần challenge mới cho từng video. Dùng trọn ngân sách hiện có
         // cho client đầu thay vì kill ở12s rồi bắt client khác làm lại từ đầu.
         ? Math.max(1, Math.min(isYoutubePlayback && youtubePoProvider.snapshot().ready ? 16000 : 12000,
             sourceDeadline - Date.now()))
         : seekTransport === 'pipe' ? Math.min(180000, 45000 + seekSec * 100) : 45000;
+    // Deadline HLS áp dụng cả khi khôi phục giữa bài; không mở lại cửa sổ
+    // 45–180 giây chỉ vì lượt phát có seekSec khác 0.
+    const startupBudgetMs = youtubeHlsAttempt
+        ? Math.max(1, Math.min(normalStartupBudgetMs, sourceDeadline - Date.now()))
+        : normalStartupBudgetMs;
     transitionSafety = setTimeout(() => {
         if (!isCurrentPlayback() || sourceRecovering || playbackStarted) return;
         cleanupTransition();
@@ -5504,11 +5509,6 @@ async function playNextTrack(guildId, opts = {}) {
         // discord.js/voice sẽ tự demux Opus từ webm mà KHÔNG cần cài thêm ffmpeg riêng.
         // Tuyệt đối không dùng concurrentFragments khi xuất pipe ra stdout ('-') để tránh
         // lỗi tạo file tạm '--Frag*' bị No such file or directory trên stream HLS/DASH dài.
-        // Giữ literal dự phòng trong hàm để các bộ kiểm thử tách riêng coordinator
-        // khỏi phần bootstrap vẫn có thể chạy đường HLS mà không cần biến toàn cục.
-        const hlsFormat = typeof YT_HLS_AUDIO_FORMAT === 'string'
-            ? YT_HLS_AUDIO_FORMAT
-            : 'bestaudio[protocol=m3u8_native]/bestaudio[protocol=m3u8]/bestaudio[ext=webm]/bestaudio[ext=ogg]/bestaudio/best';
         const ytdlOpts = {
             ignoreConfig: true,
             output: '-',
@@ -5517,7 +5517,7 @@ async function playNextTrack(guildId, opts = {}) {
             // format Opus, khiến yt-dlp báo Requested format is not available rồi
             // chuyển nhầm sang SoundCloud.
             format: isYoutubePlayback && youtubeHlsAttempt
-                ? hlsFormat
+                ? YT_HLS_AUDIO_FORMAT
                 : isYoutubePlayback ? 'bestaudio[ext=webm]/bestaudio[ext=ogg]/bestaudio/best' : 'bestaudio/best',
             noPlaylist: true,
             noWarnings: true,
@@ -5599,7 +5599,7 @@ async function playNextTrack(guildId, opts = {}) {
             // ffmpeg do yt-dlp chạy trực tiếp với URL có thể crash khi tải section. Thử lại
             // đúng bài/mốc/client/hiệu ứng MỘT lần qua stdout đầy đủ và tua bằng ffmpeg cục bộ.
             // Thế hệ mới vô hiệu hoá mọi lỗi/Idle/timer muộn của hai tiến trình đang bị huỷ.
-            if (seekSec > 0 && seekTransport === 'section' && /ffmpeg.*(?:exited|segmentation|SIGSEGV|crash)/i.test(rawErr)) {
+            if (seekSec > 0 && seekTransport === 'section' && !youtubeHlsAttempt && /ffmpeg.*(?:exited|segmentation|SIGSEGV|crash)/i.test(rawErr)) {
                 mq.sectionDisabled = true;
                 failureStarted = true;
                 const resumeSec = Math.max(seekSec, getPlaybackSec(mq));
@@ -5611,6 +5611,7 @@ async function playNextTrack(guildId, opts = {}) {
                     seekSec: resumeSec,
                     effectKey,
                     clientAttempt,
+                    sourceRecovery: true,
                     seekTransport: 'pipe'
                 }).catch(e => console.error('[Music] Không thể phát lại qua pipe:', classifyMusicSourceError(e).code));
             }
@@ -5631,18 +5632,23 @@ async function playNextTrack(guildId, opts = {}) {
             // HLS + FFmpeg với deadline mới ngắn; nếu HLS cũng bị chặn thì
             // mới quay về client dự phòng/SoundCloud. Không lặp HLS vô hạn.
             const poReady = youtubePoProvider.snapshot().ready === true;
-            if (isYoutubePlayback && isRetryable && poReady && !youtubeHlsAttempt && !youtubeHlsTried) {
+            const hlsResumeSec = Math.max(seekSec, getPlaybackSec(mq));
+            // HLS giữa bài phải tải section thẳng tới mốc phát. Nếu host đã
+            // vô hiệu hóa section thì bỏ lượt HLS, tránh tải lại toàn bộ đầu bài.
+            if (isYoutubePlayback && isRetryable && poReady && !youtubeHlsAttempt && !youtubeHlsTried
+                && (hlsResumeSec === 0 || !mq.sectionDisabled)) {
                 const hlsDeadline = Date.now() + 10000;
                 console.warn(`🔁 [Music] Thử luồng HLS YouTube cho "${next.title}" trước khi đổi nguồn.`);
                 playNextTrack(guildId, {
                     ...opts,
                     replayCurrent: true,
                     expectedTrack: next,
-                    seekSec: Math.max(seekSec, getPlaybackSec(mq)),
+                    seekSec: hlsResumeSec,
                     effectKey,
-                    seekTransport: 'pipe',
+                    seekTransport: hlsResumeSec > 0 ? 'section' : 'pipe',
                     sourceDeadline: hlsDeadline,
                     clientAttempt,
+                    sourceRecovery: true,
                     youtubeHlsAttempt: true,
                     youtubeHlsTried: true
                 }).catch(e => console.error(`❌ [Music] Lỗi khi thử HLS YouTube cho "${next.title}":`, classifyMusicSourceError(e).code));
@@ -5662,14 +5668,15 @@ async function playNextTrack(guildId, opts = {}) {
                     seekTransport,
                     sourceDeadline,
                     clientAttempt: nextAttempt,
+                    sourceRecovery: true,
                     youtubeHlsAttempt: false,
                     youtubeHlsTried
                 }).catch(e => console.error(`❌ [Music] Lỗi khi thử lại client cho "${next.title}":`, classifyMusicSourceError(e).code));
                 return;
             }
 
-            // 🛡️ BẢO HIỂM 403 / LỖI TẢI: NẾU YOUTUBE LỖI/CHẶN BÀI NÀY -> TỰ ĐỘNG PHÁT TỪ SOUNDCLOUD
-            if (isYoutubePlayback && next.allowSourceFallback !== false && !next.scFallbackAttempted) {
+            // Chỉ người chọn Tự động mới cho phép thay bản thu bằng SoundCloud.
+            if (isYoutubePlayback && next.requestedSource === 'auto' && next.allowSourceFallback === true && !next.scFallbackAttempted) {
                 console.warn(`🔄 [Music] Nguồn YouTube gặp sự cố ("${next.title}") -> Tự động tìm nguồn phát SoundCloud...`);
                 try {
                     const scQuery = buildSoundcloudFallbackQuery(next.title, next.author);
@@ -5711,7 +5718,7 @@ async function playNextTrack(guildId, opts = {}) {
                 }
             }
 
-            const shortErr = isYoutubePlayback && next.allowSourceFallback === false
+            const shortErr = isYoutubePlayback && !(next.requestedSource === 'auto' && next.allowSourceFallback === true)
                 ? 'YouTube từ chối hoặc chưa tải được audio. Mimi giữ lựa chọn nguồn YouTube; dùng nguồn SoundCloud hoặc Tự động nếu muốn thử bản khác.'
                 : safeError.message;
             sourceRecovering = false;
@@ -7270,7 +7277,7 @@ client.once('clientReady', async () => {
             .setName('play')
             .setDescription('Phát nhạc từ YouTube, Spotify, SoundCloud — tìm theo tên hoặc dán link')
             .addStringOption(o => o.setName('từ_khóa').setDescription('Tên bài hát hoặc link (YouTube, Spotify, SoundCloud, v.v.)').setRequired(true))
-            .addStringOption(o => o.setName('nguồn').setDescription('Nguồn tìm kiếm ưu tiên (mặc định: Tự động)').setRequired(false)
+            .addStringOption(o => o.setName('nguồn').setDescription('Nguồn tìm kiếm (mặc định: YouTube, giữ đúng nguồn khi phát)').setRequired(false)
                 .addChoices(
                     { name: '✨ Tự động (YouTube & SoundCloud)', value: 'auto' },
                     { name: '🔴 YouTube', value: 'youtube' },
@@ -14358,7 +14365,7 @@ if (commandName === 'setup') {
             }
 
             const query = options.getString('từ_khóa');
-            const source = options.getString('nguồn') || 'auto';
+            const source = options.getString('nguồn') || 'youtube';
             let track;
             try {
                 track = await resolveTrack(query, source); // YouTube, Spotify, SoundCloud, Bandcamp, Twitch, Vimeo, link...
@@ -15028,7 +15035,7 @@ if (commandName === 'changelog') {
                 desc: 'Tìm và phát nhạc trực tiếp từ **YouTube, SoundCloud, Spotify, Bandcamp, Twitch, Vimeo**... trong kênh thoại. Panel **Đang phát** hiển thị thanh tiến trình trực tiếp và toàn bộ điều khiển bằng **nút bấm**.',
                 fields: [
                     { name: '🔊 Vào & Rời Kênh — `/join` · `/leave` · `mijoin` · `mileave`', value: '`/join` — Mời bot vào kênh thoại của bạn trước.\n`/leave` — Ngắt kết nối và cho bot rời khỏi kênh thoại.' },
-                    { name: '▶️ Phát nhạc — `/play [từ_khóa]` · `miplay` / `mipl`', value: 'Vào **kênh thoại** trước, rồi nhập tên bài (bot tự tìm) hoặc dán **link** trực tiếp (YouTube, Spotify, SoundCloud).\nCó thể chỉ định nguồn tìm kiếm: `sc: tên bài` (SoundCloud) hoặc `yt: tên bài` (YouTube).' },
+                    { name: '▶️ Phát nhạc — `/play [từ_khóa]` · `miplay` / `mipl`', value: 'Vào **kênh thoại** trước, rồi nhập tên bài hoặc dán **link** trực tiếp (YouTube, Spotify, SoundCloud).\nTên bài mặc định tìm và giữ nguồn **YouTube**. Dùng `sc: tên bài` để chọn SoundCloud; `/play` với `nguồn: Tự động` mới cho phép chuyển nguồn dự phòng.' },
                     { name: '🎛️ Hàng nút điều khiển (4 hàng dưới panel Đang phát)', value: '**Hàng 1:** ▶️/⏸️ Tạm dừng·Tiếp tục • ⏭️ Bỏ qua • ⏹️ Dừng & Thoát • 🔁 Lặp (Tắt→Bài→Hàng đợi)\n**Hàng 2:** 🔉/🔊 Giảm·Tăng âm • 📋 Hàng đợi • 💖 Yêu thích bài đang nghe\n**Hàng 3:** 📻 Autoplay • ♾️ 24/7 • 🎛️ Hiệu ứng • 🎤 Lời bài hát\n**Hàng 4:** ⏪ −10s • ⏩ +10s • 🔄 Phát lại từ đầu • 🔀 Xáo trộn • 🗑️ Xoá hàng đợi' },
                     { name: '🎚️ Hiệu ứng âm thanh — nút 🎛️ · `mifx` / `mihieuung`', value: 'Áp **live** ngay tại vị trí đang nghe (không cắt nhạc): Bassboost, Nightcore, Chill Lofi, Vaporwave, 8D, Soft/Warm, Tremolo, Sped 1.5x, hoặc **Tắt** để về gốc.' },
                     { name: '📻 Autoplay & ♾️ 24/7', value: '**Autoplay** (nút 📻 · `miradio`): hết hàng đợi bot tự phát bài liên quan.\n**24/7** (nút ♾️ · `mistay`): bot ở lại kênh kể cả khi hết bài / không còn ai nghe.' },

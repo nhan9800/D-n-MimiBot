@@ -10,6 +10,7 @@ const OUTCOMES = new Set(['audio_received', 'invalid_audio', 'http_403', 'auth_r
 const FLAGS = ['containerHeaderRecognized', 'pluginLoaded', 'tokenRequestObserved', 'searchResolved',
     'providerRequestFailed', 'mediaDownloadFailed', 'downloadStarted'];
 const CLIENTS = new Set(['default', 'web_safari', 'web_embedded']);
+const TRANSPORTS = new Set(['default', 'hls']);
 
 function boundedNumber(value, maximum) {
     return Number.isFinite(value) ? Math.max(0, Math.min(maximum, Math.floor(value))) : 0;
@@ -29,17 +30,18 @@ function youtubeId(value) {
     return typeof id === 'string' && /^[A-Za-z0-9_-]{11}$/.test(id) ? id : null;
 }
 
-function safeAudio(value, videoId) {
+function safeAudio(value, videoId, transport = 'default') {
     const input = value && typeof value === 'object' ? value : {};
     const outcome = OUTCOMES.has(input.outcome) ? input.outcome : 'source_failed';
     const result = { ok: input.ok === true && outcome === 'audio_received', outcome,
-        phase: ['input', 'search', 'audio'].includes(input.phase) ? input.phase : 'input', videoId,
+        phase: ['input', 'search', 'audio'].includes(input.phase) ? input.phase : 'input', videoId, transport,
         elapsedMs: boundedNumber(input.elapsedMs, 60000), audioElapsedMs: boundedNumber(input.audioElapsedMs, 60000),
         firstByteMs: Number.isFinite(input.firstByteMs) ? boundedNumber(input.firstByteMs, 60000) : null,
         bytes: boundedNumber(input.bytes, 65536) };
     for (const flag of FLAGS) result[flag] = input[flag] === true;
     // Không cho receipt hỏng hoặc probe nhầm bài báo thành công cho video yêu cầu.
-    if (outcome === 'audio_received' && (input.videoId !== videoId || result.bytes === 0 || !result.containerHeaderRecognized)) {
+    if (outcome === 'audio_received' && (input.videoId !== videoId || result.bytes === 0 || !result.containerHeaderRecognized
+        || (input.transport === undefined ? 'default' : input.transport) !== transport)) {
         result.ok = false; result.outcome = 'source_failed';
     }
     return result;
@@ -96,9 +98,12 @@ async function runYoutubeLinkCheck({ requestPath, receiptDir, resolveTrack, prob
     try { request = await readJsonFile(fs, requestPath, 4096); } catch { return null; }
     if (!request || typeof request !== 'object' || Array.isArray(request)
         || typeof request.caseId !== 'string' || !/^[A-Za-z0-9][A-Za-z0-9-]{0,63}$/.test(request.caseId)
-        || (request.client !== undefined && (typeof request.client !== 'string' || !CLIENTS.has(request.client)))) return null;
+        || (request.client !== undefined && (typeof request.client !== 'string' || !CLIENTS.has(request.client)))
+        || (request.transport !== undefined && (typeof request.transport !== 'string' || !TRANSPORTS.has(request.transport)))) return null;
     const videoId = youtubeId(request.url);
     if (!videoId || signal?.aborted) return null;
+    const client = request.client === undefined ? 'default' : request.client;
+    const transport = request.transport === undefined ? 'default' : request.transport;
     const directory = path.resolve(receiptDir);
     const filename = path.join(directory, `${request.caseId}.json`);
     let cached;
@@ -110,11 +115,15 @@ async function runYoutubeLinkCheck({ requestPath, receiptDir, resolveTrack, prob
         catch (error) { if (error?.code !== 'ENOENT') return null; }
         if (cached) {
             if (cached.schema !== 1 || cached.caseId !== request.caseId || cached.videoId !== videoId
+                || (cached.client === undefined ? 'default' : cached.client) !== client
+                || (cached.transport === undefined ? 'default' : cached.transport) !== transport
+                || (cached.result?.client === undefined ? 'default' : cached.result.client) !== client
+                || (cached.result?.transport === undefined ? 'default' : cached.result.transport) !== transport
                 || cached.state !== 'complete' || !Number.isFinite(Date.parse(cached.result?.checkedAt))) return null;
-            return { caseId: request.caseId, videoId, checkedAt: new Date(cached.result.checkedAt).toISOString(),
+            return { caseId: request.caseId, videoId, client, transport, checkedAt: new Date(cached.result.checkedAt).toISOString(),
                 metadata: { ok: cached.result.metadata?.ok === true,
                     elapsedMs: boundedNumber(cached.result.metadata?.elapsedMs, 4000), sourcePreserved: cached.result.metadata?.sourcePreserved === true },
-                audio: safeAudio(cached.result.audio, videoId) };
+                audio: safeAudio(cached.result.audio, videoId, transport) };
         }
     } catch { return null; }
 
@@ -122,7 +131,7 @@ async function runYoutubeLinkCheck({ requestPath, receiptDir, resolveTrack, prob
     let reservation;
     try {
         reservation = await fs.open(filename, 'wx', 0o600);
-        await reservation.writeFile(JSON.stringify({ schema: 1, state: 'pending', caseId: request.caseId, videoId, checkedAt }));
+        await reservation.writeFile(JSON.stringify({ schema: 1, state: 'pending', caseId: request.caseId, videoId, client, transport, checkedAt }));
     } catch { return null; }
     finally { await reservation?.close().catch(() => {}); }
 
@@ -144,7 +153,7 @@ async function runYoutubeLinkCheck({ requestPath, receiptDir, resolveTrack, prob
             metadata.ok = metadata.sourcePreserved;
         } catch { /* Metadata và audio được đo riêng, không ghi lỗi hoặc tên bài vào receipt. */ }
         metadata.elapsedMs = boundedNumber(now() - metadataBegan, 4000);
-        if (controller.signal.aborted) audio = safeAudio({ outcome: totalTimedOut ? 'timeout' : 'aborted' }, videoId);
+        if (controller.signal.aborted) audio = safeAudio({ outcome: totalTimedOut ? 'timeout' : 'aborted' }, videoId, transport);
         else {
             const remaining = Math.min(45000, Math.max(1, 50000 - (now() - began)));
             try {
@@ -152,23 +161,24 @@ async function runYoutubeLinkCheck({ requestPath, receiptDir, resolveTrack, prob
                     const probeInput = { videoUrl: `https://www.youtube.com/watch?v=${videoId}`,
                         timeoutMs: remaining, signal: childSignal };
                     if (request.client) probeInput.client = request.client;
+                    if (request.transport) probeInput.transport = request.transport;
                     return probe(probeInput);
                 }, remaining, controller.signal, schedule, cancel);
-                audio = safeAudio(result, videoId);
+                audio = safeAudio(result, videoId, transport);
             } catch (error) {
                 audio = safeAudio({ outcome: totalTimedOut || error?.code === 'TIMEOUT' ? 'timeout' : controller.signal.aborted ? 'aborted' : 'source_failed',
-                    elapsedMs: now() - began }, videoId);
+                    elapsedMs: now() - began }, videoId, transport);
             }
         }
     } finally {
         cancel(totalTimer); signal?.removeEventListener('abort', abort); controller.abort();
     }
-    const result = { caseId: request.caseId, videoId, checkedAt, metadata, audio };
+    const result = { caseId: request.caseId, videoId, client, transport, checkedAt, metadata, audio };
     const temporary = path.join(directory, `.link-check-${randomBytes(12).toString('hex')}.tmp`);
     let output, created = false;
     try {
         output = await fs.open(temporary, 'wx', 0o600); created = true;
-        await output.writeFile(JSON.stringify({ schema: 1, state: 'complete', caseId: request.caseId, videoId, result }));
+        await output.writeFile(JSON.stringify({ schema: 1, state: 'complete', caseId: request.caseId, videoId, client, transport, result }));
         await output.close(); output = null;
         await fs.rename(temporary, filename);
     } catch { return null; }

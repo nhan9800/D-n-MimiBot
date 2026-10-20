@@ -209,7 +209,8 @@ class MusicStore {
             thumbnail: track.thumbnail || null,
             ...(track.author ? { author: String(track.author).slice(0, 200) } : {}),
             ...(track.source ? { source: String(track.source).slice(0, 40) } : {}),
-            ...(track.allowSourceFallback === false ? { allowSourceFallback: false } : {}),
+            ...(track.allowSourceFallback === false ? { allowSourceFallback: false }
+                : track.requestedSource === 'auto' && track.allowSourceFallback === true ? { allowSourceFallback: true } : {}),
             ...(['youtube', 'soundcloud', 'auto'].includes(track.requestedSource) ? { requestedSource: track.requestedSource } : {})
         };
     }

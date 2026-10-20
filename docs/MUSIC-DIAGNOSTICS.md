@@ -1,5 +1,13 @@
 # Bassboost và nhịp phát nhạc
 
+## Giữ nguồn YouTube và phục hồi HLS — 20/10/2026
+
+`/play`, `mipl` và tìm tên bài mặc định chọn YouTube. Chỉ lựa chọn `nguồn: Tự động` rõ ràng mới được thay bằng bản SoundCloud khi YouTube lỗi; session cũ thiếu chính sách cũng không tự chuyển. Link SoundCloud và tiền tố `sc:` vẫn phát đúng nguồn được yêu cầu. Kiểm thử kiểm tra cả resolver, cache, lưu session và coordinator khi lỗi403/timeout.
+
+Lượt HLS chỉ chọn format `m3u8`, không rơi về DASH dưới nhãn HLS. Deadline10giây áp dụng cả phục hồi giữa bài; dùng section tới mốc đang phát thay vì tải lại từ đầu. Nếu section đã bị vô hiệu hóa thì bỏ lượt HLS giữa bài. Thiếu FFmpeg hoặc section crash phải kết thúc lượt phục hồi đúng cách, tránh treo queue. Chẩn đoán thủ công nhận `transport: "hls"` và gắn receipt với video/client/transport; receipt cũ không chứng minh lượt kiểm tra mới thành công.
+
+Các thay đổi này sửa chính sách nguồn và giới hạn phục hồi; không phải bằng chứng đã vượt lỗi403. Cần có byte audio hợp lệ trên VibeHost rồi kiểm tra nghe thật trước khi kết luận YouTube hoạt động.
+
 ## Luồng đổi hiệu ứng mới —18/10/2026
 
 Menu và `mifx` chuẩn bị resource mới trong lúc resource cũ tiếp tục phát. Metadata CDN có cache RAM tối đa5phút và bị cắt theo hạn URL; chỉ nhận HTTPS YouTube/SoundCloud cùng CDN được cho phép. Không lưu cookie/header/URL CDN trong session. Lượt chuẩn bị tối đa10giây, latest-wins; skip/stop/đổi bài hủy candidate. Chỉ khi có packet đầu mới chuyển resource, giữ pause, volume mới nhất và hàng đợi. Lỗi/timeout hoặc mốc mới đã tụt quá3giây giữ nguyên audio cũ, không thử lại đường section đã crash.

@@ -22,6 +22,7 @@ function region(begin, end) {
 }
 
 const audioEffects = vm.runInNewContext(`${region('const AUDIO_EFFECTS = {', '// Đường dẫn ffmpeg')}\nAUDIO_EFFECTS`);
+const youtubeHlsAudioFormat = vm.runInNewContext(`${region('const YT_HLS_AUDIO_FORMAT =', 'function normalizeMusicMatchText(')}\nYT_HLS_AUDIO_FORMAT`);
 const pipeFilters = (seekSec, effectKey) =>
     ['asetpts=PTS-STARTPTS', `atrim=start=${seekSec}`, 'asetpts=PTS-STARTPTS', audioEffects[effectKey].af].filter(Boolean).join(',');
 
@@ -330,6 +331,7 @@ async function fixture({ synchronousPlaying = false, demuxProbe, searchSoundclou
         getPlaybackSec: mq => (mq.seekBase || 0) + Math.floor((mq.currentResource?.playbackDuration || 0) / 1000),
         AUDIO_EFFECTS: audioEffects,
         youtubePoProvider,
+        YT_HLS_AUDIO_FORMAT: youtubeHlsAudioFormat,
         YT_DOWNLOAD_CLIENT_FALLBACKS: ['youtube:player_client=android,ios'],
         validateMusicUrl: url => url,
         getCookieFilePath: () => null,
@@ -376,7 +378,8 @@ async function fixture({ synchronousPlaying = false, demuxProbe, searchSoundclou
     const guild = { id: 'g1', voiceAdapterCreator: {}, channels: { cache: new Map() } };
     const textChannel = { send: async payload => { notices.push(payload); return null; } };
     const { mq } = await context.getOrCreateMusicQueue(guild, { id: 'v1' }, textChannel);
-    const current = { title: 'Bài hiện tại', url: 'https://www.youtube.com/watch?v=abcdefghijk', duration: 180 };
+    const current = { title: 'Bài hiện tại', url: 'https://www.youtube.com/watch?v=abcdefghijk', duration: 180,
+        requestedSource: 'auto', allowSourceFallback: true };
     const queued = { title: 'Bài kế tiếp', url: 'https://www.youtube.com/watch?v=lmnopqrstuv', duration: 180 };
     mq.current = current;
     mq.queue = [queued];
@@ -427,7 +430,7 @@ test('Provider PO sẵn sàng được chuyển vào pipe YouTube; provider tắ
     }
 });
 
-test('PO sẵn sàng: packet đến giây17 trong cửa sổ22giây vẫn phát cùng nguồn và giữ queue', async () => {
+test('PO sẵn sàng: packet tới trước deadline16giây vẫn phát cùng nguồn và giữ queue', async () => {
     const packet = deferred(); let searches = 0;
     const f = await fixture({ synchronousPlaying: true,
         demuxProbe: () => packet.promise,
@@ -443,7 +446,7 @@ test('PO sẵn sàng: packet đến giây17 trong cửa sổ22giây vẫn phát 
         assert.equal(deadline.delay, 16000, 'PO cold challenge dùng trọn deadline chung, không bị cắt ở12giây');
         assert.equal(f.processes.length, 1);
         assert.equal(f.processes[0].flags.downloadSections, undefined);
-        f.clock.now += 17000;
+        f.clock.now += 15000;
         packet.resolve({ stream: f.mq.currentBuffer, type: 'opus' });
         await starting; await tick();
         assert.equal(f.player.state.status, 'playing');
@@ -460,7 +463,7 @@ test('PO sẵn sàng: packet đến giây17 trong cửa sổ22giây vẫn phát 
     } finally { packet.resolve({ stream: f.mq.currentBuffer, type: 'opus' }); f.cleanup(); }
 });
 
-test('PO sẵn sàng: hết22giây dừng nguồn đúng một lần, YouTube tường minh không đổi SoundCloud', async () => {
+test('PO sẵn sàng: hết16giây dừng nguồn đúng một lần, YouTube tường minh không đổi SoundCloud', async () => {
     const packet = deferred(); let probes = 0, searches = 0;
     const f = await fixture({
         demuxProbe: stream => ++probes === 1 ? packet.promise : Promise.resolve({ stream, type: 'opus' }),
@@ -539,6 +542,98 @@ test('PO sẵn sàng:403 thử HLS một lần với deadline riêng rồi giữ
         assert.equal(f.notices.filter(notice => notice.title === 'Không thể phát bài này').length, 1);
         firstDeadline.callback(); secondDeadline.callback(); await tick();
         assert.equal(f.processes.length, 3);
+        assert.equal(f.mq.current, f.queued);
+    } finally { f.cleanup(); }
+});
+
+test('HLS phục hồi giữa bài tải section và vẫn hết hạn sau10giây', async () => {
+    const f = await fixture({ youtubePoProvider: {
+        options: extractorArgs => ({ extractorArgs }), snapshot: () => ({ ready: true })
+    } });
+    try {
+        f.current.allowSourceFallback = false;
+        await f.play({ effectKey: 'none', seekSec: 90, seekTransport: 'section' });
+        await f.processes[0].rejectPlayback(new Error('HTTP Error 403: Forbidden')); await tick();
+        assert.equal(f.processes.length, 2);
+        assert.match(f.processes[1].flags.format, /protocol=m3u8_native/);
+        assert.equal(f.processes[1].flags.downloadSections, '*90-inf');
+        assert.equal(f.ffmpegs[1].args.includes('-af'), false, 'Section đã tua: không tải/atrim lại90giây đầu');
+        const deadline = f.timers.find(timer => !timer.cleared);
+        assert.equal(deadline.delay, 10000, 'Mốc90giây không được nới deadline thành54giây');
+        f.clock.now += deadline.delay;
+        deadline.callback(); await tick();
+        assert.equal(f.processes[1].killed, true);
+        assert.equal(f.mq.current, f.queued);
+        assert.equal(f.processes.length, 3);
+    } finally { f.cleanup(); }
+});
+
+test('HLS không đọc lại prefix sâu nếu host đã vô hiệu hóa section', async () => {
+    let searches = 0;
+    const f = await fixture({ synchronousPlaying: true,
+        searchSoundcloud: async () => { searches++; return null; },
+        youtubePoProvider: { options: extractorArgs => ({ extractorArgs }), snapshot: () => ({ ready: true }) }
+    });
+    try {
+        f.current.allowSourceFallback = false;
+        await f.play({ effectKey: 'none', seekSec: 0, seekTransport: 'pipe' });
+        f.mq.currentResource.playbackDuration = 3600000;
+        f.mq.sectionDisabled = true;
+        await f.processes[0].rejectPlayback(new Error('HTTP Error 403: Forbidden')); await tick();
+        assert.equal(f.processes.length, 2, 'Bỏ lượt HLS không thể tua, chuyển queue đúng một lần');
+        assert.equal(f.processes.some(proc => /protocol=m3u8_native/.test(proc.flags.format)), false);
+        assert.equal(f.mq.current, f.queued);
+        assert.equal(searches, 0);
+    } finally { f.cleanup(); }
+});
+
+test('HLS section gặp FFmpeg crash không quay về pipe tải lại toàn bộ đầu bài', async () => {
+    const f = await fixture({ youtubePoProvider: {
+        options: extractorArgs => ({ extractorArgs }), snapshot: () => ({ ready: true })
+    } });
+    try {
+        f.current.allowSourceFallback = false;
+        await f.play({ effectKey: 'none', seekSec: 1800, seekTransport: 'section' });
+        await f.processes[0].rejectPlayback(new Error('HTTP Error 403: Forbidden')); await tick();
+        assert.equal(f.processes[1].flags.downloadSections, '*1800-inf');
+        await f.processes[1].rejectPlayback(new Error('ERROR: ffmpeg exited with code -11')); await tick();
+        assert.equal(f.processes.length, 3);
+        assert.equal(f.mq.current, f.queued);
+        assert.equal(f.processes.filter(proc => /protocol=m3u8_native/.test(proc.flags.format)).length, 1);
+    } finally { f.cleanup(); }
+});
+
+test('HLS thiếu FFmpeg sau403 không giữ resource đã chết hoặc bỏ treo queue', async () => {
+    const f = await fixture({ synchronousPlaying: true, youtubePoProvider: {
+        options: extractorArgs => ({ extractorArgs }), snapshot: () => ({ ready: true })
+    } });
+    try {
+        f.current.allowSourceFallback = false;
+        await f.play({ effectKey: 'none', seekSec: 0, seekTransport: 'pipe' });
+        const deadResource = f.mq.currentResource;
+        f.context.fs.existsSync = () => false;
+        await f.processes[0].rejectPlayback(new Error('HTTP Error 403: Forbidden')); await tick();
+        assert.equal(f.processes.length, 3, 'HLS không chạy được phải kết thúc lỗi và phát bài chờ');
+        assert.equal(f.processes[1].killed, true);
+        assert.equal(f.mq.current, f.queued);
+        assert.notEqual(f.mq.currentResource, deadResource);
+        assert.equal(f.mq.transitioning, false);
+        assert.equal(f.notices.filter(notice => notice.title === 'Không thể phát bài này').length, 1);
+        assert.equal(f.notices.some(notice => notice.title === 'Chưa thể đổi hiệu ứng hoặc tua'), false);
+    } finally { f.cleanup(); }
+});
+
+test('Bài YouTube cũ thiếu chính sách nguồn không tự tìm bản SoundCloud', async () => {
+    let searches = 0;
+    const f = await fixture({ searchSoundcloud: async () => { searches++; return { url: 'https://soundcloud.com/artist/unwanted' }; } });
+    try {
+        delete f.current.requestedSource;
+        delete f.current.allowSourceFallback;
+        const originalUrl = f.current.url;
+        await f.play({ effectKey: 'none', seekSec: 0, seekTransport: 'pipe' });
+        await f.processes[0].rejectPlayback(new Error('HTTP Error 403: Forbidden')); await tick();
+        assert.equal(searches, 0);
+        assert.equal(f.current.url, originalUrl);
         assert.equal(f.mq.current, f.queued);
     } finally { f.cleanup(); }
 });

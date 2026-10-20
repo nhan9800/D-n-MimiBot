@@ -113,6 +113,65 @@ test('Link YouTube hợp lệ bỏ search; audio ngắn kết thúc sạch vẫn
     assert.equal(result.bytes, 14);
 });
 
+test('Probe HLS chỉ chọn audio m3u8, giữ PO/cookies production và dừng ở64KiB', async () => {
+    const f = fixture();
+    const optionCalls = [];
+    const probing = runYoutubePoProbe({ ...f.dependencies, videoUrl: URL, transport: 'hls',
+        clientArgs: 'youtube:player_client=web_safari', timeoutMs: 10000,
+        getOptions: clientArgs => { optionCalls.push(clientArgs); return { ...f.options, cookies: '/private/cookies.txt' }; } });
+    await tick();
+    assert.equal(f.searches.length, 0);
+    assert.deepEqual(optionCalls, ['youtube:player_client=web_safari']);
+    const child = f.streams[0];
+    assert.equal(child.flags.format, 'bestaudio[protocol=m3u8_native]/bestaudio[protocol=m3u8]');
+    assert.ok(child.flags.format.split('/').every(selector => /^bestaudio\[protocol=m3u8(?:_native)?\]$/.test(selector)),
+        'Không cho DASH/HTTPS hoặc video fallback báo thành công thay HLS');
+    assert.equal(child.flags.hlsPreferNative, true);
+    assert.equal(child.flags.cookies, '/private/cookies.txt');
+    assert.deepEqual(child.flags.extractorArgs, f.options.extractorArgs);
+    assert.equal(f.timers[0].delay, 10000);
+    const audio = Buffer.alloc(100000); audio.write('ftyp', 4, 'ascii');
+    f.advance(20); child.stdout.write(audio);
+    const result = await probing;
+    assert.equal(result.ok, true);
+    assert.equal(result.transport, 'hls');
+    assert.equal(result.bytes, 65536);
+    assert.equal(child.kills, 1);
+    assert.equal(child.processOptions.signal.aborted, true);
+    assert.equal(child.stdout.listenerCount('data'), 0);
+    assert.equal(child.stderr.listenerCount('data'), 0);
+    assert.equal(f.timers[0].cleared, true);
+    assert.doesNotMatch(JSON.stringify(result), /private|cookies\.txt|127\.0\.0\.1/);
+});
+
+test('HLS không có format phải thất bại một lần, không tự tải transport khác', async () => {
+    const f = fixture();
+    const probing = runYoutubePoProbe({ ...f.dependencies, videoUrl: URL, transport: 'hls' });
+    await tick();
+    f.streams[0].source.reject(new Error('Requested format is not available; token=private'));
+    const result = await probing;
+    assert.equal(result.outcome, 'source_failed');
+    assert.equal(result.transport, 'hls');
+    assert.equal(result.bytes, 0);
+    assert.equal(f.streams.length, 1);
+    assert.equal(f.streams[0].kills, 1);
+    assert.doesNotMatch(JSON.stringify(result), /private|token=/);
+});
+
+test('Transport probe chỉ nhận default/hls, giá trị tùy ý bị chặn trước gọi options/nguồn', async () => {
+    for (const transport of ['dash', 'hls/best', 'https://private.test', null, {}, ['hls']]) {
+        const f = fixture(); let optionCalls = 0;
+        const result = await runYoutubePoProbe({ ...f.dependencies, videoUrl: URL, transport,
+            getOptions: () => { optionCalls++; return f.options; } });
+        assert.equal(result.outcome, 'invalid_input');
+        assert.equal(result.transport, 'default', 'Không phản chiếu đầu vào tùy ý vào receipt');
+        assert.equal(optionCalls, 0);
+        assert.equal(f.searches.length, 0);
+        assert.equal(f.streams.length, 0);
+        assert.equal(f.timers[0].cleared, true);
+    }
+});
+
 for (const [message, outcome] of [
     ['ERROR: unable to download video data: HTTP Error 403: Forbidden token=private', 'http_403'],
     ['ERROR: Sign in to confirm you are not a bot; https://secret.test/private', 'auth_required'],

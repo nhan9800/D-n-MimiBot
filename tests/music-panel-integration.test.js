@@ -279,7 +279,7 @@ test('Metadata link YouTube treo vẫn trả track đưa vào queue sau3giây, g
 
 test('Resolver thật giữ nguồn YouTube bắt buộc và link YouTube trực tiếp', async () => {
     const f = resolverFixture();
-    for (const track of [await f.resolve('yt: Bài thử'), await f.resolve('Bài thử', 'youtube'), await f.resolve('https://youtu.be/abcdefghijk')]) {
+    for (const track of [await f.resolve('Bài thử'), await f.resolve('yt: Bài thử'), await f.resolve('Bài thử', 'youtube'), await f.resolve('https://youtu.be/abcdefghijk')]) {
         assert.equal(track.requestedSource, 'youtube');
         assert.equal(track.allowSourceFallback, false);
     }
@@ -292,7 +292,8 @@ test('Resolver thật không gọi SoundCloud khi nguồn/link YouTube rõ ràng
     await assert.rejects(f.resolve('Bài thử', 'youtube'), /403/);
     await assert.rejects(f.resolve('yt: Bài thử'), /403/);
     await assert.rejects(f.resolve('https://youtu.be/abcdefghijk'), /403/);
-    assert.equal(f.calls.length, 3, 'Lỗi không được cache');
+    await assert.rejects(f.resolve('Bài thử'), /403/);
+    assert.equal(f.calls.length, 4, 'Lỗi không được cache và mặc định không đổi nguồn');
     assert.ok(f.calls.every(([source]) => source === 'youtube'));
 });
 
@@ -320,10 +321,10 @@ test('Resolver thật gộp tìm kiếm đang chờ và clone metadata trước 
     const [a, b] = await Promise.all([first, second]);
     a.requestedBy = 'người A'; a.allowSourceFallback = false;
     assert.equal(b.requestedBy, undefined);
-    assert.equal(b.allowSourceFallback, true);
+    assert.equal(b.allowSourceFallback, false);
     const third = await f.resolve('Bài thử');
     assert.equal(third.requestedBy, undefined);
-    assert.equal(third.allowSourceFallback, true);
+    assert.equal(third.allowSourceFallback, false);
     assert.equal(f.calls.length, 1);
 });
 

@@ -113,10 +113,12 @@ function chooseSoundcloudResult(entries, query, { author = '', duration = 0 } = 
     return best;
 }
 
-function applySourcePolicy(track, preferredSource = 'auto', { directYoutube = false } = {}) {
+function applySourcePolicy(track, preferredSource = 'youtube', { directYoutube = false } = {}) {
     if (!track || typeof track !== 'object') return track;
-    const source = String(preferredSource || 'auto').toLowerCase();
-    const requestedSource = directYoutube ? 'youtube' : ['youtube', 'soundcloud'].includes(source) ? source : 'auto';
+    const source = String(preferredSource || 'youtube').toLowerCase();
+    // Chỉ lựa chọn Tự động rõ ràng mới cho phép đổi bản thu/nhà cung cấp.
+    // Input cũ hoặc không hợp lệ giữ YouTube thay vì âm thầm nới chính sách.
+    const requestedSource = directYoutube ? 'youtube' : ['youtube', 'soundcloud', 'auto'].includes(source) ? source : 'youtube';
     return { ...cloneResult(track), requestedSource, allowSourceFallback: requestedSource === 'auto' };
 }
 

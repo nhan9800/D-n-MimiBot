@@ -68,6 +68,77 @@ test('Client thử nghiệm chỉ truyền web_safari/web_embedded vào probe, k
     assert.equal(await runYoutubeLinkCheck(f.input), null);
 });
 
+test('Request HLS là enum cố định, truyền đúng probe và gắn client/transport trong receipt', async t => {
+    const f = await fixture(t);
+    await f.request({ caseId: CASE, url: URL, client: 'web_safari', transport: 'hls' });
+    const result = await runYoutubeLinkCheck(f.input);
+    assert.equal(f.calls[1][1].client, 'web_safari');
+    assert.equal(f.calls[1][1].transport, 'hls');
+    assert.equal(result.client, 'web_safari');
+    assert.equal(result.transport, 'hls');
+    assert.equal(result.audio.transport, 'hls');
+    assert.equal(result.audio.outcome, 'http_403');
+    const stored = JSON.parse(await fs.readFile(path.join(f.receiptDir, `${CASE}.json`), 'utf8'));
+    assert.equal(stored.client, 'web_safari');
+    assert.equal(stored.transport, 'hls');
+    assert.deepEqual(await runYoutubeLinkCheck(f.input), result);
+    assert.equal(f.calls.length, 2);
+    for (const transport of ['dash', 'hls/best', null, {}, ['hls']]) {
+        await f.request({ caseId: 'invalid-transport', url: URL, transport });
+        assert.equal(await runYoutubeLinkCheck(f.input), null);
+    }
+    assert.equal(f.calls.length, 2);
+    await assert.rejects(fs.stat(path.join(f.receiptDir, 'invalid-transport.json')), { code: 'ENOENT' });
+});
+
+test('Cùng case không được tái sử dụng receipt của client hoặc transport khác', async t => {
+    for (const initial of [{}, { client: 'web_safari' }, { transport: 'hls' }]) {
+        const f = await fixture(t);
+        await f.request({ caseId: CASE, url: URL, ...initial });
+        await runYoutubeLinkCheck(f.input);
+        for (const next of [{}, { client: 'web_safari' }, { client: 'web_embedded' }, { transport: 'hls' },
+            { client: 'web_safari', transport: 'hls' }]) {
+            if ((initial.client || 'default') === (next.client || 'default')
+                && (initial.transport || 'default') === (next.transport || 'default')) continue;
+            await f.request({ caseId: CASE, url: URL, ...next });
+            assert.equal(await runYoutubeLinkCheck(f.input), null);
+        }
+        assert.equal(f.calls.length, 2, 'Receipt không khớp cũng không được tự tải lại cùng case');
+    }
+});
+
+test('Receipt cũ thiếu selectors chỉ hợp lệ cho default; selector sai trong result bị chặn', async t => {
+    const f = await fixture(t);
+    const result = await runYoutubeLinkCheck(f.input);
+    const target = path.join(f.receiptDir, `${CASE}.json`);
+    const stored = JSON.parse(await fs.readFile(target, 'utf8'));
+    delete stored.client; delete stored.transport;
+    delete stored.result.client; delete stored.result.transport; delete stored.result.audio.transport;
+    await fs.writeFile(target, JSON.stringify(stored));
+    assert.deepEqual(await runYoutubeLinkCheck(f.input), result);
+    await f.request({ caseId: CASE, url: URL, transport: 'hls' });
+    assert.equal(await runYoutubeLinkCheck(f.input), null);
+    await f.request({ caseId: CASE, url: URL, client: 'web_safari' });
+    assert.equal(await runYoutubeLinkCheck(f.input), null);
+    await f.request({ caseId: CASE, url: URL });
+    stored.result.transport = 'hls';
+    await fs.writeFile(target, JSON.stringify(stored));
+    assert.equal(await runYoutubeLinkCheck(f.input), null);
+    assert.equal(f.calls.length, 2);
+});
+
+test('Probe HLS chỉ báo audio_received khi chính probe xác nhận transport HLS', async t => {
+    for (const actual of ['hls', 'default', undefined]) {
+        const f = await fixture(t, { probe: async () => ({ ok: true, outcome: 'audio_received', videoId: VIDEO,
+            bytes: 65536, containerHeaderRecognized: true, transport: actual }) });
+        await f.request({ caseId: CASE, url: URL, transport: 'hls' });
+        const result = await runYoutubeLinkCheck(f.input);
+        assert.equal(result.audio.ok, actual === 'hls');
+        assert.equal(result.audio.outcome, actual === 'hls' ? 'audio_received' : 'source_failed');
+        assert.equal(result.audio.transport, 'hls');
+    }
+});
+
 test('Receipt complete được sanitize lại, restart không gọi nguồn nhạc lần nữa', async t => {
     const f = await fixture(t);
     const result = await runYoutubeLinkCheck(f.input);

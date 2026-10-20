@@ -101,6 +101,9 @@ test('Đối sánh giữ ưu tiên nghệ sĩ và thời lượng giữa các b�
 
 test('Chính sách nguồn giữ YouTube/link trực tiếp rõ ràng và không sửa track đầu vào', () => {
     const track = { title: 'Bài thử', url: 'https://youtube.com/watch?v=abcdefghijk' };
+    for (const omitted of [undefined, null, '', 'invalid']) {
+        assert.deepEqual(applySourcePolicy(track, omitted), { ...track, requestedSource: 'youtube', allowSourceFallback: false });
+    }
     assert.deepEqual(applySourcePolicy(track, 'auto'), { ...track, requestedSource: 'auto', allowSourceFallback: true });
     assert.equal(applySourcePolicy(track, 'youtube').allowSourceFallback, false);
     assert.equal(applySourcePolicy(track, 'soundcloud').requestedSource, 'soundcloud');
@@ -108,4 +111,17 @@ test('Chính sách nguồn giữ YouTube/link trực tiếp rõ ràng và không
     assert.deepEqual(applySourcePolicy(track, 'auto', { directYoutube: true }), { ...track, requestedSource: 'youtube', allowSourceFallback: false });
     assert.equal(track.requestedSource, undefined);
     assert.equal(applySourcePolicy(null, 'youtube'), null);
+});
+
+test('Chuẩn hóa hàng đợi giữ đồng ý đổi nguồn rõ ràng qua restart/thư viện', () => {
+    const { MusicStore } = require('../musicStore');
+    const track = { title: 'Bài thử', url: 'https://youtube.com/watch?v=abcdefghijk' };
+    const normal = MusicStore.normalizeTrack(applySourcePolicy(track));
+    assert.equal(normal.requestedSource, 'youtube');
+    assert.equal(normal.allowSourceFallback, false);
+    const automatic = MusicStore.normalizeTrack(applySourcePolicy(track, 'auto'));
+    assert.equal(automatic.requestedSource, 'auto');
+    assert.equal(automatic.allowSourceFallback, true);
+    const legacy = MusicStore.normalizeTrack({ ...track, allowSourceFallback: true });
+    assert.equal(legacy.allowSourceFallback, undefined);
 });
