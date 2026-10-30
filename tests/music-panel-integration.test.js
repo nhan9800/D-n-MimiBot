@@ -7,6 +7,7 @@ const path = require('node:path');
 const vm = require('node:vm');
 const { EventEmitter } = require('node:events');
 const { PassThrough } = require('node:stream');
+const { createLiveEffectSession } = require('../musicLiveEffects');
 const { StartupAudioBuffer, PcmFrameChunker, monitorMusicResource } = require('../musicBuffer');
 const ytDlp = require('yt-dlp-exec');
 const { validateMusicUrl } = require('../musicSources');
@@ -26,7 +27,7 @@ function region(begin, end) {
 
 function fixture({ realBuild = false } = {}) {
     const timers = [];
-    const context = vm.createContext({
+    const context = vm.createContext({ createLiveEffectSession, spawn() { throw new Error('Không spawn hiệu ứng trong ca phát none'); }, getFfmpegPath: () => 'ffmpeg',
         createMusicPanelWriter, classifyMusicSourceError,
         youtubePoProvider: { options: extractorArgs => ({ extractorArgs }), snapshot: () => ({ clientRevision: 0 }) },
         buildMusicDashboard: require('../communityPanels').buildMusicDashboard,
@@ -75,7 +76,7 @@ function musicQueue(message = null) {
 
 test('Tùy chọn metadata tạo argv yt-dlp hợp lệ, giữ cookie và xác thực HTTPS mặc định', async () => {
     const calls = [];
-    const context = vm.createContext({
+    const context = vm.createContext({ createLiveEffectSession, spawn() { throw new Error('Không spawn hiệu ứng trong ca phát none'); }, getFfmpegPath: () => 'ffmpeg',
         YT_EXTRACTOR_ARGS: 'youtube:player_client=android,ios,mweb',
         youtubePoProvider: { options: extractorArgs => ({ extractorArgs }), snapshot: () => ({ clientRevision: 0 }) },
         rankSoundcloudResult,
@@ -127,7 +128,7 @@ test('Phát YouTube, SoundCloud và tua bài dùng argv hợp lệ trước khi 
         Object.assign(f.context.voiceLib, {
             StreamType: { Raw: 'raw' },
             demuxProbe: async stream => ({ stream, type: 'ogg' }),
-            createAudioResource: stream => ({ stream })
+            createAudioResource: stream => ({ stream, playStream: stream })
         });
         const mq = musicQueue();
         mq.current = null;
@@ -142,8 +143,8 @@ test('Phát YouTube, SoundCloud và tua bài dùng argv hợp lệ trước khi 
         assert.ok(!args.includes('--no-check-certificates'));
         assert.ok(args.includes('--no-playlist'));
         assert.equal(calls[0].flags.socketTimeout, 6, 'Nguồn lỗi phải thoát nhanh, không để phòng thoại im lặng');
-        assert.equal(calls[0].flags.retries, 1);
-        assert.equal(calls[0].flags.fragmentRetries, 1);
+        assert.equal(calls[0].flags.retries, 3);
+        assert.equal(calls[0].flags.fragmentRetries, 3);
         assert.equal(calls[0].flags.forceIpv4, true);
         assert.equal(calls[0].flags.output, '-');
         if (url.includes('youtube.com')) {
@@ -170,7 +171,7 @@ test('Phát YouTube, SoundCloud và tua bài dùng argv hợp lệ trước khi 
 });
 
 test('SoundCloud fallback ưu tiên đúng bản theo tên, nghệ sĩ và thời lượng, bỏ bản slowed đầu tiên', async () => {
-    const context = vm.createContext({
+    const context = vm.createContext({ createLiveEffectSession, spawn() { throw new Error('Không spawn hiệu ứng trong ca phát none'); }, getFfmpegPath: () => 'ffmpeg',
         rankSoundcloudResult,
         ytDlpExec: async () => ({ entries: [
             { title: 'J97 Lưu Niên slowed + reverb', duration: 205, webpage_url: 'https://soundcloud.com/a/slowed' },
@@ -184,7 +185,7 @@ test('SoundCloud fallback ưu tiên đúng bản theo tên, nghệ sĩ và thờ
 
 function resolverFixture({ youtube, soundcloud } = {}) {
     const calls = [];
-    const context = vm.createContext({
+    const context = vm.createContext({ createLiveEffectSession, spawn() { throw new Error('Không spawn hiệu ứng trong ca phát none'); }, getFfmpegPath: () => 'ffmpeg',
         createMusicSearchCache, applySourcePolicy, validateMusicUrl, URL,
         YT_URL_REGEX: /^https?:\/\/(www\.|m\.)?(youtube\.com|youtu\.be|music\.youtube\.com)\//i,
         SPOTIFY_URL_REGEX: /^https?:\/\/(open\.)?spotify\.com\//i,
@@ -206,7 +207,7 @@ function resolverFixture({ youtube, soundcloud } = {}) {
 
 function directYoutubeResolverFixture({ getMetadata } = {}) {
     const metadata = [], extractions = [], soundcloud = [], timers = [];
-    const context = vm.createContext({ createMusicSearchCache, applySourcePolicy, validateMusicUrl, URL,
+    const context = vm.createContext({ createLiveEffectSession, spawn() { throw new Error('Không spawn hiệu ứng trong ca phát none'); }, getFfmpegPath: () => 'ffmpeg', createMusicSearchCache, applySourcePolicy, validateMusicUrl, URL,
         YT_URL_REGEX: /^https?:\/\/(www\.|m\.)?(youtube\.com|youtu\.be|music\.youtube\.com)\//i,
         SPOTIFY_URL_REGEX: /^https?:\/\/(open\.)?spotify\.com\//i,
         resolveYoutubeDirectTrack: options => resolveYoutubeDirectTrack({ ...options,

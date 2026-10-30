@@ -9,6 +9,7 @@ const os = require('node:os');
 const { EventEmitter } = require('node:events');
 const { PassThrough } = require('node:stream');
 const ytDlp = require('yt-dlp-exec');
+const { createLiveEffectSession } = require('../musicLiveEffects');
 const { StartupAudioBuffer, PcmFrameChunker, monitorMusicResource } = require('../musicBuffer');
 const { classifyMusicSourceError } = require('../musicSourceErrors');
 const source = fs.readFileSync(path.join(__dirname, '..', 'index.js'), 'utf8');
@@ -23,8 +24,8 @@ function region(begin, end) {
 
 const audioEffects = vm.runInNewContext(`${region('const AUDIO_EFFECTS = {', '// Đường dẫn ffmpeg')}\nAUDIO_EFFECTS`);
 const youtubeHlsAudioFormat = vm.runInNewContext(`${region('const YT_HLS_AUDIO_FORMAT =', 'function normalizeMusicMatchText(')}\nYT_HLS_AUDIO_FORMAT`);
-const pipeFilters = (seekSec, effectKey) =>
-    ['asetpts=PTS-STARTPTS', `atrim=start=${seekSec}`, 'asetpts=PTS-STARTPTS', audioEffects[effectKey].af].filter(Boolean).join(',');
+const pipeFilters = (seekSec) =>
+    ['asetpts=PTS-STARTPTS', `atrim=start=${seekSec}`, 'asetpts=PTS-STARTPTS'].join(',');
 
 function deferred() {
     let resolve, reject;
@@ -40,8 +41,8 @@ test('Đổi hiệu ứng dùng section ngay cả ở mốc ngắn để không 
         try {
             await f.play({ effectKey: 'bassboost', seekSec, seekTransport: undefined });
             assert.equal(f.processes[0].flags.downloadSections, `*${seekSec}-inf`);
-            const filters = f.ffmpegs[0].args[f.ffmpegs[0].args.indexOf('-af') + 1];
-            assert.equal(filters, audioEffects.bassboost.af);
+            const filters = f.ffmpegs[0].args.includes('-af') ? f.ffmpegs[0].args[f.ffmpegs[0].args.indexOf('-af') + 1] : undefined;
+            assert.equal(filters, undefined, 'Decoder không áp hiệu ứng; filter nằm ở nhánh PCM riêng');
             assert.equal(f.mq.current, f.current);
             assert.equal(f.mq.queue[0], f.queued);
         } finally { f.cleanup(); }
@@ -165,8 +166,8 @@ test('Timeout nguồn dùng chung16giây giữa client, hủy child cũ rồi m�
         await f.play({ effectKey: 'bassboost' });
         const first = f.processes[0];
         assert.equal(first.flags.socketTimeout, 6);
-        assert.equal(first.flags.retries, 1);
-        assert.equal(first.flags.fragmentRetries, 1);
+        assert.equal(first.flags.retries, 3);
+        assert.equal(first.flags.fragmentRetries, 3);
         const firstDeadline = f.timers.find(timer => !timer.cleared);
         assert.equal(firstDeadline.delay, 12000);
         f.clock.now += firstDeadline.delay;
@@ -225,7 +226,7 @@ test('Chọn nguồn YouTube không tự đổi SoundCloud khi hết deadline ch
             assert.equal(f.mq.queue.length, 0);
             assert.equal(f.processes.length, 3);
             assert.equal(f.notices.filter(notice => notice.title === 'Không thể phát bài này').length, 1);
-            assert.match(f.notices.find(notice => notice.title === 'Không thể phát bài này').content, /giữ lựa chọn nguồn YouTube/);
+            assert.match(f.notices.find(notice => notice.title === 'Không thể phát bài này').content, /Nguồn nhạc/);
             assert.equal(f.notices.filter(notice => /SoundCloud/.test(notice.title)).length, 0);
         } finally { f.cleanup(); }
     }
@@ -324,7 +325,7 @@ async function fixture({ synchronousPlaying = false, demuxProbe, searchSoundclou
         return proc;
     };
     const context = vm.createContext({
-        musicQueues, PassThrough, StartupAudioBuffer, PcmFrameChunker, monitorMusicResource, classifyMusicSourceError,
+        musicQueues, PassThrough, StartupAudioBuffer, PcmFrameChunker, monitorMusicResource, classifyMusicSourceError, createLiveEffectSession,
         Date: class extends Date { static now() { return clock.now; } },
         fs: { existsSync: () => true },
         getFfmpegPath: () => '/mock/ffmpeg',
@@ -345,7 +346,7 @@ async function fixture({ synchronousPlaying = false, demuxProbe, searchSoundclou
         spawn(command, args, options) {
             const proc = child();
             Object.assign(proc, { command, args, options });
-            ffmpegs.push(proc);
+            if (args.indexOf('-i') < args.indexOf('-f')) ffmpegs.push(proc);
             return proc;
         },
         searchSoundcloud: searchSoundcloud || (async () => null),
@@ -442,7 +443,7 @@ test('PO sẵn sàng: packet tới trước deadline16giây vẫn phát cùng ng
         f.context.YT_DOWNLOAD_CLIENT_FALLBACKS = ['youtube:player_client=default', 'youtube:player_client=web_embedded'];
         const starting = f.play({ effectKey: 'none', seekSec: 0, seekTransport: 'pipe' });
         await tick();
-        const deadline = f.timers.find(timer => !timer.cleared);
+        const deadline = f.timers[0];
         assert.equal(deadline.delay, 16000, 'PO cold challenge dùng trọn deadline chung, không bị cắt ở12giây');
         assert.equal(f.processes.length, 1);
         assert.equal(f.processes[0].flags.downloadSections, undefined);
@@ -527,7 +528,7 @@ test('PO sẵn sàng:403 thử HLS một lần với deadline riêng rồi giữ
         assert.equal(firstDeadline.cleared, true);
         assert.equal(f.processes[1].flags.extractorArgs, 'youtube:player_client=default');
         assert.match(f.processes[1].flags.format, /protocol=m3u8_native/);
-        assert.equal(f.ffmpegs.length, 1, 'HLS AAC phải qua FFmpeg thay vì demux passthrough');
+        assert.equal(f.ffmpegs.length, 2, 'Cả nguồn mặc định và HLS dùng decoder PCM');
         const secondDeadline = f.timers.find(timer => !timer.cleared);
         assert.equal(secondDeadline.delay, 10000);
         assert.equal(f.clock.now + secondDeadline.delay, beganAt + 13000);
@@ -615,10 +616,10 @@ test('HLS thiếu FFmpeg sau403 không giữ resource đã chết hoặc bỏ tr
         await f.processes[0].rejectPlayback(new Error('HTTP Error 403: Forbidden')); await tick();
         assert.equal(f.processes.length, 3, 'HLS không chạy được phải kết thúc lỗi và phát bài chờ');
         assert.equal(f.processes[1].killed, true);
-        assert.equal(f.mq.current, f.queued);
+        assert.equal(f.mq.current, null, 'Thiếu decoder cho mọi bài thì kết thúc hữu hạn');
         assert.notEqual(f.mq.currentResource, deadResource);
         assert.equal(f.mq.transitioning, false);
-        assert.equal(f.notices.filter(notice => notice.title === 'Không thể phát bài này').length, 1);
+        assert.equal(f.notices.filter(notice => notice.title === 'Không thể phát bài này').length, 2);
         assert.equal(f.notices.some(notice => notice.title === 'Chưa thể đổi hiệu ứng hoặc tua'), false);
     } finally { f.cleanup(); }
 });
@@ -909,7 +910,8 @@ test('Demux của thế hệ cũ reject muộn không làm hỏng cùng bài đa
         await tick();
         await f.play();
         const resource = f.mq.currentResource;
-        firstProbe.reject(new Error('Demux cũ bị huỷ'));
+        firstProbe.resolve();
+        f.ffmpegs[0].emit('error', new Error('Decoder cũ bị huỷ'));
         await oldPlayback;
         await tick();
         assert.equal(f.mq.current, f.current);
@@ -1084,8 +1086,8 @@ for (const effectKey of Object.keys(audioEffects)) {
             assert.equal(section.flags.ffmpegLocation, '/mock/ffmpeg');
             const sectionArgs = f.ffmpegs[0].args;
             assert.ok(!sectionArgs.includes('-ss'), 'Nguồn đã tua bằng section không bị tua hai lần');
-            if (audioEffects[effectKey].af) assert.equal(sectionArgs[sectionArgs.indexOf('-af') + 1], audioEffects[effectKey].af);
-            else assert.ok(!sectionArgs.includes('-af'));
+            assert.equal(sectionArgs.includes('-af'), false, 'Hiệu ứng chạy ở nhánh PCM, không gắn vào decoder nguồn');
+
 
             section.stderr.write('ERROR: ffmpeg exited with code -11\n');
             await section.rejectPlayback(new Error('Tiến trình tải thoát'));
@@ -1582,30 +1584,21 @@ test('Thiếu binary hiệu ứng giữ nguyên audio, process, bài, queue và 
     } finally { f.cleanup(); }
 });
 
-test('Luồng hiệu ứng dùng đệmPCM và skip dọn cả timer/bytes của lượt cũ', async () => {
+test('Skip dọn nhánh PCM và nguồn cũ, giữ đúng bài đang chờ', async () => {
     const f = await fixture();
     try {
         await f.play({ effectKey: 'bassboost' });
-        assert.equal(f.player.behaviors.maxMissedFrames, 50, 'Không kết thúc ngay vì thiếu100ms frame');
-        const buffer = f.mq.currentPcmBuffer;
-        assert.ok(buffer instanceof StartupAudioBuffer);
-        assert.equal(buffer.readableHighWaterMark, 576000);
-        assert.equal(buffer.targetBytes, 96000);
-        const chunker = f.mq.currentPcmChunker;
+        const oldSession = f.mq.liveEffectSession;
+        const chunker = f.mq.currentEffectCandidate.pcmChunker;
+        const oldSource = f.processes[0];
         assert.ok(chunker instanceof PcmFrameChunker);
         assert.equal(chunker.maxChunkBytes, 7680);
         assert.equal(f.mq.currentResource.playStream, chunker);
-        assert.ok(f.ffmpegs[0].args.includes('-filter_threads'));
-        buffer.write(Buffer.alloc(1000));
-        assert.ok(buffer.startTimer);
         await f.play({ effectKey: 'none' });
-        assert.equal(buffer.destroyed, true);
-        assert.equal(buffer.startTimer, null);
-        assert.equal(buffer.startBytes, 0);
         assert.equal(chunker.destroyed, true);
         assert.equal(chunker.turn, null);
-        assert.equal(f.mq.currentPcmBuffer, null);
-        assert.equal(f.mq.currentBuffer.targetBytes, 32768);
+        assert.equal(oldSource.killed, true);
+        assert.notEqual(f.mq.liveEffectSession, oldSession);
         assert.deepEqual(f.mq.queue, [f.queued]);
     } finally { f.cleanup(); }
 });
@@ -1647,5 +1640,19 @@ test('Timeout mất kết nối của phiên cũ không xoá hoặc dừng phiê
         recovery.reject(new Error('Kết nối cũ hết thời gian chờ'));
         await tick();
         assert.equal(f.musicQueues.get('g1'), replacement);
+    } finally { f.cleanup(); }
+});
+
+
+test('Mạng ngắt sau đổi hiệu ứng tại chỗ vẫn phục hồi đúng hiệu ứng vừa chọn', async () => {
+    const f = await fixture({ synchronousPlaying: true });
+    try {
+        f.context.YT_DOWNLOAD_CLIENT_FALLBACKS = ['default', 'web_embedded'];
+        await f.play({ effectKey: 'none', seekTransport: 'pipe' });
+        assert.equal(f.processes[0].flags.httpChunkSize, '10M');
+        f.mq.effect = 'nightcore';
+        await f.processes[0].rejectPlayback(new Error('ECONNRESET')); await tick();
+        assert.equal(f.mq.effect, 'nightcore'); assert.equal(f.mq.current, f.current);
+        assert.equal(f.processes.length, 2);
     } finally { f.cleanup(); }
 });

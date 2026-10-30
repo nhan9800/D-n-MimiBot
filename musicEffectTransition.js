@@ -252,7 +252,7 @@ function createEffectTransitionController({ resolveMedia, createCandidate, getCu
         request.timer?.unref?.();
         let positionSec = 0;
         try {
-            const media = await abortable(Promise.resolve().then(() => resolveMedia(track, { signal: request.controller.signal })), request.controller.signal);
+            const media = await abortable(Promise.resolve().then(() => resolveMedia(track, { signal: request.controller.signal, guildId, mq })), request.controller.signal);
             assertCurrent();
             const position = Number(getPosition(mq));
             positionSec = Number.isFinite(position) ? Math.max(0, Math.floor(position)) : 0;

@@ -38,6 +38,8 @@ Các module mới `blackjackUi.js` (bàn xì dách) và `musicBuffer.js` (nạp 
 
 Đợt tối ưu nhạc18/10/2026 thêm `musicSearch.js`, `musicEffectTransition.js`, `musicDirectAudio.js`; cả ba phải đi cùng `index.js`, `musicStore.js` và `buildInfo.js`. Cache metadata/URL CDN chỉ ở RAM, không thêm kho runtime hay dependency. Node22 trở lên được yt-dlp dùng làm JavaScript runtime, EJS lấy từ nguồn chính thức `ejs:github`. Không đưa cookie, URL CDN ký số hoặc nội dung stderr thô vào Git/log.
 
+Đợt 30/10/2026 thêm `musicLiveEffects.js`, `musicPlaylist.js`, `categoryService.js`, `seedPurchase.js` vào whitelist. Phải upload cùng `index.js` và `musicEffectTransition.js`. `scripts/check-live-effects.js` là phép thử chủ động với sóng sin cục bộ, không kết nối Discord/nguồn mạng và không nằm trong test mặc định. Lockfile cập nhật bản vá `follow-redirects`/`undici`; VibeHost cài dependency khi hash lockfile đổi.
+
 Host cần Node >=22.12.0, package theo lockfile, ffmpeg/yt-dlp và codec phù hợp. `npm ci --ignore-scripts` trên CI chỉ dùng kiểm tra; không cung cấp binary phát nhạc. Trên host thật chạy `npm ci` hoặc cung cấp binary và cài codec theo môi trường host. Nếu native opus không build được, dự án có `opusscript`; cần kiểm tra voice thực tế trước khi mở nhạc cho cộng đồng.
 
 Đặt biến qua panel hoặc file `.env` riêng trên host theo [mẫu](../.env.example). `DISCORD_TOKEN` và `DISCORD_CLIENT_ID` dùng cho đăng nhập/đăng ký lệnh. Bot vẫn đọc config cũ và giữ dữ liệu guild. Sau nâng cấp schema/module, sao lưu file runtime trước restart.

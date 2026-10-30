@@ -91,6 +91,10 @@ jobs:
           put musicSearch.js
           put musicEffectTransition.js
           put musicDirectAudio.js
+          put musicLiveEffects.js
+          put musicPlaylist.js
+          put categoryService.js
+          put seedPurchase.js
           put youtubePoProvider.js
           put youtubePoProbe.js
           put youtubeCookies.js

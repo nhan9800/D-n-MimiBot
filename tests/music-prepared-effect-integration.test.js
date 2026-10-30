@@ -51,7 +51,7 @@ function fixture({ paused = false, soundcloud = false,
     vm.runInContext(source.match(/function getMusicSourceCacheKey\([^]*?\n\}/)[0], context);
     vm.runInContext(region('function getYtCommonOpts', '// Số kết quả sẽ lấy'), context);
     vm.runInContext(region('const effectMediaResolver =', '// Chuyển chuỗi thời gian'), context);
-    return { mq, old, candidate, ready, completion, events, positions, notices, saved, map, extractions,
+    return { mq, old, candidate, ready, completion, events, positions, notices, saved, map, extractions, context,
         change: key => vm.runInContext(`changeMusicEffect('guild', ${JSON.stringify(key)})`, context),
         cleanup() { map.delete('guild'); mq.playGeneration++; vm.runInContext('killCurrentProcess', context)(mq); } };
 }
@@ -201,4 +201,26 @@ test('Session giữ lựa chọn YouTube nhưng không lưu URL CDN/header của
     assert.equal(value.allowSourceFallback, false); assert.equal(value.requestedSource, 'youtube');
     assert.equal(value.source, 'YouTube'); assert.equal(value.mediaUrl, undefined); assert.equal(value.headers, undefined);
     assert.ok(!JSON.stringify(value).includes('private'));
+});
+
+
+test('Đổi hiệu ứng production dùng session PCM hiện tại, không extract CDN, giữ nguồn/thế hệ/pause', async () => {
+    for (const paused of [false, true]) {
+        const f = fixture({ paused, soundcloud: true });
+        const previous = { disposed: 0, dispose() { this.disposed++; } };
+        const session = { createCandidate(key) { assert.equal(key, 'bassboost'); return f.candidate; }, dispose() {} };
+        f.mq.liveEffectSession = session; f.mq.currentEffectCandidate = previous;
+        f.candidate.sourcePosition = 41;
+        try {
+            const change = f.change('bassboost'); await tick();
+            assert.equal(f.extractions.length, 0); assert.equal(f.old.killed, false);
+            f.old.playbackDuration += 5000;
+            f.ready.resolve(f.candidate.resource);
+            assert.equal((await change).applied, true, 'Session PCM không bị guard tải nguồn quá 3 giây từ chối');
+            assert.equal(f.old.killed, false); assert.equal(f.mq.playGeneration, 5);
+            assert.equal(f.mq.effect, 'bassboost'); assert.equal(previous.disposed, 1);
+            assert.equal(f.mq.liveEffectSession, session); assert.equal(f.mq.queue.length, 1);
+            assert.equal(f.mq.player.state.status, paused ? 'paused' : 'playing');
+        } finally { f.cleanup(); }
+    }
 });

@@ -37,6 +37,10 @@ const { buildBlackjackPayload } = require('./blackjackUi');
 const { StartupAudioBuffer, PcmFrameChunker, monitorMusicResource } = require('./musicBuffer');
 const { createMediaResolver, createEffectTransitionController } = require('./musicEffectTransition');
 const { createDirectAudioCandidate } = require('./musicDirectAudio');
+const { createLiveEffectSession } = require('./musicLiveEffects');
+const { resolvePlaylist, MAX_MUSIC_QUEUE } = require('./musicPlaylist');
+const { handleCategory } = require('./categoryService');
+const { purchaseSeeds } = require('./seedPurchase');
 const { createMusicSearchCache, applySourcePolicy, chooseSoundcloudResult: rankSoundcloudResult } = require('./musicSearch');
 const { createYoutubePoProvider } = require('./youtubePoProvider');
 const { installYoutubePo } = require('./scripts/setup-youtube-po');
@@ -1023,14 +1027,14 @@ function recordEconomyIncome(userId, guildId, amount, source) {
         sendEconomyOwnerAlert(userId, guildId, user.dailyEarnings.totalEarned, THRESHOLD, user.balance, user.dailyEarnings.sources);
     }
 
-    // 🚨 Tự động ban nếu 1 ngày kiếm quá 10.000.000 xu (Chống lạm phát & cày clone/tool)
-    const AUTO_BAN_THRESHOLD = 10_000_000;
-    if (user.dailyEarnings.totalEarned >= AUTO_BAN_THRESHOLD && !user.dailyEarnings.autoBanned && !isMinigameBanned(userId)) {
+    // 🚨 Tự động ban khi thu nhập trong ngày vượt 25.000.000 xu (Chống lạm phát & cày clone/tool)
+    const AUTO_BAN_THRESHOLD = 25_000_000;
+    if (user.dailyEarnings.totalEarned > AUTO_BAN_THRESHOLD && !user.dailyEarnings.autoBanned && !isMinigameBanned(userId)) {
         user.dailyEarnings.autoBanned = true;
         const guildName = guildId ? (client.guilds.cache.get(guildId)?.name || 'Hệ thống Mimi') : 'Hệ thống Mimi';
         applyMinigameBan(
             userId,
-            `Kiếm quá 10,000,000 xu trong 1 ngày (Tổng thu nhập: ${user.dailyEarnings.totalEarned.toLocaleString()} xu)`,
+            `Kiếm quá 25,000,000 xu trong 1 ngày (Tổng thu nhập: ${user.dailyEarnings.totalEarned.toLocaleString()} xu)`,
             null, // Cấp bậc tự động: lần 1 = 1 ngày, lần 2 = 2 ngày, ..., lần 10 = vĩnh viễn
             client.user,
             guildName
@@ -3872,6 +3876,14 @@ async function resolveTrack(query, preferredSource = 'youtube') {
     ));
 }
 
+// Nhận playlist tường minh từ URL, giữ hành vi tìm bài đơn bằng tên.
+async function resolveMusicRequest(query, preferredSource = 'youtube') {
+    const playlist = await resolvePlaylist(query, { extract: ytDlpExec, youtubeOptions: getYtCommonOpts(), preferredSource });
+    if (playlist) return playlist;
+    const track = await resolveTrack(query, preferredSource);
+    return track ? { tracks: [track], title: track.title, limited: false } : null;
+}
+
 // Trích ID video (11 ký tự) từ 1 URL YouTube; null nếu không phải link YouTube nhận dạng được.
 function extractYoutubeId(rawUrl) {
     const input = String(rawUrl || '').trim();
@@ -4556,7 +4568,7 @@ function spawnFfmpegAudio(inputStream, { pipeSeekSec = 0, effectKey = 'none' } =
         return null;
     }
     try {
-        const ff = spawn(ffmpegPath, args, { stdio: ['pipe', 'pipe', 'pipe'] });
+        const ff = spawn(ffmpegPath, args, { stdio: ['pipe', 'pipe', 'pipe'], windowsHide: true, shell: false });
         inputStream.pipe(ff.stdin);
         inputStream.on('error', () => { try { ff.stdin.destroy(); } catch { /* bỏ qua */ } });
         ff.stdin.on('error', () => { /* EPIPE khi ffmpeg thoát trước — bỏ qua an toàn */ });
@@ -4579,87 +4591,29 @@ const effectMediaResolver = createMediaResolver({
     }, { timeout: 8000, signal, maxBuffer: 4 << 20 })
 });
 
-// SoundCloud không ổn định khi mở lại CDN HLS đã ký cho một hiệu ứng mới.
-// Chuẩn bị lại qua yt-dlp → FFmpeg trong nền, giữ bài cũ cho tới khi PCM đầu tiên
-// sẵn sàng rồi mới bàn giao quyền sở hữu cho candidate.
-function createSoundcloudPipeCandidate({ track, seekSec = 0, effectKey = 'none', signal } = {}) {
-    if (!track?.url || signal?.aborted) throw new Error('Nguồn SoundCloud không sẵn sàng.');
-    const process = ytDlpExec.exec(validateMusicUrl(track.url), {
-        ignoreConfig: true, output: '-', noPlaylist: true, noWarnings: true, quiet: true, noPart: true,
-        format: 'bestaudio/best', socketTimeout: 6, retries: 1, fragmentRetries: 1,
-        skipUnavailableFragments: true, bufferSize: '1024K', forceIpv4: true
-    }, { stdio: ['ignore', 'pipe', 'pipe'], buffer: false });
-    let sourceBuffer, ffmpeg, pcmBuffer, pcmChunker, resource;
-    let disposed = false, readySettled = false, processDone = false, ffmpegDone = false, completionSettled = false;
-    let resolveReady, rejectReady, resolveCompletion;
-    const ready = new Promise((resolve, reject) => { resolveReady = resolve; rejectReady = reject; });
-    ready.catch(() => {});
-    const completion = new Promise(resolve => { resolveCompletion = resolve; });
-    const finish = () => {
-        if (completionSettled || (!disposed && (!processDone || !ffmpegDone))) return;
-        completionSettled = true;
-        resolveCompletion({ code: disposed ? null : 0, errorText: disposed ? 'Đã hủy candidate SoundCloud.' : '' });
-    };
-    const failReady = message => {
-        if (readySettled || disposed) return;
-        readySettled = true;
-        rejectReady(new Error(message || 'Không nhận được packet SoundCloud.'));
-    };
-    const dispose = () => {
-        if (disposed) return;
-        failReady('Đã hủy chuẩn bị hiệu ứng SoundCloud.');
-        disposed = true;
-        signal?.removeEventListener('abort', dispose);
-        try { process.kill?.('SIGKILL'); } catch {}
-        try { ffmpeg?.kill?.('SIGKILL'); } catch {}
-        for (const stream of [sourceBuffer, pcmBuffer, pcmChunker, resource?.playStream, process.stdout, process.stderr]) {
-            try { stream?.destroy?.(); } catch {}
-        }
-        finish();
-    };
-    process.then(() => { processDone = true; finish(); }, error => {
-        processDone = true;
-        failReady(/403|forbidden/i.test(String(error?.message)) ? 'SoundCloud từ chối tải nguồn.' : 'SoundCloud không tải được audio.');
-        finish();
-    });
-    process.stdout?.on?.('error', error => failReady(error?.message));
-    try {
-        sourceBuffer = new StartupAudioBuffer({ highWaterMark: 1 << 22, prebufferBytes: 32 << 10, maxWaitMs: 1500 });
-        process.stdout.pipe(sourceBuffer);
-        ffmpeg = spawnFfmpegAudio(sourceBuffer, { pipeSeekSec: Math.max(0, Math.floor(Number(seekSec) || 0)), effectKey });
-        if (!ffmpeg) throw new Error('FFmpeg chưa sẵn sàng.');
-        ffmpeg.on('error', error => failReady(error?.message));
-        ffmpeg.on('close', code => {
-            ffmpegDone = true;
-            if (code !== 0 && !disposed) failReady('Bộ xử lý SoundCloud kết thúc trước packet đầu tiên.');
-            finish();
-        });
-        pcmBuffer = new StartupAudioBuffer({ highWaterMark: 192000 * 3, prebufferBytes: 96000, maxWaitMs: 1000 });
-        ffmpeg.stdout.on('error', error => { pcmBuffer.destroy(error); failReady(error?.message); });
-        ffmpeg.stdout.pipe(pcmBuffer);
-        pcmChunker = new PcmFrameChunker({ highWaterMark: 15360 });
-        pcmBuffer.pipe(pcmChunker);
-        resource = voiceLib.createAudioResource(pcmChunker, { inputType: voiceLib.StreamType.Raw, inlineVolume: true });
-        const checkReady = () => {
-            if (!readySettled && !disposed && resource?.playStream?.readableLength > 0) {
-                readySettled = true;
-                resolveReady(resource);
-            }
-        };
-        resource.playStream.on('readable', checkReady);
-        resource.playStream.on('error', error => failReady(error?.message));
-        signal?.addEventListener('abort', dispose, { once: true });
-        if (signal?.aborted) dispose(); else checkReady();
-    } catch (error) {
-        dispose();
-        throw error;
-    }
-    return { resource, process, ffmpeg, pcmBuffer, pcmChunker, ready, completion, dispose, transport: 'pipe' };
-}
-
 function commitPreparedMusicEffect({ guildId, mq, track, effectKey, candidate, positionSec, capturedGeneration }) {
     if (musicQueues.get(guildId) !== mq || mq.current !== track || mq.playGeneration !== capturedGeneration) return false;
     if (candidate.resource.ended || candidate.resource.audioPlayer) throw new Error('Resource âm thanh mới không còn sẵn sàng.');
+    if (candidate.liveSession && mq.liveEffectSession === candidate.liveSession) {
+        const oldCandidate = mq.currentEffectCandidate;
+        const paused = [voiceLib.AudioPlayerStatus.Paused, voiceLib.AudioPlayerStatus.AutoPaused].includes(mq.player.state.status);
+        candidate.resource.volume?.setVolume(mq.volume ?? 1);
+        mq.clearAudioDiagnostics?.();
+        mq.currentResource = candidate.resource;
+        mq.currentEffectCandidate = candidate;
+        mq.seekBase = Math.max(positionSec, candidate.sourcePosition || 0);
+        mq.effect = effectKey;
+        mq.player.play(candidate.resource);
+        if (paused) mq.player.pause(true);
+        oldCandidate?.dispose();
+        candidate.completion.then(result => {
+            if (result.code !== 0 && mq.currentResource === candidate.resource) mq.onPlaybackFailure?.(result.errorText);
+        });
+        persistSession(guildId);
+        refreshMusicPanel(mq).catch(() => null);
+        console.log(`[MusicAudio] server=${guildId} effect=${effectKey} transport=live-pcm`);
+        return true;
+    }
     // Nguồn seek chậm không được kéo người nghe lùi lại nhiều giây khi bàn giao.
     if (getPlaybackSec(mq) - positionSec > 3) throw new Error('Nguồn audio mới chuẩn bị quá chậm.');
     candidate.resource.volume?.setVolume(mq.volume ?? 1);
@@ -4729,14 +4683,14 @@ function commitPreparedMusicEffect({ guildId, mq, track, effectKey, candidate, p
 const musicEffectTransitions = createEffectTransitionController({
     getCurrent: guildId => musicQueues.get(guildId),
     getPosition: getPlaybackSec,
-    resolveMedia: (track, { signal }) => {
-        const soundcloud = track?.source === 'SoundCloud' || /(?:^|\.)soundcloud\.com\//i.test(String(track?.url || ''));
-        if (soundcloud) return Promise.resolve({ pipeSource: track.url });
+    resolveMedia: (track, { signal, mq }) => {
+        if (mq?.liveEffectSession) return { liveSession: mq.liveEffectSession };
+        // Chỉ dùng resolver cũ cho phiên legacy chưa có decoder PCM.
         const cacheKey = getMusicSourceCacheKey();
         return effectMediaResolver.resolve(track.url, { signal, cacheKey });
     },
-    createCandidate: (media, { track, effectKey, positionSec, signal }) => media?.pipeSource
-        ? createSoundcloudPipeCandidate({ track, seekSec: positionSec, effectKey, signal })
+    createCandidate: (media, { mq, effectKey, positionSec, signal }) => media?.liveSession
+        ? Object.assign(media.liveSession.createCandidate(effectKey, { signal, volume: mq.volume }), { liveSession: media.liveSession })
         : createDirectAudioCandidate({
             media, seekSec: positionSec, effectFilter: AUDIO_EFFECTS[effectKey]?.af || '',
             ffmpegPath: getFfmpegPath(), spawn,
@@ -5053,6 +5007,9 @@ function startProgressUpdater(guildId) {
 function killCurrentProcess(mq) {
     mq.cancelEffectPreparation?.();
     mq.cancelEffectPreparation = null;
+    mq.liveEffectSession?.dispose();
+    mq.liveEffectSession = null;
+    mq.currentEffectCandidate = null;
     mq.disposeDirectAudio?.();
     mq.disposeDirectAudio = null;
     mq.clearAudioDiagnostics?.();
@@ -5344,7 +5301,7 @@ async function playNextTrack(guildId, opts = {}) {
     // FFmpeg giống đường hiệu ứng để Discord nhận PCM ổn định.
     const youtubeHlsAttempt = opts.youtubeHlsAttempt === true;
     const youtubeHlsTried = opts.youtubeHlsTried === true;
-    const useFfmpeg = youtubeHlsAttempt || seekSec > 0 || effectKey !== 'none';
+    const useFfmpeg = true; // Decoder PCM dùng chung cho mọi hiệu ứng, không mở lại nguồn khi đổi.
     const ffmpegPath = useFfmpeg ? getFfmpegPath() : null;
     // Khi binary còn đang tải, giữ nguyên bài đang nghe thay vì huỷ luồng rồi mới báo lỗi.
     if (opts.replayCurrent && !opts.sourceRecovery && !opts.effectRecovery && !clientAttempt && useFfmpeg && mq.currentResource && ffmpegPath !== 'ffmpeg' && !fs.existsSync(ffmpegPath)) {
@@ -5593,13 +5550,15 @@ async function playNextTrack(guildId, opts = {}) {
             // hoặc IP host bị từ chối. Hai lượt retry đủ cho một fragment lỗi;
             // sau đó recovery sẽ thử client gộp hoặc chuyển nguồn có kiểm soát.
             socketTimeout: 6,
-            retries: 1,
-            fragmentRetries: 1,
+            // Chunk HTTP nhỏ tránh giữ một socket cho toàn bộ mix nhiều giờ.
+            httpChunkSize: '10M',
+            retries: 3,
+            fragmentRetries: 3,
             skipUnavailableFragments: true,
             bufferSize: '1024K',
             forceIpv4: true
         };
-        const cookiePath = getCookieFilePath();
+        const cookiePath = isYoutubePlayback ? getCookieFilePath() : null;
         if (cookiePath) ytdlOpts.cookies = cookiePath;
         if (isYoutubePlayback) {
             ytdlOpts.jsRuntimes = 'node';
@@ -5640,6 +5599,7 @@ async function playNextTrack(guildId, opts = {}) {
             if (deferredEnd) { deferredEnd = false; return advancePlayback(); }
         }, recoverSourceFailure = async (err) => {
             if (!isCurrentPlayback() || failureStarted || sourceRecovering) return;
+            const recoveryEffect = mq.effect || effectKey;
             // Lỗi giữa bài cần một cửa sổ phục hồi mới; chỉ các lần thử chưa
             // phát được packet nào mới chia sẻ deadline khởi động ban đầu.
             if (playbackStarted) sourceDeadline = Date.now() + 16000;
@@ -5675,7 +5635,7 @@ async function playNextTrack(guildId, opts = {}) {
                     replayCurrent: true,
                     expectedTrack: next,
                     seekSec: resumeSec,
-                    effectKey,
+                    effectKey: recoveryEffect,
                     clientAttempt,
                     sourceRecovery: true,
                     seekTransport: 'pipe'
@@ -5687,7 +5647,7 @@ async function playNextTrack(guildId, opts = {}) {
                 return failPlayback(safeError.message);
             }
 
-            const isRetryable = /403|forbidden|Requested format is not available|Sign in to confirm you|bot|confirm you’re not a bot|needs_auth|login|Unable to download|No such file|Frag|timeout|IncompleteRead|HTTP Error 5|Connection reset|timed out|network/i.test(rawErr);
+            const isRetryable = ['NETWORK', 'TIMEOUT', 'HTTP_403', 'FORMAT_UNAVAILABLE'].includes(safeError.code) || /403|forbidden|Requested format is not available|Sign in to confirm you|bot|confirm you’re not a bot|needs_auth|login|Unable to download|No such file|Frag|timeout|IncompleteRead|HTTP Error 5|Connection reset|timed out|network/i.test(rawErr);
             const nextAttempt = clientAttempt + 1;
             const authRequired = /Sign in to confirm|not a bot|needs_auth|login required|authentication required/i.test(rawErr);
             const nextClient = YT_DOWNLOAD_CLIENT_FALLBACKS[nextAttempt] || '';
@@ -5710,7 +5670,7 @@ async function playNextTrack(guildId, opts = {}) {
                     replayCurrent: true,
                     expectedTrack: next,
                     seekSec: hlsResumeSec,
-                    effectKey,
+                    effectKey: recoveryEffect,
                     seekTransport: hlsResumeSec > 0 ? 'section' : 'pipe',
                     sourceDeadline: hlsDeadline,
                     clientAttempt,
@@ -5727,7 +5687,7 @@ async function playNextTrack(guildId, opts = {}) {
                     replayCurrent: true,
                     expectedTrack: next,
                     seekSec: Math.max(seekSec, getPlaybackSec(mq)),
-                    effectKey,
+                    effectKey: recoveryEffect,
                     // Giữ nguyên đường section khi thử client YouTube kế tiếp.
                     // Nếu bỏ qua trường này, lượt retry ở mốc <=120s sẽ quay về
                     // pipe và lại phải đọc toàn bộ phần đầu bài.
@@ -5770,7 +5730,7 @@ async function playNextTrack(guildId, opts = {}) {
                             replayCurrent: true,
                             expectedTrack: next,
                             seekSec: 0,
-                            effectKey,
+                            effectKey: recoveryEffect,
                             sourceDeadline: Date.now() + 12000,
                             clientAttempt: 0,
                             youtubeHlsAttempt: false,
@@ -5784,9 +5744,7 @@ async function playNextTrack(guildId, opts = {}) {
                 }
             }
 
-            const shortErr = isYoutubePlayback && !(next.requestedSource === 'auto' && next.allowSourceFallback === true)
-                ? 'YouTube từ chối hoặc chưa tải được audio. Mimi giữ lựa chọn nguồn YouTube; dùng nguồn SoundCloud hoặc Tự động nếu muốn thử bản khác.'
-                : safeError.message;
+            const shortErr = safeError.message;
             sourceRecovering = false;
             return failPlayback(shortErr);
         }).catch(err => {
@@ -5814,7 +5772,7 @@ async function playNextTrack(guildId, opts = {}) {
         if (useFfmpeg) {
             const ff = spawnFfmpegAudio(audioBuffer, {
                 pipeSeekSec: seekTransport === 'pipe' ? seekSec : 0,
-                effectKey
+                effectKey: 'none'
             });
             if (!ff) {
                 failPlayback('Không thể khởi động bộ xử lý âm thanh ffmpeg.');
@@ -5842,35 +5800,18 @@ async function playNextTrack(guildId, opts = {}) {
                     try { ytdlProcess.kill('SIGKILL'); } catch { /* bỏ qua */ }
                     return;
                 }
-                // PCM48k/stereo/s16 =192KB/s. Nạp trước0.5giây và giữ đệm3giây
-                // để nguồn/host chậm một nhịp không làm encoder lập tức đói frame.
-                const pcmBuffer = new StartupAudioBuffer({ highWaterMark: 192000 * 3, prebufferBytes: 96000, maxWaitMs: 1000 });
-                mq.currentPcmBuffer = pcmBuffer;
-                ff.stdout.on('error', error => pcmBuffer.destroy(error));
-                pcmBuffer.on('error', error => failPlayback((error.message || 'Lỗi bộ đệm âm thanh').slice(0, 300)));
-                ff.stdout.pipe(pcmBuffer);
-                const pcmChunker = new PcmFrameChunker({ highWaterMark: 15360 });
-                mq.currentPcmChunker = pcmChunker;
-                pcmChunker.on('error', error => failPlayback((error.message || 'Lỗi chia frame âm thanh').slice(0, 300)));
-                pcmBuffer.pipe(pcmChunker);
-                resource = voiceLib.createAudioResource(pcmChunker, { inputType: voiceLib.StreamType.Raw, inlineVolume: true });
+                const liveSession = createLiveEffectSession({ input: ff.stdout, spawn, ffmpegPath,
+                    createAudioResource: voiceLib.createAudioResource, StreamType: voiceLib.StreamType,
+                    PcmFrameChunker, effects: AUDIO_EFFECTS, seekSec });
+                mq.liveEffectSession = liveSession;
+                const initialCandidate = liveSession.createCandidate(effectKey, { volume: mq.volume });
+                mq.currentEffectCandidate = initialCandidate;
+                initialCandidate.completion.then(result => {
+                    if (result.code !== 0 && mq.currentResource === initialCandidate.resource) failPlayback(result.errorText, { filterFailure: true });
+                });
+                resource = initialCandidate.resource;
+                liveSession.start();
             }
-        } else {
-            // ⚡ ĐƯỜNG OPUS PASSTHROUGH (mặc định, nhẹ CPU): demuxProbe nhận đúng loại rồi truyền thẳng.
-            // NGUYÊN NHÂN GỐC của bug "bài trong hàng đợi không tự phát": trước đây inputType luôn
-            // là StreamType.WebmOpus, nhưng format 'bestaudio[acodec=opus]/bestaudio' có thể trả về
-            // m4a/aac. Khi đó bộ giải mã WebmOpus hỏng ngay -> resource kết thúc tức thì -> bài bị "nuốt".
-            // demuxProbe đọc thử vài byte đầu để nhận đúng loại (opus/ogg/khác).
-            const probe = await voiceLib.demuxProbe(audioBuffer);
-            // Dùng genId thay so sánh object (xem ghi chú ở nhánh ffmpeg): bắt được cả trường hợp
-            // replayCurrent (next === mq.current) khi có lần gọi mới chen vào giữa lúc chờ demuxProbe.
-            if (!isCurrentPlayback()) {
-                try { probe.stream.destroy(); } catch { /* đã hủy */ }
-                try { ytdlProcess.kill('SIGKILL'); } catch { /* bỏ qua */ }
-                return;
-            }
-            // Opus passthrough giữ CPU thấp; không giải mã/mã hóa lại khi không có hiệu ứng.
-            resource = voiceLib.createAudioResource(probe.stream, { inputType: probe.type, inlineVolume: false });
         }
         if (!isCurrentPlayback()) { try { resource.playStream?.destroy(); } catch {} return; }
         if (resource.volume) resource.volume.setVolume(mq.volume);
@@ -5885,7 +5826,7 @@ async function playNextTrack(guildId, opts = {}) {
         // Đăng ký trước play(): resource đã có dữ liệu có thể phát Playing ngay trong lời gọi này.
         // Chỉ resource mới được mở cờ; listener/timer cũ phải được gỡ khi skip/stop/đổi hiệu ứng.
         onPlayingClear = (_oldState, newState) => {
-            if (!isCurrentPlayback() || newState?.resource !== resource) return;
+            if (!isCurrentPlayback() || newState?.resource !== mq.currentResource) return;
             playbackStarted = true;
             cleanupTransition();
             clearTransition();
@@ -6906,16 +6847,17 @@ client.once('clientReady', async () => {
 
         new SlashCommandBuilder()
             .setName('category')
-            .setDescription('Quản lý nội dung kênh danh mục')
+            .setDescription('Tạo bảng danh mục và thêm nội dung, liên kết kênh')
             .setDefaultMemberPermissions(PermissionFlagsBits.ManageGuild)
-            .addSubcommand(sub => sub
-                .setName('add')
-                .setDescription('Đăng nội dung vào kênh danh mục')
-                .addStringOption(option => option
-                    .setName('noi_dung')
-                    .setDescription('Nội dung muốn đăng; dùng \\n để xuống dòng')
-                    .setMaxLength(4000)
-                    .setRequired(true))),
+            .addSubcommand(sub => sub.setName('create').setDescription('Tạo tin nhắn danh mục mới')
+                .addStringOption(o => o.setName('tieu_de').setDescription('Tiêu đề bảng danh mục').setMaxLength(200).setRequired(true))
+                .addStringOption(o => o.setName('noi_dung').setDescription('Mô tả bảng; dùng \\n để xuống dòng').setMaxLength(2000))
+                .addChannelOption(o => o.setName('kenh').setDescription('Kênh đăng bảng (mặc định kênh danh mục)').addChannelTypes(ChannelType.GuildText)))
+            .addSubcommand(sub => sub.setName('add').setDescription('Thêm mục vào bảng danh mục đã tạo')
+                .addStringOption(o => o.setName('noi_dung').setDescription('Nội dung mục; dùng \\n để xuống dòng').setMaxLength(4000).setRequired(true))
+                .addStringOption(o => o.setName('ten').setDescription('Tên danh mục').setMaxLength(100))
+                .addChannelOption(o => o.setName('kenh').setDescription('Kênh được liên kết trong mục'))
+                .addStringOption(o => o.setName('tin_nhan').setDescription('ID bảng cần sửa (mặc định bảng mới nhất)').setMaxLength(20))),
 
         new SlashCommandBuilder()
             .setName('dashboard')
@@ -7353,7 +7295,7 @@ client.once('clientReady', async () => {
         new SlashCommandBuilder()
             .setName('play')
             .setDescription('Phát nhạc từ YouTube, Spotify, SoundCloud — tìm theo tên hoặc dán link')
-            .addStringOption(o => o.setName('từ_khóa').setDescription('Tên bài hát hoặc link (YouTube, Spotify, SoundCloud, v.v.)').setRequired(true))
+            .addStringOption(o => o.setName('từ_khóa').setDescription('Tên bài, link bài hát hoặc playlist YouTube/SoundCloud (tối đa 50 bài)').setRequired(true))
             .addStringOption(o => o.setName('nguồn').setDescription('Nguồn tìm kiếm (mặc định: YouTube, giữ đúng nguồn khi phát)').setRequired(false)
                 .addChoices(
                     { name: '✨ Tự động (YouTube & SoundCloud)', value: 'auto' },
@@ -11010,9 +10952,10 @@ async function saveUserBackground(uId, url) {
 
         const statusMsg = await message.reply(buildMusicNoticePayload('Đang tìm bài hát', `Đang tìm: **${query}**...`)).catch(() => null);
 
-        let track;
+        let track, request;
         try {
-            track = await resolveTrack(query); // hỗ trợ YouTube, Spotify, SoundCloud, Bandcamp, Twitch, Vimeo, link...
+            request = await resolveMusicRequest(query);
+            track = request?.tracks[0]; // hỗ trợ YouTube, Spotify, SoundCloud, Bandcamp, Twitch, Vimeo, link...
         } catch (err) {
             console.error('❌ [Music] Lỗi tìm kiếm (prefix):', classifyMusicSourceError(err).code);
             const payload = err.code === 'RESTRICTED_VIDEO'
@@ -11027,7 +10970,7 @@ async function saveUserBackground(uId, url) {
             if (statusMsg) statusMsg.edit(buildMusicNoticePayload('Không có kết quả', `Không tìm thấy kết quả nào phát được cho **"${query}"**.\n-# Các kết quả gần nhất có thể đều riêng tư hoặc bị giới hạn độ tuổi.`, 0xE74C3C)).catch(() => null);
             return;
         }
-        track.requestedBy = message.author.username;
+        for (const item of request.tracks) item.requestedBy = message.author.username;
 
         const { mq, error } = await getOrCreateMusicQueue(message.guild, voiceChannel, message.channel);
         if (error) {
@@ -11036,16 +10979,17 @@ async function saveUserBackground(uId, url) {
         }
 
         if (!mq.ownerId) mq.ownerId = message.author.id; // Người mở panel = người thao tác được các nút
-        mq.queue.push(track);
+        if (mq.queue.length + request.tracks.length > MAX_MUSIC_QUEUE) return message.reply({ content: `Hàng đợi tối đa ${MAX_MUSIC_QUEUE} bài. Hãy bớt bài trước khi thêm playlist.` });
+        mq.queue.push(...request.tracks);
 
         if (mq.current || mq.starting) {
-            if (statusMsg) statusMsg.edit(buildMusicNoticePayload('Đã thêm vào hàng đợi', `**${track.title}**\n> Vị trí trong hàng đợi: **#${mq.queue.length}**`, 0x2ECC71)).catch(() => null);
+            if (statusMsg) statusMsg.edit(buildMusicNoticePayload('Đã thêm vào hàng đợi', `**${request.tracks.length > 1 ? `${request.title} · ${request.tracks.length} bài${request.limited ? ' (tối đa 50 bài/lượt)' : ''}` : track.title}**\n> Vị trí trong hàng đợi: **#${mq.queue.length}**`, 0x2ECC71)).catch(() => null);
             persistSession(message.guild.id); // lưu hàng đợi mới để khôi phục đúng sau restart
         } else {
             mq.starting = true;
             // Dùng CHÍNH tin trạng thái này làm tin "Đang phát" -> tránh bug "kẹt Đang tải"
             if (statusMsg) {
-                statusMsg.edit(buildMusicNoticePayload('Đang tải bài hát', `**${track.title}**...`)).catch(() => null);
+                statusMsg.edit(buildMusicNoticePayload('Đang tải bài hát', `**${request.tracks.length > 1 ? `${request.title} · ${request.tracks.length} bài${request.limited ? ' (tối đa 50 bài/lượt)' : ''}` : track.title}**...`)).catch(() => null);
                 mq.nowPlayingMessage = statusMsg;
             }
             await playNextTrack(message.guild.id);
@@ -13961,58 +13905,7 @@ if (commandName === 'setupticket') {
 }
 
 if (commandName === 'category') {
-    const isCategoryAdmin = interaction.memberPermissions?.has(PermissionFlagsBits.ManageGuild) ||
-        interaction.member?.permissions?.has(PermissionFlagsBits.ManageGuild) ||
-        interaction.member?.permissions?.has(PermissionFlagsBits.Administrator);
-    if (!isCategoryAdmin) {
-        return interaction.reply({ content: '❌ Bạn cần quyền **Quản lý máy chủ** để thêm nội dung danh mục.', flags: MessageFlags.Ephemeral });
-    }
-
-    if (options.getSubcommand() !== 'add') {
-        return interaction.reply({ content: '❌ Lệnh này hiện chỉ hỗ trợ `/category add`.', flags: MessageFlags.Ephemeral });
-    }
-
-    const content = (options.getString('noi_dung') || '').replace(/\\n/g, '\n').trim();
-    if (!content) {
-        return interaction.reply({ content: '❌ Vui lòng nhập nội dung cần đăng.', flags: MessageFlags.Ephemeral });
-    }
-    if (!gConfig.isCategorySetup || !gConfig.categoryChannelId) {
-        return interaction.reply({ content: '❌ Danh mục chưa được bật. Hãy dùng `/setupcategory trạng_thái:on` trước.', flags: MessageFlags.Ephemeral });
-    }
-
-    await interaction.deferReply({ flags: MessageFlags.Ephemeral });
-    const categoryChannel = guild.channels.cache.get(gConfig.categoryChannelId) ||
-        await guild.channels.fetch(gConfig.categoryChannelId).catch(() => null);
-    if (!categoryChannel || categoryChannel.guildId !== guild.id || categoryChannel.type !== ChannelType.GuildText) {
-        return interaction.editReply({ content: '❌ Không tìm thấy kênh danh mục đã lưu. Hãy chạy lại `/setupcategory trạng_thái:on`.' });
-    }
-
-    const botMember = guild.members.me || await guild.members.fetch(client.user.id).catch(() => null);
-    const permissions = botMember ? categoryChannel.permissionsFor(botMember) : null;
-    if (!permissions?.has([PermissionFlagsBits.ViewChannel, PermissionFlagsBits.SendMessages])) {
-        return interaction.editReply({ content: '❌ Mimi thiếu quyền **Xem kênh** hoặc **Gửi tin nhắn** tại kênh danh mục.' });
-    }
-
-    const chunks = [];
-    let remaining = content;
-    while (remaining.length > 2000) {
-        let cut = remaining.lastIndexOf('\n', 2000);
-        if (cut < 1000) cut = 2000;
-        chunks.push(remaining.slice(0, cut));
-        remaining = remaining.slice(cut).replace(/^\n/, '');
-    }
-    if (remaining) chunks.push(remaining);
-
-    let sent = 0;
-    try {
-        for (const chunk of chunks) {
-            await categoryChannel.send({ content: chunk, allowedMentions: { parse: [] } });
-            sent++;
-        }
-    } catch {
-        return interaction.editReply({ content: sent ? `⚠️ Đã đăng ${sent}/${chunks.length} phần nội dung; phần còn lại chưa gửi được.` : '❌ Không thể gửi nội dung vào kênh danh mục. Kiểm tra quyền của Mimi.' });
-    }
-    return interaction.editReply({ content: `✅ Đã thêm nội dung vào ${categoryChannel}.` });
+    return handleCategory(interaction, { config: gConfig, saveConfig, botId: client.user.id });
 }
 
 if (commandName === 'setupcategory') {
@@ -14029,17 +13922,22 @@ if (commandName === 'setupcategory') {
 
     }
 
+    const oldChannel = gConfig.categoryChannelId
+        ? await guild.channels.fetch(gConfig.categoryChannelId).catch(() => null) : null;
+    if (oldChannel?.guildId === guild.id && oldChannel.type === ChannelType.GuildText) {
+        gConfig.isCategorySetup = true; saveConfig();
+        return interaction.editReply(`Đã bật lại ${oldChannel}. Dùng /category create để tạo bảng và /category add để thêm mục.`);
+    }
+    if (!guild.members.me?.permissions.has(PermissionFlagsBits.ManageChannels)) return interaction.editReply('Mimi cần quyền Quản lý kênh để tạo kênh danh mục.');
+    const cat = await guild.channels.create({ name: 'DANH MỤC', type: ChannelType.GuildCategory });
+    const chan = await guild.channels.create({ name: 'danh-muc', type: ChannelType.GuildText, parent: cat.id });
     gConfig.isCategorySetup = true;
-
-    let cat = await guild.channels.create({ name: 'DANH MỤC', type: ChannelType.GuildCategory });
-
-    let chan = await guild.channels.create({ name: 'danh-muc', type: ChannelType.GuildText, parent: cat.id });
 
     gConfig.categoryChannelId = chan.id;
 
     saveConfig();
 
-    return interaction.editReply('✅ Đã **BẬT** Danh Mục và tạo kênh ' + chan.toString() + '. Dùng `/category add noi_dung:...` để thêm nội dung.');
+    return interaction.editReply('✅ Đã **BẬT** Danh Mục và tạo kênh ' + chan.toString() + '. Dùng `/category create tieu_de:...` để tạo bảng; `/category add noi_dung:...` để thêm nội dung.');
 
 }
 
@@ -14495,9 +14393,10 @@ if (commandName === 'setup') {
 
             const query = options.getString('từ_khóa');
             const source = options.getString('nguồn') || 'youtube';
-            let track;
+            let track, request;
             try {
-                track = await resolveTrack(query, source); // YouTube, Spotify, SoundCloud, Bandcamp, Twitch, Vimeo, link...
+                request = await resolveMusicRequest(query, source);
+                track = request?.tracks[0]; // YouTube, Spotify, SoundCloud, Bandcamp, Twitch, Vimeo, link...
             } catch (err) {
                 console.error('❌ [Music] Lỗi tìm kiếm:', classifyMusicSourceError(err).code);
                 const msg = err.code === 'RESTRICTED_VIDEO'
@@ -14508,25 +14407,26 @@ if (commandName === 'setup') {
                 return interaction.editReply({ content: msg });
             }
             if (!track) return interaction.editReply({ content: `❌ Không tìm thấy kết quả nào phát được cho **"${query}"** (các kết quả gần nhất có thể đều riêng tư hoặc bị giới hạn độ tuổi).` });
-            track.requestedBy = user.username;
+            for (const item of request.tracks) item.requestedBy = user.username;
 
             const { mq, error } = await getOrCreateMusicQueue(guild, voiceChannel, interaction.channel);
             if (error) return interaction.editReply({ content: error });
 
             if (!mq.ownerId) mq.ownerId = user.id; // Người mở panel = người thao tác được các nút
-            mq.queue.push(track);
+            if (mq.queue.length + request.tracks.length > MAX_MUSIC_QUEUE) return interaction.editReply({ content: `Hàng đợi tối đa ${MAX_MUSIC_QUEUE} bài. Hãy bớt bài trước khi thêm playlist.` });
+            mq.queue.push(...request.tracks);
 
             // mq.starting: lượt /play khác vừa quyết định phát ngay và đang chờ gửi tin nhắn -> chỉ xếp
             // hàng đợi, nếu không cả hai lượt cùng gọi playNextTrack và bài của lượt trước bị ghi đè (mất bài).
             if (mq.current || mq.starting) {
                 persistSession(guild.id); // lưu hàng đợi mới để khôi phục đúng sau restart
-                return interaction.editReply({ content: `✅ Đã thêm vào hàng đợi: **${track.title}** (vị trí #${mq.queue.length})` });
+                return interaction.editReply({ content: `✅ Đã thêm vào hàng đợi: **${request.tracks.length > 1 ? `${request.title} · ${request.tracks.length} bài${request.limited ? ' (tối đa 50 bài/lượt)' : ''}` : track.title}** (vị trí #${mq.queue.length})` });
             } else {
                 mq.starting = true;
                 // Tin defer (deferReply) KHÔNG mang cờ IsComponentsV2 nên không edit thành V2 được.
                 // Vì vậy panel "Đang phát" đi qua tin nhắn kênh (như bản prefix), rồi xóa tin defer.
                 await interaction.deleteReply().catch(() => null);
-                const statusMsg = await interaction.channel.send(buildMusicNoticePayload('Đang tải bài hát', `**${track.title}**...`)).catch(() => null);
+                const statusMsg = await interaction.channel.send(buildMusicNoticePayload('Đang tải bài hát', `**${request.tracks.length > 1 ? `${request.title} · ${request.tracks.length} bài${request.limited ? ' (tối đa 50 bài/lượt)' : ''}` : track.title}**...`)).catch(() => null);
                 if (statusMsg) mq.nowPlayingMessage = statusMsg;
                 await playNextTrack(guild.id);
             }
@@ -14987,7 +14887,7 @@ if (commandName === 'changelog') {
                 fields: [
                     { name: '`/setup`', value: 'Tự động tạo đầy đủ: kênh Welcome, Ticket, Chấm công và toàn bộ bảng nút tương tác.\nBot sẽ phân quyền và gửi bảng điều khiển vào các kênh tương ứng.' },
                     { name: '`/setupdonate`', value: 'Tạo hoặc làm mới riêng kênh **☕-donate** (thông tin chuyển khoản + mã QR).\nĐã tách khỏi `/setup` để bật/làm mới độc lập bất cứ lúc nào.' },
-                    { name: '`/category add noi_dung:...`', value: 'Quản trị viên đăng nội dung vào kênh `#danh-muc` sau khi bật bằng `/setupcategory trạng_thái:on`. Nội dung dài được tự chia thành nhiều tin nhắn.' },
+                    { name: '`/category create` · `/category add`', value: 'Dùng `/category create tieu_de:...` tạo bảng danh mục. Thêm mục bằng `/category add ten:... noi_dung:... kenh:#...`; chọn `tin_nhan` để sửa bảng cũ, mặc định dùng bảng mới nhất.' },
                     { name: '`/resetsetup`', value: 'Dọn sạch các bảng nút bấm cũ và gửi lại bộ bảng mới tại phòng tương tác chính.\n⚠️ Dữ liệu giải trí (XP, xu) được bảo toàn, chỉ làm mới giao diện.' },
                 ]
             },
@@ -15128,7 +15028,7 @@ if (commandName === 'changelog') {
                     { name: '💧 `mituoicay` / `mituoi`', value: 'Tưới nước nhanh cho các ô cây trồng. Cây cần tưới đủ **3 lần** đúng hạn mới chín. Quá hạn không tưới cây sẽ **khô héo**!' },
                     { name: '🌾 `mithuhoach` / `mith`', value: 'Thu hoạch tất cả cây đã chín rộ lấy Xu và nông sản.' },
                     { name: '🧺 `mibannongsan` / `mibns`', value: 'Bán toàn bộ nông sản tích trữ trong kho lấy Xu thưởng.' },
-                    { name: '🛒 `mishop` / `mis` / `/shop`', value: 'Siêu thị mua Hạt giống (Lúa mì, Cà chua, Bắp, Dâu tây, Dưa hấu, Cây Vàng), Mua thêm ô đất (tối đa 9 ô), Nhẫn Cưới, Ảnh Bìa Profile.' },
+                    { name: '🛒 `mishop` / `mis` / `/shop`', value: 'Chọn hạt giống rồi nhập số lượng 1–9999 trong biểu mẫu để mua nhiều hạt một lần. Có thể Mua thêm ô đất (tối đa 9 ô), Nhẫn Cưới, Ảnh Bìa Profile.' },
                     { name: '🎁 `midaily` / `mid`', value: 'Điểm danh hàng ngày nhận **1,000 xu**. Cooldown 24h.' },
                     { name: '👤 `miprofile` / `mip`', value: 'Xem hồ sơ cá nhân: Cấp độ, thanh XP, số dư ví, tình trạng kết hôn.' },
                     { name: '💳 `micash` / `mic`', value: 'Xem nhanh số dư ví hiện có.' },
@@ -15165,7 +15065,7 @@ if (commandName === 'changelog') {
                 desc: 'Tìm và phát nhạc trực tiếp từ **YouTube, SoundCloud, Spotify, Bandcamp, Twitch, Vimeo**... trong kênh thoại. Panel **Đang phát** hiển thị thanh tiến trình trực tiếp và toàn bộ điều khiển bằng **nút bấm**.',
                 fields: [
                     { name: '🔊 Vào & Rời Kênh — `/join` · `/leave` · `mijoin` · `mileave`', value: '`/join` — Mời bot vào kênh thoại của bạn trước.\n`/leave` — Ngắt kết nối và cho bot rời khỏi kênh thoại.' },
-                    { name: '▶️ Phát nhạc — `/play [từ_khóa]` · `miplay` / `mipl`', value: 'Vào **kênh thoại** trước, rồi nhập tên bài hoặc dán **link** trực tiếp (YouTube, Spotify, SoundCloud).\nTên bài mặc định tìm và giữ nguồn **YouTube**. Dùng `sc: tên bài` để chọn SoundCloud; `/play` với `nguồn: Tự động` mới cho phép chuyển nguồn dự phòng.' },
+                    { name: '▶️ Phát nhạc — `/play [từ_khóa]` · `miplay` / `mipl`', value: 'Vào **kênh thoại** trước, rồi nhập tên bài hoặc dán link bài/playlist **YouTube, SoundCloud**. Playlist thêm tối đa **50 bài/lượt**, hàng đợi tối đa **200 bài**.\nTên bài mặc định tìm và giữ nguồn **YouTube**. Dùng `sc: tên bài` để chọn SoundCloud; `/play` với `nguồn: Tự động` mới cho phép chuyển nguồn dự phòng.' },
                     { name: '🎛️ Hàng nút điều khiển (4 hàng dưới panel Đang phát)', value: '**Hàng 1:** ▶️/⏸️ Tạm dừng·Tiếp tục • ⏭️ Bỏ qua • ⏹️ Dừng & Thoát • 🔁 Lặp (Tắt→Bài→Hàng đợi)\n**Hàng 2:** 🔉/🔊 Giảm·Tăng âm • 📋 Hàng đợi • 💖 Yêu thích bài đang nghe\n**Hàng 3:** 📻 Autoplay • ♾️ 24/7 • 🎛️ Hiệu ứng • 🎤 Lời bài hát\n**Hàng 4:** ⏪ −10s • ⏩ +10s • 🔄 Phát lại từ đầu • 🔀 Xáo trộn • 🗑️ Xoá hàng đợi' },
                     { name: '🎚️ Hiệu ứng âm thanh — nút 🎛️ · `mifx` / `mihieuung`', value: 'Áp **live** ngay tại vị trí đang nghe (không cắt nhạc): Bassboost, Nightcore, Chill Lofi, Vaporwave, 8D, Soft/Warm, Tremolo, Sped 1.5x, hoặc **Tắt** để về gốc.' },
                     { name: '📻 Autoplay & ♾️ 24/7', value: '**Autoplay** (nút 📻 · `miradio`): hết hàng đợi bot tự phát bài liên quan.\n**24/7** (nút ♾️ · `mistay`): bot ở lại kênh kể cả khi hết bài / không còn ai nghe.' },
@@ -15219,28 +15119,29 @@ if (commandName === 'changelog') {
 
     if (interaction.isStringSelectMenu() && interaction.customId === 'shop_seed_select') {
         const seedId = interaction.values[0].replace('buy_seed_', '');
-        const crop = FARM_CROPS[seedId];
-        if (!crop) return interaction.reply({ content: '❌ Loại hạt giống không hợp lệ!', flags: MessageFlags.Ephemeral });
+        const crop = Object.hasOwn(FARM_CROPS, seedId) ? FARM_CROPS[seedId] : null;
+        if (!crop) return interaction.reply({ content: 'Loại hạt giống không hợp lệ.', flags: MessageFlags.Ephemeral });
+        if (isMinigameBanned(interaction.user.id)) return interaction.reply({ content: 'Bạn đang bị hạn chế tính năng kinh tế.', flags: MessageFlags.Ephemeral });
+        const modal = new ModalBuilder().setCustomId(`shop_seed_quantity:${seedId}:${interaction.user.id}`).setTitle(`Mua hạt ${crop.name}`.slice(0, 45));
+        const quantity = new TextInputBuilder().setCustomId('quantity').setLabel('Số lượng (1–9999)').setStyle(TextInputStyle.Short)
+            .setPlaceholder(`Đơn giá ${crop.seedPrice.toLocaleString('vi-VN')} xu / hạt`).setMinLength(1).setMaxLength(4).setRequired(true);
+        modal.addComponents(new ActionRowBuilder().addComponents(quantity));
+        return interaction.showModal(modal);
+    }
 
+    if (interaction.isModalSubmit() && interaction.customId.startsWith('shop_seed_quantity:')) {
+        const [, seedId, ownerId] = interaction.customId.split(':');
+        const crop = Object.hasOwn(FARM_CROPS, seedId) ? FARM_CROPS[seedId] : null;
+        if (!crop || ownerId !== interaction.user.id) return interaction.reply({ content: 'Phiếu mua hạt không hợp lệ.', flags: MessageFlags.Ephemeral });
+        if (isMinigameBanned(interaction.user.id)) return interaction.reply({ content: 'Bạn đang bị hạn chế tính năng kinh tế.', flags: MessageFlags.Ephemeral });
         const userData = getUserData(interaction.user.id);
-        if (userData.balance < crop.seedPrice) {
-            return interaction.reply({ content: `❌ Bạn không đủ xu để mua **Hạt ${crop.name}** (Cần \`${crop.seedPrice.toLocaleString()} xu\`, bạn đang có \`${userData.balance.toLocaleString()} xu\`)!`, flags: MessageFlags.Ephemeral });
-        }
-
-        userData.balance -= crop.seedPrice;
         const farm = getFarmData(interaction.user.id);
-        farm.inventory.seeds[seedId] = (farm.inventory.seeds[seedId] || 0) + 1;
+        const result = purchaseSeeds({ user: userData, farm, crop, seedId, quantity: interaction.fields.getTextInputValue('quantity') });
+        if (!result.ok) return interaction.reply({ content: result.error, flags: MessageFlags.Ephemeral });
+        addTransaction(interaction.user.id, 'buy', -result.cost, `Mua ${result.count} hạt ${crop.name}`);
         saveEconomy();
-
-        const row = new ActionRowBuilder().addComponents(
-            new ButtonBuilder().setCustomId('farm_open_btn').setLabel('🌾 Vào Nông Trại Trồng Ngay').setStyle(ButtonStyle.Success)
-        );
-
-        return interaction.reply({
-            content: `🌱 Mua thành công **1x Hạt ${crop.name}** với giá \`${crop.seedPrice.toLocaleString()} xu\`!\n🎒 Số hạt hiện có trong túi: **${farm.inventory.seeds[seedId]} hạt** | 💰 Số dư còn lại: \`${userData.balance.toLocaleString()} xu\``,
-            components: [row],
-            flags: MessageFlags.Ephemeral
-        });
+        const row = new ActionRowBuilder().addComponents(new ButtonBuilder().setCustomId('farm_open_btn').setLabel('Vào nông trại').setStyle(ButtonStyle.Success));
+        return interaction.reply({ content: `Đã mua **${result.count} hạt ${crop.name}** với giá **${result.cost.toLocaleString('vi-VN')} xu**.\nTrong kho: **${result.stock} hạt** · Số dư: **${userData.balance.toLocaleString('vi-VN')} xu**.`, components: [row], flags: MessageFlags.Ephemeral });
     }
 
     if (interaction.isStringSelectMenu() && interaction.customId === 'farm_plant_seed_select') {

@@ -5,6 +5,7 @@ const fs = require('node:fs');
 const path = require('node:path');
 const vm = require('node:vm');
 const discord = require('discord.js');
+const { handleCategory } = require('../categoryService');
 
 const source = fs.readFileSync(path.join(__dirname, '..', 'index.js'), 'utf8');
 const begin = source.indexOf("if (commandName === 'category')");
@@ -27,6 +28,7 @@ function fixture({ admin = true, setup = true, content = 'Tiêu đề\\nNội du
         members: { me: { id: 'bot' }, async fetch() { return this.me; } }
     };
     const interaction = {
+        guild,
         memberPermissions: { has: () => admin },
         member: { permissions: { has: () => admin } },
         options: { getSubcommand: () => 'add', getString: name => name === 'noi_dung' ? content : null },
@@ -36,6 +38,7 @@ function fixture({ admin = true, setup = true, content = 'Tiêu đề\\nNội du
     };
     const run = () => vm.runInNewContext(`(async () => { ${branch} })()`, {
         interaction, commandName: 'category', options: interaction.options, guild,
+        handleCategory, saveConfig() {},
         gConfig: { isCategorySetup: setup, categoryChannelId: CHANNEL },
         client: { user: { id: 'bot' } },
         ChannelType: discord.ChannelType,
@@ -64,5 +67,5 @@ test('/category add chặn người không có quyền và danh mục chưa bậ
     const disabled = fixture({ setup: false });
     await disabled.run();
     assert.equal(disabled.sent.length, 0);
-    assert.match(disabled.replies[0].payload.content, /chưa được bật/);
+    assert.match(disabled.replies.at(-1).payload.content, /chưa được bật/);
 });

@@ -57,3 +57,13 @@ Top tháng tải đủ thành viên qua REST `/guilds/:id/members`, từng trang
 ## Khôi phục local 06/10/2026
 
 Source và Git phục hồi từ main `b91833f`, file còn lại giữ bản sao trước khôi phục. 19 file runtime tải từ VibeHost, kiểm SHA256, chép lại đúng cây local: `.env`, config/economy/created_channels/tickets/reminders/music và `data/` license/anti-raid/announcements/background/transcripts. Checksum và dữ liệu riêng ở `MimiBot-backups/runtime-restore-2026-10-06`, ngoài Git. Đây là snapshot lúc tải, không dùng để ghi đè dữ liệu hosting tiếp tục phát sinh.
+
+
+## Cập nhật 30/10/2026
+
+- `/category create tieu_de:Danh mục noi_dung:Hướng dẫn kenh:#danh-muc`: tạo bảng danh mục. Kênh có thể bỏ trống để dùng kênh đã setup (hoặc kênh hiện tại khi chưa setup).
+- `/category add ten:Thông báo noi_dung:Theo dõi thông tin mới kenh:#thong-bao`: thêm mục và liên kết vào bảng mới nhất. `tin_nhan:<ID>` chọn bảng cũ. Mỗi bảng tối đa 20 mục/6.000 ký tự; chỉ quản trị có quyền Quản lý máy chủ thao tác. Khi chưa có bảng, cách `/category add noi_dung:...` cũ vẫn đăng văn bản vào kênh danh mục đã setup.
+- `/play từ_khóa:<link playlist YouTube hoặc SoundCloud>` hoặc `mipl <link playlist>`: thêm tối đa 50 bài/lượt, theo thứ tự; bỏ bài riêng tư, không hợp lệ hoặc trùng URL. Hàng đợi tối đa 200 bài. Không dùng link playlist Spotify để giả lập danh sách bài.
+- Menu hiệu ứng sử dụng nhánh PCM của bài đang phát, giữ nguyên downloader/decoder, không lấy lại URL CDN. Skip/stop/seek dọn nhánh hiệu ứng và nguồn. Các hiệu ứng thay đổi tốc độ vẫn cập nhật thời gian phát theo tốc độ tương ứng.
+- `/shop` hoặc `mishop`: chọn hạt giống, nhập số lượng nguyên 1–9999; bot tính lại giá/số dư khi xác nhận. Hủy biểu mẫu không trừ tiền.
+- Ngưỡng thu nhập tổng trong ngày theo giờ Việt Nam tăng từ 10 triệu lên 25 triệu xu. Đúng 25 triệu được phép; vượt ngưỡng mới kích hoạt cơ chế khóa kinh tế hiện có. Không tự gỡ các lệnh cấm đã có.

@@ -104,7 +104,7 @@ test('Category add được đăng ký cho quản trị và setupcategory hướ
     assert.ok(command.default_member_permissions !== undefined, '/category phải giới hạn quyền Quản lý máy chủ');
     const add = command.options.find(item => item.name === 'add');
     assert.ok(add, 'Có subcommand /category add');
-    assert.deepEqual(add.options.map(item => ({ name: item.name, required: item.required, max_length: item.max_length })),
+    assert.deepEqual(add.options.filter(item => item.required).map(item => ({ name: item.name, required: item.required, max_length: item.max_length })),
         [{ name: 'noi_dung', required: true, max_length: 4000 }]);
 
     const begin = source.indexOf("if (commandName === 'setupcategory')");
