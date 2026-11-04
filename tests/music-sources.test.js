@@ -7,12 +7,12 @@ const path = require('node:path');
 const vm = require('node:vm');
 const { validateMusicUrl } = require('../musicSources');
 
-test('YouTube recovery dùng đúng client hợp lệ và thử web_embedded sau default', () => {
+test('YouTube tải bằng embedded đã kiểm chứng và giữ default dự phòng', () => {
     const source = fs.readFileSync(path.join(__dirname, '..', 'index.js'), 'utf8');
     const block = source.match(/const YT_DOWNLOAD_CLIENT_FALLBACKS = \[([\s\S]*?)\];/);
     assert.ok(block, 'Có danh sách client tải YouTube');
     const clients = [...block[1].matchAll(/youtube:player_client=([^']+)/g)].map(match => match[1]);
-    assert.deepEqual(clients, ['default', 'web_embedded']);
+    assert.deepEqual(clients, ['web_embedded', 'default']);
 });
 
 test('SoundCloud fallback rút gọn hậu tố Remix/Audio Lyrics để tìm đúng bản thay thế', () => {

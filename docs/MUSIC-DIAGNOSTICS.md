@@ -85,3 +85,12 @@ Preset này bỏ cookie tài khoản riêng cho probe, không sửa cookie trên
 đổi đường phát production. Case/client/transport được gắn vào receipt, cùng
 case không tự chạy lại. Phải có bytes/container hợp lệ mới nhận thành công.
 Không đưa một client vào recovery chỉ vì metadata hoặc plugin/token đã sẵn sàng.
+
+
+Phép đo host lúc2026-11-04T14:57:50.702Z trên FEUE7x1vslI:
+`web_embedded` tải65536byte, header hợp lệ, firstByte13234ms; Android VR guest
+HTTP403/0byte sau5476ms, Safari HLS timeout/0byte sau17381ms. Thứ tự tải nhạc
+đổi thành embedded trước, default (mweb+PO khi ready) sau. Client dự phòng chạy
+trong deadline16s còn lại, trước khi mở lượt HLS10s cuối. Video không cho
+embedded được thử default một lần, không tự đổi bài/nguồn. Lỗi auth vẫn chỉ
+thử các client có hỗ trợ tài khoản. Chưa phải bằng chứng nghe Discord/toàn bài.

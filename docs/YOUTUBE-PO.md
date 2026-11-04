@@ -1,8 +1,10 @@
 # PO Token cho YouTube
 
-Bot vẫn tìm bằng `ytsearch` trên YouTube. Khi provider sẵn sàng, metadata,
-audio pipe và bộ chuẩn bị hiệu ứng dùng client `mweb` cùng plugin PO Token;
-client dự phòng `web_embedded` và chính sách nguồn của từng yêu cầu được giữ lại.
+Bot vẫn tìm bằng `ytsearch` trên YouTube. Metadata dùng `mweb` cùng plugin
+PO khi provider sẵn sàng. Audio pipe ưu tiên `web_embedded` sau phép đo host
+ngày04/11/2026; `default` (mweb+PO khi ready) dự phòng trước HLS.
+Đổi hiệu ứng trên PCM hiện tại không mở lại YouTube. Giữ chính sách nguồn
+của từng yêu cầu; không tự thay bản YouTube bằng SoundCloud.
 
 ## Runtime và triển khai
 
@@ -76,7 +78,9 @@ Discord hoặc kiểm tra toàn bài. Không đặt cookie/token trong request h
 HLS chỉ chọn audio có protocol `m3u8_native`/`m3u8`, không rơi về DASH/HTTPS khi
 thiếu format hoặc tải lỗi. Vì vậy kết quả `source_failed` có thể là video/client
 không có audio HLS; không suy ra mọi transport đều bị chặn. `client` tùy chọn
-chỉ nhận `default`, `web_safari` hoặc `web_embedded`; không nhận extractor args tùy ý.
+chỉ nhận `default`, `web_safari`, `web_embedded` hoặc `android_vr`; không nhận extractor args tùy ý.
+Preset `android_vr` chỉ dùng cho phép đo và bỏ cookie tài khoản trong RAM;
+không sửa file cookie hay tự bật client này cho production.
 
 ```json
 {

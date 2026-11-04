@@ -24,6 +24,7 @@ function region(begin, end) {
 
 const audioEffects = vm.runInNewContext(`${region('const AUDIO_EFFECTS = {', '// Đường dẫn ffmpeg')}\nAUDIO_EFFECTS`);
 const youtubeHlsAudioFormat = vm.runInNewContext(`${region('const YT_HLS_AUDIO_FORMAT =', 'function normalizeMusicMatchText(')}\nYT_HLS_AUDIO_FORMAT`);
+const youtubeDownloadClients = vm.runInNewContext(`${region('const YT_DOWNLOAD_CLIENT_FALLBACKS =', '// Một số IP')}\nYT_DOWNLOAD_CLIENT_FALLBACKS`);
 const pipeFilters = (seekSec) =>
     ['asetpts=PTS-STARTPTS', `atrim=start=${seekSec}`, 'asetpts=PTS-STARTPTS'].join(',');
 
@@ -510,14 +511,65 @@ test('PO sẵn sàng: hết16giây dừng nguồn đúng một lần, YouTube t�
     } finally { packet.resolve({ stream: f.processes[0]?.stdout, type: 'opus' }); f.cleanup(); }
 });
 
-test('PO sẵn sàng:403 thử HLS một lần với deadline riêng rồi giữ chính sách nguồn', async () => {
+test('Client embedded production có thể bắt đầu sau13.2giây, không đổi nguồn hoặc mất queue', async () => {
+    for (const ready of [true, false]) {
+        const f = await fixture({ youtubePoProvider: {
+            options: extractorArgs => ({ extractorArgs }), snapshot: () => ({ ready })
+        } });
+        try {
+            f.context.YT_DOWNLOAD_CLIENT_FALLBACKS = youtubeDownloadClients;
+            await f.play();
+            assert.equal(f.processes[0].flags.extractorArgs, 'youtube:player_client=web_embedded');
+            const deadline = f.timers.find(timer => !timer.cleared);
+            assert.equal(deadline.delay, 16000);
+            f.clock.now += 13234;
+            f.player.state = { status: 'playing', resource: f.mq.currentResource };
+            f.player.emit('playing', {}, f.player.state);
+            assert.equal(deadline.cleared, true);
+            deadline.callback(); await tick();
+            assert.equal(f.processes.length, 1);
+            assert.equal(f.processes[0].killed, false);
+            assert.equal(f.mq.current, f.current);
+            assert.deepEqual(f.mq.queue, [f.queued]);
+            assert.equal(f.notices.length, 0);
+        } finally { f.cleanup(); }
+    }
+});
+
+test('Client production ưu tiên embedded đã có audio host; client dự phòng không bị HLS nuốt deadline', async () => {
+    for (const error of ['HTTP 403', 'Video unavailable: playback on other websites has been disabled', 'authentication required']) {
+        const f = await fixture({ youtubePoProvider: {
+            options: extractorArgs => ({ extractorArgs }), snapshot: () => ({ ready: true })
+        } });
+        try {
+            f.current.allowSourceFallback = false;
+            f.context.YT_DOWNLOAD_CLIENT_FALLBACKS = youtubeDownloadClients;
+            await f.play();
+            assert.equal(f.processes[0].flags.extractorArgs, 'youtube:player_client=web_embedded');
+            f.clock.now += 1500;
+            await f.processes[0].rejectPlayback(new Error(error)); await tick();
+            assert.equal(f.processes[1].flags.extractorArgs, 'youtube:player_client=default');
+            assert.doesNotMatch(f.processes[1].flags.format, /m3u8/);
+            assert.equal(f.timers.find(timer => !timer.cleared).delay, 14500);
+            assert.equal(f.mq.current, f.current);
+            assert.deepEqual(f.mq.queue, [f.queued]);
+            const resource = f.mq.currentResource;
+            f.player.state = { status: 'playing', resource };
+            f.player.emit('playing', {}, f.player.state);
+            assert.equal(f.notices.length, 0);
+            assert.equal(f.processes.length, 2);
+        } finally { f.cleanup(); }
+    }
+});
+
+test('PO sẵn sàng: hết client mới thử HLS một lần với deadline riêng rồi giữ chính sách nguồn', async () => {
     let searches = 0;
     const f = await fixture({ searchSoundcloud: async () => { searches++; return null; },
         youtubePoProvider: { options: extractorArgs => ({ extractorArgs }), snapshot: () => ({ ready: true, clientRevision: 1 }) }
     });
     try {
         f.current.allowSourceFallback = false;
-        f.context.YT_DOWNLOAD_CLIENT_FALLBACKS = ['youtube:player_client=default', 'youtube:player_client=web_embedded', 'youtube:player_client=android'];
+        f.context.YT_DOWNLOAD_CLIENT_FALLBACKS = ['youtube:player_client=default'];
         const beganAt = f.clock.now;
         await f.play({ effectKey: 'none', seekSec: 0, seekTransport: 'pipe' });
         const firstDeadline = f.timers.find(timer => !timer.cleared);
