@@ -91,6 +91,17 @@ test('Request HLS là enum cố định, truyền đúng probe và gắn client/
     await assert.rejects(fs.stat(path.join(f.receiptDir, 'invalid-transport.json')), { code: 'ENOENT' });
 });
 
+test('Probe android_vr có receipt riêng, không tái sử dụng kết quả client mặc định', async t => {
+    const f = await fixture(t);
+    await f.request({ caseId: CASE, url: URL, client: 'android_vr' });
+    const result = await runYoutubeLinkCheck(f.input);
+    assert.equal(result.client, 'android_vr');
+    assert.equal(f.calls[1][1].client, 'android_vr');
+    await f.request({ caseId: CASE, url: URL });
+    assert.equal(await runYoutubeLinkCheck(f.input), null);
+    assert.equal(f.calls.length, 2);
+});
+
 test('Cùng case không được tái sử dụng receipt của client hoặc transport khác', async t => {
     for (const initial of [{}, { client: 'web_safari' }, { transport: 'hls' }]) {
         const f = await fixture(t);

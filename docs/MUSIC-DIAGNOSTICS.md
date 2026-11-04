@@ -71,3 +71,17 @@ sau packet đầu; không tham gia voice/gửi tin Discord. Receipt0600 ở
 `data/music-effect-checks/` và log `[MusicEffect] CHECK` chỉ chứa số đo/mã lỗi.
 Cùng case không chạy lại sau restart. Phép đo chứng minh chuẩn bị audio tại host,
 chưa chứng minh âm thanh nghe được qua Discord hay độ ổn định cả bài.
+
+
+## Lỗi nguồn lặp lại —04/11/2026
+
+Lượt tải đầu HTTP403 rồi HLS timeout phải báo nguyên nhân từ chối403. Chỉ mã
+lỗi cố định đi qua coordinator, không giữ stderr hoặc URL có chữ ký. Lỗi được
+xóa sau Playing để một gián đoạn mới giữa bài không mang lỗi403 cũ. Log tạo
+resource chưa chứng minh audio phát; dùng thêm `[MusicAudio] state=playing`.
+
+Chẩn đoán `youtube-link-check.json` hỗ trợ thêm `client: "android_vr"`.
+Preset này bỏ cookie tài khoản riêng cho probe, không sửa cookie trên đĩa hay
+đổi đường phát production. Case/client/transport được gắn vào receipt, cùng
+case không tự chạy lại. Phải có bytes/container hợp lệ mới nhận thành công.
+Không đưa một client vào recovery chỉ vì metadata hoặc plugin/token đã sẵn sàng.

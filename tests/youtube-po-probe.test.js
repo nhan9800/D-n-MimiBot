@@ -4,10 +4,25 @@ const test = require('node:test');
 const assert = require('node:assert/strict');
 const { EventEmitter } = require('node:events');
 const { PassThrough } = require('node:stream');
-const { runYoutubePoProbe } = require('../youtubePoProbe');
+const { runYoutubePoProbe, youtubeProbeOptions } = require('../youtubePoProbe');
 const ID = 'abcdefghijk';
 const URL = `https://www.youtube.com/watch?v=${ID}`;
 const tick = () => new Promise(resolve => setImmediate(resolve));
+
+test('Preset android_vr chỉ bỏ cookie ở probe, không sửa options gốc hoặc mặc định production', () => {
+    const original = { cookies: 'PRIVATE_PATH', cookiesFromBrowser: 'PRIVATE_BROWSER', forceIpv4: true };
+    const calls = [];
+    const getOptions = args => { calls.push(args); return original; };
+    const guest = youtubeProbeOptions(getOptions, 'android_vr')();
+    assert.equal(calls[0], 'youtube:player_client=android_vr');
+    assert.deepEqual(guest, { forceIpv4: true });
+    assert.equal(original.cookies, 'PRIVATE_PATH');
+    for (const client of ['default', 'web_safari', 'web_embedded', '__proto__', 'youtube:player_client=all']) {
+        assert.equal(youtubeProbeOptions(getOptions, client)(), original);
+    }
+    assert.equal(calls[4], undefined);
+    assert.equal(calls[5], undefined);
+});
 
 function deferred() {
     let resolve, reject;

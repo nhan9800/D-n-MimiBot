@@ -46,4 +46,24 @@ function classifyMusicSourceError(value) {
     return { code: 'SOURCE_FAILED', message: 'Không thể tải âm thanh từ nguồn nhạc. Vui lòng thử lại hoặc chọn bài khác.' };
 }
 
-module.exports = { classifyMusicSourceError };
+// Chỉ truyền mã cố định giữa các lượt thử, không giữ stderr/token/URL nguồn.
+// Timeout của lượt dự phòng không được che lỗi từ chối/xác thực đã biết.
+const RETRY_ERRORS = Object.freeze({
+    SOURCE_FAILED: ['unknown extractor failure', 0],
+    TIMEOUT: ['ETIMEDOUT', 1],
+    NETWORK: ['ECONNRESET', 2],
+    FORMAT_UNAVAILABLE: ['Requested format is not available', 3],
+    HTTP_403: ['HTTP Error 403: Forbidden', 4],
+    AUTH_REQUIRED: ['authentication required', 5],
+    INVALID_COOKIES: ['CookieLoadError', 6],
+    AUDIO_PROCESSOR: ['ffmpeg exited with error', 7]
+});
+
+function selectMusicSourceError(previousCode, value) {
+    const current = classifyMusicSourceError(value);
+    const previous = Object.hasOwn(RETRY_ERRORS, previousCode) ? RETRY_ERRORS[previousCode] : null;
+    return previous && previous[1] > RETRY_ERRORS[current.code][1]
+        ? classifyMusicSourceError(previous[0]) : current;
+}
+
+module.exports = { classifyMusicSourceError, selectMusicSourceError };

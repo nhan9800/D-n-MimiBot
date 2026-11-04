@@ -2,7 +2,7 @@
 
 const test = require('node:test');
 const assert = require('node:assert/strict');
-const { classifyMusicSourceError } = require('../musicSourceErrors');
+const { classifyMusicSourceError, selectMusicSourceError } = require('../musicSourceErrors');
 
 const SENTINEL = 'PRIVATE_COOKIE_SID_fixture_do_not_publish';
 const PRIVATE_CONTEXT = `--cookies /home/container/data/private/youtube_cookies.txt Cookie: SID=${SENTINEL} `
@@ -28,6 +28,18 @@ const cases = [
     ['NETWORK', 'ERROR: HTTP Error 503: Service Unavailable'],
     ['SOURCE_FAILED', 'ERROR: unknown extractor failure']
 ];
+
+test('Retry giữ lỗi403/auth qua timeout, không mang văn bản riêng sang lượt mới', () => {
+    assert.deepEqual(selectMusicSourceError('HTTP_403', 'ETIMEDOUT'), classifyMusicSourceError('HTTP 403'));
+    assert.equal(selectMusicSourceError('AUTH_REQUIRED', 'HTTP 403').code, 'AUTH_REQUIRED');
+    assert.equal(selectMusicSourceError('TIMEOUT', 'HTTP 403').code, 'HTTP_403');
+    assert.equal(selectMusicSourceError(null, 'ECONNRESET').code, 'NETWORK');
+    for (const previous of [SENTINEL, '__proto__', 'constructor', null, undefined]) {
+        const result = selectMusicSourceError(previous, 'ETIMEDOUT');
+        assert.equal(result.code, 'TIMEOUT');
+        assert.equal(JSON.stringify(result).includes(SENTINEL), false);
+    }
+});
 
 for (const [code, error] of cases) {
     test(`Thông báo cố định ${code}: ${error}`, () => {

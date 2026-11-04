@@ -9,7 +9,7 @@ const OUTCOMES = new Set(['audio_received', 'invalid_audio', 'http_403', 'auth_r
     'search_failed', 'source_failed', 'search_empty', 'invalid_configuration', 'invalid_input', 'aborted', 'cancelled']);
 const FLAGS = ['containerHeaderRecognized', 'pluginLoaded', 'tokenRequestObserved', 'searchResolved',
     'providerRequestFailed', 'mediaDownloadFailed', 'downloadStarted'];
-const CLIENTS = new Set(['default', 'web_safari', 'web_embedded']);
+const CLIENTS = new Set(['default', 'web_safari', 'web_embedded', 'android_vr']);
 const TRANSPORTS = new Set(['default', 'hls']);
 
 function boundedNumber(value, maximum) {

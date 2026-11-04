@@ -11,7 +11,7 @@ const { PassThrough } = require('node:stream');
 const ytDlp = require('yt-dlp-exec');
 const { createLiveEffectSession } = require('../musicLiveEffects');
 const { StartupAudioBuffer, PcmFrameChunker, monitorMusicResource } = require('../musicBuffer');
-const { classifyMusicSourceError } = require('../musicSourceErrors');
+const { classifyMusicSourceError, selectMusicSourceError } = require('../musicSourceErrors');
 const source = fs.readFileSync(path.join(__dirname, '..', 'index.js'), 'utf8');
 
 // Chạy hàm phát thật trong VM, không import bootstrap hoặc kết nối Discord/nguồn nhạc.
@@ -325,7 +325,7 @@ async function fixture({ synchronousPlaying = false, demuxProbe, searchSoundclou
         return proc;
     };
     const context = vm.createContext({
-        musicQueues, PassThrough, StartupAudioBuffer, PcmFrameChunker, monitorMusicResource, classifyMusicSourceError, createLiveEffectSession,
+        musicQueues, PassThrough, StartupAudioBuffer, PcmFrameChunker, monitorMusicResource, classifyMusicSourceError, selectMusicSourceError, createLiveEffectSession,
         Date: class extends Date { static now() { return clock.now; } },
         fs: { existsSync: () => true },
         getFfmpegPath: () => '/mock/ffmpeg',
@@ -541,9 +541,31 @@ test('PO sẵn sàng:403 thử HLS một lần với deadline riêng rồi giữ
         assert.equal(f.mq.current, f.queued);
         assert.equal(searches, 0);
         assert.equal(f.notices.filter(notice => notice.title === 'Không thể phát bài này').length, 1);
+        assert.match(f.notices.find(notice => notice.title === 'Không thể phát bài này').content, /HTTP 403/,
+            'Timeout HLS không được che lỗi403 của lượt tải đầu');
         firstDeadline.callback(); secondDeadline.callback(); await tick();
         assert.equal(f.processes.length, 3);
         assert.equal(f.mq.current, f.queued);
+    } finally { f.cleanup(); }
+});
+
+test('Lỗi403 cũ được xóa sau khi HLS đã Playing; lỗi giữa bài giữ nguyên nhân mới', async () => {
+    const f = await fixture({ youtubePoProvider: {
+        options: extractorArgs => ({ extractorArgs }), snapshot: () => ({ ready: true })
+    } });
+    try {
+        f.current.allowSourceFallback = false;
+        f.context.YT_DOWNLOAD_CLIENT_FALLBACKS = ['youtube:player_client=default'];
+        await f.play();
+        await f.processes[0].rejectPlayback(new Error('HTTP 403')); await tick();
+        f.player.state = { status: 'playing', resource: f.mq.currentResource };
+        f.player.emit('playing', {}, f.player.state);
+        assert.ok(f.logs.some(line => /state=playing/.test(line)));
+        await f.processes[1].rejectPlayback(new Error('ECONNRESET')); await tick();
+        assert.equal(f.mq.current, f.queued);
+        assert.equal(f.notices.length, 1);
+        assert.match(f.notices[0].content, /gián đoạn/);
+        assert.doesNotMatch(f.notices[0].content, /HTTP 403/);
     } finally { f.cleanup(); }
 });
 

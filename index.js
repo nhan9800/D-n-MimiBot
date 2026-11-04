@@ -44,10 +44,10 @@ const { purchaseSeeds } = require('./seedPurchase');
 const { createMusicSearchCache, applySourcePolicy, chooseSoundcloudResult: rankSoundcloudResult } = require('./musicSearch');
 const { createYoutubePoProvider } = require('./youtubePoProvider');
 const { installYoutubePo } = require('./scripts/setup-youtube-po');
-const { runYoutubePoProbe } = require('./youtubePoProbe');
+const { runYoutubePoProbe, youtubeProbeOptions } = require('./youtubePoProbe');
 const { createYoutubeCookieSource } = require('./youtubeCookies');
 const { createYoutubeCookieVerification } = require('./youtubeCookieVerification');
-const { classifyMusicSourceError } = require('./musicSourceErrors');
+const { classifyMusicSourceError, selectMusicSourceError } = require('./musicSourceErrors');
 const { resolveYoutubeDirectTrack } = require('./youtubeDirectTrack');
 const { runYoutubeLinkCheck } = require('./youtubeLinkCheck');
 const { runMusicEffectCheck } = require('./musicEffectCheck');
@@ -3473,9 +3473,8 @@ ensureYtDlpBinary().then(async available => {
             signal: youtubeDiagnosticController.signal,
             resolveTrack,
             probe: options => {
-                const clientArgs = options?.client === 'web_safari' ? 'youtube:player_client=web_safari'
-                    : options?.client === 'web_embedded' ? 'youtube:player_client=web_embedded' : undefined;
-                return runYoutubePoProbe({ ytDlpExec, getOptions: getYtCommonOpts, clientArgs, ...options });
+                return runYoutubePoProbe({ ytDlpExec,
+                    getOptions: youtubeProbeOptions(getYtCommonOpts, options?.client), ...options });
             }
         }).then(receipt => {
             if (!receipt) return;
@@ -5439,6 +5438,7 @@ async function playNextTrack(guildId, opts = {}) {
     // CDN/PO đã mất nhiều giây mà chưa có byte đầu; lượt fallback SoundCloud
     // vẫn chạy trong cùng một coordinator, không cộng thêm một deadline mới.
     let sourceDeadline = opts.sourceDeadline || Date.now() + 16000;
+    let sourceFailureCode = opts.sourceRecovery ? opts.sourceFailureCode : null;
     const cleanupTransition = () => {
         if (transitionSafety) clearTimeout(transitionSafety);
         if (onPlayingClear) mq.player.off(voiceLib.AudioPlayerStatus.Playing, onPlayingClear);
@@ -5618,6 +5618,8 @@ async function playNextTrack(guildId, opts = {}) {
                 || (Object.hasOwn(err, 'stdout') ? `yt-dlp thoát với mã ${err.exitCode ?? err.code ?? 'không rõ'}` : err.message)
                 || 'Không rõ lỗi tải nhạc').slice(-4000);
             const safeError = classifyMusicSourceError(rawErr);
+            const rootError = selectMusicSourceError(sourceFailureCode, rawErr);
+            sourceFailureCode = rootError.code;
             console.error(`❌ [Music] yt-dlp lỗi khi phát "${next.title}" ở server ${guildId}:`, safeError.code);
 
             cleanupOrphanedMusicFragments();
@@ -5638,6 +5640,7 @@ async function playNextTrack(guildId, opts = {}) {
                     effectKey: recoveryEffect,
                     clientAttempt,
                     sourceRecovery: true,
+                    sourceFailureCode,
                     seekTransport: 'pipe'
                 }).catch(e => console.error('[Music] Không thể phát lại qua pipe:', classifyMusicSourceError(e).code));
             }
@@ -5675,6 +5678,7 @@ async function playNextTrack(guildId, opts = {}) {
                     sourceDeadline: hlsDeadline,
                     clientAttempt,
                     sourceRecovery: true,
+                    sourceFailureCode,
                     youtubeHlsAttempt: true,
                     youtubeHlsTried: true
                 }).catch(e => console.error(`❌ [Music] Lỗi khi thử HLS YouTube cho "${next.title}":`, classifyMusicSourceError(e).code));
@@ -5695,6 +5699,7 @@ async function playNextTrack(guildId, opts = {}) {
                     sourceDeadline,
                     clientAttempt: nextAttempt,
                     sourceRecovery: true,
+                    sourceFailureCode,
                     youtubeHlsAttempt: false,
                     youtubeHlsTried
                 }).catch(e => console.error(`❌ [Music] Lỗi khi thử lại client cho "${next.title}":`, classifyMusicSourceError(e).code));
@@ -5733,6 +5738,7 @@ async function playNextTrack(guildId, opts = {}) {
                             effectKey: recoveryEffect,
                             sourceDeadline: Date.now() + 12000,
                             clientAttempt: 0,
+                            sourceFailureCode: null,
                             youtubeHlsAttempt: false,
                             youtubeHlsTried: true
                         });
@@ -5744,7 +5750,7 @@ async function playNextTrack(guildId, opts = {}) {
                 }
             }
 
-            const shortErr = safeError.message;
+            const shortErr = rootError.message;
             sourceRecovering = false;
             return failPlayback(shortErr);
         }).catch(err => {
@@ -5828,6 +5834,8 @@ async function playNextTrack(guildId, opts = {}) {
         onPlayingClear = (_oldState, newState) => {
             if (!isCurrentPlayback() || newState?.resource !== mq.currentResource) return;
             playbackStarted = true;
+            sourceFailureCode = null;
+            console.log(`[MusicAudio] server=${guildId} state=playing source=${isYoutubePlayback ? 'youtube' : 'soundcloud'} transport=${youtubeHlsAttempt ? 'hls' : seekTransport}`);
             cleanupTransition();
             clearTransition();
             // ✅ CHỈ reset bộ đếm lỗi khi bài THẬT SỰ phát được (vào trạng thái Playing), KHÔNG reset ngay
