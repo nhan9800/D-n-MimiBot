@@ -90,6 +90,17 @@ test('Verifier treo chỉ chờ5s và kết quả đến muộn không công b�
     assert.equal(result.ok, false); assert.doesNotMatch(JSON.stringify(result), /PRIVATE/);
 });
 
+test('Container ngoài bộ sniff vẫn phải qua decoder và2nhánhOpus; không giả cờ header hợp lệ', async () => {
+    const f = fixture(); let checked = 0;
+    const promise = runYoutubePoProbe({ ...f.dependencies, videoUrl: URL, verifyAudio: async () => {
+        checked++; return { checked: true, ok: true, opusPacketReady: true, elapsedMs: 50 };
+    } });
+    await tick(); f.streams[0].stdout.write(Buffer.alloc(65536, 0x47));
+    const result = await promise;
+    assert.equal(checked, 1); assert.equal(result.ok, true); assert.equal(result.containerHeaderRecognized, false);
+    assert.equal(result.playback.opusPacketReady, true);
+});
+
 test('Probe dùng options production cho search/audio, chỉ nhận64KiB rồi kill có chủ đích và trả cờ an toàn', async () => {
     const f = fixture();
     const probing = runYoutubePoProbe({ ...f.dependencies, query: 'Tên bài cần kiểm tra' });

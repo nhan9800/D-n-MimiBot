@@ -129,7 +129,7 @@ function runYoutubePoProbe({ ytDlpExec, getOptions, query = 'JACK J97 Lưu Niên
             }
             const result = { ok: outcome === 'audio_received', outcome, phase, ...state() };
             stderrTail = ''; header = Buffer.alloc(0);
-            if (outcome === 'audio_received' && typeof verifyAudio === 'function') {
+            if (['audio_received', 'invalid_audio'].includes(outcome) && bytes > 0 && typeof verifyAudio === 'function') {
                 const sample = Buffer.concat(audioChunks); audioChunks = [];
                 let verificationDone = false, verificationTimer;
                 const finishVerification = playback => {
@@ -139,7 +139,8 @@ function runYoutubePoProbe({ ytDlpExec, getOptions, query = 'JACK J97 Lưu Niên
                     result.playback = { checked: true, ok: playback?.checked === true && playback?.ok === true && playback?.opusPacketReady === true,
                         opusPacketReady: playback?.opusPacketReady === true, effects: ['none', 'bassboost'],
                         elapsedMs: Number.isFinite(playback?.elapsedMs) ? Math.max(0, Math.min(5000, Math.floor(playback.elapsedMs))) : 5000 };
-                    if (!result.playback.ok) { result.ok = false; result.outcome = 'invalid_audio'; }
+                    result.ok = result.playback.ok;
+                    result.outcome = result.playback.ok ? 'audio_received' : 'invalid_audio';
                     resolve(result);
                 };
                 const cancelVerification = () => finishVerification(null);

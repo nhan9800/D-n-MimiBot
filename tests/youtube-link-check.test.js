@@ -115,6 +115,15 @@ test('Receipt packetOpus chỉ giữ số đo/cờ, không tin ok khi thiếu pa
     }
 });
 
+test('Receipt chấp nhận decoder xác minhOpus dù sniff không nhận container; header false vẫn được giữ thật', async t => {
+    const f = await fixture(t, { probe: async () => ({ ok: true, outcome: 'audio_received', videoId: VIDEO,
+        phase: 'audio', bytes: 65536, containerHeaderRecognized: false,
+        playback: { checked: true, ok: true, opusPacketReady: true, elapsedMs: 10 } }) });
+    const result = await runYoutubeLinkCheck(f.input);
+    assert.equal(result.audio.ok, true); assert.equal(result.audio.containerHeaderRecognized, false);
+    assert.equal(result.audio.playback.opusPacketReady, true);
+});
+
 test('Cùng case không được tái sử dụng receipt của client hoặc transport khác', async t => {
     for (const initial of [{}, { client: 'web_safari' }, { transport: 'hls' }]) {
         const f = await fixture(t);

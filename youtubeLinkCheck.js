@@ -48,7 +48,8 @@ function safeAudio(value, videoId, transport = 'default') {
         }
     }
     // Không cho receipt hỏng hoặc probe nhầm bài báo thành công cho video yêu cầu.
-    if (outcome === 'audio_received' && (input.videoId !== videoId || result.bytes === 0 || !result.containerHeaderRecognized
+    if (outcome === 'audio_received' && (input.videoId !== videoId || result.bytes === 0
+        || (!result.containerHeaderRecognized && result.playback?.opusPacketReady !== true)
         || (input.transport === undefined ? 'default' : input.transport) !== transport)) {
         result.ok = false; result.outcome = 'source_failed';
     }

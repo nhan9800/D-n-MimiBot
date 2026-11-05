@@ -125,3 +125,9 @@ không tạo AudioPlayer/voiceconnection hoặc lưu audio. Receipt `audio.playb
 chỉ có checked/ok/opusPacketReady/effects/elapsedMs; helper `musicAudioSample.js`
 đã thêm fingerprint/SFTP. Receipt cũ thiếu playback không chứng minh bước này.
 Dù có packetOpus, vẫn chưa chứng minh đã nghe qua Discord hoặc tải hết một mix.
+
+
+Nếu sniff không nhận header (ví dụ container khác), verifier vẫn phải cho
+decoder thật thử mẫu. Chỉ khi cả2nhánh có packetOpus mới báo audio_received;
+cờ containerHeaderRecognized vẫn false đúng phép đo, không sửa thànhtrue.
+Bộ sniff đơn giản không được dùng để bỏ qua phép giải mã hoặc báo thất bại giả.
