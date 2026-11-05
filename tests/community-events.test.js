@@ -37,6 +37,7 @@ function fixture() {
         once(event, fn) { this.on(event, fn); } };
     const begin = source.indexOf('let communitySaveTimer = null;'); const end = source.indexOf('// ☕ EMBED THÔNG TIN DONATE', begin);
     vm.runInNewContext(source.slice(begin, end), { ...discord, client, voiceEnabled: features.voiceEnabled, inviteSnapshot: features.inviteSnapshot,
+        ...require('../serverLifecycle'), config: { guilds: { [guildId]: settings } },
         createConfessionService, createInviteEventService,
         createMonthlyLevelService: args => createMonthlyLevelService({ ...args, now: () => wall }),
         isNewBoost: features.isNewBoost, buildMemberNotice, getGuildConfig: () => settings, saveConfig: () => saves++,

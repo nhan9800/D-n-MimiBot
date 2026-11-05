@@ -67,3 +67,14 @@ Source và Git phục hồi từ main `b91833f`, file còn lại giữ bản sao
 - Menu hiệu ứng sử dụng nhánh PCM của bài đang phát, giữ nguyên downloader/decoder, không lấy lại URL CDN. Skip/stop/seek dọn nhánh hiệu ứng và nguồn. Các hiệu ứng thay đổi tốc độ vẫn cập nhật thời gian phát theo tốc độ tương ứng.
 - `/shop` hoặc `mishop`: chọn hạt giống, nhập số lượng nguyên 1–9999; bot tính lại giá/số dư khi xác nhận. Hủy biểu mẫu không trừ tiền.
 - Ngưỡng thu nhập tổng trong ngày theo giờ Việt Nam tăng từ 10 triệu lên 25 triệu xu. Đúng 25 triệu được phép; vượt ngưỡng mới kích hoạt cơ chế khóa kinh tế hiện có. Không tự gỡ các lệnh cấm đã có.
+
+
+## Cập nhật05/11/2026
+
+- `/thongbao kênh:... tiêu_đề:... nội_dung:... ảnh:... link_ảnh:...`: đính kèm PNG/JPG/GIF/WebP tối đa10MB hoặc linkHTTPS. Có thể dùng cả hai; ảnh hiển thị trong thông báoV2. Không tự ping mention nằm trong nội dung; chỉ ping @everyone/vai trò đã chọn nếu người gửi có quyền. Tối đa10mục và4.000ký tự tổng.
+- `/reactionrole-create kênh:... tiêu_đề:... mẫu:Tất cả`: tạo13role không quyền đặc biệt gồm Nam/Nữ,8game và Bắc/Trung/Nam, cùng3menu tự chọn. Có thể chỉ chọn1mẫu. Giới tính/vùng miền tối đa1mục; game chọn nhiều. Bỏ chọn để gỡ, không sửa role ngoài bảng. Chạy lại dùng role/bảng cũ và giữ mục bổ sung. `/reactionrole-add` thêm mục vào nhóm bổ sung của bảng; không cho tự cấp role quản trị/kiểm duyệt, role managed hoặc cao hơn Mimi. Để trống mẫu vẫn tạo bảngEmoji thủ công cũ.
+- `/setup` tạo thêm `#thong-bao-mimi` chỉ ban quản trị xem và `#bay-chong-spam`. Server đã setup chạy lại lệnh để bổ sung2kênh, không xóa kênh hay cấu hình cũ. Cần ManageChannels+ManageRoles+KickMembers. Kênh bẫy ghi rõ gửi tin sẽ bị kick; miễn trừ chủ server/ManageGuild/Administrator/bot. Nhật ký gồm server,người gửi,kênh,ID/nội dung tin và kết quả kick, không ping. Không tự kick khi triển khai; chỉ xử lý tin nhắn mới sau khi admin chạy setup.
+- Thông báo hệ thống/broadcast/event/changelog dùng kênh nhận mới, không rơi về kênh ưu tiên/chat nếu kênh đó bị xóa/mất quyền. `/setupsystem` có thể chọn lại đích. Kênh Welcome,modlog,chấm công và nội dung được admin gửi đích danh vẫn giữ chức năng riêng.
+- Mỗi lần startup/reset, bot đọc đủ các trang server từ REST Discord rồi dọn config của server đã rời; guild còn trong cache (kể cả tạm unavailable) được giữ. REST lỗi/thiếu trang hoặc ghi file thất bại không được xóa. Event guildDelete dọn config ngay; guildUnavailable không phải guildDelete.
+
+Runtime thêm `announcementService.js`, `serverLifecycle.js`, `rolePresets.js`; đã thêm fingerprint và whitelistSFTP. Không deploy config/runtime/cookies từ local.

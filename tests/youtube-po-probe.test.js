@@ -24,6 +24,13 @@ test('Preset android_vr chỉ bỏ cookie ở probe, không sửa options gốc 
     assert.equal(calls[5], undefined);
 });
 
+test('Preset web_embedded_guest giữ đúng client embedded nhưng không dùng cookie tài khoản', () => {
+    const options = { cookies: 'PRIVATE_PATH', forceIpv4: true };
+    const guest = youtubeProbeOptions(args => ({ ...options, extractorArgs: args }), 'web_embedded_guest')();
+    assert.deepEqual(guest, { forceIpv4: true, extractorArgs: 'youtube:player_client=web_embedded' });
+    assert.equal(options.cookies, 'PRIVATE_PATH');
+});
+
 function deferred() {
     let resolve, reject;
     const promise = new Promise((yes, no) => { resolve = yes; reject = no; });

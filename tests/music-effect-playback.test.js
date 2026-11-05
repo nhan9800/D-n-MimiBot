@@ -601,6 +601,45 @@ test('PO sẵn sàng: hết client mới thử HLS một lần với deadline ri
     } finally { f.cleanup(); }
 });
 
+test('AUTH_REQUIRED lặp trên2client dừng tại nguồn, không thử HLS/autoplay hoặc bỏ sạch queue', async () => {
+    const f = await fixture({ youtubePoProvider: { options: extractorArgs => ({ extractorArgs }), snapshot: () => ({ ready: true }) } });
+    try {
+        f.current.requestedSource = 'youtube'; f.current.allowSourceFallback = false;
+        f.mq.autoplay = true;
+        f.context.YT_DOWNLOAD_CLIENT_FALLBACKS = youtubeDownloadClients;
+        await f.play();
+        f.clock.now += 1000;
+        await f.processes[0].rejectPlayback(new Error('Sign in to confirm you are not a bot')); await tick();
+        await f.processes[1].rejectPlayback(new Error('Sign in to confirm you are not a bot')); await tick();
+        assert.equal(f.processes.length, 2);
+        assert.equal(f.mq.sourceBlocked, true);
+        assert.equal(f.mq.current, null);
+        assert.deepEqual(f.mq.queue, [f.current, f.queued]);
+        assert.equal(f.notices.length, 1); assert.equal(f.notices[0].title, 'Tạm dừng nguồn YouTube');
+        assert.doesNotMatch(f.notices[0].content, /Đang.*tự động chuyển/);
+        for (const timer of f.timers) timer.callback();
+        await f.context.playNextTrack('g1'); await tick();
+        assert.equal(f.processes.length, 2, 'Callback cũ không khởi động lại nguồn đang bị khóa');
+        await f.context.getOrCreateMusicQueue({ id: 'g1' }, { id: 'v1' }, f.mq.textChannel);
+        assert.equal(f.mq.sourceBlocked, false, 'Yêu cầu phát mới cho phép thử lại sau khi nguồn được khôi phục');
+        await f.context.playNextTrack('g1');
+        assert.equal(f.processes.length, 3); assert.equal(f.mq.current, f.current);
+    } finally { f.cleanup(); }
+});
+
+test('Ngắt5lỗi liên tiếp giữ những bài còn lại và không để Idle bắt đầu autoplay', async () => {
+    const f = await fixture();
+    try {
+        f.current.allowSourceFallback = false;
+        f.mq.consecutiveFailures = 4;
+        await f.play();
+        await f.processes[0].rejectPlayback(new Error('Unknown extractor failure')); await tick();
+        assert.deepEqual(f.mq.queue, [f.queued]);
+        assert.equal(f.mq.sourceBlocked, true);
+        assert.equal(f.processes.length, 1);
+    } finally { f.cleanup(); }
+});
+
 test('Lỗi403 cũ được xóa sau khi HLS đã Playing; lỗi giữa bài giữ nguyên nhân mới', async () => {
     const f = await fixture({ youtubePoProvider: {
         options: extractorArgs => ({ extractorArgs }), snapshot: () => ({ ready: true })

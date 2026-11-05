@@ -94,3 +94,16 @@ HTTP403/0byte sau5476ms, Safari HLS timeout/0byte sau17381ms. Thứ tự tải n
 trong deadline16s còn lại, trước khi mở lượt HLS10s cuối. Video không cho
 embedded được thử default một lần, không tự đổi bài/nguồn. Lỗi auth vẫn chỉ
 thử các client có hỗ trợ tài khoản. Chưa phải bằng chứng nghe Discord/toàn bài.
+
+
+## Xác thực nguồn tái diễn05/11/2026
+
+Log mới ởeafd023 đã có nhiều state=playing thật, sau đó AnhVui/HạtMưa/E là không thể
+đều AUTH_REQUIRED trên embedded+default. Đây không phải timeout403 ngày04/11.
+Bản sửa dừng tự chuyển/autoplay sau khi các client hỗ trợ auth đã thất bại, bỏ
+HLS vô ích cho lỗi xác thực, giữ bài/hàng đợi trong phiên và chờ /play mới để thử
+lại. Cầu dao5lỗi cũng không xóa các bài còn chờ. Không tự refresh/xóa cookies.
+
+Probe thêm preset `web_embedded_guest` (cố địnhclientembedded,bỏcookie trongRAM)
+để đối chiếu cùngvideo trên host. Chưa bật nó làm nguồn production trước khi
+có receipt audio hợp lệ. Bằng chứng64KiB ngày04/11 chỉ áp dụng tại thời điểm đó.

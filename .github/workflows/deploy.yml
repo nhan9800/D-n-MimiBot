@@ -93,6 +93,9 @@ jobs:
           put musicDirectAudio.js
           put musicLiveEffects.js
           put musicPlaylist.js
+          put announcementService.js
+          put serverLifecycle.js
+          put rolePresets.js
           put categoryService.js
           put seedPurchase.js
           put youtubePoProvider.js

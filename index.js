@@ -40,6 +40,9 @@ const { createDirectAudioCandidate } = require('./musicDirectAudio');
 const { createLiveEffectSession } = require('./musicLiveEffects');
 const { resolvePlaylist, MAX_MUSIC_QUEUE } = require('./musicPlaylist');
 const { handleCategory } = require('./categoryService');
+const { handleAnnouncement } = require('./announcementService');
+const { notificationChannel, pruneDepartedGuilds, forgetDepartedGuild, setupSafetyChannels, isTrapMessage, createTrapHandler } = require('./serverLifecycle');
+const { assignable: selfAssignableRole, buildPresetPanel, setupRolePreset, handlePresetSelect } = require('./rolePresets');
 const { purchaseSeeds } = require('./seedPurchase');
 const { createMusicSearchCache, applySourcePolicy, chooseSoundcloudResult: rankSoundcloudResult } = require('./musicSearch');
 const { createYoutubePoProvider } = require('./youtubePoProvider');
@@ -568,6 +571,7 @@ async function sendBoostThanks(member, eventId) {
 }
 
 client.on('messageCreate', async message => {
+    if (isTrapMessage(message, config.guilds?.[message.guild?.id])) return;
     if (!message.guild || !BOOST_MESSAGE_TYPES.has(message.type)) return;
     const member = message.member || await message.guild.members.fetch(message.author.id).catch(() => null);
     await sendBoostThanks(member, `message:${message.id}`);
@@ -597,7 +601,12 @@ client.on('guildMemberRemove', async member => {
 });
 client.on('inviteCreate', invite => inviteTracker.created(invite));
 client.on('guildCreate', guild => { inviteTracker.seed(guild).catch(() => null); voiceXpTracker.resetGuild(guild); });
-client.on('guildDelete', guild => { inviteTracker.forgetGuild(guild.id); voiceXpTracker.forgetGuild(guild.id); });
+client.on('guildDelete', guild => {
+    inviteTracker.forgetGuild(guild.id); voiceXpTracker.forgetGuild(guild.id);
+    forgetDepartedGuild({ guildId: guild.id, client, config, save: saveConfig });
+});
+const handleTrapMessage = createTrapHandler({ getConfig: id => config.guilds?.[id] });
+client.on('messageCreate', message => { handleTrapMessage(message).catch(() => console.warn('[Trap] Không xử lý được tin nhắn trong kênh bẫy.')); });
 client.on('shardDisconnect', (_event, shardId) => {
     for (const guild of client.guilds.cache.values()) if (guild.shardId === shardId) {
         voiceXpTracker.suspendGuild(guild.id); inviteTracker.forgetGuild(guild.id);
@@ -808,6 +817,7 @@ async function resolveServerEmoji(guild, input) {
 
 // Vẽ lại embed của bảng Reaction Role dựa trên danh sách emoji -> vai trò hiện tại
 async function updateReactionRoleEmbed(message, panelData) {
+    if (panelData.mode === 'select') return message.edit(buildPresetPanel(panelData));
     const lines = Object.values(panelData.roles || {}).map(r => 
         `${r.display} ➜ <@&${r.roleId}>${r.description ? ` — *${r.description}*` : ''}`
     );
@@ -4293,7 +4303,11 @@ async function cleanupDuplicateAnnouncements() {
 
     // 1. Dọn dẹp kênh chính
     try {
-        const primaryChannel = await client.channels.fetch(PRIMARY_UPDATE_CHANNEL_ID).catch(() => null);
+        const homeGuild = client.guilds.cache.get(HOME_GUILD_ID);
+        const homeSettings = homeGuild && getGuildConfig(homeGuild.id);
+        const primaryChannel = homeSettings?.notificationChannelId
+            ? await notificationChannel(homeGuild, homeSettings)
+            : await client.channels.fetch(PRIMARY_UPDATE_CHANNEL_ID).catch(() => null);
         if (primaryChannel) {
             const c = await purgeDuplicatesInChannel(primaryChannel);
             deletedCount += c;
@@ -4380,7 +4394,11 @@ async function doBroadcastUpdate(force = false) {
 
     // 1. Kênh chính cố định: 1527814721053655092 (Chống spam / chống gửi lặp tuyệt đối)
     try {
-        const primaryChannel = await client.channels.fetch(PRIMARY_UPDATE_CHANNEL_ID).catch(() => null);
+        const homeGuild = client.guilds.cache.get(HOME_GUILD_ID);
+        const homeSettings = homeGuild && getGuildConfig(homeGuild.id);
+        const primaryChannel = homeSettings?.notificationChannelId
+            ? await notificationChannel(homeGuild, homeSettings)
+            : await client.channels.fetch(PRIMARY_UPDATE_CHANNEL_ID).catch(() => null);
         if (primaryChannel && primaryChannel.isTextBased?.()) {
             let alreadySent = false;
 
@@ -4444,24 +4462,11 @@ async function doBroadcastUpdate(force = false) {
             const gConfig = getGuildConfig(guild.id);
             let targetChannel = null;
 
-            // Ưu tiên 1: Kênh cài qua /setupsystem
-            if (gConfig?.systemChannelId) {
-                targetChannel = guild.channels.cache.get(gConfig.systemChannelId) || await guild.channels.fetch(gConfig.systemChannelId).catch(() => null);
-            }
-
-            // Ưu tiên 2: Tự động tìm kênh có tên chứa update/thông báo
-            if (!targetChannel || !canSendToChannel(targetChannel, guild)) {
+            targetChannel = await notificationChannel(guild, gConfig);
+            if (!gConfig.notificationChannelId && !gConfig.systemChannelId) {
                 targetChannel = guild.channels.cache.find(c =>
-                    c.isTextBased() &&
-                    !c.isThread() &&
-                    /^(update|updates|thong-bao|thông-báo|announcement|announcements|news|bot-update|changelog)$/i.test(c.name) &&
-                    canSendToChannel(c, guild)
-                );
-            }
-
-            // Ưu tiên 3: Kênh systemChannel mặc định của server
-            if (!targetChannel && guild.systemChannel && canSendToChannel(guild.systemChannel, guild)) {
-                targetChannel = guild.systemChannel;
+                    c.isTextBased() && !c.isThread() &&
+                    /^(update|updates|thong-bao|thông-báo|announcement|announcements|news|bot-update|changelog)$/i.test(c.name) && canSendToChannel(c, guild));
             }
 
             // BẢO VỆ CHỐNG SPAM CỘNG ĐỒNG:
@@ -5272,6 +5277,7 @@ function cleanupOrphanedMusicFragments() {
 //   • replayCurrent — phát LẠI mq.current thay vì lấy bài kế (dùng cho seek / đổi hiệu ứng giữa bài).
 async function playNextTrack(guildId, opts = {}) {
     const mq = musicQueues.get(guildId);
+    if (mq?.sourceBlocked) return;
     if (!mq) return;
     if (opts.expectedTrack && mq.current !== opts.expectedTrack) return;
 
@@ -5473,7 +5479,7 @@ async function playNextTrack(guildId, opts = {}) {
             }).catch(err => console.error('[Music] Không thể khôi phục sau lỗi hiệu ứng:', err?.message));
         }
         clearTransition();
-        handlePlaybackFailure(guildId, mq, next, shortErr);
+        handlePlaybackFailure(guildId, mq, next, shortErr, sourceFailureCode);
     };
     mq.onPlaybackFailure = failPlayback;
     const advancePlayback = () => {
@@ -5690,7 +5696,8 @@ async function playNextTrack(guildId, opts = {}) {
             const hlsResumeSec = Math.max(seekSec, getPlaybackSec(mq));
             // HLS giữa bài phải tải section thẳng tới mốc phát. Nếu host đã
             // vô hiệu hóa section thì bỏ lượt HLS, tránh tải lại toàn bộ đầu bài.
-            if (isYoutubePlayback && isRetryable && poReady && !youtubeHlsAttempt && !youtubeHlsTried
+            if (isYoutubePlayback && isRetryable && !['AUTH_REQUIRED', 'INVALID_COOKIES'].includes(safeError.code)
+                && poReady && !youtubeHlsAttempt && !youtubeHlsTried
                 && (hlsResumeSec === 0 || !mq.sectionDisabled)) {
                 const hlsDeadline = Date.now() + 10000;
                 console.warn(`🔁 [Music] Thử luồng HLS YouTube cho "${next.title}" trước khi đổi nguồn.`);
@@ -5890,7 +5897,7 @@ async function playNextTrack(guildId, opts = {}) {
 //     spam lỗi khiến người dùng phải xóa kênh mới hết).
 //   • Bài phát THÀNH CÔNG sẽ reset bộ đếm về 0 (xem playNextTrack).
 const MAX_CONSECUTIVE_FAILURES = 5;
-function handlePlaybackFailure(guildId, mq, failedTrack, shortErr) {
+function handlePlaybackFailure(guildId, mq, failedTrack, shortErr, sourceCode) {
     if (!mq || mq.current !== failedTrack) return; // đã chuyển bài khác -> bỏ qua lỗi cũ
     // Phiên đã bị dừng/xoá (Dừng & Thoát, rời kênh, mất kết nối) -> lỗi tới muộn của phiên cũ
     // không được gửi thông báo hay chuyển bài nữa.
@@ -5905,18 +5912,32 @@ function handlePlaybackFailure(guildId, mq, failedTrack, shortErr) {
     if (mq.failureHandledGen === mq.playGeneration) return;
     mq.failureHandledGen = mq.playGeneration;
 
+    if (sourceCode === 'AUTH_REQUIRED' || sourceCode === 'INVALID_COOKIES') {
+        mq.sourceBlocked = true;
+        mq.current = null;
+        mq.currentResource = null;
+        mq.queue.unshift(failedTrack);
+        killCurrentProcess(mq);
+        mq.transitioning = false;
+        try { mq.player.stop(); } catch { /* Player có thể đã dừng. */ }
+        musicStore.clearSession(guildId);
+        mq.textChannel?.send(buildMusicNoticePayload('Tạm dừng nguồn YouTube',
+            `${shortErr}\nĐã giữ bài và hàng đợi; Mimi tạm dừng tự chuyển bài để tránh lặp lỗi. Sau khi nguồn hoạt động lại, dùng /play để thử tiếp.`, 0xE74C3C)).catch(() => null);
+        return;
+    }
+
     mq.consecutiveFailures = (mq.consecutiveFailures || 0) + 1;
 
     // Chạm ngưỡng -> ngắt vòng lặp, dừng phát, KHÔNG spam thêm.
     if (mq.consecutiveFailures >= MAX_CONSECUTIVE_FAILURES) {
-        mq.queue = [];
+        mq.sourceBlocked = true;
         mq.current = null;
         mq.currentResource = null;
         killCurrentProcess(mq);
         if (mq.textChannel) {
             mq.textChannel.send(buildMusicNoticePayload(
-                'Đã dừng vì lỗi liên tục',
-                `Nhiều bài liên tiếp không phát được (đã thử **${mq.consecutiveFailures}** bài).\n> Có thể do mạng/nguồn tạm lỗi. Hãy thử lại sau bằng \`/play\`.`,
+                'Đã tạm dừng vì lỗi liên tục',
+                `Nhiều bài liên tiếp không phát được (đã thử **${mq.consecutiveFailures}** bài).\n> Có thể do mạng/nguồn tạm lỗi. Hàng đợi được giữ lại. Hãy thử lại sau bằng \`/play\`.`,
                 0xE74C3C
             )).catch(() => null);
         }
@@ -5993,6 +6014,7 @@ async function getOrCreateMusicQueue(guild, voiceChannel, textChannel) {
             mq.voiceChannelId = voiceChannel.id;
             if (mq.textChannel) mq.textChannel.send(`🔀 Đã chuyển sang kênh thoại ${voiceChannel} theo yêu cầu mới.`).catch(() => null);
         }
+        mq.sourceBlocked = false; // /play mới là lần thử lại chủ động.
         mq.textChannel = textChannel;
         return { mq };
     }
@@ -6299,6 +6321,7 @@ client.on('voiceStateUpdate', (oldState, newState) => {
 
     // 🎵 NHẠC: rời kênh khi không còn ai nghe
     if (mq) {
+
         const vc = guild.channels.cache.get(mq.voiceChannelId);
         // stay247 bật -> ở lại kênh dù không còn ai nghe (chế độ 24/7)
         if (vc && !mq.stay247 && vc.members.filter(m => !m.user.bot).size === 0) {
@@ -6953,7 +6976,7 @@ client.once('clientReady', async () => {
 
         new SlashCommandBuilder()
             .setName('reactionrole-create')
-            .setDescription('Tạo bảng chọn vai trò bằng Reaction Emoji (Tính năng riêng, không ảnh hưởng /setup)')
+            .setDescription('Tạo bảng chọn vai trò thủ công hoặc mẫu sẵn Nam/Nữ, Game, Vùng miền')
             .setDefaultMemberPermissions(PermissionFlagsBits.ManageRoles)
             .addChannelOption(option => 
                 option.setName('kênh')
@@ -6961,8 +6984,10 @@ client.once('clientReady', async () => {
                 .addChannelTypes(ChannelType.GuildText)
                 .setRequired(true)
             )
-            .addStringOption(option => option.setName('tiêu_đề').setDescription('Tiêu đề bảng chọn vai trò').setRequired(true))
-            .addStringOption(option => option.setName('nội_dung').setDescription('Mô tả hướng dẫn phía trên (Dùng \\n để xuống dòng)')),
+            .addStringOption(option => option.setName('tiêu_đề').setDescription('Tiêu đề bảng chọn vai trò').setRequired(true).setMaxLength(200))
+            .addStringOption(option => option.setName('nội_dung').setDescription('Mô tả hướng dẫn phía trên (Dùng \\n để xuống dòng)'))
+            .addStringOption(o => o.setName('mẫu').setDescription('Tạo sẵn vai trò và bảng chọn; bỏ trống để tạo bảng Emoji thủ công')
+                .addChoices({name:'Nam / Nữ',value:'gioi_tinh'}, {name:'Game',value:'game'}, {name:'Vùng miền',value:'vung_mien'}, {name:'Tất cả',value:'tat_ca'})),
 
         new SlashCommandBuilder()
             .setName('reactionrole-add')
@@ -7085,7 +7110,9 @@ client.once('clientReady', async () => {
             .addStringOption(o => o.setName('màu').setDescription('Màu viền (hex, VD: #5865F2). Mặc định: xanh Discord').setRequired(false).setMaxLength(7))
             .addStringOption(o => o.setName('chân_trang').setDescription('Dòng ghi chú nhỏ ở cuối (tùy chọn)').setRequired(false).setMaxLength(300))
             .addBooleanOption(o => o.setName('gắn_mọi_người').setDescription('Có gắn @everyone kèm thông báo không? (mặc định: Không)').setRequired(false))
-            .addRoleOption(o => o.setName('vai_trò_tag').setDescription('Vai trò cần ping (tùy chọn)')),
+            .addRoleOption(o => o.setName('vai_trò_tag').setDescription('Vai trò cần ping (tùy chọn)'))
+            .addAttachmentOption(o => o.setName('ảnh').setDescription('Đính kèm ảnh PNG/JPG/GIF/WebP, tối đa 10 MB'))
+            .addStringOption(o => o.setName('link_ảnh').setDescription('Link HTTPS ảnh lớn trong thông báo').setMaxLength(2000)),
 
         new SlashCommandBuilder()
             .setName('setprefix')
@@ -7416,15 +7443,7 @@ client.once('clientReady', async () => {
     // Cập nhật mã/restart không tự phát thông báo ra các cộng đồng.
 
     // ── Quét & dọn config của các server bot không còn tham gia (bị kick/rời khi bot offline) ──
-    let removedGuildCount = 0;
-    for (const guildId in config.guilds) {
-        if (!client.guilds.cache.has(guildId)) {
-            delete config.guilds[guildId];
-            removedGuildCount++;
-            console.log(`🗑️ Đã xóa config server \`${guildId}\` (bot không còn ở server này).`);
-        }
-    }
-    if (removedGuildCount > 0) saveConfig();
+    await pruneDepartedGuilds({ client, config, save: saveConfig });
 
     client.guilds.cache.forEach(guild => {
         if (config.guilds && config.guilds[guild.id]) {
@@ -7675,6 +7694,7 @@ client.on('userUpdate', async (oldUser, newUser) => {
 // trả lại số lần mute/kick/ban của người đó trong server này.
 // -----------------------------------------------------------------
 client.on('messageCreate', async (msg) => {
+    if (isTrapMessage(msg, config.guilds?.[msg.guild?.id])) return;
     try {
         if (msg.author.bot || !msg.guild) return;
 
@@ -7720,6 +7740,7 @@ client.on('messageCreate', async (msg) => {
 // 🔊 KÊNH ĐỌC TIN NHẮN (TTS) — ai nhắn vào kênh này, bot đọc lên trong voice
 // -----------------------------------------------------------------
 client.on('messageCreate', async (msg) => {
+    if (isTrapMessage(msg, config.guilds?.[msg.guild?.id])) return;
     try {
         if (msg.author.bot || !msg.guild) return;
 
@@ -7772,6 +7793,7 @@ client.on('messageCreate', async (msg) => {
 // Gõ "-từ" để xóa 1 từ khỏi danh sách. Gõ "list" để xem danh sách hiện tại.
 // -----------------------------------------------------------------
 client.on('messageCreate', async (msg) => {
+    if (isTrapMessage(msg, config.guilds?.[msg.guild?.id])) return;
     try {
         if (msg.author.bot || !msg.guild) return;
         const gConfig = getGuildConfig(msg.guild.id);
@@ -7854,6 +7876,7 @@ client.on('messageCreate', async (msg) => {
 // Cứ 5 lần Cảnh Cáo -> tự động Mute -> cứ 5 Mute -> Kick -> cứ 5 Kick -> Ban.
 // -----------------------------------------------------------------
 client.on('messageCreate', async (msg) => {
+    if (isTrapMessage(msg, config.guilds?.[msg.guild?.id])) return;
     try {
         if (msg.author.bot || !msg.guild || !msg.member) return;
         const gConfig = getGuildConfig(msg.guild.id);
@@ -8007,6 +8030,7 @@ client.on('messageReactionRemove', async (reaction, user) => {
 });
 
 client.on('messageCreate', async (message) => {
+    if (isTrapMessage(message, config.guilds?.[message.guild?.id])) return;
     if (message.author.bot) return;
 
     const forwardDMs = process.env.FORWARD_BOT_DMS_TO_OWNER !== 'false';
@@ -8431,6 +8455,7 @@ function executeSearching(userId, username, avatarUrl, count = 1, isFast = false
 }
 
 client.on('messageCreate', async (message) => {
+    if (isTrapMessage(message, config.guilds?.[message.guild?.id])) return;
     if (message.author.bot || !message.guild) return;
 
     const userId = message.author.id;
@@ -11140,6 +11165,10 @@ client.on('interactionCreate', async interaction => {
         setTimeout(() => buttonCooldowns.delete(cooldownKey), 1200); // 1.2s cooldown
     }
 
+    if (interaction.isStringSelectMenu() && customId?.startsWith('rr_preset:')) {
+        return handlePresetSelect(interaction, { settings: gConfig });
+    }
+
     // ==========================================
     // 📋 XỬ LÝ PHÂN TRANG & BỘ LỌC KỶ LUẬT (/kyluat)
     // ==========================================
@@ -11177,6 +11206,9 @@ client.on('interactionCreate', async interaction => {
     // ==========================================
     if (interaction.isChatInputCommand()) {
         const { commandName, options } = interaction;
+        if (commandName.startsWith('reactionrole-') && !interaction.memberPermissions?.has(PermissionFlagsBits.ManageRoles)) {
+            return interaction.reply({ content: 'Bạn cần quyền Quản lý vai trò.', flags: MessageFlags.Ephemeral });
+        }
 
         // ==========================================
         // 🛡️ MIDDLEWARE / GUARD CHO CÁC LỆNH GIỚI HẠN
@@ -11692,15 +11724,13 @@ client.on('interactionCreate', async interaction => {
                 pickRolesChannelId: ''
             };
 
-            const guildIdsToRemove = [];
 
             for (const guildId in config.guilds) {
                 const gCfg = config.guilds[guildId];
                 const targetGuild = client.guilds.cache.get(guildId);
 
                 if (!targetGuild) {
-                    guildIdsToRemove.push(guildId);
-                    report.push(`🗑️ \`${guildId}\` — Bot không còn ở server này (đã bị kick/rời) → **đã xóa toàn bộ config**`);
+                    report.push(`Server ${guildId} chưa có trong cache; chỉ xóa sau khi REST xác nhận đã rời.`);
                     continue;
                 }
 
@@ -11765,10 +11795,7 @@ client.on('interactionCreate', async interaction => {
                         .sort((a, b) => b.position - a.position)
                         .first(3);
                     const mentions = topRoles.map(r => `<@&${r.id}>`).join(' ');
-                    const sysChannel = targetGuild.systemChannel || targetGuild.channels.cache.find(c =>
-                        c.type === ChannelType.GuildText &&
-                        c.permissionsFor(targetGuild.members.me)?.has(PermissionFlagsBits.SendMessages)
-                    );
+                    const sysChannel = await notificationChannel(targetGuild, gCfg);
                     if (sysChannel) {
                         await sysChannel.send({
                             content: `${mentions}\n⚠️ **Server đang thiếu các kênh: ${missingChannels.join(', ')}**\nAdmin vui lòng dùng lệnh \`/setup\` để tạo lại các kênh còn thiếu.`
@@ -11823,11 +11850,8 @@ client.on('interactionCreate', async interaction => {
                 }
             }
 
-            // ── Dọn hẳn config của các server bot đã bị kick/rời ──
-            for (const goneId of guildIdsToRemove) {
-                delete config.guilds[goneId];
-                totalRemoved++;
-            }
+            const guildScan = await pruneDepartedGuilds({ client, config, save: saveConfig });
+            totalRemoved = guildScan.removed;
 
             saveConfig();
 
@@ -11932,104 +11956,7 @@ client.on('interactionCreate', async interaction => {
         // 📢 LỆNH /broadcast — Chỉ Owner, chỉ tại server cố định
         // Gửi thông báo tới tất cả server bot đang tham gia
         // ==========================================
-        if (commandName === 'thongbao') {
-            if (!interaction.guild) {
-                return interaction.reply({ content: '🚫 Lệnh này chỉ dùng được trong server.', flags: MessageFlags.Ephemeral });
-            }
-            const guild = interaction.guild;
-            const member = interaction.member;
-            // Quyền: đã khóa ở setDefaultMemberPermissions(ManageGuild), kiểm tra thêm cho chắc.
-            if (!member.permissions?.has(PermissionFlagsBits.ManageGuild) && !member.permissions?.has(PermissionFlagsBits.Administrator)) {
-                return interaction.reply({ content: '🚫 Bạn cần quyền **Quản lý Server** để dùng lệnh này.', flags: MessageFlags.Ephemeral });
-            }
-            await interaction.deferReply({ flags: MessageFlags.Ephemeral });
-
-            const targetChannel = options.getChannel('kênh');
-            const tbTitle = options.getString('tiêu_đề');
-            const tbBody = options.getString('nội_dung');
-            const tbFooter = options.getString('chân_trang');
-            const pingEveryone = options.getBoolean('gắn_mọi_người') || false;
-
-            // Phân tích màu hex (#RRGGBB) -> số nguyên; mặc định xanh Discord nếu sai định dạng.
-            let accent = 0x5865F2;
-            const rawColor = options.getString('màu');
-            if (rawColor) {
-                const m = rawColor.trim().match(/^#?([0-9a-fA-F]{6})$/);
-                if (m) accent = parseInt(m[1], 16);
-            }
-
-            // Kiểm tra quyền bot ở kênh đích.
-            const me = guild.members.me;
-            const perms = targetChannel.permissionsFor(me);
-            if (!perms?.has(PermissionFlagsBits.ViewChannel) || !perms?.has(PermissionFlagsBits.SendMessages)) {
-                return interaction.editReply({ content: `❌ Bot không có quyền **Xem** hoặc **Gửi tin** trong ${targetChannel}.` });
-            }
-
-            // Kiểm tra quyền ping @everyone TRƯỚC khi build (tránh dựng xong mới báo lỗi).
-            if (pingEveryone && !member.permissions?.has(PermissionFlagsBits.MentionEveryone) && !member.permissions?.has(PermissionFlagsBits.Administrator)) {
-                return interaction.editReply({ content: '❌ Bạn cần quyền **Nhắc mọi người (@everyone)** để bật tùy chọn này.' });
-            }
-
-            // Tách các MỤC bằng dấu "|". Mỗi mục: "Tiêu đề mục :: nội dung" (không có "::" -> mục chỉ có nội dung).
-            const sections = tbBody.split('|').map(s => s.trim()).filter(Boolean);
-
-            const container = new ContainerBuilder().setAccentColor(accent);
-            // ⚠️ Components V2 KHÔNG cho kèm message.content -> @everyone phải nằm TRONG component (TextDisplay).
-            // Vẫn cần allowedMentions.parse=['everyone'] ở payload thì mention mới THẬT SỰ kêu.
-            const thongbaoRole = options.getRole('vai_trò_tag');
-            if (pingEveryone && thongbaoRole) {
-                container.addTextDisplayComponents(new TextDisplayBuilder().setContent(`@everyone ${thongbaoRole}`));
-            } else if (pingEveryone) {
-                container.addTextDisplayComponents(new TextDisplayBuilder().setContent('@everyone'));
-            } else if (thongbaoRole) {
-                container.addTextDisplayComponents(new TextDisplayBuilder().setContent(`${thongbaoRole}`));
-            }
-            // Tiêu đề lớn ở đầu.
-            container.addTextDisplayComponents(new TextDisplayBuilder().setContent(`# ${tbTitle}`));
-            container.addSeparatorComponents(new SeparatorBuilder().setSpacing(SeparatorSpacingSize.Large).setDivider(true));
-
-            if (sections.length === 0) {
-                container.addTextDisplayComponents(new TextDisplayBuilder().setContent('*(Không có nội dung)*'));
-            } else {
-                sections.forEach((sec, idx) => {
-                    const sepIndex = sec.indexOf('::');
-                    let content;
-                    if (sepIndex >= 0) {
-                        const secTitle = sec.slice(0, sepIndex).trim();
-                        const secBody = sec.slice(sepIndex + 2).trim().replace(/\\n/g, '\n');
-                        content = `## ${secTitle}\n${secBody}`;
-                    } else {
-                        content = sec.replace(/\\n/g, '\n');
-                    }
-                    container.addTextDisplayComponents(new TextDisplayBuilder().setContent(content.slice(0, 3900)));
-                    // Vạch ngăn giữa các mục (không thêm sau mục cuối).
-                    if (idx < sections.length - 1) {
-                        container.addSeparatorComponents(new SeparatorBuilder().setSpacing(SeparatorSpacingSize.Small).setDivider(true));
-                    }
-                });
-            }
-
-            if (tbFooter) {
-                container.addSeparatorComponents(new SeparatorBuilder().setSpacing(SeparatorSpacingSize.Large).setDivider(true));
-                container.addTextDisplayComponents(new TextDisplayBuilder().setContent(`-# ${tbFooter}`));
-            }
-
-            // @everyone: KHÔNG set payload.content (Components V2 cấm) — text đã nằm trong container ở trên.
-            // Chỉ cần allowedMentions để mention THẬT SỰ kêu; mặc định tắt hết mention để không ping ngoài ý muốn.
-            const payload = {
-                components: [container], flags: MessageFlags.IsComponentsV2,
-                mimiUi: { preserve: true },
-                allowedMentions: { parse: ['everyone', 'roles'] }
-            };
-
-            const sent = await targetChannel.send(payload).catch(err => {
-                console.error('❌ [ThongBao] Không gửi được:', err.message);
-                return null;
-            });
-            if (!sent) return interaction.editReply({ content: '❌ Gửi thông báo thất bại (kiểm tra lại quyền của bot ở kênh đó).' });
-
-            return interaction.editReply({ content: `✅ Đã đăng thông báo **${sections.length} mục** vào ${targetChannel}.` });
-        }
+        if (commandName === 'thongbao') return handleAnnouncement(interaction);
 
         if (commandName === "broadcast") {
             if (!isBotOwner(interaction.user.id)) return interaction.reply({ content: '🚫 Chỉ chủ sở hữu bot được phát thông báo liên server.', flags: MessageFlags.Ephemeral });
@@ -13361,6 +13288,7 @@ client.on('interactionCreate', async interaction => {
         // ==========================================
         if (commandName === 'reactionrole-create') {
             await interaction.deferReply({ flags: MessageFlags.Ephemeral });
+            if (options.getString('mẫu')) return setupRolePreset(interaction, { settings: gConfig, save: saveConfig });
 
             const targetChannel = options.getChannel('kênh');
             const title = options.getString('tiêu_đề');
@@ -13432,6 +13360,19 @@ client.on('interactionCreate', async interaction => {
                 if (!clientEmoji) {
                     return interaction.editReply({ content: '❌ Không tìm thấy Emoji tùy chỉnh này trong server và Bot không có quyền truy cập emoji này.' });
                 }
+            }
+
+            if (panelData.mode === 'select') {
+                if (!interaction.memberPermissions?.has(PermissionFlagsBits.ManageRoles) || !selfAssignableRole(role, guild)) {
+                    return interaction.editReply('Vai trò cần thuộc server, thấp hơn Mimi và không chứa quyền quản trị/kiểm duyệt.');
+                }
+                if (Object.values(panelData.roles).some(r => r.roleId === role.id)) return interaction.editReply('Vai trò đã có trong bảng.');
+                if (Object.values(panelData.roles).filter(r => r.group === 'them').length >= 25) return interaction.editReply('Nhóm bổ sung tối đa25mục.');
+                const updated = { ...panelData, roles: { ...panelData.roles, [key]: { roleId: role.id, display, label: role.name, description: desc, group: 'them' } } };
+                await targetMessage.edit(buildPresetPanel(updated));
+                gConfig.reactionRoles[msgId] = updated;
+                saveConfig();
+                return interaction.editReply(`Đã thêm ${role} vào bảng chọn.`);
             }
 
             const reacted = await targetMessage.react(reactTarget).catch(err => {
@@ -13693,9 +13634,12 @@ client.on('interactionCreate', async interaction => {
         }
 
         if (commandName === 'setupsystem') {
+            if (!interaction.memberPermissions?.has(PermissionFlagsBits.ManageGuild)) return interaction.reply({ content: 'Bạn cần quyền Quản lý máy chủ.', flags: MessageFlags.Ephemeral });
             const channel = interaction.options.getChannel('kênh');
+            if (!channel || channel.guildId !== guild.id || ![ChannelType.GuildText, ChannelType.GuildAnnouncement].includes(channel.type)) return interaction.reply({ content: 'Chọn kênh văn bản trong máy chủ này.', flags: MessageFlags.Ephemeral });
             const gConfig = getGuildConfig(interaction.guild.id);
             gConfig.systemChannelId = channel.id;
+            gConfig.notificationChannelId = channel.id;
             saveConfig();
             return interaction.reply({ content: `✅ Đã cài đặt kênh ${channel} làm kênh nhận thông báo hệ thống từ Admin Bot.`, flags: 64 });
         }
@@ -13771,12 +13715,12 @@ client.on('interactionCreate', async interaction => {
             let totalSetups = 0;
             
             for (const [guildId, gc] of Object.entries(config.guilds)) {
-                if (gc.systemChannelId) {
+                if (gc.notificationChannelId || gc.systemChannelId) {
                     totalSetups++;
                     try {
                         const guild = await client.guilds.fetch(guildId).catch(() => null);
                         if (guild) {
-                            const channel = guild.channels.cache.get(gc.systemChannelId) || await guild.channels.fetch(gc.systemChannelId).catch(() => null);
+                            const channel = await notificationChannel(guild, gc);
                             if (channel) {
                                 const msg = await channel.send({ embeds: [eventEmbed], components: [joinButton] }).catch(() => null);
                                 if (msg) {
@@ -13957,14 +13901,20 @@ if (commandName === 'setupcategory') {
 
 if (commandName === 'setup') {
             try { await interaction.deferReply({ flags: MessageFlags.Ephemeral }); } catch (e) { return; }
-            if (gConfig.isSetupCompleted === true) return interaction.editReply({ content: '⚠️ Hệ thống đã ở trạng thái setup trước đó.' });
+            if (!interaction.memberPermissions?.has(PermissionFlagsBits.ManageGuild)) return interaction.editReply('Bạn cần quyền Quản lý máy chủ.');
+            if (gConfig.isSetupCompleted === true) {
+                try {
+                    const added = await setupSafetyChannels(guild, gConfig, { botId: client.user.id, save: saveConfig });
+                    return interaction.editReply(`Đã cập nhật hệ thống: nhận thông báo tại ${added.notices}, kênh bẫy tại ${added.trap}. Gửi tin trong kênh bẫy sẽ bị kick; quản trị viên và bot được miễn trừ.`);
+                } catch (error) { return interaction.editReply(error.message); }
+            }
 
             // Các id kênh được gán DẦN trong lúc tạo. Nếu một bước ném lỗi (thiếu quyền Quản lý kênh...),
             // phải trả các field này về giá trị cũ, nếu không saveConfig() của tính năng khác sẽ ghi
             // xuống đĩa trạng thái setup nửa vời (trỏ tới kênh chưa hề được tạo).
             const setupFields = [
                 'welcomeChannelId', 'ticketCategoryId', 'ticketControlChannelId', 'ticketArchiveChannelId',
-                'attendanceCategoryId', 'attendanceChannelId', 'logChannelId', 'weeklyReportChannelId', 'bannedWordsChannelId'
+                'attendanceCategoryId', 'attendanceChannelId', 'logChannelId', 'weeklyReportChannelId', 'bannedWordsChannelId', 'confessionChannelId', 'pickRolesChannelId'
             ];
             const setupSnapshot = {};
             for (const field of setupFields) setupSnapshot[field] = gConfig[field];
@@ -14078,10 +14028,11 @@ if (commandName === 'setup') {
                     console.error("Lỗi tạo kênh thống kê: ", e);
                 }
 
+                const safetyChannels = await setupSafetyChannels(guild, gConfig, { botId: client.user.id, save: saveConfig });
                 gConfig.isSetupCompleted = true; saveConfig();
                 await scanAndRescueTickets(guild, gConfig);
 
-                return interaction.editReply({ content: '✅ **Hệ thống đã kết nối và khởi tạo bảng nút gốc thành công!**\n🛡️ Hệ thống xác thực **không còn tự động chạy theo `/setup`** — dùng lệnh `/setupverify` riêng để bật khi cần.\n☕ Kênh **donate** cũng đã tách riêng — dùng `/setupdonate` để tạo/làm mới khi cần.' });
+                return interaction.editReply({ content: `Đã khởi tạo hệ thống.\nThông báo Mimi: ${safetyChannels.notices}. Kênh bẫy: ${safetyChannels.trap}. Thành viên nhắn vào kênh bẫy sẽ bị kick; quản trị viên/bot được miễn trừ.\nDùng /setupverify, /setupticket, /setupattendance và /setupdonate để bật các tính năng riêng.` });
             } catch (err) {
                 console.error(err);
                 for (const field of setupFields) gConfig[field] = setupSnapshot[field];
@@ -14665,8 +14616,8 @@ if (commandName === 'changelog') {
                 return interaction.reply({ content: 'Lệnh này chỉ dành cho Developer / Admin!', flags: MessageFlags.Ephemeral });
             }
             await interaction.deferReply({ flags: MessageFlags.Ephemeral });
-            const targetChannel = await client.channels.fetch(PRIMARY_UPDATE_CHANNEL_ID).catch(() => null);
-            if (!targetChannel) return interaction.editReply(`Không tìm thấy kênh ${PRIMARY_UPDATE_CHANNEL_ID}.`);
+            const targetChannel = await notificationChannel(guild, gConfig);
+            if (!targetChannel) return interaction.editReply('Chưa có kênh thông báo hợp lệ. Dùng /setup hoặc /setupsystem để tạo/chọn kênh.');
 
             try {
                 const payload = buildComponentsV2Announcement();
@@ -14674,7 +14625,7 @@ if (commandName === 'changelog') {
                 if (targetChannel.type === ChannelType.GuildAnnouncement && sentMsg.crosspost) {
                     await sentMsg.crosspost().catch(() => null);
                 }
-                return interaction.editReply(`Đã gửi thông báo cập nhật (Components V2, Spector Line, Không Emoji) thành công vào kênh <#${PRIMARY_UPDATE_CHANNEL_ID}>!`);
+                return interaction.editReply(`Đã gửi thông báo cập nhật vào ${targetChannel}.`);
             } catch (err) {
                 console.error('[changelog]', err.message);
                 return interaction.editReply(`Lỗi gửi thông báo: ${err.message}`);
@@ -14948,7 +14899,7 @@ if (commandName === 'changelog') {
                 color: '#ED4245',
                 desc: 'Tạo bảng để thành viên tự chọn vai trò bằng cách thả Emoji. Hệ thống này độc lập hoàn toàn với `/setup`.',
                 fields: [
-                    { name: '`/reactionrole-create [kênh] [tiêu_đề] [nội_dung]`', value: 'Tạo bảng chọn vai trò mới tại kênh chỉ định. Bot trả về **ID tin nhắn** để dùng cho các bước tiếp theo.' },
+                    { name: '`/reactionrole-create [kênh] [tiêu_đề] [nội_dung]`', value: 'Tạo bảng chọn vai trò mới tại kênh chỉ định. Chọn `mẫu: Tất cả` để tạo sẵn role Nam/Nữ, Game, Vùng miền và bảng menu. Chạy lại dùng cùng bảng. Bot trả về **ID tin nhắn** để thêm mục bằng `/reactionrole-add`.' },
                     { name: '`/reactionrole-add [id_tin_nhắn] [emoji] [vai_trò] [mô_tả]`', value: 'Gắn 1 Emoji vào 1 Vai trò trên bảng. Bot tự thả Emoji lên tin nhắn và cập nhật danh sách hiển thị.\n• Hỗ trợ Autocomplete tự động gợi ý danh sách Emoji server.\n• Nhận diện linh hoạt: gõ `:tên:`, tên không dấu hai chấm, Emoji Unicode (😀) hoặc tag `<:tên:id>`.' },
                     { name: '`/reactionrole-remove [id_tin_nhắn] [emoji]`', value: 'Gỡ 1 Emoji khỏi bảng. Hỗ trợ Autocomplete tự động liệt kê các Emoji đang gắn trên bảng để gỡ cực nhanh.' },
                     { name: '`/reactionrole-reset`', value: 'Xóa **toàn bộ** bảng và dữ liệu Reaction Role trên server. Không ảnh hưởng các tính năng khác.' },
@@ -14971,7 +14922,7 @@ if (commandName === 'changelog') {
                 fields: [
                     { name: '`misay [nội dung]` hoặc `mis [nội dung]`', value: 'Bot gửi lại đúng nội dung đó trong kênh hiện tại, đồng thời **tự xóa tin nhắn gốc** của Admin.\nDùng để thông báo "thay mặt" server mà không lộ danh tính.' },
                     { name: '💡 Ví dụ', value: '`mis 🔔 Server sẽ bảo trì vào 22:00 tối nay, mọi người lưu ý nhé!`\n→ Bot xóa tin nhắn đó và gửi lại thông báo sạch sẽ.' },
-                    { name: '📣 `/thongbao` (Thông báo CHIA MỤC — đẹp, nhiều phần)', value: 'Gửi thông báo dạng khối cao cấp, tự chia nhiều mục có tiêu đề riêng.\n• `kênh` — nơi đăng thông báo\n• `tiêu_đề` — tiêu đề lớn ở đầu\n• `nội_dung` — các mục cách nhau bằng ` | `, mỗi mục dạng `Tiêu đề mục :: nội dung`\n• `màu` (tùy chọn) — viền HEX, VD `#5865F2`\n• `chân_trang` (tùy chọn) — ghi chú nhỏ ở cuối\n• `gắn_mọi_người` (tùy chọn) — kèm @everyone (cần quyền Nhắc mọi người)\nYêu cầu quyền **Quản Lý Server**.' },
+                    { name: '📣 `/thongbao` (Thông báo CHIA MỤC — đẹp, nhiều phần)', value: 'Gửi thông báo dạng khối cao cấp, tự chia nhiều mục có tiêu đề riêng.\n• `kênh` — nơi đăng thông báo\n• `tiêu_đề` — tiêu đề lớn ở đầu\n• `nội_dung` — các mục cách nhau bằng ` | `, mỗi mục dạng `Tiêu đề mục :: nội dung`\n• `màu` (tùy chọn) — viền HEX, VD `#5865F2`\n• `ảnh` / `link_ảnh` — ảnh đính kèm tối đa10MB hoặc linkHTTPS\n• `chân_trang` (tùy chọn) — ghi chú nhỏ ở cuối\n• `gắn_mọi_người` (tùy chọn) — kèm @everyone (cần quyền Nhắc mọi người)\nYêu cầu quyền **Quản Lý Server**.' },
                     { name: '💡 Ví dụ `/thongbao`', value: '`nội_dung:` `Sự kiện :: Đua top cuối tuần! | Phần thưởng :: 10.000 xu cho top 1 | Lưu ý :: Kết thúc 23:59 Chủ Nhật`\n→ Ra thông báo 3 mục gọn gàng, có vạch ngăn.' },
                 ]
             },
@@ -17139,9 +17090,7 @@ if (commandName === 'changelog') {
                         if (!me) continue;
                         const canSend = (c) => c && me && (c.type === ChannelType.GuildText || c.type === ChannelType.GuildAnnouncement) && c.permissionsFor(me)?.has(PermissionFlagsBits.ViewChannel) && c.permissionsFor(me)?.has(PermissionFlagsBits.SendMessages);
                         const settings = getGuildConfig(g.id);
-                        let targetChannel = settings.systemChannelId ? (g.channels.cache.get(settings.systemChannelId) || await g.channels.fetch(settings.systemChannelId).catch(() => null)) : null;
-                        if (!canSend(targetChannel)) targetChannel = g.channels.cache.find(c => /(?:update|thong-bao|thông-báo|announcement|news|bot-update|changelog)/i.test(c.name || '') && canSend(c));
-                        if (!canSend(targetChannel)) targetChannel = canSend(g.systemChannel) ? g.systemChannel : null;
+                        const targetChannel = await notificationChannel(g, settings);
                         if (targetChannel) { await targetChannel.send(v2Payload); sentCount++; }
                     } catch (e) {}
                 }
