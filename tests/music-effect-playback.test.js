@@ -627,6 +627,34 @@ test('AUTH_REQUIRED lặp trên2client dừng tại nguồn, không thử HLS/au
     } finally { f.cleanup(); }
 });
 
+test('Phiên tài khoản bị auth thử cùng video guest1lần, không cookie/đổi bản/đổi hiệu ứng hoặc lấy queue', async () => {
+    for (const failed of [false, true]) {
+        const f = await fixture({ youtubePoProvider: { options: extractorArgs => ({ extractorArgs }), snapshot: () => ({ ready: true }) } });
+        try {
+            f.context.getCookieFilePath = () => '/private/cookie-file';
+            f.context.YT_DOWNLOAD_CLIENT_FALLBACKS = youtubeDownloadClients;
+            f.current.requestedSource = 'youtube'; f.current.allowSourceFallback = false;
+            await f.play({ effectKey: 'bassboost' });
+            f.clock.now += 2000;
+            await f.processes[0].rejectPlayback(new Error('The provided YouTube account cookies are no longer valid')); await tick();
+            assert.equal(f.processes.length, 2); assert.equal(f.processes[1].url, f.current.url);
+            assert.equal(f.processes[1].flags.extractorArgs, 'youtube:player_client=web_embedded');
+            assert.equal(f.processes[1].flags.cookies, undefined);
+            assert.equal(f.timers.find(timer => !timer.cleared).delay, 16000);
+            assert.equal(f.mq.effect, 'bassboost'); assert.deepEqual(f.mq.queue, [f.queued]);
+            if (failed) {
+                await f.processes[1].rejectPlayback(new Error('authentication required')); await tick();
+                assert.equal(f.processes.length, 2); assert.equal(f.mq.sourceBlocked, true);
+                assert.deepEqual(f.mq.queue, [f.current, f.queued]); assert.equal(f.notices.length, 1);
+            } else {
+                f.player.state = { status: 'playing', resource: f.mq.currentResource };
+                f.player.emit('playing', {}, f.player.state);
+                assert.equal(f.mq.current, f.current); assert.equal(f.notices.length, 0);
+            }
+        } finally { f.cleanup(); }
+    }
+});
+
 test('Ngắt5lỗi liên tiếp giữ những bài còn lại và không để Idle bắt đầu autoplay', async () => {
     const f = await fixture();
     try {

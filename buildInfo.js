@@ -29,6 +29,7 @@ RUNTIME_FILES.push('inviteEvents.js', 'monthlyLevels.js');
 RUNTIME_FILES.push('ticketPanelService.js');
 RUNTIME_FILES.push('ticketSetup.js');
 RUNTIME_FILES.push('announcementService.js', 'serverLifecycle.js', 'rolePresets.js');
+RUNTIME_FILES.push('musicAudioSample.js');
 
 function runtimeFingerprint(directory = __dirname) {
     const hash = createHash('sha256');

@@ -62,6 +62,34 @@ function fixture(search = { entries: [{ id: ID }] }) {
                 clearTimeout(timer) { if (timer) timer.cleared = true; } } } };
 }
 
+test('Probe truyền đúng64KiB trongRAM cho verifier sau dừng tải, chỉ nhận cờ Opus hợp lệ', async () => {
+    for (const success of [true, false]) {
+        const f = fixture(); let verified = 0;
+        const promise = runYoutubePoProbe({ ...f.dependencies, videoUrl: URL, verifyAudio: async sample => {
+            verified++; assert.equal(sample.length, 65536); assert.equal(f.streams[0].kills, 1);
+            return { checked: true, ok: success, opusPacketReady: success, elapsedMs: 30, effects: ['none', 'bassboost'] };
+        } });
+        await tick(); const bytes = Buffer.alloc(70000); Buffer.from([0x1a, 0x45, 0xdf, 0xa3]).copy(bytes);
+        f.streams[0].stdout.write(bytes);
+        const result = await promise;
+        assert.equal(verified, 1); assert.equal(result.ok, success);
+        assert.equal(result.outcome, success ? 'audio_received' : 'invalid_audio');
+        assert.equal(result.playback.opusPacketReady, success);
+    }
+});
+
+test('Verifier treo chỉ chờ5s và kết quả đến muộn không công bố lại; không trả trường riêng tư', async () => {
+    const f = fixture(); const late = deferred();
+    const promise = runYoutubePoProbe({ ...f.dependencies, videoUrl: URL, verifyAudio: () => late.promise });
+    await tick(); const data = Buffer.alloc(65536); Buffer.from('OggS').copy(data);
+    f.streams[0].stdout.write(data); await tick();
+    const timeout = f.timers.find(t => !t.cleared && t.delay === 5000); assert.ok(timeout);
+    timeout.callback(); const result = await promise;
+    assert.equal(result.ok, false); assert.equal(result.playback.ok, false);
+    late.resolve({ checked: true, ok: true, opusPacketReady: true, stderr: 'PRIVATE_VALUE' }); await tick();
+    assert.equal(result.ok, false); assert.doesNotMatch(JSON.stringify(result), /PRIVATE/);
+});
+
 test('Probe dùng options production cho search/audio, chỉ nhận64KiB rồi kill có chủ đích và trả cờ an toàn', async () => {
     const f = fixture();
     const probing = runYoutubePoProbe({ ...f.dependencies, query: 'Tên bài cần kiểm tra' });

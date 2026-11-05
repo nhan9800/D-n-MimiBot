@@ -38,6 +38,7 @@ const { StartupAudioBuffer, PcmFrameChunker, monitorMusicResource } = require('.
 const { createMediaResolver, createEffectTransitionController } = require('./musicEffectTransition');
 const { createDirectAudioCandidate } = require('./musicDirectAudio');
 const { createLiveEffectSession } = require('./musicLiveEffects');
+const { verifyMusicAudioSample } = require('./musicAudioSample');
 const { resolvePlaylist, MAX_MUSIC_QUEUE } = require('./musicPlaylist');
 const { handleCategory } = require('./categoryService');
 const { handleAnnouncement } = require('./announcementService');
@@ -3484,7 +3485,9 @@ ensureYtDlpBinary().then(async available => {
             resolveTrack,
             probe: options => {
                 return runYoutubePoProbe({ ytDlpExec,
-                    getOptions: youtubeProbeOptions(getYtCommonOpts, options?.client), ...options });
+                    getOptions: youtubeProbeOptions(getYtCommonOpts, options?.client), ...options,
+                    verifyAudio: (bytes, signal) => verifyMusicAudioSample(bytes, { signal, decode: spawnFfmpegAudio,
+                        spawn, ffmpegPath: getFfmpegPath(), voice: voiceLib, effects: AUDIO_EFFECTS }) });
             }
         }).then(receipt => {
             if (!receipt) return;
@@ -5305,6 +5308,7 @@ async function playNextTrack(guildId, opts = {}) {
     // FFmpeg giống đường hiệu ứng để Discord nhận PCM ổn định.
     const youtubeHlsAttempt = opts.youtubeHlsAttempt === true;
     const youtubeHlsTried = opts.youtubeHlsTried === true;
+    const youtubeGuestAttempt = opts.youtubeGuestAttempt === true;
     const useFfmpeg = true; // Decoder PCM dùng chung cho mọi hiệu ứng, không mở lại nguồn khi đổi.
     const ffmpegPath = useFfmpeg ? getFfmpegPath() : null;
     // Khi binary còn đang tải, giữ nguyên bài đang nghe thay vì huỷ luồng rồi mới báo lỗi.
@@ -5427,7 +5431,8 @@ async function playNextTrack(guildId, opts = {}) {
     // dùng format/luồng riêng; nếu nó lỗi phải chuyển queue, không tìm lại
     // chính SoundCloud vô hạn khiến bài kế tiếp không bao giờ chạy.
     const isYoutubePlayback = next.source === 'YouTube' || /(?:youtube\.com|youtu\.be)/i.test(String(next.url || ''));
-    const youtubeClientArgs = YT_DOWNLOAD_CLIENT_FALLBACKS[clientAttempt] || 'youtube:player_client=default';
+    const youtubeClientArgs = youtubeGuestAttempt ? 'youtube:player_client=web_embedded'
+        : YT_DOWNLOAD_CLIENT_FALLBACKS[clientAttempt] || 'youtube:player_client=default';
     let failureStarted = false;
     let sourcePending = false;
     let sourceRecovering = false;
@@ -5521,7 +5526,7 @@ async function playNextTrack(guildId, opts = {}) {
         : seekTransport === 'pipe' ? Math.min(180000, 45000 + seekSec * 100) : 45000;
     // Deadline HLS áp dụng cả khi khôi phục giữa bài; không mở lại cửa sổ
     // 45–180 giây chỉ vì lượt phát có seekSec khác 0.
-    const startupBudgetMs = youtubeHlsAttempt
+    const startupBudgetMs = youtubeHlsAttempt || youtubeGuestAttempt
         ? Math.max(1, Math.min(normalStartupBudgetMs, sourceDeadline - Date.now()))
         : normalStartupBudgetMs;
     transitionSafety = setTimeout(() => {
@@ -5565,7 +5570,7 @@ async function playNextTrack(guildId, opts = {}) {
             bufferSize: '1024K',
             forceIpv4: true
         };
-        const cookiePath = isYoutubePlayback ? getCookieFilePath() : null;
+        const cookiePath = isYoutubePlayback && !youtubeGuestAttempt ? getCookieFilePath() : null;
         if (cookiePath) ytdlOpts.cookies = cookiePath;
         if (isYoutubePlayback) {
             ytdlOpts.jsRuntimes = 'node';
@@ -5660,13 +5665,29 @@ async function playNextTrack(guildId, opts = {}) {
                 && safeError.code === 'SOURCE_FAILED';
             const isRetryable = embeddedClientFailed || ['NETWORK', 'TIMEOUT', 'HTTP_403', 'FORMAT_UNAVAILABLE', 'AUTH_REQUIRED'].includes(safeError.code) || /403|forbidden|Requested format is not available|Sign in to confirm you|bot|confirm you’re not a bot|needs_auth|login|Unable to download|No such file|Frag|timeout|IncompleteRead|HTTP Error 5|Connection reset|timed out|network/i.test(rawErr);
             const nextAttempt = clientAttempt + 1;
-            const authRequired = /Sign in to confirm|not a bot|needs_auth|login required|authentication required/i.test(rawErr);
+            const authRequired = safeError.code === 'AUTH_REQUIRED';
             const nextClient = YT_DOWNLOAD_CLIENT_FALLBACKS[nextAttempt] || '';
             const authCompatibleClient = /player_client=(?:web_embedded|default|mweb)(?:$|[;,])/i.test(nextClient);
 
+            // Đã đo guest tải được FEUE7x1vslI và đúng AnhVui BAl1VQur4uI
+            // trên host05/11. Nếu phiên tài khoản bị yêu cầu xác thực, thử đúng
+            // video công khai1lần, không xóa/sửa cookie hoặc đổi bản thu.
+            const guestResumeSec = Math.max(seekSec, getPlaybackSec(mq));
+            const retryGuest = (authRequired && cookiePath && !opts.youtubeGuestTried)
+                || (youtubeGuestAttempt && playbackStarted && isRetryable);
+            if (isYoutubePlayback && retryGuest && (guestResumeSec === 0 || !mq.sectionDisabled)) {
+                console.warn(`[Music] Thử nguồn YouTube công khai cho server ${guildId}.`);
+                return playNextTrack(guildId, { ...opts, replayCurrent: true, expectedTrack: next,
+                    seekSec: guestResumeSec, effectKey: recoveryEffect,
+                    seekTransport: guestResumeSec > 0 ? 'section' : 'pipe', sourceDeadline: Date.now() + 16000,
+                    clientAttempt: 0, sourceRecovery: true, sourceFailureCode,
+                    youtubeGuestAttempt: true, youtubeGuestTried: true,
+                    youtubeHlsAttempt: false, youtubeHlsTried: true });
+            }
+
             // Thử client kế tiếp trước HLS, trong cùng deadline. HLS có cửa sổ
             // riêng10s: đặt trước client sẽ luôn ăn hết thời gian của client đó.
-            if (isYoutubePlayback && isRetryable && Date.now() < sourceDeadline - 2000 && (!authRequired || authCompatibleClient) && nextAttempt < YT_DOWNLOAD_CLIENT_FALLBACKS.length) {
+            if (isYoutubePlayback && !youtubeGuestAttempt && isRetryable && Date.now() < sourceDeadline - 2000 && (!authRequired || authCompatibleClient) && nextAttempt < YT_DOWNLOAD_CLIENT_FALLBACKS.length) {
                 console.warn(`🔁 [Music] Thử lại client #${nextAttempt} cho "${next.title}".`);
                 playNextTrack(guildId, {
                     ...opts,
@@ -5696,7 +5717,7 @@ async function playNextTrack(guildId, opts = {}) {
             const hlsResumeSec = Math.max(seekSec, getPlaybackSec(mq));
             // HLS giữa bài phải tải section thẳng tới mốc phát. Nếu host đã
             // vô hiệu hóa section thì bỏ lượt HLS, tránh tải lại toàn bộ đầu bài.
-            if (isYoutubePlayback && isRetryable && !['AUTH_REQUIRED', 'INVALID_COOKIES'].includes(safeError.code)
+            if (isYoutubePlayback && !youtubeGuestAttempt && isRetryable && !['AUTH_REQUIRED', 'INVALID_COOKIES'].includes(safeError.code)
                 && poReady && !youtubeHlsAttempt && !youtubeHlsTried
                 && (hlsResumeSec === 0 || !mq.sectionDisabled)) {
                 const hlsDeadline = Date.now() + 10000;

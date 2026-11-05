@@ -107,3 +107,21 @@ lại. Cầu dao5lỗi cũng không xóa các bài còn chờ. Không tự refre
 Probe thêm preset `web_embedded_guest` (cố địnhclientembedded,bỏcookie trongRAM)
 để đối chiếu cùngvideo trên host. Chưa bật nó làm nguồn production trước khi
 có receipt audio hợp lệ. Bằng chứng64KiB ngày04/11 chỉ áp dụng tại thời điểm đó.
+
+
+Đối chiếu mới05/11: FEUE7x1vslI guest có65536byte/11937ms; đúng bài AnhVui
+BAl1VQur4uI (tên khớp nguồn YouTube H2O Remix) có cookie:65536byte/11796ms;
+guest:65536byte/11298ms. Không đủ cơ sở nói cookie hết hạn vĩnh viễn hay host
+không phát được. Đường guest chỉ được đưa vào recovery sau các phép đo này:
+AUTH_REQUIRED khi dùng cookie -> cùng video embedded guest1lần/16s, giữ
+seek/effect/source policy, không xóa file cookie. Guest thất bại chưa Playing
+không lặp client/HLS; vẫn giữ lỗi gốc và dừng có kiểm soát. Guest đã phát gặp
+mạng gián đoạn có thể mở lại đúng đường guest1lần trong episode đó.
+
+Phép đo link mới còn đưa mẫuRAM tối đa64KiB qua decoder production rồi nhánh
+PCM none+Bassboost thật để chờ packetOpus. Mỗi nhánh dùng createLiveEffectSession,
+createAudioResource vàPcmFrameChunker như playback, tối đa5s rồi dọn process/stream;
+không tạo AudioPlayer/voiceconnection hoặc lưu audio. Receipt `audio.playback`
+chỉ có checked/ok/opusPacketReady/effects/elapsedMs; helper `musicAudioSample.js`
+đã thêm fingerprint/SFTP. Receipt cũ thiếu playback không chứng minh bước này.
+Dù có packetOpus, vẫn chưa chứng minh đã nghe qua Discord hoặc tải hết một mix.

@@ -39,6 +39,14 @@ function safeAudio(value, videoId, transport = 'default') {
         firstByteMs: Number.isFinite(input.firstByteMs) ? boundedNumber(input.firstByteMs, 60000) : null,
         bytes: boundedNumber(input.bytes, 65536) };
     for (const flag of FLAGS) result[flag] = input[flag] === true;
+    if (input.playback && typeof input.playback === 'object') {
+        result.playback = { checked: input.playback.checked === true, ok: input.playback.ok === true,
+            opusPacketReady: input.playback.opusPacketReady === true, elapsedMs: boundedNumber(input.playback.elapsedMs, 5000),
+            effects: ['none', 'bassboost'] };
+        if (!result.playback.checked || !result.playback.ok || !result.playback.opusPacketReady) {
+            result.ok = false; result.outcome = 'invalid_audio';
+        }
+    }
     // Không cho receipt hỏng hoặc probe nhầm bài báo thành công cho video yêu cầu.
     if (outcome === 'audio_received' && (input.videoId !== videoId || result.bytes === 0 || !result.containerHeaderRecognized
         || (input.transport === undefined ? 'default' : input.transport) !== transport)) {

@@ -92,6 +92,7 @@ jobs:
           put musicEffectTransition.js
           put musicDirectAudio.js
           put musicLiveEffects.js
+          put musicAudioSample.js
           put musicPlaylist.js
           put announcementService.js
           put serverLifecycle.js

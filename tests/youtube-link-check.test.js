@@ -102,6 +102,19 @@ test('Probe android_vr có receipt riêng, không tái sử dụng kết quả c
     assert.equal(f.calls.length, 2);
 });
 
+test('Receipt packetOpus chỉ giữ số đo/cờ, không tin ok khi thiếu packet hoặc để lọt dữ liệu riêng', async t => {
+    for (const ready of [true, false]) {
+        const f = await fixture(t, { probe: async () => ({ ok: true, outcome: 'audio_received', videoId: VIDEO,
+            phase: 'audio', bytes: 65536, containerHeaderRecognized: true,
+            playback: { checked: true, ok: true, opusPacketReady: ready, elapsedMs: 10, stderr: SECRET, audio: SECRET } }) });
+        const result = await runYoutubeLinkCheck(f.input);
+        assert.equal(result.audio.ok, ready);
+        assert.equal(result.audio.outcome, ready ? 'audio_received' : 'invalid_audio');
+        assert.doesNotMatch(JSON.stringify(result), /PRIVATE_COOKIE|stderr/);
+        assert.deepEqual(result.audio.playback.effects, ['none', 'bassboost']);
+    }
+});
+
 test('Cùng case không được tái sử dụng receipt của client hoặc transport khác', async t => {
     for (const initial of [{}, { client: 'web_safari' }, { transport: 'hls' }]) {
         const f = await fixture(t);

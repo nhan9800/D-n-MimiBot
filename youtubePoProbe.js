@@ -44,7 +44,7 @@ function waitWithSignal(promise, signal) {
  * production; helper không mở cookie, không trả/log token hoặc signed media URL.
  */
 function runYoutubePoProbe({ ytDlpExec, getOptions, query = 'JACK J97 Lưu Niên', videoUrl, clientArgs, transport = 'default',
-    timeoutMs = 45000, maxBytes = 65536, now = Date.now, timers = {}, signal: parentSignal } = {}) {
+    timeoutMs = 45000, maxBytes = 65536, now = Date.now, timers = {}, signal: parentSignal, verifyAudio } = {}) {
     const beganAt = now();
     const budget = Math.max(1, Math.min(60000, Number(timeoutMs) || 45000));
     const byteLimit = Math.max(4, Math.min(65536, Math.floor(Number(maxBytes) || 65536)));
@@ -57,6 +57,7 @@ function runYoutubePoProbe({ ytDlpExec, getOptions, query = 'JACK J97 Lưu Niên
     let providerRequestFailed = false, mediaDownloadFailed = false, downloadStarted = false;
     let forbidden = false, authRequired = false, sourceTimedOut = false;
     let audioBeganAt = null, firstByteMs = null;
+    let audioChunks = [];
     // Đồng hồ kiểm tra được inject; chỉ trả số nguyên có hạn, không phát sinh NaN
     // hoặc số âm nếu đồng hồ hệ thống nhảy trong lúc lấy metadata/audio.
     const elapsedSince = timestamp => {
@@ -93,6 +94,7 @@ function runYoutubePoProbe({ ytDlpExec, getOptions, query = 'JACK J97 Lưu Niên
             const accepted = data.subarray(0, Math.max(0, byteLimit - bytes));
             if (header.length < 64) header = Buffer.concat([header, accepted.subarray(0, 64 - header.length)]);
             bytes += accepted.length;
+            if (typeof verifyAudio === 'function') audioChunks.push(Buffer.from(accepted));
             if (bytes >= byteLimit) finish(recognizesAudioContainer(header) ? 'audio_received' : 'invalid_audio', true);
         };
         const onStderr = chunk => {
@@ -127,7 +129,27 @@ function runYoutubePoProbe({ ytDlpExec, getOptions, query = 'JACK J97 Lưu Niên
             }
             const result = { ok: outcome === 'audio_received', outcome, phase, ...state() };
             stderrTail = ''; header = Buffer.alloc(0);
-            resolve(result);
+            if (outcome === 'audio_received' && typeof verifyAudio === 'function') {
+                const sample = Buffer.concat(audioChunks); audioChunks = [];
+                let verificationDone = false, verificationTimer;
+                const finishVerification = playback => {
+                    if (verificationDone) return;
+                    verificationDone = true; clearTimer(verificationTimer);
+                    parentSignal?.removeEventListener('abort', cancelVerification);
+                    result.playback = { checked: true, ok: playback?.checked === true && playback?.ok === true && playback?.opusPacketReady === true,
+                        opusPacketReady: playback?.opusPacketReady === true, effects: ['none', 'bassboost'],
+                        elapsedMs: Number.isFinite(playback?.elapsedMs) ? Math.max(0, Math.min(5000, Math.floor(playback.elapsedMs))) : 5000 };
+                    if (!result.playback.ok) { result.ok = false; result.outcome = 'invalid_audio'; }
+                    resolve(result);
+                };
+                const cancelVerification = () => finishVerification(null);
+                verificationTimer = setTimer(cancelVerification, 5000);
+                parentSignal?.addEventListener('abort', cancelVerification, { once: true });
+                if (parentSignal?.aborted) { cancelVerification(); return; }
+                Promise.resolve().then(() => verifyAudio(sample, parentSignal)).then(playback => {
+                    finishVerification(playback);
+                }, cancelVerification);
+            } else { audioChunks = []; resolve(result); }
         };
         timer = setTimer(() => finish('timeout', true), budget);
         parentSignal?.addEventListener('abort', onAbort, { once: true });
