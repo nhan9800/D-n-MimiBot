@@ -32,7 +32,6 @@ function loadModule(t, dir, fsOverride = fs) {
         console: { error() {} },
         require(name) {
             if (name === 'discord.js') return { PermissionFlagsBits: flags, ChannelType: { GuildText: 0, GuildAnnouncement: 5 }, AuditLogEvent: { ChannelDelete: 12, RoleDelete: 32, BotAdd: 28 }, EmbedBuilder: FakeEmbed };
-            if (name === './licenseStore') return { getLicense: () => ({ active: true }) };
             if (name === 'fs') return fsOverride;
             if (name === 'path') return path;
             throw new Error(`Module không được phép trong test: ${name}`);

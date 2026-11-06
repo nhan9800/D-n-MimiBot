@@ -79,8 +79,6 @@ jobs:
           put internalApi.js
           put buildInfo.js
           put build-info.json
-          put licenseStore.js
-          put licenseScheduler.js
           put antiRaid.js
           put musicStore.js
           put uiBuilder.js

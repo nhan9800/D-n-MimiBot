@@ -24,7 +24,6 @@ const crypto = require('crypto');
 const { verifyDashboardKey, resolveDashboardSecret } = require('./dashboardAuth');
 const fs = require('fs');
 const path = require('path');
-const licenseStore = require('./licenseStore');
 const { buildInfo } = require('./buildInfo');
 const { getEmojiCoverage } = require('./communityEmojis');
 
@@ -442,7 +441,7 @@ function startInternalApi(deps) {
                 }
             }
 
-            // 🌐 PUBLIC APIS (Tra cứu & Kích hoạt bản quyền từ Web)
+            // 🌐 PUBLIC APIS
             if (url.pathname === '/api/stats') {
                 return send(res, 200, {
                     ok: true,
@@ -452,16 +451,8 @@ function startInternalApi(deps) {
                 }, reqId);
             }
 
-            if (url.pathname === '/api/pricing') {
-                return send(res, 200, {
-                    ok: true,
-                    plans: licenseStore.PLANS,
-                    bank: {
-                        bankName: 'Vietcombank (VCB)',
-                        accountNumber: '9369144188',
-                        accountName: 'DAO NGOC QUANG'
-                    }
-                }, reqId);
+            if (url.pathname === '/api/pricing' || url.pathname === '/api/license' || url.pathname.startsWith('/api/license/')) {
+                return fail(res, 410, 'SHIELD_RETIRED', 'Mimi Shield đã ngừng cung cấp.', reqId);
             }
 
             if (url.pathname === '/api/admin/restart') {
@@ -497,50 +488,6 @@ function startInternalApi(deps) {
                     logger.error('❌ [InternalAPI] Không gửi được thông báo:', err?.message);
                     return fail(res, 500, 'INTERNAL', 'Không thể gửi thông báo lúc này.', reqId);
                 }
-            }
-
-            if (url.pathname === '/api/license/check') {
-                const guildId = url.searchParams.get('guildId')?.trim();
-                if (!guildId) return fail(res, 400, 'MISSING_GUILD_ID', 'Vui lòng cung cấp Server ID (guildId).', reqId);
-                const lic = licenseStore.getShieldLicense ? licenseStore.getShieldLicense(guildId) : licenseStore.getLicense(guildId);
-                return send(res, 200, { ok: true, license: lic }, reqId);
-            }
-
-            if (req.method === 'POST' && url.pathname === '/api/license/redeem') {
-                const body = await readJson(req);
-                const { guildId, key } = body || {};
-                if (!guildId || !key) return fail(res, 400, 'INVALID_BODY', 'Thiếu Server ID hoặc mã Key.', reqId);
-                const result = licenseStore.redeemKey(guildId, key, 'Website Client');
-                if (!result.ok) {
-                    return fail(res, 400, 'REDEEM_FAILED', result.error, reqId);
-                }
-                return send(res, 200, { ok: true, ...result }, reqId);
-            }
-
-            if (req.method === 'POST' && url.pathname === '/api/license/admin/confirm') {
-                if (!authorizeAdmin(req, res, remoteIp, reqId)) return;
-                const body = await readJson(req);
-                const { guildId, plan = '1m', action = 'activate', note = '' } = body;
-
-                if (action === 'generate_key') {
-                    const keyObj = licenseStore.generateKey(plan, note || 'Tạo từ Admin Web', 'Admin Web');
-                    return send(res, 200, {
-                        ok: true,
-                        key: keyObj.key,
-                        plan: keyObj.plan,
-                        planName: keyObj.planName,
-                        durationDays: keyObj.durationDays,
-                        message: `Đã tạo Key ${keyObj.planName} thành công!`
-                    }, reqId);
-                }
-
-                if (!guildId) return fail(res, 400, 'MISSING_GUILD_ID', 'Vui lòng cung cấp Server ID cần kích hoạt.', reqId);
-                const updatedLic = licenseStore.grantLicense(guildId, plan, null, 'Admin Web Direct');
-                return send(res, 200, {
-                    ok: true,
-                    license: updatedLic,
-                    message: `Đã xác nhận thanh toán & kích hoạt thành công ${updatedLic.planName} cho Server ${guildId}!`
-                }, reqId);
             }
 
             if (parts[0] !== 'internal') return fail(res, 404, 'NOT_FOUND', 'Không tìm thấy tài nguyên.', reqId);

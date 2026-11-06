@@ -49,11 +49,11 @@ Các tin nhắn cũ có embed và tin nhắn Components V2 đều có thể đ�
 
 ## Dữ liệu và API
 
-`musicStore.js` giữ phiên phát, yêu thích, album và cấu hình DJ. Dữ liệu runtime ở file JSON gốc và `data/`; không chuyển file cũ sang schema/thư mục khác khi nâng cấp. `antiRaid.js` lưu bản sao quyền trước lockdown để phục hồi chính xác qua restart. `licenseStore.js` giữ kho mã tương thích và chỉ nhận mã đã phát hành; `getLicense()` tiếp tục trả quyền dùng bot miễn phí.
+`musicStore.js` giữ phiên phát, yêu thích, album và cấu hình DJ. Dữ liệu runtime ở file JSON gốc và `data/`; không chuyển file cũ sang schema/thư mục khác khi nâng cấp. `antiRaid.js` lưu bản sao quyền trước lockdown để phục hồi chính xác qua restart.
 
 `googleTts.js` giữ API shortText/base64 và segmentation TTS, chỉ tải Google qua HTTPS với timeout/dung lượng giới hạn; parse hai lớp JSON thay vì `eval` phản hồi vendor. [Dependency](DEPENDENCIES.md) ghi override và kiểm tra tương thích.
 
-`internalApi.js` dùng Node built-in HTTP/crypto. Không có service token thì không khởi động. `/internal/guilds/:id/*` yêu cầu Bearer token cùng khoá dashboard đúng guild. Các thao tác restart/broadcast/license admin yêu cầu POST + Bearer token, áp dụng allowlist IP. Landing `public/` là cổng Mimi cộng đồng miễn phí, đọc `/health/live`; không còn quảng cáo/mua key Shield. Chi tiết [API](API.md) và [bảo mật](SECURITY.md).
+`internalApi.js` dùng Node built-in HTTP/crypto. Không có service token thì không khởi động. `/internal/guilds/:id/*` yêu cầu Bearer token cùng khoá dashboard đúng guild. Các thao tác restart/broadcast yêu cầu POST + Bearer token, áp dụng allowlist IP. Landing `public/` là cổng Mimi cộng đồng miễn phí, đọc `/health/live`; không còn quảng cáo/mua key Shield. Chi tiết [API](API.md) và [bảo mật](SECURITY.md).
 
 ## Kiểm tra
 

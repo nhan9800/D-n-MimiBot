@@ -21,7 +21,7 @@ Internal API chạy cùng bot, tùy chọn theo `MIMI_API_TOKEN`. Website ở re
 | POST | `/api/admin/restart` | Bearer quản trị | Yêu cầu restart tiến trình |
 | POST | `/api/broadcast/trigger` | Bearer quản trị | Gửi thông báo theo luồng có sẵn |
 | POST | `/api/broadcast/cleanup` | Bearer quản trị | Dọn thông báo theo luồng có sẵn |
-| POST | `/api/license/admin/confirm` | Bearer quản trị | Quản trị kho mã/kích hoạt tương thích |
+| Mọi phương thức | `/api/pricing`, `/api/license/*` | — | HTTP 410. Mimi Shield đã ngừng cung cấp |
 
 Không có endpoint `/internal/health` trong phiên bản hiện tại. Dùng `/health/live` và `/health/ready`.
 

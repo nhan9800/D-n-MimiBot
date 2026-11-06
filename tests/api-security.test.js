@@ -80,16 +80,24 @@ test('Broadcast phải có Bearer và POST; GET đã xác thực không làm tha
     assert.deepEqual(state, { broadcasts: 1, cleanups: 1 });
 });
 
-test('Mật mã query/body cũ không cấp quyền restart hoặc quản trị bản quyền', async t => {
+test('Mật mã query cũ không cấp quyền restart', async t => {
     const { request } = await fixture(t);
     // Không thực hiện restart được cấp quyền trong test.
     assert.equal((await request('/api/admin/restart?secret=mimi2026')).status, 401);
     assert.equal((await request('/api/admin/restart', { headers: bearer })).status, 405);
-    const response = await request('/api/license/admin/confirm', {
-        method: 'POST', headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ guildId: 'guild-test', secret: 'mimi2026' })
-    });
-    assert.equal(response.status, 401);
+});
+
+test('Đã đóng thanh toán, tra cứu và cấp mã Shield kể cả khi có token quản trị', async t => {
+    const { request } = await fixture(t);
+    for (const route of ['/api/pricing', '/api/license/check?guildId=guild-test', '/api/license/redeem', '/api/license/admin/confirm']) {
+        for (const method of ['GET', 'POST']) {
+            const response = await request(route, { method, headers: bearer });
+            assert.equal(response.status, 410, `${method} ${route}`);
+            const data = await response.json();
+            assert.equal(data.error.code, 'SHIELD_RETIRED');
+            assert.equal(Object.hasOwn(data, 'bank'), false);
+        }
+    }
 });
 
 test('Allowlist IP áp dụng cả API quản trị, không tin X-Forwarded-For tùy ý', async t => {

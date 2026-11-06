@@ -77,10 +77,8 @@ const { setupTicket } = require('./ticketSetup');
 const { parseDuration, setLongTimeout, clearLongTimeout } = require('./reminderUtils');
 const { MusicStore, MAX_ALBUMS_PER_USER, MAX_TRACKS_PER_ALBUM } = require('./musicStore');
 const { createDashboardKey, resolveDashboardSecret, DEFAULT_TTL_MS: DASHBOARD_KEY_TTL_MS } = require('./dashboardAuth');
-const licenseStore = require('./licenseStore');
 const antiRaid = require('./antiRaid');
 antiRaid.setToggleCheck(guildId => getGuildConfig(guildId).antiRaidEnabled !== false);
-const { startLicenseScheduler } = require('./licenseScheduler');
 
 // Gốc URL website — dùng dựng link Dashboard kèm khoá trong lệnh /dashboard.
 const WEB_BASE_URL = (process.env.MIMI_WEB_BASE || 'https://mimibot.id.vn').replace(/\/+$/, '');
@@ -7310,15 +7308,6 @@ client.once('clientReady', async () => {
             .setDescription('Hiển thị bảng điều khiển bài hát đang phát'),
 
         new SlashCommandBuilder()
-            .setName('license')
-            .setDescription('Xem thông tin bản quyền bảo vệ Anti-Raid của máy chủ'),
-
-        new SlashCommandBuilder()
-            .setName('kichhoat')
-            .setDescription('Kích hoạt hoặc gia hạn bản quyền Anti-Raid bằng mã Key')
-            .addStringOption(o => o.setName('mã_key').setDescription('Mã License Key (dạng MIMI-ANTI-XXXX-XXXX-XXXX)').setRequired(true)),
-
-        new SlashCommandBuilder()
             .setName('antiraid')
             .setDescription('Cấu hình và kiểm soát hệ thống bảo vệ máy chủ Anti-Raid')
             .setDefaultMemberPermissions(PermissionFlagsBits.Administrator)
@@ -7326,33 +7315,6 @@ client.once('clientReady', async () => {
             .addSubcommand(s => s.setName('lockdown').setDescription('Khóa hoặc mở khóa khẩn cấp toàn bộ kênh chat')
                 .addStringOption(o => o.setName('chế_độ').setDescription('Bật hoặc tắt khóa khẩn cấp').setRequired(true)
                     .addChoices({ name: '🔒 Bật Khóa Khẩn Cấp (Lockdown)', value: 'on' }, { name: '🔓 Mở Khóa Server', value: 'off' }))),
-
-        new SlashCommandBuilder()
-            .setName('xacnhan')
-            .setDescription('[Admin/Owner] Xác nhận đã nhận tiền và kích hoạt ngay bản quyền cho Server ID')
-            .setDefaultMemberPermissions(PermissionFlagsBits.Administrator)
-            .addStringOption(o => o.setName('server_id').setDescription('Server ID (Guild ID) của máy chủ khách hàng').setRequired(true))
-            .addStringOption(o => o.setName('gói').setDescription('Gói bản quyền kích hoạt').setRequired(true)
-                .addChoices(
-                    { name: '🌟 Gói 1 Tháng (50.000đ - 30 ngày)', value: '1m' },
-                    { name: '💎 Gói 3 Tháng (140.000đ - 90 ngày)', value: '3m' },
-                    { name: '👑 Gói 12 Tháng (390.000đ - 365 ngày)', value: '12m' },
-                    { name: '♾️ Gói Vĩnh Viễn (Lifetime VIP)', value: 'permanent' }
-                ))
-            .addStringOption(o => o.setName('ghi_chú').setDescription('Ghi chú bill/người mua').setRequired(false)),
-
-        new SlashCommandBuilder()
-            .setName('genkey')
-            .setDescription('[Admin/Owner] Tạo mã License Key bản quyền để cấp cho khách hàng')
-            .setDefaultMemberPermissions(PermissionFlagsBits.Administrator)
-            .addStringOption(o => o.setName('gói').setDescription('Gói bản quyền cần tạo').setRequired(true)
-                .addChoices(
-                    { name: '🌟 Gói 1 Tháng (50.000đ - 30 ngày)', value: '1m' },
-                    { name: '💎 Gói 3 Tháng (140.000đ - 90 ngày)', value: '3m' },
-                    { name: '👑 Gói 12 Tháng (390.000đ - 365 ngày)', value: '12m' }
-                ))
-            .addIntegerOption(o => o.setName('số_lượng').setDescription('Số lượng mã key muốn tạo (1-20)').setMinValue(1).setMaxValue(20).setRequired(false))
-            .addStringOption(o => o.setName('ghi_chú').setDescription('Ghi chú người mua / lý do').setRequired(false)),
 
         new SlashCommandBuilder()
             .setName('play')
@@ -10930,38 +10892,8 @@ async function saveUserBackground(uId, url) {
     }
 
     // ==========================================
-    // 🔑 PREFIX: BẢN QUYỀN & ANTI-RAID
+    // 🔑 PREFIX: ANTI-RAID
     // ==========================================
-    if (command === 'mibanqyuen' || command === 'mibanq' || command === 'milicense' || command === 'mihwid') {
-        const embed = new EmbedBuilder()
-            .setColor('#00FFA3')
-            .setTitle('🎧 MIMI BOT: HOÀN TOÀN MIỄN PHÍ 100% TRỌN ĐỜI!')
-            .setDescription(
-                `Chào bạn! **MIMI BOT** là bot âm nhạc & giải trí cộng đồng **100% MIỄN PHÍ** cho mọi máy chủ Discord.\n\n` +
-                `• **Máy chủ:** ${message.guild.name} (\`${message.guild.id}\`)\n` +
-                `• **Trạng thái:** 🟢 **MIỄN PHÍ TRỌN ĐỜI (FREE FOREVER)**\n` +
-                `• **Tính năng:** Nghe nhạc 24/7, chọn nguồn YouTube / SoundCloud, Autoplay, BXH Level Chat, Minigame.\n\n` +
-                `🛡️ **Bạn muốn bot bảo vệ an ninh Anti-Raid & Chống Nuke?**\n` +
-                `Hãy mời **MIMI SHIELD BOT** (dòng bot an ninh có phí) tại: https://mimibot.id.vn/pricing`
-            )
-            .setFooter({ text: 'MIMI BOT • 100% Miễn Phí Trọn Đời' })
-            .setTimestamp();
-
-        return message.reply({ embeds: [embed], allowedMentions: { repliedUser: false } });
-    }
-
-    if (command === 'mikichhoat' || command === 'miredeem') {
-        const key = args.slice(1).join(' ').trim();
-        if (!key) {
-            return message.reply({ content: '❌ Vui lòng nhập mã Key!\nCú pháp: \`mikichhoat MIMI-ANTI-XXXX-XXXX-XXXX\`', allowedMentions: { repliedUser: false } });
-        }
-        const result = licenseStore.redeemKey(message.guild.id, key, message.author.tag);
-        if (!result.ok) {
-            return message.reply({ content: `❌ ${result.error}`, allowedMentions: { repliedUser: false } });
-        }
-        return message.reply({ content: `🎉 **KÍCH HOẠT THÀNH CÔNG!** Đã cộng **+${result.daysAdded} ngày** bảo vệ cho server. Hạn mới: ${result.license.expiresAt}`, allowedMentions: { repliedUser: false } });
-    }
-
     if (command === 'miantiraid') {
         if (!message.member?.permissions.has(PermissionFlagsBits.Administrator)) {
             return message.reply({ content: '❌ Bạn không có quyền Administrator để dùng lệnh này.', allowedMentions: { repliedUser: false } });
@@ -11239,8 +11171,6 @@ client.on('interactionCreate', async interaction => {
             'resetbot': { ownerOnly: true, supportGuildOnly: true },
             'serverlist': { ownerOnly: true },
             'broadcast': { ownerOnly: true },
-            'genkey': { ownerOnly: true },
-            'xacnhan': { ownerOnly: true },
             'resetbalance': { ownerOnly: true },
             'banminigame': { ownerOnly: true },
             'unbanminigame': { ownerOnly: true }
@@ -14194,69 +14124,10 @@ if (commandName === 'setup') {
             return interaction.editReply({ content: '👋 Đã ngắt kết nối và rời khỏi kênh thoại theo yêu cầu!' });
         }
         // ==========================================
-        // 🔑 LỆNH: BẢN QUYỀN & ANTI-RAID
+        // 🔑 LỆNH: ANTI-RAID
         // ==========================================
-        if (commandName === 'license' || commandName === 'banquyen') {
-            await interaction.deferReply();
-            const embed = new EmbedBuilder()
-                .setColor('#00FFA3')
-                .setTitle('🎧 MIMI BOT: HOÀN TOÀN MIỄN PHÍ 100% TRỌN ĐỜI!')
-                .setDescription(
-                    `Chào bạn! **MIMI BOT** là bot âm nhạc & giải trí cộng đồng **100% MIỄN PHÍ** cho toàn bộ máy chủ Discord.\n\n` +
-                    `• **Máy chủ:** ${guild.name} (\`${guild.id}\`)\n` +
-                    `• **Trạng thái:** 🟢 **MIỄN PHÍ TRỌN ĐỜI (FREE FOREVER)**\n` +
-                    `• **Tính năng:** Phát nhạc 24/7, chọn nguồn YouTube / SoundCloud, Autoplay, BXH Level Chat, Minigame.\n\n` +
-                    `🛡️ **Bạn muốn mua bot bảo vệ an ninh Anti-Raid & Chống Nuke?**\n` +
-                    `Hãy mời **MIMI SHIELD BOT** (dòng bot bảo vệ chuyên nghiệp) tại [mimibot.id.vn/pricing](https://mimibot.id.vn/pricing).`
-                )
-                .setFooter({ text: 'MIMI BOT • 100% Miễn Phí Trọn Đời' })
-                .setTimestamp();
-
-            const row = new ActionRowBuilder().addComponents(
-                new ButtonBuilder()
-                    .setLabel('🌐 Bảng Giá MIMI SHIELD (Vệ Sĩ)')
-                    .setStyle(ButtonStyle.Link)
-                    .setURL('https://mimibot.id.vn/pricing'),
-                new ButtonBuilder()
-                    .setLabel('🛡️ Mời MIMI Shield')
-                    .setStyle(ButtonStyle.Link)
-                    .setURL('https://discord.com/oauth2/authorize?client_id=1539527939723497473&permissions=8&integration_type=0&scope=bot%20applications.commands')
-            );
-
-            return interaction.editReply({ embeds: [embed], components: [row] });
-        }
-
-        if (commandName === 'kichhoat') {
-            await interaction.deferReply();
-            const key = options.getString('mã_key');
-            const result = licenseStore.redeemKey(guild.id, key, user.tag);
-
-            if (!result.ok) {
-                return interaction.editReply({ content: `❌ ${result.error}` });
-            }
-
-            const embed = new EmbedBuilder()
-                .setColor('#2ECC71')
-                .setTitle('🎉 KÍCH HOẠT BẢN QUYỀN THÀNH CÔNG!')
-                .setDescription(
-                    `Chúc mừng! Máy chủ **${guild.name}** đã được kích hoạt gói bảo vệ Anti-Raid thành công.\n\n` +
-                    `• **Mã Key:** \`${result.key}\`\n` +
-                    `• **Gói:** **${result.planName}** (+${result.daysAdded} ngày)\n` +
-                    `• **Thời hạn mới:** <t:${Math.floor(result.license.expiresTimestamp / 1000)}:F> (Còn **${result.license.remainingDays} ngày**)`
-                )
-                .setFooter({ text: `Kích hoạt bởi @${user.username} • Server ID: ${guild.id}` })
-                .setTimestamp();
-
-            return interaction.editReply({ embeds: [embed] });
-        }
-
         if (commandName === 'antiraid') {
             await interaction.deferReply();
-            const lic = licenseStore.getLicense(guild.id);
-            if (!lic.active) {
-                return interaction.editReply({ content: '❌ Máy chủ chưa kích hoạt bản quyền Anti-Raid hoặc đã hết hạn. Vui lòng gõ `/license` để xem hướng dẫn mua gói và kích hoạt.' });
-            }
-
             const sub = options.getSubcommand();
             if (sub === 'trangthai') {
                 const embed = new EmbedBuilder()
@@ -14269,7 +14140,6 @@ if (commandName === 'setup') {
                         { name: '👥 Chống Mass-Join & Clone Raid', value: '🟢 **Kích hoạt** — Tự động lọc tài khoản mới tạo khi bị dội người vào', inline: false },
                         { name: '🛑 Chống Spam Webhook & @everyone', value: '🟢 **Kích hoạt** — Tự động xóa tin nhắn và timeout kẻ spam', inline: false }
                     )
-                    .setFooter({ text: `Bản quyền: ${lic.planName} • Còn ${lic.remainingDays} ngày` })
                     .setTimestamp();
                 return interaction.editReply({ embeds: [embed] });
             }
@@ -14302,64 +14172,6 @@ if (commandName === 'setup') {
                 saveConfig();
                 return interaction.editReply({ content: gConfig.antiRaidEnabled ? '✅ Đã **BẬT** hệ thống Anti-Raid cho máy chủ này!' : '⚠️ Đã **TẮT** hệ thống Anti-Raid cho máy chủ này.' });
             }
-        }
-
-        if (commandName === 'xacnhan') {
-            await interaction.deferReply({ flags: MessageFlags.Ephemeral });
-            const isOwner = user.id === '1138315103821889566' || user.id === guild.ownerId;
-            if (!isOwner && !member.permissions.has(PermissionFlagsBits.Administrator)) {
-                return interaction.editReply({ content: '❌ Chỉ Quản trị viên / Owner mới có quyền xác nhận kích hoạt bản quyền.' });
-            }
-
-            const targetGuildId = options.getString('server_id')?.trim();
-            const plan = options.getString('gói');
-            const note = options.getString('ghi_chú') || `Confirmed by ${user.tag}`;
-
-            if (!targetGuildId || !/^\d{16,22}$/.test(targetGuildId)) {
-                return interaction.editReply({ content: '❌ Server ID không hợp lệ. Vui lòng nhập đúng dãy số ID máy chủ Discord (17-20 chữ số).' });
-            }
-
-            const updatedLic = licenseStore.grantLicense(targetGuildId, plan, null, `Discord Admin: ${user.tag} (${note})`);
-
-            const embed = new EmbedBuilder()
-                .setColor('#2ECC71')
-                .setTitle('✅ ĐÃ XÁC NHẬN THANH TOÁN & KÍCH HOẠT THÀNH CÔNG!')
-                .setDescription(`Hệ thống đã cập nhật bản quyền và mở khóa toàn bộ tính năng cho máy chủ **${targetGuildId}**.`)
-                .addFields(
-                    { name: '🛡️ Server ID (HWID)', value: `\`${targetGuildId}\``, inline: true },
-                    { name: '📦 Gói Kích Hoạt', value: `**${updatedLic.planName}**`, inline: true },
-                    { name: '⏳ Hạn Bản Quyền', value: `\`${updatedLic.isPermanent ? 'Vĩnh Viễn (Lifetime)' : new Date(updatedLic.expiresTimestamp).toLocaleString('vi-VN')}\` (+ ${updatedLic.remainingDays} ngày)`, inline: false },
-                    { name: '👤 Người Duyệt', value: `${user.tag}`, inline: true },
-                    { name: '📝 Ghi Chú', value: note, inline: true }
-                )
-                .setFooter({ text: 'Dữ liệu đã được đồng bộ tự động với Website mimibot.id.vn' })
-                .setTimestamp();
-
-            return interaction.editReply({ embeds: [embed] });
-        }
-
-        if (commandName === 'genkey') {
-            await interaction.deferReply({ flags: MessageFlags.Ephemeral });
-            const isOwner = user.id === '1138315103821889566' || user.id === guild.ownerId;
-            if (!isOwner && !member.permissions.has(PermissionFlagsBits.Administrator)) {
-                return interaction.editReply({ content: '❌ Chỉ Quản trị viên / Creator mới có quyền tạo mã Key bản quyền.' });
-            }
-
-            const plan = options.getString('gói');
-            const count = options.getInteger('số_lượng') || 1;
-            const note = options.getString('ghi_chú') || `Created by ${user.tag}`;
-
-            const keys = licenseStore.generateKeys(plan, count, note, user.tag);
-            const keyText = keys.map((k, i) => `${i + 1}. \`${k.key}\` — **${k.planName}** (${k.durationDays} ngày)`).join('\n');
-
-            const embed = new EmbedBuilder()
-                .setColor('#F1C40F')
-                .setTitle(`🔑 ĐÃ TẠO THÀNH CÔNG ${count} MÃ LICENSE KEY`)
-                .setDescription(`Danh sách mã key mới tạo (gửi mã này cho khách hàng):\n\n${keyText}`)
-                .setFooter({ text: 'Khách hàng có thể nhập mã bằng lệnh /kichhoat [mã_key] hoặc trên website' })
-                .setTimestamp();
-
-            return interaction.editReply({ embeds: [embed] });
         }
 
         if (commandName === 'play') {

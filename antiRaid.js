@@ -10,7 +10,6 @@
 // =====================================================================
 
 const { PermissionFlagsBits, ChannelType, AuditLogEvent, EmbedBuilder } = require('discord.js');
-const licenseStore = require('./licenseStore');
 const fs = require('fs');
 const path = require('path');
 
@@ -29,14 +28,12 @@ function getTracker(guildId) {
     return raidTracker.get(guildId);
 }
 
-// Kiểm tra xem Guild có bản quyền hợp lệ để dùng tính năng Anti-Raid không
+// Giữ cấu hình bật/tắt Anti-Raid của từng máy chủ.
 let customToggleCheck = null;
 function setToggleCheck(fn) { customToggleCheck = fn; }
 
-function isLicenseValid(guildId) {
-    if (customToggleCheck && !customToggleCheck(guildId)) return false;
-    const lic = licenseStore.getLicense(guildId);
-    return lic && lic.active;
+function isAntiRaidEnabled(guildId) {
+    return Boolean(guildId && (!customToggleCheck || customToggleCheck(guildId)));
 }
 
 // Tìm Executor của hành động trong Audit Log
@@ -113,7 +110,7 @@ function initAntiRaid(client) {
     // 1. CHỐNG NUKE XÓA KÊNH
     client.on('channelDelete', async (channel) => {
         const guild = channel.guild;
-        if (!guild || !isLicenseValid(guild.id)) return;
+        if (!guild || !isAntiRaidEnabled(guild.id)) return;
 
         const executor = await getAuditExecutor(guild, AuditLogEvent.ChannelDelete, channel.id);
         if (!executor || executor.id === guild.ownerId || executor.id === client.user.id) return;
@@ -132,7 +129,7 @@ function initAntiRaid(client) {
     // 2. CHỐNG NUKE XÓA ROLE
     client.on('roleDelete', async (role) => {
         const guild = role.guild;
-        if (!guild || !isLicenseValid(guild.id)) return;
+        if (!guild || !isAntiRaidEnabled(guild.id)) return;
 
         const executor = await getAuditExecutor(guild, AuditLogEvent.RoleDelete, role.id);
         if (!executor || executor.id === guild.ownerId || executor.id === client.user.id) return;
@@ -151,7 +148,7 @@ function initAntiRaid(client) {
     // 3. CHỐNG MASS JOIN & CHỐNG BOT LẠ
     client.on('guildMemberAdd', async (member) => {
         const guild = member.guild;
-        if (!guild || !isLicenseValid(guild.id)) return;
+        if (!guild || !isAntiRaidEnabled(guild.id)) return;
 
         // Nếu là BOT lạ vào server mà không phải do Owner mời -> tự động kick
         if (member.user.bot) {
@@ -184,7 +181,7 @@ function initAntiRaid(client) {
 
     // 4. CHỐNG SPAM MASS MENTION & WEBHOOK
     client.on('messageCreate', async (message) => {
-        if (!message.guild || message.author.bot || !isLicenseValid(message.guild.id)) return;
+        if (!message.guild || message.author.bot || !isAntiRaidEnabled(message.guild.id)) return;
 
         // Nếu tin nhắn chứa quá nhiều mention (@everyone, @here, role spam)
         const mentionCount = message.mentions.users.size + message.mentions.roles.size;
@@ -332,5 +329,5 @@ module.exports = {
     setToggleCheck,
     initAntiRaid,
     triggerLockdown,
-    isLicenseValid
+    isAntiRaidEnabled
 };

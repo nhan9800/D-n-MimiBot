@@ -52,10 +52,8 @@
 - **Chính sách**: **MIỄN PHÍ 100% TRỌN ĐỜI**.
 - Tuyệt đối KHÔNG được đặt rào cản bản quyền đối với mọi lệnh nghe nhạc, phát 24/7, autoplay, level chat hay minigame xu.
 
-### 2.2. MIMI SHIELD BOT (Bot Vệ Sĩ Anti-Raid & An Ninh)
-- **Client ID**: `1539527939723497473`.
-- **Link Mời**: `https://discord.com/oauth2/authorize?client_id=1539527939723497473&permissions=8&integration_type=0&scope=bot`
-- **Chính sách**: Thu phí theo các gói bản quyền HWID (`1m`: 50k, `3m`: 140k, `12m`: 390k, `permanent`).
+### 2.2. Mimi Shield
+Mimi Shield đã ngừng cung cấp từ ngày 06/11/2026. Tính năng quản trị của Mimi Bot cộng đồng thuộc dự án Mimi Bot.
 
 ---
 

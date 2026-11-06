@@ -2,7 +2,7 @@
 
 ## Bí mật và cấu hình
 
-Token Discord/service/admin/license, mật khẩu hosting và cookie chỉ nằm trong môi trường hoặc file runtime được ignore. `.env` được nạp phía bot, không đưa vào public assets/website client. Biến môi trường ưu tiên hơn config cũ; không ghi token môi trường trở lại config.
+Token Discord/service/admin, mật khẩu hosting và cookie chỉ nằm trong môi trường hoặc file runtime được ignore. `.env` được nạp phía bot, không đưa vào public assets/website client. Biến môi trường ưu tiên hơn config cũ; không ghi token môi trường trở lại config.
 
 `config.json`, `economy.json`, `reminders.json`, kho nhạc và `data/` phải sao lưu riêng. SFTP workflow chỉ upload whitelist mã/tài nguyên, giữ dữ liệu host. Nếu bí mật đã từng được công khai, người vận hành cần đổi bí mật tại nhà cung cấp; xóa khỏi phiên bản mới không xóa lịch sử Git.
 
@@ -11,7 +11,7 @@ Token Discord/service/admin/license, mật khẩu hosting và cookie chỉ nằm
 - Không có `MIMI_API_TOKEN` thì API không mở cổng.
 - Mọi `/internal/*` cần `Authorization: Bearer <MIMI_API_TOKEN>`.
 - `/internal/guilds/:id/*` còn cần `X-Mimi-Access-Key` ký đúng guild, còn hạn. Link phát qua `/dashboard` sau kiểm tra quyền Quản Lý Máy Chủ, mặc định hạn 7 ngày.
-- Các endpoint `/api/admin/restart`, `/api/broadcast/trigger`, `/api/broadcast/cleanup`, `/api/license/admin/confirm` yêu cầu POST và Bearer service token hoặc `ADMIN_SECRET` được cấu hình rõ ràng. Không chấp nhận secret mặc định, query hoặc body thay header.
+- Các endpoint `/api/admin/restart`, `/api/broadcast/trigger`, `/api/broadcast/cleanup` yêu cầu POST và Bearer service token hoặc `ADMIN_SECRET` được cấu hình rõ ràng. Không chấp nhận secret mặc định, query hoặc body thay header.
 - `MIMI_API_ALLOW_IPS` áp dụng cho API riêng và endpoint quản trị. Chỉ tin `X-Forwarded-For` khi request đi qua proxy trong `MIMI_TRUSTED_PROXIES`; không dùng header do client tự gửi để vượt allowlist.
 - Rate limit theo IP, giới hạn body và chỉ chấp nhận object JSON hợp lệ. Không trả stack trace cho client.
 - Các endpoint công khai chỉ cung cấp thông tin cần thiết; cổng HTTP không nên mở trực tiếp ra Internet. Dùng loopback hoặc TLS/tunnel/firewall với allowlist.
@@ -32,7 +32,7 @@ Lockdown lưu bản sao `SendMessages`/`AddReactions` của từng kênh trong `
 
 ## Mã kích hoạt tương thích
 
-Bot cộng đồng vẫn miễn phí. Kho mã kích hoạt legacy chỉ chấp nhận mã đã lưu trong `data/license_keys.json`; đúng chữ ký nhưng chưa phát hành không cấp quyền. Mã mới có entropy ngẫu nhiên mạnh, có thể ký bằng `MIMI_LICENSE_SECRET`; không có secret hardcode. Ghi JSON dùng file tạm rồi rename; lỗi ghi được trả về thay vì báo kích hoạt thành công.
+Các API bán và cấp mã Shield trả HTTP 410 kể từ 06/11/2026. Dữ liệu giao dịch cũ được giữ để đối chiếu.
 
 ## Quyền riêng tư
 

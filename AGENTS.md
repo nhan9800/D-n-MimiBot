@@ -27,7 +27,7 @@ Repository này là bot Discord/HTTP API 1.4.0. Website Next.js nằm ở reposi
 - `petUi.js`: decay, trạng thái và thẻ/nút thú cưng dùng chung cho command, interaction và scheduler.
 - `communityEmojis.js`, `emojiImport.js`, `assets/emojis/`: bộ emoji ứng dụng, cài bộ vào guild, import ảnh an toàn.
 - `internalApi.js`, `dashboardAuth.js`: API và khoá dashboard.
-- `musicStore.js`, `musicSources.js`, `googleTts.js`, `reminderUtils.js`, `antiRaid.js`, `licenseStore.js`: nghiệp vụ/persistence.
+- `musicStore.js`, `musicSources.js`, `googleTts.js`, `reminderUtils.js`, `antiRaid.js`: nghiệp vụ/persistence.
 - `scripts/check-syntax.js`, `tests/`, `docs/`: kiểm tra và tài liệu.
 - `scripts/legacy/*.js.txt`: mã vá regex cũ, chỉ tham khảo; không đổi về script executable/chạy lại.
 

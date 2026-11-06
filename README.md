@@ -38,7 +38,6 @@ emojiImport.js          Tải, kiểm tra nguồn ảnh emoji
 musicStore.js           Phiên nhạc, yêu thích và album
 musicSources.js         Giới hạn URL nhạc theo nguồn được hỗ trợ
 antiRaid.js             Bảo vệ máy chủ và phục hồi lockdown
-licenseStore.js         Kho mã kích hoạt tương thích; bot cộng đồng miễn phí
 reminderUtils.js        Đọc thời lượng và chia timeout nhắc nhở
 googleTts.js            Tải và parse phản hồi TTS an toàn bằng JSON
 assets/                 Ảnh emoji được deploy cùng bot
@@ -54,7 +53,7 @@ data/                   Dữ liệu runtime, được ignore
 
 ## Kiểm tra và tài liệu
 
-`npm run check` chỉ kiểm tra cú pháp, không mở Discord/API. `npm test` kiểm tra giao diện, emoji, quyền API, lockdown, dashboard key, license và nhắc nhở trong môi trường giả lập/thư mục tạm. Test offline không xác nhận âm thanh hoặc quyền thật trên một Discord server.
+`npm run check` chỉ kiểm tra cú pháp, không mở Discord/API. `npm test` kiểm tra giao diện, emoji, quyền API, lockdown, dashboard key và nhắc nhở trong môi trường giả lập/thư mục tạm. Test offline không xác nhận âm thanh hoặc quyền thật trên một Discord server.
 
 - [Kiến trúc](docs/ARCHITECTURE.md)
 - [Triển khai](docs/DEPLOYMENT.md)
