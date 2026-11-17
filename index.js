@@ -3410,7 +3410,7 @@ const youtubeCookieVerifier = createYoutubeCookieVerification({
         if (!source.path || source.status.state !== 'ready' || !source.status.hasAuthCookies) {
             throw new Error('COOKIE_SOURCE_CHANGED');
         }
-        const options = { ...getYtCommonOpts(), cookies: source.path };
+        const options = { ...getYtCommonOpts(undefined, { useCookies: true }), cookies: source.path };
         const getOptions = () => {
             const current = youtubeCookieSource.read();
             if (current.path !== source.path || current.revision !== source.revision) throw new Error('COOKIE_SOURCE_CHANGED');
@@ -3582,17 +3582,15 @@ function getMusicSourceCacheKey() {
 }
 
 // Dùng bộ client hiện hành của yt-dlp và Node để xử lý challenge JavaScript.
-// IP bị yêu cầu đăng nhập vẫn cần xác thực hợp lệ; không hứa đổi client sẽ hết chặn.
-const YT_EXTRACTOR_ARGS = 'youtube:player_client=default';
+// Loại web_embedded khỏi default vì YouTube đang thử nghiệm 403/DRM riêng cho
+// client này trên một số IP. Nội dung công khai không nên gửi kèm cookie tài khoản.
+const YT_EXTRACTOR_ARGS = 'youtube:player_client=default,-web_embedded';
 const YT_DOWNLOAD_EXTRACTOR_ARGS = YT_EXTRACTOR_ARGS;
 
-// 🔁 Client dự phòng khi tải audio. Chỉ giữ một lượt retry với client hợp lệ
-// để lỗi 403 không kéo dài qua nhiều tiến trình trước khi chuyển nguồn.
+// 🔁 Lượt tải chính dùng default nhưng loại web_embedded. Guest web_embedded
+// được thử riêng trong recovery để không mang cookie tài khoản vào URL công khai.
 const YT_DOWNLOAD_CLIENT_FALLBACKS = [
-    // 04/11: host tải được đúng bài lỗi qua embedded (64KiB/13.2s), trong khi
-    // mweb+PO trả403 và Safari HLS không có byte. Ưu tiên đường đã kiểm chứng.
-    'youtube:player_client=web_embedded',
-    'youtube:player_client=default'
+    'youtube:player_client=default,-web_embedded'
 ];
 
 // Một số IP bị YouTube từ chối các URL DASH googlevideo nhưng vẫn cho phép
@@ -3679,7 +3677,7 @@ function buildSoundcloudFallbackQuery(title, author = '') {
     return query.slice(0, 140) || raw.slice(0, 140);
 }
 
-function getYtCommonOpts(clientArgs = YT_EXTRACTOR_ARGS) {
+function getYtCommonOpts(clientArgs = YT_EXTRACTOR_ARGS, { useCookies = false } = {}) {
     // yt-dlp-exec đổi boolean false thành --no-<flag>; noCheckCertificates:false
     // thành --no-no-check-certificates không hợp lệ. Bỏ flag để giữ xác thực TLS mặc định.
     const opts = {
@@ -3696,7 +3694,9 @@ function getYtCommonOpts(clientArgs = YT_EXTRACTOR_ARGS) {
         // HTTP 403 even though the video is public and playable.
         forceIpv4: true
     };
-    const c = getCookieFilePath();
+    // Cookie tài khoản chỉ dành cho video cần xác thực. Gửi cookie cho mọi
+    // video công khai làm session dễ bị YouTube đánh dấu và trả 403 hàng loạt.
+    const c = useCookies ? getCookieFilePath() : null;
     if (c) opts.cookies = c;
     return opts;
 }
@@ -5307,6 +5307,7 @@ async function playNextTrack(guildId, opts = {}) {
     const youtubeHlsAttempt = opts.youtubeHlsAttempt === true;
     const youtubeHlsTried = opts.youtubeHlsTried === true;
     const youtubeGuestAttempt = opts.youtubeGuestAttempt === true;
+    const youtubeCookieAttempt = opts.youtubeCookieAttempt === true;
     const useFfmpeg = true; // Decoder PCM dùng chung cho mọi hiệu ứng, không mở lại nguồn khi đổi.
     const ffmpegPath = useFfmpeg ? getFfmpegPath() : null;
     // Khi binary còn đang tải, giữ nguyên bài đang nghe thay vì huỷ luồng rồi mới báo lỗi.
@@ -5568,7 +5569,10 @@ async function playNextTrack(guildId, opts = {}) {
             bufferSize: '1024K',
             forceIpv4: true
         };
-        const cookiePath = isYoutubePlayback && !youtubeGuestAttempt ? getCookieFilePath() : null;
+        // Public video chạy guest trước. Chỉ lượt recovery đã được xác định là
+        // cần đăng nhập mới đọc cookies, tránh biến một session cũ thành nguồn
+        // 403 cho toàn bộ video công khai trên cùng IP.
+        const cookiePath = isYoutubePlayback && youtubeCookieAttempt && !youtubeGuestAttempt ? getCookieFilePath() : null;
         if (cookiePath) ytdlOpts.cookies = cookiePath;
         if (isYoutubePlayback) {
             ytdlOpts.jsRuntimes = 'node';
@@ -5661,18 +5665,34 @@ async function playNextTrack(guildId, opts = {}) {
 
             const embeddedClientFailed = /player_client=web_embedded(?:$|[;,])/.test(YT_DOWNLOAD_CLIENT_FALLBACKS[clientAttempt] || '')
                 && safeError.code === 'SOURCE_FAILED';
-            const isRetryable = embeddedClientFailed || ['NETWORK', 'TIMEOUT', 'HTTP_403', 'FORMAT_UNAVAILABLE', 'AUTH_REQUIRED'].includes(safeError.code) || /403|forbidden|Requested format is not available|Sign in to confirm you|bot|confirm you’re not a bot|needs_auth|login|Unable to download|No such file|Frag|timeout|IncompleteRead|HTTP Error 5|Connection reset|timed out|network/i.test(rawErr);
+            const isRetryable = embeddedClientFailed || ['NETWORK', 'TIMEOUT', 'HTTP_403', 'FORMAT_UNAVAILABLE', 'AUTH_REQUIRED', 'SOURCE_FAILED'].includes(safeError.code) || /403|forbidden|Requested format is not available|Sign in to confirm you|bot|confirm you’re not a bot|needs_auth|login|Unable to download|No such file|Frag|timeout|IncompleteRead|HTTP Error 5|Connection reset|timed out|network/i.test(rawErr);
             const nextAttempt = clientAttempt + 1;
             const authRequired = safeError.code === 'AUTH_REQUIRED';
             const nextClient = YT_DOWNLOAD_CLIENT_FALLBACKS[nextAttempt] || '';
             const authCompatibleClient = /player_client=(?:web_embedded|default|mweb)(?:$|[;,])/i.test(nextClient);
 
-            // Đã đo guest tải được FEUE7x1vslI và đúng AnhVui BAl1VQur4uI
-            // trên host05/11. Nếu phiên tài khoản bị yêu cầu xác thực, thử đúng
-            // video công khai1lần, không xóa/sửa cookie hoặc đổi bản thu.
+            // Chỉ khi guest bị YouTube yêu cầu đăng nhập mới thử lại bằng
+            // cookies. Lượt cookie có deadline riêng và vẫn giữ đúng video.
+            const cookieSourcePath = isYoutubePlayback ? getCookieFilePath() : null;
+            if (isYoutubePlayback && !youtubeGuestAttempt && !youtubeCookieAttempt
+                && !opts.youtubeCookieTried && authRequired && cookieSourcePath) {
+                console.warn(`[Music] YouTube yêu cầu đăng nhập, thử phiên xác thực cho server ${guildId}.`);
+                return playNextTrack(guildId, { ...opts, replayCurrent: true, expectedTrack: next,
+                    seekSec: Math.max(seekSec, getPlaybackSec(mq)), effectKey: recoveryEffect,
+                    seekTransport, sourceDeadline: Date.now() + 16000,
+                    clientAttempt: 0, sourceRecovery: true, sourceFailureCode,
+                    youtubeCookieAttempt: true, youtubeCookieTried: true,
+                    youtubeGuestAttempt: false, youtubeGuestTried: false,
+                    youtubeHlsAttempt: false, youtubeHlsTried: false });
+            }
+
+            // Nếu lượt có cookie hoặc client chính gặp 403/auth, thử đúng một
+            // lần guest web_embedded. Lượt này không mang cookie tài khoản.
             const guestResumeSec = Math.max(seekSec, getPlaybackSec(mq));
-            const retryGuest = (authRequired && cookiePath && !opts.youtubeGuestTried)
-                || (youtubeGuestAttempt && playbackStarted && isRetryable);
+            const guestEligibleClient = youtubeClientArgs === 'youtube:player_client=default,-web_embedded'
+                || youtubeCookieAttempt;
+            const retryGuest = !youtubeGuestAttempt && guestEligibleClient && !opts.youtubeGuestTried && isRetryable
+                && ['AUTH_REQUIRED', 'HTTP_403', 'TIMEOUT', 'NETWORK', 'SOURCE_FAILED'].includes(safeError.code);
             if (isYoutubePlayback && retryGuest && (guestResumeSec === 0 || !mq.sectionDisabled)) {
                 console.warn(`[Music] Thử nguồn YouTube công khai cho server ${guildId}.`);
                 return playNextTrack(guildId, { ...opts, replayCurrent: true, expectedTrack: next,
@@ -5680,6 +5700,7 @@ async function playNextTrack(guildId, opts = {}) {
                     seekTransport: guestResumeSec > 0 ? 'section' : 'pipe', sourceDeadline: Date.now() + 16000,
                     clientAttempt: 0, sourceRecovery: true, sourceFailureCode,
                     youtubeGuestAttempt: true, youtubeGuestTried: true,
+                    youtubeCookieAttempt: false, youtubeCookieTried: youtubeCookieAttempt || opts.youtubeCookieTried === true,
                     youtubeHlsAttempt: false, youtubeHlsTried: true });
             }
 

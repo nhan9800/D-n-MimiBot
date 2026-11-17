@@ -511,7 +511,7 @@ test('PO sẵn sàng: hết16giây dừng nguồn đúng một lần, YouTube t�
     } finally { packet.resolve({ stream: f.processes[0]?.stdout, type: 'opus' }); f.cleanup(); }
 });
 
-test('Client embedded production có thể bắt đầu sau13.2giây, không đổi nguồn hoặc mất queue', async () => {
+test('Client YouTube chính có thể bắt đầu sau13.2giây, không đổi nguồn hoặc mất queue', async () => {
     for (const ready of [true, false]) {
         const f = await fixture({ youtubePoProvider: {
             options: extractorArgs => ({ extractorArgs }), snapshot: () => ({ ready })
@@ -519,10 +519,10 @@ test('Client embedded production có thể bắt đầu sau13.2giây, không đ�
         try {
             f.context.YT_DOWNLOAD_CLIENT_FALLBACKS = youtubeDownloadClients;
             await f.play();
-            assert.equal(f.processes[0].flags.extractorArgs, 'youtube:player_client=web_embedded');
+            assert.equal(f.processes[0].flags.extractorArgs, 'youtube:player_client=default,-web_embedded');
             const deadline = f.timers.find(timer => !timer.cleared);
-            assert.equal(deadline.delay, 16000);
-            f.clock.now += 13234;
+            assert.equal(deadline.delay, ready ? 16000 : 12000);
+            f.clock.now += ready ? 13234 : 11000;
             f.player.state = { status: 'playing', resource: f.mq.currentResource };
             f.player.emit('playing', {}, f.player.state);
             assert.equal(deadline.cleared, true);
@@ -536,7 +536,7 @@ test('Client embedded production có thể bắt đầu sau13.2giây, không đ�
     }
 });
 
-test('Client production ưu tiên embedded đã có audio host; client dự phòng không bị HLS nuốt deadline', async () => {
+test('Client production loại embedded khỏi lượt đầu và không bị HLS nuốt deadline', async () => {
     for (const error of ['HTTP 403', 'Video unavailable: playback on other websites has been disabled', 'authentication required']) {
         const f = await fixture({ youtubePoProvider: {
             options: extractorArgs => ({ extractorArgs }), snapshot: () => ({ ready: true })
@@ -545,12 +545,12 @@ test('Client production ưu tiên embedded đã có audio host; client dự phò
             f.current.allowSourceFallback = false;
             f.context.YT_DOWNLOAD_CLIENT_FALLBACKS = youtubeDownloadClients;
             await f.play();
-            assert.equal(f.processes[0].flags.extractorArgs, 'youtube:player_client=web_embedded');
+            assert.equal(f.processes[0].flags.extractorArgs, 'youtube:player_client=default,-web_embedded');
             f.clock.now += 1500;
             await f.processes[0].rejectPlayback(new Error(error)); await tick();
-            assert.equal(f.processes[1].flags.extractorArgs, 'youtube:player_client=default');
+            assert.equal(f.processes[1].flags.extractorArgs, 'youtube:player_client=web_embedded');
             assert.doesNotMatch(f.processes[1].flags.format, /m3u8/);
-            assert.equal(f.timers.find(timer => !timer.cleared).delay, 14500);
+            assert.equal(f.timers.find(timer => !timer.cleared).delay, 16000);
             assert.equal(f.mq.current, f.current);
             assert.deepEqual(f.mq.queue, [f.queued]);
             const resource = f.mq.currentResource;
@@ -627,7 +627,7 @@ test('AUTH_REQUIRED lặp trên2client dừng tại nguồn, không thử HLS/au
     } finally { f.cleanup(); }
 });
 
-test('Phiên tài khoản bị auth thử cùng video guest1lần, không cookie/đổi bản/đổi hiệu ứng hoặc lấy queue', async () => {
+test('Phiên tài khoản bị auth thử cookies rồi guest1lần, không đổi bản/đổi hiệu ứng hoặc lấy queue', async () => {
     for (const failed of [false, true]) {
         const f = await fixture({ youtubePoProvider: { options: extractorArgs => ({ extractorArgs }), snapshot: () => ({ ready: true }) } });
         try {
@@ -638,13 +638,17 @@ test('Phiên tài khoản bị auth thử cùng video guest1lần, không cookie
             f.clock.now += 2000;
             await f.processes[0].rejectPlayback(new Error('The provided YouTube account cookies are no longer valid')); await tick();
             assert.equal(f.processes.length, 2); assert.equal(f.processes[1].url, f.current.url);
-            assert.equal(f.processes[1].flags.extractorArgs, 'youtube:player_client=web_embedded');
-            assert.equal(f.processes[1].flags.cookies, undefined);
+            assert.equal(f.processes[1].flags.extractorArgs, 'youtube:player_client=default,-web_embedded');
+            assert.equal(f.processes[1].flags.cookies, '/private/cookie-file');
             assert.equal(f.timers.find(timer => !timer.cleared).delay, 16000);
             assert.equal(f.mq.effect, 'bassboost'); assert.deepEqual(f.mq.queue, [f.queued]);
             if (failed) {
                 await f.processes[1].rejectPlayback(new Error('authentication required')); await tick();
-                assert.equal(f.processes.length, 2); assert.equal(f.mq.sourceBlocked, true);
+                assert.equal(f.processes.length, 3);
+                assert.equal(f.processes[2].flags.extractorArgs, 'youtube:player_client=web_embedded');
+                assert.equal(f.processes[2].flags.cookies, undefined);
+                await f.processes[2].rejectPlayback(new Error('authentication required')); await tick();
+                assert.equal(f.processes.length, 3); assert.equal(f.mq.sourceBlocked, true);
                 assert.deepEqual(f.mq.queue, [f.current, f.queued]); assert.equal(f.notices.length, 1);
             } else {
                 f.player.state = { status: 'playing', resource: f.mq.currentResource };

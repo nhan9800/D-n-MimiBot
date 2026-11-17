@@ -1,8 +1,9 @@
 # PO Token cho YouTube
 
-Bot vẫn tìm bằng `ytsearch` trên YouTube. Metadata dùng `mweb` cùng plugin
-PO khi provider sẵn sàng. Audio pipe ưu tiên `web_embedded` sau phép đo host
-ngày04/11/2026; `default` (mweb+PO khi ready) dự phòng trước HLS.
+Bot vẫn tìm bằng `ytsearch` trên YouTube. Metadata và lượt phát công khai dùng
+`youtube:player_client=default,-web_embedded`; khi provider sẵn sàng, `default`
+được đổi sang `mweb` cùng PO Token. `web_embedded` chỉ được thử một lần ở guest
+recovery, vì YouTube đang rollout 403/DRM riêng cho nhánh embedded trên một số IP.
 Đổi hiệu ứng trên PCM hiện tại không mở lại YouTube. Giữ chính sách nguồn
 của từng yêu cầu; không tự thay bản YouTube bằng SoundCloud.
 
@@ -50,6 +51,9 @@ receipt ngăn tự tải lặp lại mỗi restart. Các test mặc định ch�
 
 Ping hoặc test trên máy local không chứng minh IP hosting đã hết 403.
 PO Token cũng không bảo đảm vượt mọi giới hạn IP/tài khoản/video của YouTube.
+Cookies tài khoản không được gửi cho video công khai. Bot chỉ thử cookies sau khi
+lượt guest nhận mã yêu cầu đăng nhập, rồi thử lại guest một lần nếu phiên xác thực
+vẫn bị từ chối.
 
 Lượt thử VibeHost ngày 18/10/2026 trên commit `7480240`: provider ready 2.0.2,
 tìm được video `boKJ5XDs_mY`, plugin nạp và có yêu cầu token, nhưng tải audio

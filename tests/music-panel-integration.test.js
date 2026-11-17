@@ -74,7 +74,7 @@ function musicQueue(message = null) {
         player: { state: { status: 'playing' }, stop() {} }, connection: { state: { status: 'destroyed' }, destroy() {} } };
 }
 
-test('Tùy chọn metadata tạo argv yt-dlp hợp lệ, giữ cookie và xác thực HTTPS mặc định', async () => {
+test('Tùy chọn metadata guest tạo argv yt-dlp hợp lệ và chỉ bật cookie khi cần', async () => {
     const calls = [];
     const context = vm.createContext({ createLiveEffectSession, spawn() { throw new Error('Không spawn hiệu ứng trong ca phát none'); }, getFfmpegPath: () => 'ffmpeg',
         YT_EXTRACTOR_ARGS: 'youtube:player_client=android,ios,mweb',
@@ -89,8 +89,10 @@ test('Tùy chọn metadata tạo argv yt-dlp hợp lệ, giữ cookie và xác t
     vm.runInContext(region('const YT_META_TIMEOUT_MS =', 'async function searchYoutube('), context);
     vm.runInContext(region('async function resolveDirectUrl(', '// Ưu tiên: YouTube'), context);
     const common = vm.runInContext('getYtCommonOpts()', context);
-    assert.equal(common.cookies, '/tmp/cookies-test.txt');
-    assert.equal(common.extractorArgs, 'youtube:player_client=default');
+    assert.equal(common.cookies, undefined, 'Metadata công khai không gửi cookie tài khoản');
+    assert.equal(common.extractorArgs, 'youtube:player_client=default,-web_embedded');
+    const authenticated = vm.runInContext('getYtCommonOpts(undefined, { useCookies: true })', context);
+    assert.equal(authenticated.cookies, '/tmp/cookies-test.txt');
     assert.equal(common.jsRuntimes, 'node');
     assert.equal(common.remoteComponents, 'ejs:github');
     assert.equal(common.forceIpv4, true, 'Metadata và stream phải dùng cùng tuyến IPv4 để tránh URL googlevideo bị 403');

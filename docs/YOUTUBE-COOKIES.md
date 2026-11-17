@@ -1,9 +1,10 @@
 # Phiên YouTube phụ trên VibeHost
 
 PO Token đã cấp được trên hosting nhưng lượt tải YouTube ngày 18/10/2026
-vẫn trả HTTP403. Cookies là bước kiểm tra xác thực tiếp theo, chưa phải cam kết
-chữa mọi giới hạn của YouTube. Dùng tài khoản phụ: yt-dlp lưu ý tài khoản có thể
-bị hạn chế khi dùng để tải nhiều video.
+vẫn trả HTTP403. Lượt phát công khai hiện chạy guest trước để tránh session cũ
+làm YouTube chặn cả IP. Cookies chỉ là bước recovery cho video thực sự yêu cầu
+đăng nhập, chưa phải cam kết chữa mọi giới hạn của YouTube. Dùng tài khoản phụ:
+yt-dlp lưu ý tài khoản có thể bị hạn chế khi dùng để tải nhiều video.
 
 ## Xuất bằng Chrome/Edge
 
