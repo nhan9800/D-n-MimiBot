@@ -3398,6 +3398,7 @@ const youtubePoEnabled = process.env.MIMI_YOUTUBE_PO_ENABLED === '1'
 // dùng khi một lượt phát guest báo cần đăng nhập, hoặc khi chủ bot bật probe
 // chẩn đoán rõ ràng bằng MIMI_YOUTUBE_COOKIE_CHECK=1.
 const youtubeCookieCheckEnabled = process.env.MIMI_YOUTUBE_COOKIE_CHECK === '1';
+const youtubePoCheckEnabled = process.env.MIMI_YOUTUBE_PO_CHECK === '1';
 const youtubePoProvider = createYoutubePoProvider({
     install: ({ signal }) => installYoutubePo({ rootDir: __dirname, signal, log: console.log }),
     root: __dirname, log: console.log
@@ -3477,7 +3478,7 @@ ensureYtDlpBinary().then(async available => {
     if (!available) return;
     const status = youtubePoEnabled ? await youtubePoProvider.start() : { ready: false };
     if (status.ready) {
-        await verifyFirstYoutubePoSetup();
+        if (youtubePoCheckEnabled) await verifyFirstYoutubePoSetup();
         if (youtubeCookieCheckEnabled) youtubeCookieVerifier.start();
         // Chỉ chạy khi người vận hành đặt request công khai; receipt không lặp mỗi restart.
         runYoutubeLinkCheck({

@@ -54,6 +54,9 @@ PO Token cũng không bảo đảm vượt mọi giới hạn IP/tài khoản/vi
 Cookies tài khoản không được gửi cho video công khai. Bot chỉ thử cookies sau khi
 lượt guest nhận mã yêu cầu đăng nhập, rồi thử lại guest một lần nếu phiên xác thực
 vẫn bị từ chối.
+Probe YouTube mẫu lúc khởi động cũng tắt mặc định để không tạo thêm lượt tải trên
+IP hosting. Bật chẩn đoán có chủ đích bằng `MIMI_YOUTUBE_PO_CHECK=1`; kiểm tra link
+riêng vẫn dùng `youtube-link-check.json` khi cần.
 
 Lượt thử VibeHost ngày 18/10/2026 trên commit `7480240`: provider ready 2.0.2,
 tìm được video `boKJ5XDs_mY`, plugin nạp và có yêu cầu token, nhưng tải audio
