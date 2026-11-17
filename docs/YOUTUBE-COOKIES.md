@@ -32,6 +32,8 @@ Nguồn: [hướng dẫn xuất phiên YouTube](https://github.com/yt-dlp/yt-dlp
 - Có thể đặt `MIMI_YOUTUBE_COOKIE_FILE=data/youtube/youtube_cookies.txt` trong env.
   Đường dẫn phải nằm trong thư mục bot; không truyền giá trị cookies qua env.
   Các tên mặc định và `data/` đã bị loại khỏi Git và upload deploy.
+- Probe tải thử bằng cookie bị tắt mặc định để tránh lặp HTTP403 và làm session/IP
+  bị đánh dấu. Chỉ bật khi cần chẩn đoán bằng `MIMI_YOUTUBE_COOKIE_CHECK=1`.
 - Kiểm tra file thường, tối đa 1 MiB, header Netscape, hàng 7 cột, domain
   YouTube/Google và hạn dùng. Không trả/log tên tài khoản hoặc giá trị cookies.
   `hasAuthCookies` chỉ nói có cookie xác thực, chưa xác minh đăng nhập còn hiệu lực.
