@@ -29,6 +29,24 @@ của từng yêu cầu; không tự thay bản YouTube bằng SoundCloud.
 - SFTP whitelist và fingerprint bao gồm manager, probe và installer;
   `data/` không được upload, commit hay ghi đè.
 
+## Giới hạn tần suất
+
+Mọi server dùng chung bộ điều tiết YouTube trong một tiến trình Mimi. Khi có đủ
+suất, bot có thể bắt đầu tối đa bốn lượt liên tiếp, rồi có thêm một suất mỗi 15
+giây. Các lượt tìm kiếm, playlist, phát nhạc, radio và probe đều dùng cùng giới
+hạn. Metadata từ link video trực tiếp dùng nhãn tạm khi không có suất ngay.
+
+HTTP 429 và thông báo “This content isn't available, try again later” tạm dừng
+yêu cầu YouTube trong ít nhất 10 phút. Yêu cầu xác minh bot tạm dừng ít nhất
+5 phút. Mimi dùng `Retry-After` khi oEmbed gửi thời hạn dài hơn và lưu mốc trong
+`data/youtube-cooldown.json` để giữ qua khởi động lại. Xem mã lỗi và mốc thử lại
+tại `/health/live.youtubePo.requestCooldown`. HTTP 403 và lỗi đăng nhập thông
+thường được phân loại riêng.
+
+Khi dừng do giới hạn, bot giữ hàng đợi và bỏ các lượt thử lại của bài. Âm thanh
+đang phát có thể tiếp tục nếu luồng còn dữ liệu. Hết thời gian chờ, người dùng
+có thể dùng `/play` để tiếp tục. Nguồn SoundCloud vẫn có thể chạy trong lúc chờ.
+
 ## Xác minh đúng lớp lỗi
 
 Theo yêu cầu kiểm tra ngày 18/10/2026, lần setup đầu chạy một flat search
@@ -47,7 +65,8 @@ receipt ngăn tự tải lặp lại mỗi restart. Các test mặc định ch�
   giúp tách lỗi gọi provider khỏi lỗi tải audio; `downloadStarted` chưa chứng minh nhận bytes.
 - `ok=true`, `outcome=audio_received`, `bytes>0`: đã nhận dữ liệu có header
   container audio từ YouTube trên máy chạy probe.
-- `http_403`/`auth_required`/`timeout`: lỗi vẫn còn ở lượt kiểm tra đó.
+- `http_403`, `auth_required`, `rate_limited`, `youtube_bot_check`, `youtube_busy`
+  và `timeout` ghi riêng kết quả của lượt đó.
 
 Ping hoặc test trên máy local không chứng minh IP hosting đã hết 403.
 PO Token cũng không bảo đảm vượt mọi giới hạn IP/tài khoản/video của YouTube.

@@ -4,7 +4,7 @@ const defaultFs = require('node:fs/promises');
 const path = require('node:path');
 const { randomBytes } = require('node:crypto');
 
-const OUTCOMES = new Set(['audio_received', 'invalid_audio', 'http_403', 'auth_required', 'timeout',
+const OUTCOMES = new Set(['audio_received', 'invalid_audio', 'http_403', 'auth_required', 'rate_limited', 'youtube_bot_check', 'youtube_busy', 'timeout',
     'search_failed', 'source_failed', 'search_empty', 'invalid_configuration', 'invalid_input', 'aborted', 'interrupted']);
 const PHASES = new Set(['input', 'search', 'audio']);
 const FLAGS = ['containerHeaderRecognized', 'pluginLoaded', 'tokenRequestObserved', 'searchResolved',

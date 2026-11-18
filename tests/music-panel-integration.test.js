@@ -28,7 +28,9 @@ function region(begin, end) {
 function fixture({ realBuild = false } = {}) {
     const timers = [];
     const context = vm.createContext({ createLiveEffectSession, spawn() { throw new Error('Không spawn hiệu ứng trong ca phát none'); }, getFfmpegPath: () => 'ffmpeg',
-        createMusicPanelWriter, classifyMusicSourceError,
+        createMusicPanelWriter, classifyMusicSourceError, AbortController,
+        isYoutubeRequest: require('../youtubeRequestPolicy').isYoutubeRequest,
+        youtubeRequests: { status: () => null, acquire() {}, observe: () => false },
         youtubePoProvider: { options: extractorArgs => ({ extractorArgs }), snapshot: () => ({ clientRevision: 0 }) },
         buildMusicDashboard: require('../communityPanels').buildMusicDashboard,
         normalizePayload: require('../discordUi').normalizePayload,
@@ -85,6 +87,7 @@ test('Tùy chọn metadata guest tạo argv yt-dlp hợp lệ và chỉ bật co
     });
     vm.runInContext(region('const YT_EXTRACTOR_ARGS =', 'async function searchSoundcloud('), context);
     vm.runInContext(region('function getYtCommonOpts', '// Số kết quả sẽ lấy'), context);
+    context.extractMusicMetadata = context.ytDlpExec;
     vm.runInContext(region('function normalizeMusicMatchText(', 'function getYtCommonOpts('), context);
     vm.runInContext(region('const YT_META_TIMEOUT_MS =', 'async function searchYoutube('), context);
     vm.runInContext(region('async function resolveDirectUrl(', '// Ưu tiên: YouTube'), context);
@@ -145,7 +148,7 @@ test('Phát YouTube, SoundCloud và tua bài dùng argv hợp lệ trước khi 
         assert.ok(!args.includes('--no-check-certificates'));
         assert.ok(args.includes('--no-playlist'));
         assert.equal(calls[0].flags.socketTimeout, 6, 'Nguồn lỗi phải thoát nhanh, không để phòng thoại im lặng');
-        assert.equal(calls[0].flags.retries, 3);
+        assert.equal(calls[0].flags.retries, url.includes('youtube.com') ? 0 : 3);
         assert.equal(calls[0].flags.fragmentRetries, 3);
         assert.equal(calls[0].flags.forceIpv4, true);
         assert.equal(calls[0].flags.output, '-');
@@ -212,6 +215,7 @@ function directYoutubeResolverFixture({ getMetadata } = {}) {
     const context = vm.createContext({ createLiveEffectSession, spawn() { throw new Error('Không spawn hiệu ứng trong ca phát none'); }, getFfmpegPath: () => 'ffmpeg', createMusicSearchCache, applySourcePolicy, validateMusicUrl, URL,
         YT_URL_REGEX: /^https?:\/\/(www\.|m\.)?(youtube\.com|youtu\.be|music\.youtube\.com)\//i,
         SPOTIFY_URL_REGEX: /^https?:\/\/(open\.)?spotify\.com\//i,
+        youtubeRequests: { acquire() {}, observe: () => false },
         resolveYoutubeDirectTrack: options => resolveYoutubeDirectTrack({ ...options,
             getMetadata: async (url, input) => { metadata.push({ url, ...input }); return getMetadata(url, input); },
             timers: { setTimeout(callback, delay) { const job = { callback, delay, cleared: false }; timers.push(job); return job; },
@@ -221,6 +225,7 @@ function directYoutubeResolverFixture({ getMetadata } = {}) {
         getYtCommonOpts: () => ({}), resolveSpotifyQuery: async () => null,
         resolveDirectUrl: async () => { throw new Error('Không dùng resolver nguồn khác'); }
     });
+    context.extractMusicMetadata = context.ytDlpExec;
     vm.runInContext(region('function normalizeYoutubeUrl(', 'function getCookieFilePath('), context);
     vm.runInContext(region('const YT_META_TIMEOUT_MS =', '// ====================================================================='), context);
     vm.runInContext(region('async function resolveTrackUncached(', '// Trích ID video'), context);

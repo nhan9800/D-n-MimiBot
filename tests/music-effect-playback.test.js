@@ -12,6 +12,7 @@ const ytDlp = require('yt-dlp-exec');
 const { createLiveEffectSession } = require('../musicLiveEffects');
 const { StartupAudioBuffer, PcmFrameChunker, monitorMusicResource } = require('../musicBuffer');
 const { classifyMusicSourceError, selectMusicSourceError } = require('../musicSourceErrors');
+const { createYoutubeRequestPolicy, isYoutubeRequest } = require('../youtubeRequestPolicy');
 const source = fs.readFileSync(path.join(__dirname, '..', 'index.js'), 'utf8');
 
 // Chạy hàm phát thật trong VM, không import bootstrap hoặc kết nối Discord/nguồn nhạc.
@@ -73,7 +74,7 @@ test('Xác thực YouTube: timeout cũ không nuốt fallback, chỉ báo thành
         f.context.YT_DOWNLOAD_CLIENT_FALLBACKS = ['default', 'web_safari', 'android_vr'];
         await f.play({ effectKey: 'bassboost' });
         const oldTimer = f.timers.find(timer => !timer.cleared);
-        const recovery = f.processes[0].rejectPlayback(new Error('Sign in to confirm you are not a bot'));
+        const recovery = f.processes[0].rejectPlayback(new Error('authentication required'));
         await tick();
         assert.equal(f.processes.length, 1);
         assert.equal(oldTimer.cleared, true);
@@ -110,7 +111,7 @@ test('YouTube yêu cầu xác thực vẫn thử web_embedded một lần trư�
         ];
         await f.play({ effectKey: 'bassboost' });
         const first = f.processes[0];
-        const firstFailure = first.rejectPlayback(new Error('Sign in to confirm you are not a bot'));
+        const firstFailure = first.rejectPlayback(new Error('authentication required'));
         await tick();
         assert.equal(f.processes.length, 2);
         assert.equal(f.processes[1].flags.extractorArgs, 'youtube:player_client=web_embedded');
@@ -167,7 +168,7 @@ test('Timeout nguồn dùng chung16giây giữa client, hủy child cũ rồi m�
         await f.play({ effectKey: 'bassboost' });
         const first = f.processes[0];
         assert.equal(first.flags.socketTimeout, 6);
-        assert.equal(first.flags.retries, 3);
+        assert.equal(first.flags.retries, 0);
         assert.equal(first.flags.fragmentRetries, 3);
         const firstDeadline = f.timers.find(timer => !timer.cleared);
         assert.equal(firstDeadline.delay, 12000);
@@ -289,6 +290,7 @@ test('YouTube đã Playing60giây gặp403 nhận ngân sách retry22giây mới
 });
 
 async function fixture({ synchronousPlaying = false, demuxProbe, searchSoundcloud,
+    youtubeRequests = { status: () => null, acquire() {}, observe: () => false },
     youtubePoProvider = { options: extractorArgs => ({ extractorArgs }), snapshot: () => ({ clientRevision: 0 }) } } = {}) {
     const processes = [], ffmpegs = [], resources = [], timers = [], notices = [], logs = [];
     const clock = { now: 1792300000000 };
@@ -326,6 +328,7 @@ async function fixture({ synchronousPlaying = false, demuxProbe, searchSoundclou
         return proc;
     };
     const context = vm.createContext({
+        AbortController, isYoutubeRequest, youtubeRequests,
         musicQueues, PassThrough, StartupAudioBuffer, PcmFrameChunker, monitorMusicResource, classifyMusicSourceError, selectMusicSourceError, createLiveEffectSession,
         Date: class extends Date { static now() { return clock.now; } },
         fs: { existsSync: () => true },
@@ -431,6 +434,48 @@ test('Provider PO sẵn sàng được chuyển vào pipe YouTube; provider tắ
         } finally { f.cleanup(); }
     }
 });
+
+for (const [warning, reason] of [
+    ['ERROR: HTTP Error 429: Too Many Requests', 'RATE_LIMITED'],
+    ['ERROR: Sign in to confirm you’re not a bot', 'YOUTUBE_BOT_CHECK']
+]) {
+    test(`Nguồn ${reason} dừng retry/autoplay và chặn lượt YouTube từ server khác`, async () => {
+        const policy = createYoutubeRequestPolicy();
+        let fallbackCalls = 0;
+        const first = await fixture({ youtubeRequests: policy, searchSoundcloud: async () => { fallbackCalls++; } });
+        const second = await fixture({ youtubeRequests: policy });
+        try {
+            first.mq.autoplay = true;
+            first.context.findRadioTrack = async () => { throw new Error('Không được gọi autoplay khi nguồn đang nghỉ'); };
+            let stored;
+            first.context.persistSession = () => { stored = { current: first.mq.current, queue: first.mq.queue.slice() }; };
+            await first.play();
+            first.processes[0].stderr.write(warning);
+            await tick();
+            assert.equal(policy.status().reason, reason);
+            assert.equal(first.processes[0].killed, true);
+            assert.equal(first.processes.length, 1);
+            assert.equal(fallbackCalls, 0);
+            assert.equal(first.notices.length, 1);
+            assert.match(first.notices[0].content, /<t:\d+:R>/);
+            assert.equal(first.mq.sourceBlocked, true);
+            assert.deepEqual(first.mq.queue, [first.current, first.queued]);
+            assert.deepEqual(stored, { current: first.current, queue: [first.queued] });
+
+            const blocked = await second.play();
+            assert.equal(blocked.applied, false);
+            assert.equal(second.processes.length, 0);
+            assert.deepEqual(second.mq.queue, [second.current, second.queued]);
+            const cloud = { title: 'SoundCloud', url: 'https://soundcloud.com/a/b' };
+            second.mq.sourceBlocked = false;
+            second.mq.queue.push(cloud);
+            await second.context.playNextTrack('g1');
+            assert.equal(second.processes.length, 1);
+            assert.equal(second.processes[0].url, cloud.url);
+            assert.deepEqual(second.mq.queue, [second.current, second.queued]);
+        } finally { first.cleanup(); second.cleanup(); }
+    });
+}
 
 test('PO sẵn sàng: packet tới trước deadline16giây vẫn phát cùng nguồn và giữ queue', async () => {
     const packet = deferred(); let searches = 0;
@@ -609,8 +654,8 @@ test('AUTH_REQUIRED lặp trên2client dừng tại nguồn, không thử HLS/au
         f.context.YT_DOWNLOAD_CLIENT_FALLBACKS = youtubeDownloadClients;
         await f.play();
         f.clock.now += 1000;
-        await f.processes[0].rejectPlayback(new Error('Sign in to confirm you are not a bot')); await tick();
-        await f.processes[1].rejectPlayback(new Error('Sign in to confirm you are not a bot')); await tick();
+        await f.processes[0].rejectPlayback(new Error('authentication required')); await tick();
+        await f.processes[1].rejectPlayback(new Error('authentication required')); await tick();
         assert.equal(f.processes.length, 2);
         assert.equal(f.mq.sourceBlocked, true);
         assert.equal(f.mq.current, null);

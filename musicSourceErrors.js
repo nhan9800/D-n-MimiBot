@@ -22,6 +22,15 @@ function privateErrorText(value) {
 /** Thông báo cố định dùng được cho console và Discord; tuyệt đối không trả chi tiết nguồn. */
 function classifyMusicSourceError(value) {
     const text = privateErrorText(value);
+    if (/\bRATE_LIMITED\b|HTTP\s*(?:Error\s*)?429\b|\bToo Many Requests\b|This content isn['’]t available[,.]?\s*try again later/i.test(text)) {
+        return { code: 'RATE_LIMITED', message: 'Nguồn nhạc đang giới hạn tần suất. Vui lòng thử lại sau.' };
+    }
+    if (/\bYOUTUBE_BOT_CHECK\b|\bconfirm[^\r\n]{0,65}not a bot\b/i.test(text)) {
+        return { code: 'YOUTUBE_BOT_CHECK', message: 'YouTube đang yêu cầu xác minh bot. Mimi tạm dừng gửi yêu cầu.' };
+    }
+    if (/\bYOUTUBE_BUSY\b/.test(text)) {
+        return { code: 'YOUTUBE_BUSY', message: 'YouTube đang có nhiều lượt tải. Vui lòng thử lại sau ít giây.' };
+    }
     if (/Cookie(?:Load|Decode)Error|(?:cookie[^\r\n]{0,80}(?:must be|not in|not a|does not look like)[^\r\n]{0,60}Netscape)|does not look like[^\r\n]{0,25}Netscape[^\r\n]{0,30}cookies?|(?:invalid|malformed|unsupported)[^\r\n]{0,40}(?:Netscape|cookie file)|(?:unable|failed|could not|cannot) to (?:load|read|parse)[^\r\n]{0,60}cookies?|(?:permission denied|no such file)[^\r\n]{0,120}cookies?/i.test(text)) {
         return { code: 'INVALID_COOKIES', message: 'File cookies YouTube chưa hợp lệ hoặc không đọc được. Hãy xuất lại theo định dạng Netscape.' };
     }
@@ -56,7 +65,10 @@ const RETRY_ERRORS = Object.freeze({
     HTTP_403: ['HTTP Error 403: Forbidden', 4],
     AUTH_REQUIRED: ['authentication required', 5],
     INVALID_COOKIES: ['CookieLoadError', 6],
-    AUDIO_PROCESSOR: ['ffmpeg exited with error', 7]
+    AUDIO_PROCESSOR: ['ffmpeg exited with error', 7],
+    YOUTUBE_BUSY: ['YOUTUBE_BUSY', 8],
+    YOUTUBE_BOT_CHECK: ['YOUTUBE_BOT_CHECK', 9],
+    RATE_LIMITED: ['RATE_LIMITED', 10]
 });
 
 function selectMusicSourceError(previousCode, value) {

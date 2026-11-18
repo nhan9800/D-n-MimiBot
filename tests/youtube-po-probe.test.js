@@ -235,7 +235,7 @@ test('Transport probe chỉ nhận default/hls, giá trị tùy ý bị chặn t
 
 for (const [message, outcome] of [
     ['ERROR: unable to download video data: HTTP Error 403: Forbidden token=private', 'http_403'],
-    ['ERROR: Sign in to confirm you are not a bot; https://secret.test/private', 'auth_required'],
+    ['ERROR: Sign in to confirm you are not a bot; https://secret.test/private', 'youtube_bot_check'],
     ['ERROR: source timed out https://secret.test/private', 'timeout'],
 ]) {
     test(`Lỗi nguồn trả phân loại ${outcome}, không trả stderr/token/URL`, async () => {

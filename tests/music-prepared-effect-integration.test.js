@@ -44,6 +44,7 @@ function fixture({ paused = false, soundcloud = false,
         monitorMusicResource: () => () => {}, refreshMusicPanel: async () => {}, startProgressUpdater() {}, stopProgressUpdater() {},
         handlePlaybackFailure: (...args) => events.push(['failure', args[3]]), playNextTrack: async () => events.push('advance'),
         buildMusicNoticePayload: (title, text) => ({ title, text }), console: { log() {}, warn() {} }, fs });
+    context.extractMusicMetadata = context.ytDlpExec;
     vm.runInContext(region('const AUDIO_EFFECTS = {', '// Đường dẫn ffmpeg'), context);
     vm.runInContext(source.match(/function killCurrentProcess\([^]*?\n\}/)[0], context);
     // getPlaybackSec is independent from the persistence/Discord bootstrap.

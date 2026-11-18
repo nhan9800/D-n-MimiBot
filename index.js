@@ -52,6 +52,7 @@ const { runYoutubePoProbe, youtubeProbeOptions } = require('./youtubePoProbe');
 const { createYoutubeCookieSource } = require('./youtubeCookies');
 const { createYoutubeCookieVerification } = require('./youtubeCookieVerification');
 const { classifyMusicSourceError, selectMusicSourceError } = require('./musicSourceErrors');
+const { createYoutubeRequestPolicy, isYoutubeRequest } = require('./youtubeRequestPolicy');
 const { resolveYoutubeDirectTrack } = require('./youtubeDirectTrack');
 const { runYoutubeLinkCheck } = require('./youtubeLinkCheck');
 const { runMusicEffectCheck } = require('./musicEffectCheck');
@@ -3249,6 +3250,34 @@ try { ytDlpExec = require('yt-dlp-exec'); } catch {
     console.warn('⚠️ [Music] Chưa cài yt-dlp-exec — tính năng nghe nhạc sẽ không hoạt động.');
 }
 
+const youtubeCooldownPath = path.join(__dirname, 'data', 'youtube-cooldown.json');
+let savedYoutubeCooldown;
+try { savedYoutubeCooldown = JSON.parse(fs.readFileSync(youtubeCooldownPath, 'utf8')); }
+catch (error) { if (error.code !== 'ENOENT') console.warn('[YouTube] Không đọc được thời gian chờ đã lưu.'); }
+const youtubeRequests = createYoutubeRequestPolicy({
+    saved: savedYoutubeCooldown,
+    onCooldown({ reason, until }) {
+        console.warn(`[YouTube] source=${reason} retryAt=${new Date(until).toISOString()}`);
+        try {
+            fs.mkdirSync(path.dirname(youtubeCooldownPath), { recursive: true });
+            fs.writeFileSync(youtubeCooldownPath + '.tmp', JSON.stringify({ reason, until }), { mode: 0o600 });
+            fs.renameSync(youtubeCooldownPath + '.tmp', youtubeCooldownPath);
+        } catch { console.warn('[YouTube] Không lưu được thời gian chờ xuống đĩa.'); }
+    }
+});
+
+async function extractMusicMetadata(url, flags, options) {
+    if (!isYoutubeRequest(url)) return ytDlpExec(url, flags, options);
+    await youtubeRequests.acquire({ signal: options?.signal });
+    try {
+        return await ytDlpExec(url, { ...flags, ignoreErrors: false, retries: 0, extractorRetries: 0 }, options);
+    } catch (error) {
+        if (!youtubeRequests.observe(error)) throw error;
+        const safe = classifyMusicSourceError(error);
+        throw Object.assign(new Error(safe.message), { code: safe.code });
+    }
+}
+
 // -----------------------------------------------------------------
 // 🔊 THƯ VIỆN ĐỌC TIN NHẮN (TTS) — Google TTS + ffmpeg-static
 // google-tts-api tạo URL/base64 MP3 (giới hạn ~200 ký tự/lần).
@@ -3421,7 +3450,7 @@ const youtubeCookieVerifier = createYoutubeCookieVerification({
             if (current.path !== source.path || current.revision !== source.revision) throw new Error('COOKIE_SOURCE_CHANGED');
             return { ...options };
         };
-        const result = await runYoutubePoProbe({ ytDlpExec, getOptions, signal,
+        const result = await runYoutubePoProbe({ ytDlpExec, getOptions, signal, requestPolicy: youtubeRequests,
             query: 'JACK - J97 LƯU NIÊN Album TAM THÁI TỬ Track No.4', timeoutMs: 45000 });
         return { ...result, credentials: 'cookie_file', checkedAt: new Date().toISOString(),
             providerTokensIssued: youtubePoProvider.snapshot().tokensIssued || 0 };
@@ -3436,10 +3465,10 @@ process.once('exit', () => {
 });
 function getYoutubePoStatus() {
     const checked = youtubePoVerification;
-    const outcomes = ['audio_received', 'http_403', 'auth_required', 'timeout', 'search_failed',
+    const outcomes = ['audio_received', 'http_403', 'auth_required', 'rate_limited', 'youtube_bot_check', 'youtube_busy', 'timeout', 'search_failed',
         'source_failed', 'search_empty', 'invalid_audio', 'invalid_configuration', 'invalid_input',
         'cancelled', 'aborted', 'interrupted'];
-    return { ...youtubePoProvider.snapshot(), cookies: youtubeCookieSource.snapshot(),
+    return { ...youtubePoProvider.snapshot(), requestCooldown: youtubeRequests.status(), cookies: youtubeCookieSource.snapshot(),
         cookieCheck: youtubeCookieVerifier.snapshot(), linkCheck: youtubeLinkVerification, verification: checked ? {
         ok: checked.ok === true,
         outcome: outcomes.includes(checked.outcome) ? checked.outcome : 'unknown',
@@ -3463,7 +3492,7 @@ async function verifyFirstYoutubePoSetup() {
             youtubePoVerification = JSON.parse(fs.readFileSync(receiptPath, 'utf8'));
             return;
         }
-        const result = await runYoutubePoProbe({ ytDlpExec, getOptions: getYtCommonOpts,
+        const result = await runYoutubePoProbe({ ytDlpExec, getOptions: getYtCommonOpts, requestPolicy: youtubeRequests,
             query: 'JACK - J97 LƯU NIÊN Album TAM THÁI TỬ Track No.4', timeoutMs: 45000 });
         youtubePoVerification = { checkedAt: new Date().toISOString(), ...result,
             providerTokensIssued: youtubePoProvider.snapshot().tokensIssued || 0 };
@@ -3487,7 +3516,7 @@ ensureYtDlpBinary().then(async available => {
             signal: youtubeDiagnosticController.signal,
             resolveTrack,
             probe: options => {
-                return runYoutubePoProbe({ ytDlpExec,
+                return runYoutubePoProbe({ ytDlpExec, requestPolicy: youtubeRequests,
                     getOptions: youtubeProbeOptions(getYtCommonOpts, options?.client), ...options,
                     verifyAudio: (bytes, signal) => verifyMusicAudioSample(bytes, { signal, decode: spawnFfmpegAudio,
                         spawn, ffmpegPath: getFfmpegPath(), voice: voiceLib, effects: AUDIO_EFFECTS }) });
@@ -3758,7 +3787,10 @@ async function searchYoutube(query) {
     // Đường audio phía dưới vẫn kiểm tra quyền truy cập và nguồn YouTube đã chọn.
     if (isDirectUrl) {
         const cleanUrl = normalizeYoutubeUrl(query.trim()); // Bỏ ?si=, &list=... để yt-dlp không hiểu nhầm
-        return resolveYoutubeDirectTrack({ url: cleanUrl });
+        return resolveYoutubeDirectTrack({ url: cleanUrl,
+            acquireRequest: youtubeRequests.acquire,
+            onRateLimit: retryAfter => youtubeRequests.observe('HTTP Error 429', retryAfter)
+        });
     }
 
     // 🚀 TÌM BẰNG TỪ KHÓA — TỐI ƯU TỐC ĐỘ:
@@ -3766,7 +3798,7 @@ async function searchYoutube(query) {
     // KHÔNG trích xuất đầy đủ (format/URL) cho từng video. Đây là điểm khác biệt lớn: lệnh cũ
     // ytsearch5 + dumpSingleJson phải extract ĐẦY ĐỦ cả 5 video (mỗi video gọi API android/ios/web
     // lấy mọi định dạng) -> cực chậm, gây kẹt "Đang tìm bài hát...".
-    const flat = await ytDlpExec(`ytsearch${SEARCH_CANDIDATE_COUNT}:${query}`, {
+    const flat = await extractMusicMetadata(`ytsearch${SEARCH_CANDIDATE_COUNT}:${query}`, {
         dumpSingleJson: true,
         flatPlaylist: true,   // chỉ lấy metadata nhẹ, không trích format từng video
         skipDownload: true,
@@ -3829,7 +3861,7 @@ async function resolveSpotifyQuery(spotifyUrl) {
 
 // Phát 1 URL nguồn khác YouTube trực tiếp qua yt-dlp (SoundCloud/Bandcamp/Twitch/Vimeo/link tĩnh...).
 async function resolveDirectUrl(url) {
-    const info = await ytDlpExec(validateMusicUrl(url), {
+    const info = await extractMusicMetadata(validateMusicUrl(url), {
         dumpSingleJson: true,
         noPlaylist: true,      // link set/album -> chỉ lấy bài đầu để tránh nhồi hàng đợi ngoài ý muốn
         skipDownload: true,
@@ -3892,7 +3924,7 @@ async function resolveTrack(query, preferredSource = 'youtube') {
 
 // Nhận playlist tường minh từ URL, giữ hành vi tìm bài đơn bằng tên.
 async function resolveMusicRequest(query, preferredSource = 'youtube') {
-    const playlist = await resolvePlaylist(query, { extract: ytDlpExec, youtubeOptions: getYtCommonOpts(), preferredSource });
+    const playlist = await resolvePlaylist(query, { extract: extractMusicMetadata, youtubeOptions: getYtCommonOpts(), preferredSource });
     if (playlist) return playlist;
     const track = await resolveTrack(query, preferredSource);
     return track ? { tracks: [track], title: track.title, limited: false } : null;
@@ -3926,7 +3958,7 @@ async function findRadioTrack(seedTrack, playedUrls) {
     const mixUrl = `https://www.youtube.com/watch?v=${seedId}&list=RD${seedId}`;
     let raw;
     try {
-        raw = await ytDlpExec(mixUrl, {
+        raw = await extractMusicMetadata(mixUrl, {
             dumpSingleJson: true,
             flatPlaylist: true,   // chỉ lấy metadata nhẹ (id/title), không trích stream từng bài
             skipDownload: true,
@@ -4591,7 +4623,7 @@ function spawnFfmpegAudio(inputStream, { pipeSeekSec = 0, effectKey = 'none' } =
 // Lấy URL audio có hạn trong RAM để đổi bộ lọc mà không gọi lại trình tải section.
 // Credential chỉ truyền cho yt-dlp tại máy host, không lưu trong track hoặc log.
 const effectMediaResolver = createMediaResolver({
-    extract: (url, { signal }) => ytDlpExec(validateMusicUrl(url), {
+    extract: (url, { signal }) => extractMusicMetadata(validateMusicUrl(url), {
         // Cookie/PO của YouTube không tham gia extraction SoundCloud.
         ...(YT_URL_REGEX.test(url) ? getYtCommonOpts() : { ignoreConfig: true, forceIpv4: true, noWarnings: true }),
         dumpSingleJson: true, skipDownload: true, noPlaylist: true,
@@ -5014,6 +5046,8 @@ function startProgressUpdater(guildId) {
 
 // Dừng tiến trình yt-dlp con hiện tại (nếu có) để tránh rò rỉ tiến trình khi skip/stop/rời kênh
 function killCurrentProcess(mq) {
+    mq.youtubeRequestController?.abort();
+    mq.youtubeRequestController = null;
     mq.cancelEffectPreparation?.();
     mq.cancelEffectPreparation = null;
     mq.liveEffectSession?.dispose();
@@ -5166,12 +5200,12 @@ async function restoreMusicSessions() {
             mq.effect = s.effect || 'none';
 
             // Phát lại bài đang dở từ đúng vị trí đã lưu (tua qua ffmpeg).
-            await playNextTrack(guildId, {
+            const playback = await playNextTrack(guildId, {
                 replayCurrent: true,
                 seekSec: Math.max(0, Math.floor(s.positionSec || 0)),
                 effectKey: mq.effect
             });
-            if (mq.textChannel) {
+            if (playback?.applied && mq.textChannel) {
                 mq.textChannel.send(buildMusicNoticePayload(
                     'Khôi phục phiên phát',
                     `Bot vừa khởi động lại và **tiếp tục phát** từ chỗ đang dở.\n> ${mq.current?.title || 'bài đang phát'}`,
@@ -5252,8 +5286,8 @@ async function sekCurrentTrack(guildId, targetSec) {
         return { ok: false, error: `❌ Mốc tua vượt quá độ dài bài (**${formatDuration(total)}**). Hãy chọn thời điểm nhỏ hơn.` };
     }
     // Phát lại chính bài hiện tại từ giây yêu cầu, giữ nguyên hiệu ứng đang áp.
-    await playNextTrack(guildId, { replayCurrent: true, seekSec: targetSec, effectKey: mq.effect || 'none' });
-    return { ok: true };
+    const playback = await playNextTrack(guildId, { replayCurrent: true, seekSec: targetSec, effectKey: mq.effect || 'none' });
+    return playback?.error ? { ok: false, error: playback.error } : { ok: true };
 }
 
 // 🧹 Dọn dẹp file tạm fragment mồ côi do yt-dlp để lại (tránh lỗi No such file or directory: '--Frag*')
@@ -5294,6 +5328,11 @@ async function playNextTrack(guildId, opts = {}) {
 
     const seekSec = Math.max(0, Math.floor(opts.seekSec || 0));
     const effectKey = opts.effectKey || mq.effect || 'none';
+    const cooldown = youtubeRequests.status();
+    if (cooldown && opts.replayCurrent && !opts.sourceRecovery && mq.currentResource && isYoutubeRequest(mq.current?.url)) {
+        const { message } = classifyMusicSourceError(cooldown.reason);
+        return { applied: false, error: message };
+    }
     // Tua ngắn thường dùng pipe để tránh FFmpeg tải section bị crash trên host.
     // Khi ĐỔI HIỆU ỨNG, pipe phải giải mã và bỏ qua toàn bộ phần đầu bài trước khi
     // có thể phát byte đầu tiên, nên một bài đang ở phút 1–2 sẽ đứng im rất lâu.
@@ -5348,11 +5387,13 @@ async function playNextTrack(guildId, opts = {}) {
         } else if (mq.loop === 'track' && mq.current && !skipRequested) mq.queue.unshift(mq.current);
         else if (mq.loop === 'queue' && mq.current) mq.queue.push(mq.current);
 
-        next = mq.queue.shift();
+        // Phát nguồn khác đã có trong hàng đợi khi YouTube đang nghỉ.
+        const availableIndex = cooldown ? mq.queue.findIndex(track => !isYoutubeRequest(track.url)) : 0;
+        next = mq.queue.splice(Math.max(0, availableIndex), 1)[0];
     }
 
     // 📻 AUTOPLAY RADIO: hết hàng đợi mà autoplay đang bật -> tự tìm bài liên quan để phát tiếp.
-    if (!next && mq.autoplay && !opts.replayCurrent) {
+    if (!next && mq.autoplay && !opts.replayCurrent && !cooldown) {
         const seed = mq.lastSeed || mq.current;
         // Sau MỖI await ở đây phải kiểm tra lại: phiên có thể đã bị dừng/xoá (Dừng & Thoát, rời kênh)
         // hoặc có lượt phát mới chen vào. Nếu cứ chạy tiếp, lần gọi cũ sẽ spawn yt-dlp mồ côi (không ai
@@ -5362,7 +5403,7 @@ async function playNextTrack(guildId, opts = {}) {
         if (stale()) { clearTransition(); return; }
         // Mix của seed đã cạn (mọi bài trong đó đều đã phát) -> trượt seed sang bài vừa phát để "đài"
         // đi tiếp thay vì tự chết giữa phiên 24/7.
-        if (!radioTrack && mq.current && mq.current !== seed) {
+        if (!radioTrack && mq.current && mq.current !== seed && !youtubeRequests.status()) {
             radioTrack = await findRadioTrack(mq.current, mq.playedUrls);
             if (stale()) { clearTransition(); return; }
             if (radioTrack) mq.lastSeed = mq.current;
@@ -5434,7 +5475,23 @@ async function playNextTrack(guildId, opts = {}) {
     // Retry client/fallback YouTube chỉ áp dụng cho track YouTube. SoundCloud
     // dùng format/luồng riêng; nếu nó lỗi phải chuyển queue, không tìm lại
     // chính SoundCloud vô hạn khiến bài kế tiếp không bao giờ chạy.
-    const isYoutubePlayback = next.source === 'YouTube' || /(?:youtube\.com|youtu\.be)/i.test(String(next.url || ''));
+    const isYoutubePlayback = isYoutubeRequest(next.url);
+    if (isYoutubePlayback) {
+        const requestController = new AbortController();
+        mq.youtubeRequestController = requestController;
+        try {
+            const waitMs = opts.sourceDeadline ? Math.max(0, opts.sourceDeadline - Date.now() - 2000) : undefined;
+            const waitForSlot = youtubeRequests.acquire({ signal: requestController.signal, waitMs });
+            if (waitForSlot) await waitForSlot;
+        } catch (error) {
+            if (!isCurrentPlayback() || requestController.signal.aborted) return;
+            const safe = classifyMusicSourceError(error);
+            handlePlaybackFailure(guildId, mq, next, safe.message, safe.code);
+            return { applied: false, error: safe.message };
+        }
+        if (!isCurrentPlayback() || requestController.signal.aborted) return;
+        mq.youtubeRequestController = null;
+    }
     const youtubeClientArgs = youtubeGuestAttempt ? 'youtube:player_client=web_embedded'
         : YT_DOWNLOAD_CLIENT_FALLBACKS[clientAttempt] || 'youtube:player_client=default';
     let failureStarted = false;
@@ -5582,6 +5639,8 @@ async function playNextTrack(guildId, opts = {}) {
         if (isYoutubePlayback) {
             ytdlOpts.jsRuntimes = 'node';
             ytdlOpts.remoteComponents = 'ejs:github';
+            ytdlOpts.retries = 0;
+            ytdlOpts.extractorRetries = 0;
             Object.assign(ytdlOpts, youtubePoProvider.options(youtubeClientArgs));
         }
         if (seekSec > 0 && seekTransport === 'section') {
@@ -5600,6 +5659,10 @@ async function playNextTrack(guildId, opts = {}) {
         ytdlProcess.stderr?.on('data', (chunk) => {
             stderrBuffer += chunk.toString();
             if (stderrBuffer.length > 4000) stderrBuffer = stderrBuffer.slice(-4000); // tránh phình bộ nhớ
+            if (isYoutubePlayback && isCurrentPlayback() && !failureStarted && !sourceRecovering
+                && youtubeRequests.observe(stderrBuffer)) {
+                recoverSourceFailure?.(new Error('YouTube tạm dừng yêu cầu')).catch(() => failPlayback('Nguồn YouTube tạm dừng.', { force: true }));
+            }
         });
 
         // Bắt lỗi khi tiến trình yt-dlp thoát bất thường (đây là lỗi BẤT ĐỒNG BỘ,
@@ -5640,6 +5703,10 @@ async function playNextTrack(guildId, opts = {}) {
             sourceFailureCode = rootError.code;
             console.error(`❌ [Music] yt-dlp lỗi khi phát "${next.title}" ở server ${guildId}:`, safeError.code);
 
+            if (isYoutubePlayback && youtubeRequests.observe(rawErr)) {
+                sourceRecovering = false;
+                return failPlayback(rootError.message, { force: true });
+            }
             cleanupOrphanedMusicFragments();
 
             // ffmpeg do yt-dlp chạy trực tiếp với URL có thể crash khi tải section. Thử lại
@@ -5957,7 +6024,11 @@ function handlePlaybackFailure(guildId, mq, failedTrack, shortErr, sourceCode) {
     if (mq.failureHandledGen === mq.playGeneration) return;
     mq.failureHandledGen = mq.playGeneration;
 
-    if (sourceCode === 'AUTH_REQUIRED' || sourceCode === 'INVALID_COOKIES') {
+    const youtubeLimited = isYoutubeRequest(failedTrack?.url)
+        && ['RATE_LIMITED', 'YOUTUBE_BOT_CHECK', 'YOUTUBE_BUSY'].includes(sourceCode);
+    if (youtubeLimited || sourceCode === 'AUTH_REQUIRED' || sourceCode === 'INVALID_COOKIES') {
+        const cooldown = youtubeLimited && youtubeRequests.status();
+        if (youtubeLimited) persistSession(guildId);
         mq.sourceBlocked = true;
         mq.current = null;
         mq.currentResource = null;
@@ -5965,9 +6036,10 @@ function handlePlaybackFailure(guildId, mq, failedTrack, shortErr, sourceCode) {
         killCurrentProcess(mq);
         mq.transitioning = false;
         try { mq.player.stop(); } catch { /* Player có thể đã dừng. */ }
-        musicStore.clearSession(guildId);
+        if (!youtubeLimited) musicStore.clearSession(guildId);
+        const retry = cooldown ? `Có thể thử lại từ <t:${Math.ceil(cooldown.until / 1000)}:t> (<t:${Math.ceil(cooldown.until / 1000)}:R>).` : '';
         mq.textChannel?.send(buildMusicNoticePayload('Tạm dừng nguồn YouTube',
-            `${shortErr}\nĐã giữ bài và hàng đợi; Mimi tạm dừng tự chuyển bài để tránh lặp lỗi. Sau khi nguồn hoạt động lại, dùng /play để thử tiếp.`, 0xE74C3C)).catch(() => null);
+            [shortErr, retry, 'Mimi giữ bài và hàng đợi. Dùng `/play` để thử tiếp.'].filter(Boolean).join('\n'), 0xE74C3C)).catch(() => null);
         return;
     }
 
@@ -10975,8 +11047,11 @@ async function saveUserBackground(uId, url) {
             request = await resolveMusicRequest(query);
             track = request?.tracks[0]; // hỗ trợ YouTube, Spotify, SoundCloud, Bandcamp, Twitch, Vimeo, link...
         } catch (err) {
-            console.error('❌ [Music] Lỗi tìm kiếm (prefix):', classifyMusicSourceError(err).code);
-            const payload = err.code === 'RESTRICTED_VIDEO'
+            const safe = classifyMusicSourceError(err);
+            console.error('❌ [Music] Lỗi tìm kiếm (prefix):', safe.code);
+            const payload = ['RATE_LIMITED', 'YOUTUBE_BOT_CHECK', 'YOUTUBE_BUSY'].includes(safe.code)
+                ? buildMusicNoticePayload('Nguồn nhạc tạm bận', safe.message, 0xF1C40F)
+                : err.code === 'RESTRICTED_VIDEO'
                 ? buildMusicNoticePayload('Video bị giới hạn', 'Video này đang **riêng tư** hoặc **bị giới hạn độ tuổi**, bot không thể phát. Vui lòng thử link/từ khóa khác.', 0xF1C40F)
                 : err.code === 'SPOTIFY_RESOLVE_FAILED'
                 ? buildMusicNoticePayload('Không đọc được link Spotify', 'Không lấy được thông tin bài hát từ link Spotify này. Hãy thử dán tên bài hoặc link YouTube.', 0xF1C40F)
@@ -14222,8 +14297,11 @@ if (commandName === 'setup') {
                 request = await resolveMusicRequest(query, source);
                 track = request?.tracks[0]; // YouTube, Spotify, SoundCloud, Bandcamp, Twitch, Vimeo, link...
             } catch (err) {
-                console.error('❌ [Music] Lỗi tìm kiếm:', classifyMusicSourceError(err).code);
-                const msg = err.code === 'RESTRICTED_VIDEO'
+                const safe = classifyMusicSourceError(err);
+                console.error('❌ [Music] Lỗi tìm kiếm:', safe.code);
+                const msg = ['RATE_LIMITED', 'YOUTUBE_BOT_CHECK', 'YOUTUBE_BUSY'].includes(safe.code)
+                    ? safe.message
+                    : err.code === 'RESTRICTED_VIDEO'
                     ? '🔞 Video này đang **riêng tư** hoặc **bị giới hạn độ tuổi**, bot không thể phát. Vui lòng thử link/từ khóa khác.'
                     : err.code === 'SPOTIFY_RESOLVE_FAILED'
                     ? '❌ Không lấy được thông tin bài hát từ link Spotify này. Hãy thử dán tên bài hoặc link YouTube.'
@@ -15731,7 +15809,8 @@ if (commandName === 'changelog') {
                     return;
                 }
                 await interaction.deferUpdate().catch(() => null);
-                await playNextTrack(guild.id, { replayCurrent: true, seekSec: target, effectKey: mq.effect || 'none' });
+                const playback = await playNextTrack(guild.id, { replayCurrent: true, seekSec: target, effectKey: mq.effect || 'none' });
+                if (playback?.error) return interaction.followUp({ content: playback.error, flags: MessageFlags.Ephemeral }).catch(() => null);
                 // Re-fetch sau await: bài có thể đã kết thúc / bot rời kênh (mq bị xoá) trong lúc chờ.
                 const mqAfterSeek = musicQueues.get(guild.id);
                 if (mqAfterSeek?.current && mqAfterSeek.nowPlayingMessage) {
@@ -15743,7 +15822,8 @@ if (commandName === 'changelog') {
             // ↺ PHÁT LẠI TỪ ĐẦU bài hiện tại
             if (customId === 'music_restart') {
                 await interaction.deferUpdate().catch(() => null);
-                await playNextTrack(guild.id, { replayCurrent: true, seekSec: 0, effectKey: mq.effect || 'none' });
+                const playback = await playNextTrack(guild.id, { replayCurrent: true, seekSec: 0, effectKey: mq.effect || 'none' });
+                if (playback?.error) return interaction.followUp({ content: playback.error, flags: MessageFlags.Ephemeral }).catch(() => null);
                 // Re-fetch sau await: bài có thể đã kết thúc / bot rời kênh (mq bị xoá) trong lúc chờ.
                 const mqAfterRestart = musicQueues.get(guild.id);
                 if (mqAfterRestart?.current && mqAfterRestart.nowPlayingMessage) {

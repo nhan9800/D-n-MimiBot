@@ -11,7 +11,9 @@ const PRIVATE_CONTEXT = `--cookies /home/container/data/private/youtube_cookies.
 
 const cases = [
     ['HTTP_403', 'ERROR: unable to download video data: HTTP Error 403: Forbidden'],
-    ['AUTH_REQUIRED', 'ERROR: Sign in to confirm you’re not a bot'],
+    ['YOUTUBE_BOT_CHECK', 'ERROR: Sign in to confirm you’re not a bot'],
+    ['RATE_LIMITED', 'ERROR: HTTP Error 429: Too Many Requests'],
+    ['RATE_LIMITED', "This content isn't available, try again later"],
     ['AUTH_REQUIRED', 'The provided YouTube account cookies are no longer valid. They have likely been rotated by the browser.'],
     ['AUTH_REQUIRED', 'ERROR: authentication required'],
     ['AUTH_REQUIRED', 'ERROR: HTTP Error 401: Unauthorized'],
@@ -91,5 +93,6 @@ test('Lỗi nguồn không bị đổi thành FFmpeg/cookie chỉ vì CLI có đ
 
 test('Phân loại ưu tiên cookie hỏng và auth bắt buộc trước HTTP 403 đi kèm', () => {
     assert.equal(classifyMusicSourceError('CookieLoadError: HTTP Error 403: Forbidden').code, 'INVALID_COOKIES');
-    assert.equal(classifyMusicSourceError('Sign in to confirm you are not a bot. HTTP Error 403: Forbidden').code, 'AUTH_REQUIRED');
+    assert.equal(classifyMusicSourceError('Sign in to confirm you are not a bot. HTTP Error 403: Forbidden').code, 'YOUTUBE_BOT_CHECK');
+    assert.equal(classifyMusicSourceError('Video ID 429abc').code, 'SOURCE_FAILED');
 });

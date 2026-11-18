@@ -46,7 +46,7 @@ function safeThumbnail(value) {
 
 // Chỉ endpoint oEmbed công khai cố định; không gửi cookie, token, header người dùng
 // hoặc đi theo redirect. Không tải/trích format audio trong bước nhận link.
-function getYoutubeMetadata(canonicalUrl, { signal } = {}) {
+function getYoutubeMetadata(canonicalUrl, { signal, onRateLimit } = {}) {
     return new Promise((resolve, reject) => {
         if (signal?.aborted) return reject(abortError());
         const target = new URL('https://www.youtube.com/oembed');
@@ -65,6 +65,7 @@ function getYoutubeMetadata(canonicalUrl, { signal } = {}) {
             incoming.once('error', () => settle(null, null));
             incoming.once('aborted', () => settle(null, null));
             if (incoming.statusCode !== 200) {
+                if (incoming.statusCode === 429) onRateLimit?.(incoming.headers?.['retry-after']);
                 incoming.resume();
                 settle(null, null);
                 request.destroy();
@@ -94,7 +95,7 @@ function getYoutubeMetadata(canonicalUrl, { signal } = {}) {
  * Metadata chỉ phục vụ nhãn; quyền truy cập video được pipeline audio xác minh.
  */
 function resolveYoutubeDirectTrack({ url, getMetadata = getYoutubeMetadata, timeoutMs = 3000,
-    signal, timers = {} } = {}) {
+    signal, acquireRequest, onRateLimit, timers = {} } = {}) {
     const canonical = canonicalVideo(url);
     if (signal?.aborted) return Promise.reject(abortError());
     const fallback = { title: `YouTube · ${canonical.id}`, url: canonical.url, duration: 0,
@@ -124,9 +125,11 @@ function resolveYoutubeDirectTrack({ url, getMetadata = getYoutubeMetadata, time
         signal?.addEventListener('abort', onAbort, { once: true });
         timer = schedule(() => finish(null), budget);
         // Promise luôn có handler kể cả dependency bỏ qua abort và trả kết quả muộn.
-        Promise.resolve().then(() => {
+        Promise.resolve().then(async () => {
+            if (done || typeof getMetadata !== 'function') return null;
+            if (acquireRequest) await acquireRequest({ signal: controller.signal, waitMs: 0 });
             if (done) return null;
-            return typeof getMetadata === 'function' ? getMetadata(canonical.url, { signal: controller.signal }) : null;
+            return getMetadata(canonical.url, { signal: controller.signal, onRateLimit });
         }).then(metadata => finish(metadata), () => finish(null));
     });
 }

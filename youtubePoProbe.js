@@ -1,5 +1,7 @@
 'use strict';
 
+const { classifyMusicSourceError } = require('./musicSourceErrors');
+
 // Chẩn đoán thủ công, không chạy tự động trong npm test hoặc đăng nhập Discord.
 // Kết quả chỉ có cờ/đếm/thời gian; stderr và URL audio ký số không rời helper.
 function canonicalVideoId(value) {
@@ -44,7 +46,7 @@ function waitWithSignal(promise, signal) {
  * production; helper không mở cookie, không trả/log token hoặc signed media URL.
  */
 function runYoutubePoProbe({ ytDlpExec, getOptions, query = 'JACK J97 Lưu Niên', videoUrl, clientArgs, transport = 'default',
-    timeoutMs = 45000, maxBytes = 65536, now = Date.now, timers = {}, signal: parentSignal, verifyAudio } = {}) {
+    timeoutMs = 45000, maxBytes = 65536, now = Date.now, timers = {}, signal: parentSignal, verifyAudio, requestPolicy } = {}) {
     const beganAt = now();
     const budget = Math.max(1, Math.min(60000, Number(timeoutMs) || 45000));
     const byteLimit = Math.max(4, Math.min(65536, Math.floor(Number(maxBytes) || 65536)));
@@ -56,6 +58,7 @@ function runYoutubePoProbe({ ytDlpExec, getOptions, query = 'JACK J97 Lưu Niên
     let pluginLoaded = false, tokenRequestObserved = false, searchResolved = false;
     let providerRequestFailed = false, mediaDownloadFailed = false, downloadStarted = false;
     let forbidden = false, authRequired = false, sourceTimedOut = false;
+    let limitedOutcome;
     let audioBeganAt = null, firstByteMs = null;
     let audioChunks = [];
     // Đồng hồ kiểm tra được inject; chỉ trả số nguyên có hạn, không phát sinh NaN
@@ -70,6 +73,11 @@ function runYoutubePoProbe({ ytDlpExec, getOptions, query = 'JACK J97 Lưu Niên
         containerHeaderRecognized: recognizesAudioContainer(header), pluginLoaded, tokenRequestObserved, searchResolved,
         providerRequestFailed, mediaDownloadFailed, downloadStarted });
     const inspectError = error => {
+        const { code } = classifyMusicSourceError(error);
+        if (['RATE_LIMITED', 'YOUTUBE_BOT_CHECK', 'YOUTUBE_BUSY'].includes(code)) {
+            limitedOutcome = code.toLowerCase();
+            requestPolicy?.observe(error);
+        }
         // Chỉ dùng để phân loại; không chuyển chuỗi lỗi/execa.stderr ra caller.
         const text = [error?.code, error?.stderr, error?.shortMessage, error?.message].filter(value => typeof value === 'string').join(' ').slice(-16384);
         forbidden ||= /HTTP\s*(?:Error\s*)?403|403\s*:\s*Forbidden|Forbidden/i.test(text);
@@ -83,7 +91,7 @@ function runYoutubePoProbe({ ytDlpExec, getOptions, query = 'JACK J97 Lưu Niên
         // vẫn là hai điều kiện riêng để đánh dấu audio_received.
         downloadStarted ||= /\[download\]\s*Destination:|\bDownloading\s+\d+\s+format(?:\(s\)|s)?\b/i.test(text);
     };
-    const errorOutcome = () => authRequired ? 'auth_required' : forbidden ? 'http_403' : sourceTimedOut ? 'timeout' : phase === 'search' ? 'search_failed' : 'source_failed';
+    const errorOutcome = () => limitedOutcome || (authRequired ? 'auth_required' : forbidden ? 'http_403' : sourceTimedOut ? 'timeout' : phase === 'search' ? 'search_failed' : 'source_failed');
 
     return new Promise(resolve => {
         const onAbort = () => finish('cancelled', true);
@@ -103,6 +111,7 @@ function runYoutubePoProbe({ ytDlpExec, getOptions, query = 'JACK J97 Lưu Niên
             pluginLoaded ||= /PO Token Providers:[^\r\n]*bgutil:http(?:-\d+(?:\.\d+)*)?/i.test(stderrTail);
             tokenRequestObserved ||= /Generating[^\r\n]{0,160}PO Token[^\r\n]{0,160}bgutil/i.test(stderrTail);
             inspectError({ message: stderrTail });
+            if (limitedOutcome) finish(limitedOutcome, true);
         };
         const onError = error => { if (!complete) { inspectError(error); finish(errorOutcome()); } };
         const onClose = code => {
@@ -168,6 +177,8 @@ function runYoutubePoProbe({ ytDlpExec, getOptions, query = 'JACK J97 Lưu Niên
                 phase = 'search';
                 const text = String(query || '').trim().slice(0, 180);
                 if (!text) return finish('invalid_input');
+                if (requestPolicy) await requestPolicy.acquire({ signal: controller.signal });
+                if (complete) return;
                 const options = typeof clientArgs === 'string' ? getOptions(clientArgs) : getOptions();
                 const found = await waitWithSignal(ytDlpExec(`ytsearch1:${text}`, {
                     ...options, dumpSingleJson: true, flatPlaylist: true, skipDownload: true,
@@ -182,6 +193,8 @@ function runYoutubePoProbe({ ytDlpExec, getOptions, query = 'JACK J97 Lưu Niên
             }
             if (complete) return;
             phase = 'audio';
+            if (requestPolicy) await requestPolicy.acquire({ signal: controller.signal });
+            if (complete) return;
             audioBeganAt = now();
             // quiet có thể ẩn marker yêu cầu PO Token. Chỉ bỏ cờ này trong probe;
             // stderr vẫn được giữ riêng, có hạn và không được trả về báo cáo.
