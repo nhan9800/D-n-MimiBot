@@ -234,8 +234,11 @@ function youtubeProbeOptions(getOptions, client) {
     const args = { web_safari: 'youtube:player_client=web_safari',
         web_embedded: 'youtube:player_client=web_embedded', web_embedded_guest: 'youtube:player_client=web_embedded', android_vr: 'youtube:player_client=android_vr' };
     return () => {
-        const options = getOptions(Object.hasOwn(args, client) ? args[client] : undefined);
-        if (!['android_vr', 'web_embedded_guest'].includes(client)) return options;
+        const nativeGuest = client === 'native_guest';
+        const options = nativeGuest
+            ? getOptions(undefined, { nativeClient: true })
+            : getOptions(Object.hasOwn(args, client) ? args[client] : undefined);
+        if (!nativeGuest && !['android_vr', 'web_embedded_guest'].includes(client)) return options;
         const { cookies: _cookies, cookiesFromBrowser: _browserCookies, ...guestOptions } = options;
         return guestOptions;
     };

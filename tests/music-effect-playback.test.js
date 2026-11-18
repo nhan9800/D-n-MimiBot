@@ -330,6 +330,7 @@ async function fixture({ synchronousPlaying = false, demuxProbe, searchSoundclou
     const context = vm.createContext({
         AbortController, isYoutubeRequest, youtubeRequests,
         getVerifiedYoutubeCookie: () => null, invalidateYoutubeCookieOnError() {},
+        youtubeLinkVerification: null, isVerifiedNativeYoutubeGuest: require('../youtubeLinkCheck').isVerifiedNativeYoutubeGuest,
         musicQueues, PassThrough, StartupAudioBuffer, PcmFrameChunker, monitorMusicResource, classifyMusicSourceError, selectMusicSourceError, createLiveEffectSession,
         Date: class extends Date { static now() { return clock.now; } },
         fs: { existsSync: () => true },
@@ -477,6 +478,23 @@ for (const [warning, reason] of [
         } finally { first.cleanup(); second.cleanup(); }
     });
 }
+
+test('Kết quả Opus trên host cho phép dùng client khách trước phiên tài khoản', async () => {
+    const f = await fixture();
+    const provider = 'youtubepot-bgutilhttp:base_url=http://127.0.0.1:4416';
+    f.context.youtubePoProvider.options = (args, { nativeClient } = {}) =>
+        ({ extractorArgs: nativeClient ? [provider] : [args, provider] });
+    f.context.getVerifiedYoutubeCookie = () => ({ path: '/private/session.txt', revision: 'verified' });
+    f.context.youtubeLinkVerification = { client: 'native_guest', transport: 'default',
+        audio: { ok: true, outcome: 'audio_received', bytes: 65536,
+            playback: { checked: true, ok: true, opusPacketReady: true } } };
+    try {
+        await f.play();
+        assert.deepEqual(f.processes[0].flags.extractorArgs, [provider]);
+        assert.equal(f.processes[0].flags.cookies, undefined);
+        assert.equal(f.processes[0].flags.cookiesFromBrowser, undefined);
+    } finally { f.cleanup(); }
+});
 
 test('Playback dùng phiên YouTube đã xác minh, không truyền phiên vào SoundCloud', async () => {
     const f = await fixture();

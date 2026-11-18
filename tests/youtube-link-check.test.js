@@ -5,7 +5,7 @@ const assert = require('node:assert/strict');
 const fs = require('node:fs/promises');
 const path = require('node:path');
 const os = require('node:os');
-const { runYoutubeLinkCheck } = require('../youtubeLinkCheck');
+const { runYoutubeLinkCheck, isVerifiedNativeYoutubeGuest } = require('../youtubeLinkCheck');
 
 const VIDEO = 'ktHhTtTrUXU';
 const URL = `https://www.youtube.com/watch?v=${VIDEO}&list=RD${VIDEO}&start_radio=1`;
@@ -58,6 +58,17 @@ test('Giữ metadata nguồn YouTube và probe đúng ID đã bỏ playlist, rec
     assert.equal(JSON.parse(receipt).state, 'complete');
     if (process.platform !== 'win32') assert.equal((await fs.stat(path.join(f.receiptDir, `${CASE}.json`))).mode & 0o777, 0o600);
     assert.ok(f.timers.every(timer => timer.cleared));
+});
+
+test('Chỉ phép thử native_guest đã tạo Opus với transport mặc định mới bật client khách', async t => {
+    const f = await fixture(t, { probe: async () => ({ ok: true, outcome: 'audio_received', videoId: VIDEO,
+        bytes: 65536, containerHeaderRecognized: true, playback: { checked: true, ok: true, opusPacketReady: true } }) });
+    await f.request({ caseId: CASE, url: URL, client: 'native_guest' });
+    const result = await runYoutubeLinkCheck(f.input);
+    assert.equal(isVerifiedNativeYoutubeGuest(result), true);
+    assert.equal(isVerifiedNativeYoutubeGuest({ ...result, client: 'default' }), false);
+    assert.equal(isVerifiedNativeYoutubeGuest({ ...result, transport: 'hls' }), false);
+    assert.equal(isVerifiedNativeYoutubeGuest({ ...result, audio: { ...result.audio, playback: undefined } }), false);
 });
 
 test('Client thử nghiệm chỉ truyền web_safari/web_embedded vào probe, không nới lỏng request', async t => {

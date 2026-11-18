@@ -32,6 +32,7 @@ function fixture({ realBuild = false } = {}) {
         isYoutubeRequest: require('../youtubeRequestPolicy').isYoutubeRequest,
         youtubeRequests: { status: () => null, acquire() {}, observe: () => false },
         getVerifiedYoutubeCookie: () => null, invalidateYoutubeCookieOnError() {},
+        youtubeLinkVerification: null, isVerifiedNativeYoutubeGuest: require('../youtubeLinkCheck').isVerifiedNativeYoutubeGuest,
         youtubePoProvider: { options: extractorArgs => ({ extractorArgs }), snapshot: () => ({ clientRevision: 0 }) },
         buildMusicDashboard: require('../communityPanels').buildMusicDashboard,
         normalizePayload: require('../discordUi').normalizePayload,

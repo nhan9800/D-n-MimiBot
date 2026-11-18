@@ -107,7 +107,11 @@ Discord hoặc kiểm tra toàn bài. Không đặt cookie/token trong request h
 HLS chỉ chọn audio có protocol `m3u8_native`/`m3u8`, không rơi về DASH/HTTPS khi
 thiếu format hoặc tải lỗi. Vì vậy kết quả `source_failed` có thể là video/client
 không có audio HLS; không suy ra mọi transport đều bị chặn. `client` tùy chọn
-chỉ nhận `default`, `web_safari`, `web_embedded` hoặc `android_vr`; không nhận extractor args tùy ý.
+chỉ nhận `default`, `native_guest`, `web_safari`, `web_embedded`,
+`web_embedded_guest` hoặc `android_vr`. Preset `native_guest` dùng bộ client
+mặc định của yt-dlp và bỏ cookie tài khoản cho phép đo khách. Khi phép thử
+`native_guest` với transport `default` tải được audio và tạo gói Opus,
+bot ưu tiên cùng cấu hình cho metadata và lượt phát YouTube trên host đó.
 Preset `android_vr` chỉ dùng cho phép đo và bỏ cookie tài khoản trong RAM;
 không sửa file cookie hay tự bật client này cho production.
 

@@ -54,7 +54,7 @@ const { createYoutubeCookieVerification } = require('./youtubeCookieVerification
 const { classifyMusicSourceError, selectMusicSourceError } = require('./musicSourceErrors');
 const { createYoutubeRequestPolicy, isYoutubeRequest } = require('./youtubeRequestPolicy');
 const { resolveYoutubeDirectTrack } = require('./youtubeDirectTrack');
-const { runYoutubeLinkCheck } = require('./youtubeLinkCheck');
+const { runYoutubeLinkCheck, isVerifiedNativeYoutubeGuest } = require('./youtubeLinkCheck');
 const { runMusicEffectCheck } = require('./musicEffectCheck');
 const youtubeCookieSource = createYoutubeCookieSource({ rootDir: __dirname });
 const { buildProfilePayload, buildRankPayload } = require('./profileCard');
@@ -3270,11 +3270,15 @@ const youtubeRequests = createYoutubeRequestPolicy({
 async function extractMusicMetadata(url, flags, options) {
     if (!isYoutubeRequest(url)) return ytDlpExec(url, flags, options);
     await youtubeRequests.acquire({ signal: options?.signal });
-    const verifiedCookie = getVerifiedYoutubeCookie();
+    const nativeGuest = isVerifiedNativeYoutubeGuest(youtubeLinkVerification);
+    const verifiedCookie = nativeGuest ? null : getVerifiedYoutubeCookie();
     const requestFlags = { ...flags, ignoreErrors: false, retries: 0, extractorRetries: 0 };
-    if (verifiedCookie) {
+    if (nativeGuest || verifiedCookie) {
         delete requestFlags.extractorArgs;
-        Object.assign(requestFlags, youtubePoProvider.options(undefined, { nativeClient: true }), { cookies: verifiedCookie.path });
+        delete requestFlags.cookies;
+        delete requestFlags.cookiesFromBrowser;
+        Object.assign(requestFlags, youtubePoProvider.options(undefined, { nativeClient: true }));
+        if (verifiedCookie) requestFlags.cookies = verifiedCookie.path;
     }
     try {
         return await ytDlpExec(url, requestFlags, options);
@@ -3492,6 +3496,7 @@ function getYoutubePoStatus() {
         'source_failed', 'search_empty', 'invalid_audio', 'invalid_configuration', 'invalid_input',
         'cancelled', 'aborted', 'interrupted'];
     return { ...youtubePoProvider.snapshot(), requestCooldown: youtubeRequests.status(), cookies: youtubeCookieSource.snapshot(),
+        nativeGuestVerified: isVerifiedNativeYoutubeGuest(youtubeLinkVerification),
         cookieCheck: youtubeCookieVerifier.snapshot(), linkCheck: youtubeLinkVerification, verification: checked ? {
         ok: checked.ok === true,
         outcome: outcomes.includes(checked.outcome) ? checked.outcome : 'unknown',
@@ -5658,10 +5663,10 @@ async function playNextTrack(guildId, opts = {}) {
             bufferSize: '1024K',
             forceIpv4: true
         };
-        // Public video chạy guest trước. Chỉ lượt recovery đã được xác định là
-        // cần đăng nhập mới đọc cookies, tránh biến một session cũ thành nguồn
-        // 403 cho toàn bộ video công khai trên cùng IP.
-        const verifiedCookie = isYoutubePlayback && !youtubeGuestAttempt ? getVerifiedYoutubeCookie() : null;
+        // Ưu tiên client khách đã tải và tạo gói Opus trên chính host.
+        const nativeGuest = isYoutubePlayback && !youtubeGuestAttempt && !youtubeCookieAttempt
+            && isVerifiedNativeYoutubeGuest(youtubeLinkVerification);
+        const verifiedCookie = isYoutubePlayback && !youtubeGuestAttempt && !nativeGuest ? getVerifiedYoutubeCookie() : null;
         const cookiePath = verifiedCookie?.path
             || (isYoutubePlayback && youtubeCookieAttempt && !youtubeGuestAttempt ? getCookieFilePath() : null);
         if (cookiePath) ytdlOpts.cookies = cookiePath;
@@ -5670,7 +5675,7 @@ async function playNextTrack(guildId, opts = {}) {
             ytdlOpts.remoteComponents = 'ejs:github';
             ytdlOpts.retries = 0;
             ytdlOpts.extractorRetries = 0;
-            Object.assign(ytdlOpts, youtubePoProvider.options(youtubeClientArgs, { nativeClient: Boolean(verifiedCookie) }));
+            Object.assign(ytdlOpts, youtubePoProvider.options(youtubeClientArgs, { nativeClient: nativeGuest || Boolean(verifiedCookie) }));
         }
         if (seekSec > 0 && seekTransport === 'section') {
             // Tải thẳng từ mốc thời gian khi tua hoặc khi đổi hiệu ứng -> không bắt ffmpeg đọc/bỏ qua hàng MB dữ liệu qua pipe
@@ -5990,7 +5995,7 @@ async function playNextTrack(guildId, opts = {}) {
             if (!isCurrentPlayback() || newState?.resource !== mq.currentResource) return;
             playbackStarted = true;
             sourceFailureCode = null;
-            console.log(`[MusicAudio] server=${guildId} state=playing source=${isYoutubePlayback ? 'youtube' : 'soundcloud'} transport=${youtubeHlsAttempt ? 'hls' : seekTransport}`);
+            console.log(`[MusicAudio] server=${guildId} state=playing source=${isYoutubePlayback ? 'youtube' : 'soundcloud'} transport=${youtubeHlsAttempt ? 'hls' : seekTransport}${nativeGuest ? ' client=native_guest' : ''}`);
             cleanupTransition();
             clearTransition();
             // ✅ CHỈ reset bộ đếm lỗi khi bài THẬT SỰ phát được (vào trạng thái Playing), KHÔNG reset ngay

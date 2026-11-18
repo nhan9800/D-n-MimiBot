@@ -31,6 +31,17 @@ test('Preset web_embedded_guest giữ đúng client embedded nhưng không dùng
     assert.equal(options.cookies, 'PRIVATE_PATH');
 });
 
+test('Preset native_guest giữ bộ client mặc định của yt-dlp và bỏ cookie', () => {
+    const provider = 'youtubepot-bgutilhttp:base_url=http://127.0.0.1:4416';
+    const options = { extractorArgs: [provider], forceIpv4: true, cookies: 'PRIVATE_PATH', cookiesFromBrowser: 'PRIVATE_BROWSER' };
+    const guest = youtubeProbeOptions((args, settings) => {
+        assert.equal(args, undefined);
+        assert.deepEqual(settings, { nativeClient: true });
+        return options;
+    }, 'native_guest')();
+    assert.deepEqual(guest, { extractorArgs: [provider], forceIpv4: true });
+});
+
 function deferred() {
     let resolve, reject;
     const promise = new Promise((yes, no) => { resolve = yes; reject = no; });
