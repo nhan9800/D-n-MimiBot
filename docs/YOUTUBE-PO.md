@@ -73,9 +73,9 @@ receipt ngăn tự tải lặp lại mỗi restart. Các test mặc định ch�
 
 Ping hoặc test trên máy local không chứng minh IP hosting đã hết 403.
 PO Token cũng không bảo đảm vượt mọi giới hạn IP/tài khoản/video của YouTube.
-Cookies tài khoản không được gửi cho video công khai. Bot chỉ thử cookies sau khi
-lượt guest nhận mã yêu cầu đăng nhập, rồi thử lại guest một lần nếu phiên xác thực
-vẫn bị từ chối.
+Video công khai ưu tiên guest theo mặc định. Khi YouTube yêu cầu xác minh bot trên
+hosting, chủ bot có thể cung cấp phiên riêng để bộ kiểm tra xác nhận tải và giải
+mã được âm thanh trước khi dùng phiên đó cho luồng phát.
 Probe YouTube mẫu lúc khởi động cũng tắt mặc định để không tạo thêm lượt tải trên
 IP hosting. Bật chẩn đoán có chủ đích bằng `MIMI_YOUTUBE_PO_CHECK=1`; kiểm tra link
 riêng vẫn dùng `youtube-link-check.json` khi cần.

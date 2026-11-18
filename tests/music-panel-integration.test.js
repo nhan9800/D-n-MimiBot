@@ -31,6 +31,7 @@ function fixture({ realBuild = false } = {}) {
         createMusicPanelWriter, classifyMusicSourceError, AbortController,
         isYoutubeRequest: require('../youtubeRequestPolicy').isYoutubeRequest,
         youtubeRequests: { status: () => null, acquire() {}, observe: () => false },
+        getVerifiedYoutubeCookie: () => null, invalidateYoutubeCookieOnError() {},
         youtubePoProvider: { options: extractorArgs => ({ extractorArgs }), snapshot: () => ({ clientRevision: 0 }) },
         buildMusicDashboard: require('../communityPanels').buildMusicDashboard,
         normalizePayload: require('../discordUi').normalizePayload,

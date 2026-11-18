@@ -3263,17 +3263,21 @@ const youtubeRequests = createYoutubeRequestPolicy({
             fs.writeFileSync(youtubeCooldownPath + '.tmp', JSON.stringify({ reason, until }), { mode: 0o600 });
             fs.renameSync(youtubeCooldownPath + '.tmp', youtubeCooldownPath);
         } catch { console.warn('[YouTube] Không lưu được thời gian chờ xuống đĩa.'); }
+        if (reason === 'YOUTUBE_BOT_CHECK' && youtubePoProvider.snapshot().ready) youtubeCookieVerifier.start();
     }
 });
 
 async function extractMusicMetadata(url, flags, options) {
     if (!isYoutubeRequest(url)) return ytDlpExec(url, flags, options);
     await youtubeRequests.acquire({ signal: options?.signal });
+    const verifiedCookie = getVerifiedYoutubeCookie();
     try {
-        return await ytDlpExec(url, { ...flags, ignoreErrors: false, retries: 0, extractorRetries: 0 }, options);
+        return await ytDlpExec(url, { ...flags, ignoreErrors: false, retries: 0, extractorRetries: 0,
+            ...(verifiedCookie ? { cookies: verifiedCookie.path } : {}) }, options);
     } catch (error) {
-        if (!youtubeRequests.observe(error)) throw error;
         const safe = classifyMusicSourceError(error);
+        invalidateYoutubeCookieOnError(verifiedCookie, safe.code);
+        if (!youtubeRequests.observe(error)) throw error;
         throw Object.assign(new Error(safe.message), { code: safe.code });
     }
 }
@@ -3436,6 +3440,7 @@ const youtubeDiagnosticController = new AbortController();
 const youtubeCookieVerifier = createYoutubeCookieVerification({
     readCookieSource: () => youtubeCookieSource.read(),
     isProviderReady: () => youtubePoProvider.snapshot().ready,
+    canProbe: () => !youtubeRequests.status(),
     receiptDir: path.join(__dirname, 'data', 'youtube-po', 'cookie-checks'),
     probe: async ({ signal }) => {
         const source = youtubeCookieSource.read();
@@ -3448,9 +3453,14 @@ const youtubeCookieVerifier = createYoutubeCookieVerification({
             if (current.path !== source.path || current.revision !== source.revision) throw new Error('COOKIE_SOURCE_CHANGED');
             return { ...options };
         };
+        const videoUrl = youtubeRequests.lastBlockReason() === 'YOUTUBE_BOT_CHECK'
+            ? 'https://www.youtube.com/watch?v=BAl1VQur4uI' : undefined;
         const result = await runYoutubePoProbe({ ytDlpExec, getOptions, signal, requestPolicy: youtubeRequests,
-            query: 'JACK - J97 LƯU NIÊN Album TAM THÁI TỬ Track No.4', timeoutMs: 45000 });
+            videoUrl, query: 'JACK - J97 LƯU NIÊN Album TAM THÁI TỬ Track No.4', timeoutMs: 45000,
+            verifyAudio: (bytes, audioSignal) => verifyMusicAudioSample(bytes, { signal: audioSignal, decode: spawnFfmpegAudio,
+                spawn, ffmpegPath: getFfmpegPath(), voice: voiceLib, effects: AUDIO_EFFECTS }) });
         return { ...result, credentials: 'cookie_file', checkedAt: new Date().toISOString(),
+            opusVerified: result.playback?.opusPacketReady === true && result.playback.ok === true,
             providerTokensIssued: youtubePoProvider.snapshot().tokensIssued || 0 };
     },
     onResult: result => {
@@ -3458,6 +3468,16 @@ const youtubeCookieVerifier = createYoutubeCookieVerification({
         console.log(`[YouTubeCookies] AUDIO_CHECK ${JSON.stringify(youtubePoVerification)}`);
     }
 });
+function getVerifiedYoutubeCookie() {
+    if (!youtubeCookieVerifier.snapshot().playbackReady) return null;
+    const source = youtubeCookieSource.read();
+    return source.path && youtubeCookieVerifier.isVerified(source.revision) ? source : null;
+}
+function invalidateYoutubeCookieOnError(source, code) {
+    if (source && ['AUTH_REQUIRED', 'INVALID_COOKIES', 'YOUTUBE_BOT_CHECK'].includes(code)) {
+        youtubeCookieVerifier.invalidate(source.revision);
+    }
+}
 process.once('exit', () => {
     youtubeDiagnosticController.abort(); youtubeCookieVerifier.stop(); youtubePoProvider.stop();
 });
@@ -3476,6 +3496,7 @@ function getYoutubePoStatus() {
         tokenRequestObserved: checked.tokenRequestObserved === true,
         providerRequestFailed: checked.providerRequestFailed === true,
         mediaDownloadFailed: checked.mediaDownloadFailed === true,
+        opusVerified: checked.opusVerified === true,
         downloadStarted: checked.downloadStarted === true,
         credentials: checked.credentials === 'cookie_file' ? 'cookie_file' : 'guest',
         searchResolved: checked.searchResolved === true
@@ -3506,7 +3527,7 @@ ensureYtDlpBinary().then(async available => {
     const status = youtubePoEnabled ? await youtubePoProvider.start() : { ready: false };
     if (status.ready) {
         if (youtubePoCheckEnabled) await verifyFirstYoutubePoSetup();
-        if (youtubeCookieCheckEnabled) youtubeCookieVerifier.start();
+        if (youtubeCookieCheckEnabled || youtubeRequests.lastBlockReason() === 'YOUTUBE_BOT_CHECK') youtubeCookieVerifier.start();
         // Chỉ chạy khi người vận hành đặt request công khai; receipt không lặp mỗi restart.
         runYoutubeLinkCheck({
             requestPath: path.join(__dirname, 'youtube-link-check.json'),
@@ -5632,7 +5653,9 @@ async function playNextTrack(guildId, opts = {}) {
         // Public video chạy guest trước. Chỉ lượt recovery đã được xác định là
         // cần đăng nhập mới đọc cookies, tránh biến một session cũ thành nguồn
         // 403 cho toàn bộ video công khai trên cùng IP.
-        const cookiePath = isYoutubePlayback && youtubeCookieAttempt && !youtubeGuestAttempt ? getCookieFilePath() : null;
+        const verifiedCookie = isYoutubePlayback && !youtubeGuestAttempt ? getVerifiedYoutubeCookie() : null;
+        const cookiePath = verifiedCookie?.path
+            || (isYoutubePlayback && youtubeCookieAttempt && !youtubeGuestAttempt ? getCookieFilePath() : null);
         if (cookiePath) ytdlOpts.cookies = cookiePath;
         if (isYoutubePlayback) {
             ytdlOpts.jsRuntimes = 'node';
@@ -5697,6 +5720,7 @@ async function playNextTrack(guildId, opts = {}) {
                 || (Object.hasOwn(err, 'stdout') ? `yt-dlp thoát với mã ${err.exitCode ?? err.code ?? 'không rõ'}` : err.message)
                 || 'Không rõ lỗi tải nhạc').slice(-4000);
             const safeError = classifyMusicSourceError(rawErr);
+            invalidateYoutubeCookieOnError(verifiedCookie, safeError.code);
             const rootError = selectMusicSourceError(sourceFailureCode, rawErr);
             sourceFailureCode = rootError.code;
             console.error(`❌ [Music] yt-dlp lỗi khi phát "${next.title}" ở server ${guildId}:`, safeError.code);
@@ -5744,7 +5768,7 @@ async function playNextTrack(guildId, opts = {}) {
             // Chỉ khi guest bị YouTube yêu cầu đăng nhập mới thử lại bằng
             // cookies. Lượt cookie có deadline riêng và vẫn giữ đúng video.
             const cookieSourcePath = isYoutubePlayback ? getCookieFilePath() : null;
-            if (isYoutubePlayback && !youtubeGuestAttempt && !youtubeCookieAttempt
+            if (isYoutubePlayback && !verifiedCookie && !youtubeGuestAttempt && !youtubeCookieAttempt
                 && !opts.youtubeCookieTried && authRequired && cookieSourcePath) {
                 console.warn(`[Music] YouTube yêu cầu đăng nhập, thử phiên xác thực cho server ${guildId}.`);
                 return playNextTrack(guildId, { ...opts, replayCurrent: true, expectedTrack: next,

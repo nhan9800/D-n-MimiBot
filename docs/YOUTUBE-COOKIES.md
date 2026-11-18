@@ -1,10 +1,10 @@
 # Phiên YouTube phụ trên VibeHost
 
 PO Token đã cấp được trên hosting nhưng lượt tải YouTube ngày 18/10/2026
-vẫn trả HTTP403. Lượt phát công khai hiện chạy guest trước để tránh session cũ
-làm YouTube chặn cả IP. Cookies chỉ là bước recovery cho video thực sự yêu cầu
-đăng nhập, chưa phải cam kết chữa mọi giới hạn của YouTube. Dùng tài khoản phụ:
-yt-dlp lưu ý tài khoản có thể bị hạn chế khi dùng để tải nhiều video.
+vẫn trả HTTP403. Lượt phát công khai mặc định dùng guest. Khi hosting gặp yêu
+cầu xác minh bot, Mimi có thể dùng phiên do chủ bot cung cấp sau khi thử nhận
+âm thanh và tạo được packet Opus. Hãy dùng tài khoản phụ. yt-dlp lưu ý YouTube
+có thể giới hạn tài khoản dùng để tải nhiều video.
 
 ## Xuất bằng Chrome/Edge
 
@@ -32,8 +32,9 @@ Nguồn: [hướng dẫn xuất phiên YouTube](https://github.com/yt-dlp/yt-dlp
 - Có thể đặt `MIMI_YOUTUBE_COOKIE_FILE=data/youtube/youtube_cookies.txt` trong env.
   Đường dẫn phải nằm trong thư mục bot; không truyền giá trị cookies qua env.
   Các tên mặc định và `data/` đã bị loại khỏi Git và upload deploy.
-- Probe tải thử bằng cookie bị tắt mặc định để tránh lặp HTTP403 và làm session/IP
-  bị đánh dấu. Chỉ bật khi cần chẩn đoán bằng `MIMI_YOUTUBE_COOKIE_CHECK=1`.
+- Probe tải thử bằng cookie chỉ chạy sau khi đã ghi nhận yêu cầu xác minh bot
+  hoặc người vận hành bật `MIMI_YOUTUBE_COOKIE_CHECK=1`. Chờ hết giới hạn chung
+  trước khi dành lượt kiểm tra phiên.
 - Kiểm tra file thường, tối đa 1 MiB, header Netscape, hàng 7 cột, domain
   YouTube/Google và hạn dùng. Không trả/log tên tài khoản hoặc giá trị cookies.
   `hasAuthCookies` chỉ nói có cookie xác thực, chưa xác minh đăng nhập còn hiệu lực.
@@ -42,9 +43,14 @@ Nguồn: [hướng dẫn xuất phiên YouTube](https://github.com/yt-dlp/yt-dlp
 - Một phiên chỉ được thử một lần và có receipt riêng trong `data/youtube-po/cookie-checks/`.
   Không lặp tải khi restart hoặc sau lỗi403; tối đa hai phiên mới trong mỗi process,
   cách nhau ít nhất60 giây. Không đăng nhập/nhắn tin/tham gia voice Discord để thử.
-- Phép thử dùng chính options production, tìm bài JACK/J97 Lưu Niên rồi đọc tối đa
-  64 KiB audio, deadline45 giây. File đổi giữa chừng thì không công bố kết quả phiên cũ.
-  Signed media cache đổi theo phiên, không tái dùng URL từ cookies cũ.
+- Phép thử dùng options production. Khi khôi phục sau xác minh bot, kiểm tra
+  video `BAl1VQur4uI` đã dùng để tái hiện lỗi. Chế độ chẩn đoán thủ công dùng
+  bài JACK/J97 Lưu Niên. Mỗi lượt đọc tối đa 64 KiB và xác minh FFmpeg/Opus
+  trong RAM. File đổi giữa chừng thì không công bố kết quả phiên cũ.
+- `cookieCheck.playbackReady` cho biết phiên hiện tại đã nhận audio và tạo
+  packet Opus. Khi sẵn sàng, luồng tìm kiếm và playback YouTube dùng phiên đó.
+  Lỗi đăng nhập, file không hợp lệ hoặc yêu cầu xác minh bot mới ngắt sử dụng
+  phiên đó. Khoảng chờ được dùng chung với luồng guest.
 - Bộ đổi hiệu ứng giữ format/URL do yt-dlp chọn, gồm PO Token trên URL;
   không tự đổi sang format khác thiếu token. Lỗi nguồn trong console/Discord
   được rút gọn thành mã/thông báo cố định, không chuyển stderr/response của provider.

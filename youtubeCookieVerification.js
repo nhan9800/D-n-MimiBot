@@ -24,6 +24,7 @@ function safeResult(value, checkedAt, checkNumber) {
         videoId: typeof source.videoId === 'string' && /^[A-Za-z0-9_-]{11}$/.test(source.videoId) ? source.videoId : null,
         checkedAt, checkNumber: numberInRange(checkNumber, 2) };
     for (const key of FLAGS) result[key] = source[key] === true;
+    if (source.opusVerified === true) result.opusVerified = true;
     if (Number.isFinite(source.providerTokensIssued)) result.providerTokensIssued = numberInRange(source.providerTokensIssued, 1000000);
     return result;
 }
@@ -57,7 +58,7 @@ function waitWithSignal(promise, signal) {
  */
 function createYoutubeCookieVerification({ readCookieSource, isProviderReady, probe, receiptDir,
     onResult, fs = defaultFs, timers = {}, now = Date.now, intervalMs = 15000,
-    minIntervalMs = 60000, maxChecks = 2 } = {}) {
+    minIntervalMs = 60000, maxChecks = 2, canProbe = () => true } = {}) {
     if (typeof readCookieSource !== 'function' || typeof isProviderReady !== 'function'
         || typeof probe !== 'function' || typeof receiptDir !== 'string' || !receiptDir) {
         throw new TypeError('YOUTUBE_COOKIE_VERIFICATION_CONFIGURATION');
@@ -71,9 +72,13 @@ function createYoutubeCookieVerification({ readCookieSource, isProviderReady, pr
     let active = false, state = 'idle', errorCode = null, lastOutcome = null;
     let generation = 0, checks = 0, lastStarted = null, observed = null, observations = 0;
     let timer = null, deadline = null, controller = null, flight = null;
-    const attempted = new Set(), notified = new Set();
+    const attempted = new Set(), notified = new Set(), rejected = new Set();
+    let verified = null;
 
-    function snapshot() { return { state, active, checks, maxChecks: maximumChecks, lastOutcome, errorCode }; }
+    function snapshot() {
+        return { state, active, checks, maxChecks: maximumChecks, lastOutcome, errorCode,
+            playbackReady: active && observed !== null && observed === verified && !rejected.has(observed) };
+    }
     function transition(next, code = null) { state = next; errorCode = code; }
     function current(owner) { return active && owner === generation; }
     function observe(source) {
@@ -138,6 +143,7 @@ function createYoutubeCookieVerification({ readCookieSource, isProviderReady, pr
     }
     function publish(result, revision) {
         lastOutcome = result.outcome;
+        verified = result.ok && result.bytes > 0 && result.opusVerified === true ? revision : null;
         if (notified.has(revision)) return;
         notified.add(revision);
         try { Promise.resolve(onResult?.({ ...result })).catch(() => {}); } catch { /* Callback không chặn watcher. */ }
@@ -168,7 +174,7 @@ function createYoutubeCookieVerification({ readCookieSource, isProviderReady, pr
         }
         if (attempted.has(revision)) { transition('checked'); return; }
         if (checks >= maximumChecks) { transition('exhausted'); return; }
-        if (lastStarted !== null && now() - lastStarted < minimumGap) { transition('cooldown'); return; }
+        if (!canProbe() || (lastStarted !== null && now() - lastStarted < minimumGap)) { transition('cooldown'); return; }
         const beforeProbe = await waitWithSignal(readCookieSource(), signal);
         if (!current(owner)) return;
         if (observe(beforeProbe) !== revision) { transition(observed ? 'settling' : 'waiting_cookie'); return; }
@@ -185,6 +191,11 @@ function createYoutubeCookieVerification({ readCookieSource, isProviderReady, pr
         const afterReservation = await waitWithSignal(readCookieSource(), signal);
         if (!current(owner)) return;
         if (observe(afterReservation) !== revision) { transition(observed ? 'settling' : 'waiting_cookie'); return; }
+        if (!canProbe()) {
+            await fs.unlink(filename);
+            if (current(owner)) transition('cooldown');
+            return;
+        }
         checks++; lastStarted = now(); attempted.add(revision);
         transition('probing');
         let result, timedOut = false;
@@ -241,7 +252,11 @@ function createYoutubeCookieVerification({ readCookieSource, isProviderReady, pr
         controller?.abort();
         transition('stopped');
     }
-    return { start, stop, checkNow, snapshot };
+    return {
+        start, stop, checkNow, snapshot,
+        isVerified: revision => active && revision === verified && revision !== null && !rejected.has(revision),
+        invalidate(revision) { if (revision && revision === verified) rejected.add(revision); }
+    };
 }
 
 module.exports = { createYoutubeCookieVerification };

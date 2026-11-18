@@ -329,6 +329,7 @@ async function fixture({ synchronousPlaying = false, demuxProbe, searchSoundclou
     };
     const context = vm.createContext({
         AbortController, isYoutubeRequest, youtubeRequests,
+        getVerifiedYoutubeCookie: () => null, invalidateYoutubeCookieOnError() {},
         musicQueues, PassThrough, StartupAudioBuffer, PcmFrameChunker, monitorMusicResource, classifyMusicSourceError, selectMusicSourceError, createLiveEffectSession,
         Date: class extends Date { static now() { return clock.now; } },
         fs: { existsSync: () => true },
@@ -476,6 +477,19 @@ for (const [warning, reason] of [
         } finally { first.cleanup(); second.cleanup(); }
     });
 }
+
+test('Playback dùng phiên YouTube đã xác minh, không truyền phiên vào SoundCloud', async () => {
+    const f = await fixture();
+    const source = { path: '/private/session.txt', revision: 'verified' };
+    f.context.getVerifiedYoutubeCookie = () => source;
+    try {
+        await f.play();
+        assert.equal(f.processes[0].flags.cookies, source.path);
+        f.mq.current = { title: 'SoundCloud', url: 'https://soundcloud.com/a/b' };
+        await f.play();
+        assert.equal(f.processes[1].flags.cookies, undefined);
+    } finally { f.cleanup(); }
+});
 
 test('PO sẵn sàng: packet tới trước deadline16giây vẫn phát cùng nguồn và giữ queue', async () => {
     const packet = deferred(); let searches = 0;

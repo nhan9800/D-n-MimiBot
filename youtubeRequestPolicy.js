@@ -20,7 +20,7 @@ function isYoutubeRequest(input) {
 function createYoutubeRequestPolicy({ now = Date.now, wait = sleep, saved, onCooldown } = {}) {
     const timestamp = now();
     let cooldown = saved && Object.hasOwn(COOLDOWNS, saved.reason)
-        && Number.isSafeInteger(saved.until) && saved.until > timestamp && saved.until <= timestamp + MAX_COOLDOWN_MS
+        && Number.isSafeInteger(saved.until) && Math.abs(saved.until - timestamp) <= MAX_COOLDOWN_MS
         ? { reason: saved.reason, until: saved.until } : null;
     let tokens = cooldown ? 1 : BURST;
     let updatedAt = cooldown?.until ?? timestamp;
@@ -28,6 +28,10 @@ function createYoutubeRequestPolicy({ now = Date.now, wait = sleep, saved, onCoo
 
     function status() {
         return cooldown && cooldown.until > now() ? { ...cooldown } : null;
+    }
+
+    function lastBlockReason() {
+        return cooldown && cooldown.until + MAX_COOLDOWN_MS > now() ? cooldown.reason : null;
     }
 
     function error(code) {
@@ -77,7 +81,7 @@ function createYoutubeRequestPolicy({ now = Date.now, wait = sleep, saved, onCoo
         }).finally(() => { waiting--; });
     }
 
-    return { acquire, observe, status };
+    return { acquire, observe, status, lastBlockReason };
 }
 
 module.exports = { createYoutubeRequestPolicy, isYoutubeRequest };

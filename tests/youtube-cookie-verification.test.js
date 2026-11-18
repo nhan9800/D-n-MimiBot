@@ -94,6 +94,30 @@ test('Cookie phải ổn định hai lần đọc và chỉ công bố trường
     if (process.platform !== 'win32') assert.equal((await fs.stat(path.join(f.directory, `${B}.json`))).mode & 0o777, 0o600);
 });
 
+test('Tuyến xác thực chờ cooldown và chỉ dùng đúng phiên đã tạo packet Opus', async t => {
+    let allowed = false;
+    const f = await fixture(t, {
+        probe: () => ({ ok: true, outcome: 'audio_received', phase: 'audio', bytes: 65536, opusVerified: true }),
+        dependencies: { canProbe: () => allowed }
+    });
+    await f.manager.start();
+    await f.manager.checkNow();
+    assert.equal(f.manager.snapshot().state, 'cooldown');
+    assert.equal(f.calls.length, 0);
+    assert.deepEqual(await fs.readdir(f.directory), []);
+    allowed = true;
+    await f.manager.checkNow();
+    assert.equal(f.calls.length, 1);
+    assert.equal(f.manager.snapshot().playbackReady, true);
+    assert.equal(f.manager.isVerified(A), true);
+    assert.equal(f.manager.isVerified(B), false);
+    f.manager.invalidate(A);
+    await f.manager.checkNow();
+    assert.equal(f.manager.snapshot().playbackReady, false);
+    assert.equal(f.manager.isVerified(A), false);
+    assert.equal(f.calls.length, 1);
+});
+
 test('Check singleflight; HTTP 403 cùng file không tự chạy lại kể cả sau restart', async t => {
     const pending = deferred();
     const f = await fixture(t, { probe: () => pending.promise });

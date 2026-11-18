@@ -61,6 +61,16 @@ test('Lưu HTTP 429 và Retry-After qua restart, phát lại với một suất 
     assert.deepEqual(restored.status(), { reason: 'RATE_LIMITED', until: now + 1200000 });
 });
 
+test('Khởi động sau khi hết chờ vẫn nhớ bot check để kiểm tra phiên riêng', () => {
+    const now = 1000000;
+    const policy = createYoutubeRequestPolicy({
+        now: () => now, saved: { reason: 'YOUTUBE_BOT_CHECK', until: now - 1 }
+    });
+    assert.equal(policy.status(), null);
+    assert.equal(policy.lastBlockReason(), 'YOUTUBE_BOT_CHECK');
+    assert.equal(policy.acquire({ waitMs: 0 }), undefined);
+});
+
 test('Chặn suất đang chờ khi nguồn báo limit hoặc lượt đã bị hủy', async () => {
     const wake = [];
     const policy = createYoutubeRequestPolicy({ wait: () => new Promise(resolve => wake.push(resolve)) });
