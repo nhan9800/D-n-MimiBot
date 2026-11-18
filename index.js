@@ -3441,7 +3441,8 @@ const youtubeCookieVerifier = createYoutubeCookieVerification({
     readCookieSource: () => youtubeCookieSource.read(),
     isProviderReady: () => youtubePoProvider.snapshot().ready,
     canProbe: () => !youtubeRequests.status(),
-    receiptDir: path.join(__dirname, 'data', 'youtube-po', 'cookie-checks'),
+    // Receipt cũ chỉ kiểm tra container. Phiên dùng cho phát thật cần packet Opus.
+    receiptDir: path.join(__dirname, 'data', 'youtube-po', 'cookie-opus-checks'),
     probe: async ({ signal }) => {
         const source = youtubeCookieSource.read();
         if (!source.path || source.status.state !== 'ready' || !source.status.hasAuthCookies) {
