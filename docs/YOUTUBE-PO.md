@@ -28,6 +28,9 @@ của từng yêu cầu; không tự thay bản YouTube bằng SoundCloud.
   dùng lại ở lần khởi động sau. Muốn thử lại lỗi tạm thời, restart bot.
 - SFTP whitelist và fingerprint bao gồm manager, probe và installer;
   `data/` không được upload, commit hay ghi đè.
+- Bot kiểm tra tuổi binary yt-dlp lúc khởi động và mỗi 6 giờ. Bản đã quá 24
+  giờ được cập nhật từ kênh nightly chính thức. Receipt link có `ytDlpVersion`
+  khi yt-dlp công bố phiên bản trong kết quả chẩn đoán.
 
 ## Giới hạn tần suất
 

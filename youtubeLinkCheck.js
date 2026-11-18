@@ -39,6 +39,9 @@ function safeAudio(value, videoId, transport = 'default') {
         firstByteMs: Number.isFinite(input.firstByteMs) ? boundedNumber(input.firstByteMs, 60000) : null,
         bytes: boundedNumber(input.bytes, 65536) };
     for (const flag of FLAGS) result[flag] = input[flag] === true;
+    if (typeof input.ytDlpVersion === 'string' && /^\d{4}\.\d{2}\.\d{2}(?:\.\d{6})?$/.test(input.ytDlpVersion)) {
+        result.ytDlpVersion = input.ytDlpVersion;
+    }
     if (input.playback && typeof input.playback === 'object') {
         result.playback = { checked: input.playback.checked === true, ok: input.playback.ok === true,
             opusPacketReady: input.playback.opusPacketReady === true, elapsedMs: boundedNumber(input.playback.elapsedMs, 5000),

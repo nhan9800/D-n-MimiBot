@@ -3374,10 +3374,9 @@ function downloadFileFollowRedirect(url, destPath, redirectsLeft = 5) {
     });
 }
 
-// yt-dlp cũ là NGUYÊN NHÂN CHÍNH gây lỗi "HTTP Error 403: Forbidden" khi phát nhạc:
-// YouTube đổi cơ chế chống bot gần như hằng tuần, nên nếu để bản binary cũ nằm mãi trên
-// host thì sớm muộn cũng bị chặn. Ta coi binary quá 2 ngày là "cũ" và tự tải lại bản mới nhất.
-const YTDLP_MAX_AGE_MS = 2 * 24 * 60 * 60 * 1000; // 2 ngày
+// Nightly có thể phát hành bản sửa YouTube mỗi ngày. Thời gian cập nhật
+// binary độc lập với thời gian chờ gửi yêu cầu tới YouTube.
+const YTDLP_MAX_AGE_MS = 24 * 60 * 60 * 1000;
 function isYtDlpFresh() {
     try {
         return (Date.now() - fs.statSync(YTDLP_BIN_PATH).mtimeMs) < YTDLP_MAX_AGE_MS;
@@ -3402,16 +3401,15 @@ async function ensureYtDlpBinary() {
             fs.mkdirSync(YTDLP_BIN_DIR, { recursive: true });
             const tmpPath = YTDLP_BIN_PATH + '.download';
             await downloadFileFollowRedirect(getYtDlpDownloadUrl(), tmpPath);
-            // Xóa bản cũ trước khi thay để rename không lỗi trên Windows (POSIX thì ghi đè được luôn)
-            try { if (fs.existsSync(YTDLP_BIN_PATH)) fs.unlinkSync(YTDLP_BIN_PATH); } catch { /* bỏ qua nếu đang bị khóa */ }
+            if (process.platform !== 'win32') fs.chmodSync(tmpPath, 0o755);
+            // Giữ binary đang dùng nếu tải hoặc thay thế thất bại.
             fs.renameSync(tmpPath, YTDLP_BIN_PATH);
-            if (process.platform !== 'win32') fs.chmodSync(YTDLP_BIN_PATH, 0o755);
             console.log('✅ [Music] Đã ' + (alreadyExists ? 'cập nhật' : 'tải') + ' xong binary yt-dlp — tính năng nghe nhạc đã sẵn sàng!');
             return true;
         } catch (err) {
             console.error('❌ [Music] Không thể tự động tải/cập nhật yt-dlp:', err.message);
             console.error('   → Nếu host chặn kết nối ra ngoài lúc chạy, hãy tự tải file tại https://github.com/yt-dlp/yt-dlp/releases/latest và đặt vào: ' + YTDLP_BIN_PATH);
-            return alreadyExists; // vẫn còn bản cũ thì cứ dùng tạm, còn hơn không phát được gì
+            return fs.existsSync(YTDLP_BIN_PATH);
         } finally {
             ytDlpEnsurePromise = null;
         }

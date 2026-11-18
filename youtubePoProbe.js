@@ -59,6 +59,7 @@ function runYoutubePoProbe({ ytDlpExec, getOptions, query = 'JACK J97 Lưu Niên
     let providerRequestFailed = false, mediaDownloadFailed = false, downloadStarted = false;
     let forbidden = false, authRequired = false, sourceTimedOut = false;
     let limitedOutcome;
+    let ytDlpVersion;
     let audioBeganAt = null, firstByteMs = null;
     let audioChunks = [];
     // Đồng hồ kiểm tra được inject; chỉ trả số nguyên có hạn, không phát sinh NaN
@@ -70,6 +71,7 @@ function runYoutubePoProbe({ ytDlpExec, getOptions, query = 'JACK J97 Lưu Niên
     };
     const state = () => ({ elapsedMs: elapsedSince(beganAt), firstByteMs, audioElapsedMs: elapsedSince(audioBeganAt), bytes, videoId,
         transport: transport === 'hls' ? 'hls' : 'default',
+        ...(ytDlpVersion ? { ytDlpVersion } : {}),
         containerHeaderRecognized: recognizesAudioContainer(header), pluginLoaded, tokenRequestObserved, searchResolved,
         providerRequestFailed, mediaDownloadFailed, downloadStarted });
     const inspectError = error => {
@@ -108,6 +110,7 @@ function runYoutubePoProbe({ ytDlpExec, getOptions, query = 'JACK J97 Lưu Niên
         const onStderr = chunk => {
             if (complete) return;
             stderrTail = (stderrTail + chunk.toString()).slice(-8192);
+            ytDlpVersion ||= /^\[debug\] yt-dlp version (?:\w+@)?(\d{4}\.\d{2}\.\d{2}(?:\.\d{6})?)[^\S\n]/m.exec(stderrTail)?.[1];
             pluginLoaded ||= /PO Token Providers:[^\r\n]*bgutil:http(?:-\d+(?:\.\d+)*)?/i.test(stderrTail);
             tokenRequestObserved ||= /Generating[^\r\n]{0,160}PO Token[^\r\n]{0,160}bgutil/i.test(stderrTail);
             inspectError({ message: stderrTail });

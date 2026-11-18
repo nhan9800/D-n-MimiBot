@@ -26,7 +26,7 @@ async function fixture(t, overrides = {}) {
             return { url: `https://youtu.be/${VIDEO}`, requestedSource: 'youtube', allowSourceFallback: false, title: SECRET }; },
         probe: async args => { calls.push(['probe', args]); time += 200;
             return { ok: false, outcome: 'http_403', videoId: VIDEO, phase: 'audio', bytes: 0, elapsedMs: 200, audioElapsedMs: 200,
-                tokenRequestObserved: true, pluginLoaded: true, stderr: SECRET, signedUrl: `https://media.invalid/?pot=${SECRET}` }; },
+                tokenRequestObserved: true, pluginLoaded: true, ytDlpVersion: '2026.11.17.232707', stderr: SECRET, signedUrl: `https://media.invalid/?pot=${SECRET}` }; },
         timers: { setTimeout(callback, delay) { const timer = { callback, delay, cleared: false }; timers.push(timer); return timer; },
             clearTimeout(timer) { if (timer) timer.cleared = true; } }, ...overrides };
     t.after(async () => {
@@ -49,6 +49,7 @@ test('Giữ metadata nguồn YouTube và probe đúng ID đã bỏ playlist, rec
     assert.equal(result.audio.outcome, 'http_403');
     assert.equal(result.audio.videoId, VIDEO);
     assert.equal(result.audio.tokenRequestObserved, true);
+    assert.equal(result.audio.ytDlpVersion, '2026.11.17.232707');
     assert.equal(JSON.stringify(result).includes(SECRET), false);
     assert.equal(JSON.stringify(result).includes('https://'), false);
     const receipt = await fs.readFile(path.join(f.receiptDir, `${CASE}.json`), 'utf8');
