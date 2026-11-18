@@ -37,7 +37,9 @@ Nguồn: [hướng dẫn xuất phiên YouTube](https://github.com/yt-dlp/yt-dlp
   trước khi dành lượt kiểm tra phiên.
 - Kiểm tra file thường, tối đa 1 MiB, header Netscape, hàng 7 cột, domain
   YouTube/Google và hạn dùng. Không trả/log tên tài khoản hoặc giá trị cookies.
-  `hasAuthCookies` chỉ nói có cookie xác thực, chưa xác minh đăng nhập còn hiệu lực.
+  `hasAuthCookies` yêu cầu cả `LOGIN_INFO` lẫn cookie ký yêu cầu mà yt-dlp dùng
+  cho `www.youtube.com`. Nếu thiếu, hãy xuất lại từ tab đã đăng nhập và đang
+  hiển thị ảnh đại diện YouTube. Chỉ phép thử trên host xác minh phiên còn hiệu lực.
 - Khi provider sẵn sàng, watcher đọc mỗi 15 giây. Chỉ chạy probe sau hai lần
   thấy cùng phiên hợp lệ; không cần restart riêng chỉ vì tải file mới lên.
 - Một phiên chỉ được thử một lần và có receipt riêng trong `data/youtube-po/cookie-default-opus-checks/`.

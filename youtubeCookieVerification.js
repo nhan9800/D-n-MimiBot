@@ -143,7 +143,8 @@ function createYoutubeCookieVerification({ readCookieSource, isProviderReady, pr
     }
     function publish(result, revision) {
         lastOutcome = result.outcome;
-        verified = result.ok && result.bytes > 0 && result.opusVerified === true ? revision : null;
+        verified = result.ok && result.bytes > 0 && result.opusVerified === true
+            && result.accountCookiesRecognized && !result.accountCookiesRejected ? revision : null;
         if (notified.has(revision)) return;
         notified.add(revision);
         try { Promise.resolve(onResult?.({ ...result })).catch(() => {}); } catch { /* Callback không chặn watcher. */ }

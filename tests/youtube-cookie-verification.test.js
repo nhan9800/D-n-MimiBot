@@ -97,7 +97,8 @@ test('Cookie phải ổn định hai lần đọc và chỉ công bố trường
 test('Tuyến xác thực chờ cooldown và chỉ dùng đúng phiên đã tạo packet Opus', async t => {
     let allowed = false;
     const f = await fixture(t, {
-        probe: () => ({ ok: true, outcome: 'audio_received', phase: 'audio', bytes: 65536, opusVerified: true }),
+        probe: () => ({ ok: true, outcome: 'audio_received', phase: 'audio', bytes: 65536,
+            opusVerified: true, accountCookiesRecognized: true }),
         dependencies: { canProbe: () => allowed }
     });
     await f.manager.start();

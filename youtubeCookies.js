@@ -6,8 +6,7 @@ const { createHash } = require('node:crypto');
 
 const MAX_COOKIE_BYTES = 1024 * 1024;
 const DEFAULT_COOKIE_FILES = ['youtube_cookies.txt', 'youtube.cookies.txt', 'cookies.txt', 'cookies.json'];
-const AUTH_COOKIE_NAMES = new Set(['SID', 'HSID', 'SSID', 'APISID', 'SAPISID', 'LOGIN_INFO',
-    '__Secure-1PSID', '__Secure-3PSID', '__Secure-1PAPISID', '__Secure-3PAPISID']);
+const SID_COOKIE_NAMES = new Set(['SAPISID', '__Secure-1PAPISID', '__Secure-3PAPISID']);
 
 function isInside(rootDir, target) {
     const relative = path.relative(rootDir, target);
@@ -45,17 +44,22 @@ function parseCookies(content, now) {
         const expires = Number(rawExpiry);
         if (!Number.isSafeInteger(expires)) return stateResult('invalid', 'INVALID_COOKIE_ROW');
         if (!allowedDomain(domain)) return stateResult('invalid', 'UNRELATED_COOKIE_DOMAIN');
-        rows.push({ domain, cookiePath, name, value, active: expires === 0 || expires * 1000 > now });
+        rows.push({ domain, includeSubdomains: includeSubdomains === 'TRUE', cookiePath, name, value,
+            active: expires === 0 || expires * 1000 > now });
     }
     const youtubeRows = rows.filter(row => row.domain === 'youtube.com' || row.domain.endsWith('.youtube.com'));
     if (!youtubeRows.length) return stateResult('invalid', 'NO_YOUTUBE_COOKIES');
     if (!youtubeRows.some(row => row.active)) return stateResult('expired', 'YOUTUBE_COOKIES_EXPIRED');
-    const authRows = rows.filter(row => row.active && row.value && AUTH_COOKIE_NAMES.has(row.name));
+    // yt-dlp kiểm tra cả LOGIN_INFO lẫn SID dùng để ký yêu cầu trên www.youtube.com.
+    const authRows = youtubeRows.filter(row => row.active && row.value && row.cookiePath === '/'
+        && (row.domain === 'www.youtube.com' || (row.domain === 'youtube.com' && row.includeSubdomains))
+        && (row.name === 'LOGIN_INFO' || SID_COOKIE_NAMES.has(row.name)));
+    const hasAuth = authRows.some(row => row.name === 'LOGIN_INFO') && authRows.some(row => SID_COOKIE_NAMES.has(row.name));
     // Chỉ băm dữ liệu trong RAM. Thay đổi expiry/metadata do yt-dlp ghi lại không kích hoạt dò audio vô hạn.
-    const fingerprintRows = (authRows.length ? authRows : rows.filter(row => row.active))
+    const fingerprintRows = (hasAuth ? authRows : rows.filter(row => row.active))
         .map(row => [row.domain, row.cookiePath, row.name, row.value]).sort((left, right) => JSON.stringify(left).localeCompare(JSON.stringify(right)));
     const revision = createHash('sha256').update(JSON.stringify(fingerprintRows)).digest('hex');
-    return stateResult('ready', 'VALID_NETSCAPE', authRows.length > 0, null, revision);
+    return stateResult('ready', 'VALID_NETSCAPE', hasAuth, null, revision);
 }
 
 /** Kiểm tra file tại máy chạy bot; không trả về giá trị cookie hoặc suy đoán tài khoản đã đăng nhập. */

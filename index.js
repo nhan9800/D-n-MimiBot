@@ -3634,7 +3634,8 @@ function normalizeYoutubeUrl(rawUrl) {
 }
 
 function getCookieFilePath() {
-    return youtubeCookieSource.read().path;
+    const source = youtubeCookieSource.read();
+    return source.status.hasAuthCookies ? source.path : null;
 }
 
 function getMusicSourceCacheKey() {

@@ -11,6 +11,8 @@ const HEADER = '# Netscape HTTP Cookie File\n# Fixture giả, không lấy từ 
 const NOW = 1800000000000;
 const cookie = (name = 'SID', value = 'fixture-auth', { domain = '.youtube.com', expiry = 1900000000, cookiePath = '/', httpOnly = false } = {}) =>
     `${httpOnly ? '#HttpOnly_' : ''}${domain}\tTRUE\t${cookiePath}\tTRUE\t${expiry}\t${name}\t${value}\n`;
+const auth = (value = 'fixture-auth', options) =>
+    cookie('LOGIN_INFO', 'fixture-login') + cookie('SAPISID', value, options);
 
 function fixture(t, env = {}) {
     const rootDir = fs.mkdtempSync(path.join(os.tmpdir(), 'mimi-cookie-test-'));
@@ -27,7 +29,7 @@ test('Thiếu file chỉ trả trạng thái cố định, không nhận cấu h
 test('Ưu tiên file YouTube mới và nhận dạng auth-cookie nhưng không khẳng định đăng nhập', t => {
     const f = fixture(t);
     f.write('cookies.txt', HEADER + cookie('PREF', 'fixture-preference'));
-    const target = f.write('youtube_cookies.txt', HEADER + cookie());
+    const target = f.write('youtube_cookies.txt', HEADER + auth());
     const result = f.source.read();
     assert.equal(result.path, target);
     assert.deepEqual(result.status, { state: 'ready', reason: 'VALID_NETSCAPE', hasAuthCookies: true });
@@ -39,7 +41,8 @@ test('Ưu tiên file YouTube mới và nhận dạng auth-cookie nhưng không k
 test('Netscape HTTP Cookie File, CRLF, HttpOnly, Google và cookie phiên đều được đọc', t => {
     const f = fixture(t);
     f.write('youtube.cookies.txt', ('# HTTP Cookie File\n' + cookie('VISITOR_INFO1_LIVE', 'fixture-visitor', { expiry: 0, httpOnly: true })
-        + cookie('__Secure-3PSID', 'fixture-google', { domain: '.google.com' })).replace(/\n/g, '\r\n'));
+        + cookie('__Secure-3PSID', 'fixture-google', { domain: '.google.com' }) + cookie('LOGIN_INFO', 'fixture-login')
+        + cookie('__Secure-3PAPISID', 'fixture-signing', { expiry: 0, httpOnly: true })).replace(/\n/g, '\r\n'));
     const result = f.source.read();
     assert.equal(result.status.state, 'ready');
     assert.equal(result.status.hasAuthCookies, true);
@@ -49,6 +52,15 @@ test('Chỉ cookie khách vẫn hợp lệ, hasAuthCookies=false', t => {
     const f = fixture(t);
     f.write('cookies.txt', HEADER + cookie('VISITOR_INFO1_LIVE', 'fixture-visitor'));
     assert.deepEqual(f.source.read().status, { state: 'ready', reason: 'VALID_NETSCAPE', hasAuthCookies: false });
+});
+
+test('Phiên phải có cả LOGIN_INFO và SID ký yêu cầu áp dụng được trên www.youtube.com', t => {
+    const f = fixture(t);
+    for (const rows of [cookie('SID'), cookie('LOGIN_INFO'), cookie('SAPISID'),
+        auth('fixture-signing', { domain: '.google.com' }), auth('fixture-signing', { cookiePath: '/watch' })]) {
+        f.write('cookies.txt', HEADER + rows);
+        assert.equal(f.source.read().status.hasAuthCookies, false);
+    }
 });
 
 test('Cookie auth đã hết hạn không được báo là đang có thông tin auth', t => {
@@ -163,11 +175,11 @@ test('Lỗi đọc/đổi file trong lúc đọc được rút gọn, descriptor
 
 test('Revision auth ổn định khi yt-dlp đổi expiry/metadata, đổi khi auth thực sự đổi', t => {
     const f = fixture(t);
-    f.write('cookies.txt', HEADER + cookie() + cookie('PREF', 'fixture-old'));
+    f.write('cookies.txt', HEADER + auth() + cookie('PREF', 'fixture-old'));
     const original = f.source.read().revision;
-    f.write('cookies.txt', HEADER + cookie('PREF', 'fixture-new') + cookie('SID', 'fixture-auth', { expiry: 1950000000, httpOnly: true }));
+    f.write('cookies.txt', HEADER + cookie('PREF', 'fixture-new') + auth('fixture-auth', { expiry: 1950000000, httpOnly: true }));
     assert.equal(f.source.read().revision, original);
-    f.write('cookies.txt', HEADER + cookie('SID', 'fixture-auth-changed'));
+    f.write('cookies.txt', HEADER + auth('fixture-auth-changed'));
     assert.notEqual(f.source.read().revision, original);
 });
 
