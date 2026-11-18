@@ -8,7 +8,7 @@ const OUTCOMES = new Set(['audio_received', 'invalid_audio', 'http_403', 'auth_r
     'search_failed', 'source_failed', 'search_empty', 'invalid_configuration', 'invalid_input', 'aborted', 'interrupted']);
 const PHASES = new Set(['input', 'search', 'audio']);
 const FLAGS = ['containerHeaderRecognized', 'pluginLoaded', 'tokenRequestObserved', 'searchResolved',
-    'providerRequestFailed', 'mediaDownloadFailed', 'downloadStarted'];
+    'providerRequestFailed', 'mediaDownloadFailed', 'downloadStarted', 'accountCookiesRecognized', 'accountCookiesRejected'];
 
 function numberInRange(value, maximum) {
     return Number.isFinite(value) ? Math.max(0, Math.min(maximum, Math.floor(value))) : 0;

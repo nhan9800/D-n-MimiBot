@@ -60,6 +60,7 @@ function runYoutubePoProbe({ ytDlpExec, getOptions, query = 'JACK J97 Lưu Niên
     let forbidden = false, authRequired = false, sourceTimedOut = false;
     let limitedOutcome;
     let ytDlpVersion;
+    let accountCookiesRecognized = false, accountCookiesRejected = false;
     let audioBeganAt = null, firstByteMs = null;
     let audioChunks = [];
     // Đồng hồ kiểm tra được inject; chỉ trả số nguyên có hạn, không phát sinh NaN
@@ -73,7 +74,7 @@ function runYoutubePoProbe({ ytDlpExec, getOptions, query = 'JACK J97 Lưu Niên
         transport: transport === 'hls' ? 'hls' : 'default',
         ...(ytDlpVersion ? { ytDlpVersion } : {}),
         containerHeaderRecognized: recognizesAudioContainer(header), pluginLoaded, tokenRequestObserved, searchResolved,
-        providerRequestFailed, mediaDownloadFailed, downloadStarted });
+        providerRequestFailed, mediaDownloadFailed, downloadStarted, accountCookiesRecognized, accountCookiesRejected });
     const inspectError = error => {
         const { code } = classifyMusicSourceError(error);
         if (['RATE_LIMITED', 'YOUTUBE_BOT_CHECK', 'YOUTUBE_BUSY'].includes(code)) {
@@ -111,6 +112,8 @@ function runYoutubePoProbe({ ytDlpExec, getOptions, query = 'JACK J97 Lưu Niên
             if (complete) return;
             stderrTail = (stderrTail + chunk.toString()).slice(-8192);
             ytDlpVersion ||= /^\[debug\] yt-dlp version (?:\w+@)?(\d{4}\.\d{2}\.\d{2}(?:\.\d{6})?)[^\S\n]/m.exec(stderrTail)?.[1];
+            accountCookiesRecognized ||= /\[youtube\] Found YouTube account cookies/i.test(stderrTail);
+            accountCookiesRejected ||= /YouTube account cookies[^\r\n]{0,80}(?:no longer valid|expired|rotated)/i.test(stderrTail);
             pluginLoaded ||= /PO Token Providers:[^\r\n]*bgutil:http(?:-\d+(?:\.\d+)*)?/i.test(stderrTail);
             tokenRequestObserved ||= /Generating[^\r\n]{0,160}PO Token[^\r\n]{0,160}bgutil/i.test(stderrTail);
             inspectError({ message: stderrTail });

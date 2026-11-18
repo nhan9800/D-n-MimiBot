@@ -40,10 +40,10 @@ Nguồn: [hướng dẫn xuất phiên YouTube](https://github.com/yt-dlp/yt-dlp
   `hasAuthCookies` chỉ nói có cookie xác thực, chưa xác minh đăng nhập còn hiệu lực.
 - Khi provider sẵn sàng, watcher đọc mỗi 15 giây. Chỉ chạy probe sau hai lần
   thấy cùng phiên hợp lệ; không cần restart riêng chỉ vì tải file mới lên.
-- Một phiên chỉ được thử một lần và có receipt riêng trong `data/youtube-po/cookie-opus-checks/`.
+- Một phiên chỉ được thử một lần và có receipt riêng trong `data/youtube-po/cookie-default-opus-checks/`.
   Không lặp tải khi restart hoặc sau lỗi403; tối đa hai phiên mới trong mỗi process,
   cách nhau ít nhất60 giây. Không đăng nhập/nhắn tin/tham gia voice Discord để thử.
-- Phép thử dùng options production. Khi khôi phục sau xác minh bot, kiểm tra
+- Phép thử dùng bộ client đăng nhập mặc định của yt-dlp. Khi khôi phục sau xác minh bot, kiểm tra
   video `BAl1VQur4uI` đã dùng để tái hiện lỗi. Chế độ chẩn đoán thủ công dùng
   bài JACK/J97 Lưu Niên. Mỗi lượt đọc tối đa 64 KiB và xác minh FFmpeg/Opus
   trong RAM. File đổi giữa chừng thì không công bố kết quả phiên cũ.

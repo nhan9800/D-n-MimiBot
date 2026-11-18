@@ -124,6 +124,7 @@ test('Probe dùng options production cho search/audio, chỉ nhận64KiB rồi k
     assert.equal(child.processOptions.buffer, false);
     assert.deepEqual(child.flags.pluginDirs, f.options.pluginDirs);
     child.stderr.write('[debug] yt-dlp version nightly@2026.11.17.232707 from upstream\n');
+    child.stderr.write('[debug] [youtube] Found YouTube account cookies\n');
     child.stderr.write('[debug] [youtube] [pot] PO Token Pro');
     child.stderr.write('viders: bgutil:http-2.0.2 (external)\n[youtube] Generating a gvs PO Token for mweb client via bgutil HTTP server\n');
     child.stderr.write('Generated POT: secret-token https://rr1.googlevideo.com/media?pot=secret-signed-url\n');
@@ -141,6 +142,8 @@ test('Probe dùng options production cho search/audio, chỉ nhận64KiB rồi k
     assert.equal(result.audioElapsedMs, 1234);
     assert.equal(result.videoId, ID);
     assert.equal(result.ytDlpVersion, '2026.11.17.232707');
+    assert.equal(result.accountCookiesRecognized, true);
+    assert.equal(result.accountCookiesRejected, false);
     assert.equal(result.searchResolved, true);
     assert.equal(result.containerHeaderRecognized, true);
     assert.equal(result.pluginLoaded, true);

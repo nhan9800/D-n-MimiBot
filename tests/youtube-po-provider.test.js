@@ -86,10 +86,14 @@ test('Provider start singleflight, chỉ ready sau marker của child và ping �
     assert.equal(f.requests.length, 2);
     assert.ok(f.requests.every(request => request.url === 'http://127.0.0.1:4416/ping'));
     assert.deepEqual(f.manager.options(), { pluginDirs: f.runtime.pluginDir, extractorArgs: ['youtube:player_client=mweb', 'youtubepot-bgutilhttp:base_url=http://127.0.0.1:4416'] });
+    assert.deepEqual(f.manager.options(undefined, { nativeClient: true }), {
+        pluginDirs: f.runtime.pluginDir, extractorArgs: ['youtubepot-bgutilhttp:base_url=http://127.0.0.1:4416']
+    });
     assert.equal(f.manager.options('youtube:player_client=web_embedded').extractorArgs[0], 'youtube:player_client=web_embedded');
     f.manager.stop();
     assert.deepEqual(f.children[0].signals, ['SIGTERM']);
     assert.deepEqual(f.manager.options(), { extractorArgs: 'youtube:player_client=default' });
+    assert.deepEqual(f.manager.options(undefined, { nativeClient: true }), {});
     assert.equal(f.manager.snapshot().clientRevision, 2);
 });
 

@@ -3271,9 +3271,13 @@ async function extractMusicMetadata(url, flags, options) {
     if (!isYoutubeRequest(url)) return ytDlpExec(url, flags, options);
     await youtubeRequests.acquire({ signal: options?.signal });
     const verifiedCookie = getVerifiedYoutubeCookie();
+    const requestFlags = { ...flags, ignoreErrors: false, retries: 0, extractorRetries: 0 };
+    if (verifiedCookie) {
+        delete requestFlags.extractorArgs;
+        Object.assign(requestFlags, youtubePoProvider.options(undefined, { nativeClient: true }), { cookies: verifiedCookie.path });
+    }
     try {
-        return await ytDlpExec(url, { ...flags, ignoreErrors: false, retries: 0, extractorRetries: 0,
-            ...(verifiedCookie ? { cookies: verifiedCookie.path } : {}) }, options);
+        return await ytDlpExec(url, requestFlags, options);
     } catch (error) {
         const safe = classifyMusicSourceError(error);
         invalidateYoutubeCookieOnError(verifiedCookie, safe.code);
@@ -3442,13 +3446,13 @@ const youtubeCookieVerifier = createYoutubeCookieVerification({
     isProviderReady: () => youtubePoProvider.snapshot().ready,
     canProbe: () => !youtubeRequests.status(),
     // Receipt cũ chỉ kiểm tra container. Phiên dùng cho phát thật cần packet Opus.
-    receiptDir: path.join(__dirname, 'data', 'youtube-po', 'cookie-opus-checks'),
+    receiptDir: path.join(__dirname, 'data', 'youtube-po', 'cookie-default-opus-checks'),
     probe: async ({ signal }) => {
         const source = youtubeCookieSource.read();
         if (!source.path || source.status.state !== 'ready' || !source.status.hasAuthCookies) {
             throw new Error('COOKIE_SOURCE_CHANGED');
         }
-        const options = { ...getYtCommonOpts(undefined, { useCookies: true }), cookies: source.path };
+        const options = { ...getYtCommonOpts(undefined, { nativeClient: true }), cookies: source.path };
         const getOptions = () => {
             const current = youtubeCookieSource.read();
             if (current.path !== source.path || current.revision !== source.revision) throw new Error('COOKIE_SOURCE_CHANGED');
@@ -3498,6 +3502,8 @@ function getYoutubePoStatus() {
         providerRequestFailed: checked.providerRequestFailed === true,
         mediaDownloadFailed: checked.mediaDownloadFailed === true,
         opusVerified: checked.opusVerified === true,
+        accountCookiesRecognized: checked.accountCookiesRecognized === true,
+        accountCookiesRejected: checked.accountCookiesRejected === true,
         downloadStarted: checked.downloadStarted === true,
         credentials: checked.credentials === 'cookie_file' ? 'cookie_file' : 'guest',
         searchResolved: checked.searchResolved === true
@@ -3731,7 +3737,7 @@ function buildSoundcloudFallbackQuery(title, author = '') {
     return query.slice(0, 140) || raw.slice(0, 140);
 }
 
-function getYtCommonOpts(clientArgs = YT_EXTRACTOR_ARGS, { useCookies = false } = {}) {
+function getYtCommonOpts(clientArgs = YT_EXTRACTOR_ARGS, { useCookies = false, nativeClient = false } = {}) {
     // yt-dlp-exec đổi boolean false thành --no-<flag>; noCheckCertificates:false
     // thành --no-no-check-certificates không hợp lệ. Bỏ flag để giữ xác thực TLS mặc định.
     const opts = {
@@ -3740,7 +3746,7 @@ function getYtCommonOpts(clientArgs = YT_EXTRACTOR_ARGS, { useCookies = false } 
         preferFreeFormats: true,
         jsRuntimes: 'node',
         remoteComponents: 'ejs:github',
-        ...youtubePoProvider.options(clientArgs),
+        ...youtubePoProvider.options(clientArgs, { nativeClient }),
         // YouTube signs the googlevideo URL with the address used while
         // extracting it. Keep metadata extraction on the same IPv4 path as
         // the streaming process; otherwise dual-stack hosts can extract over
@@ -5663,7 +5669,7 @@ async function playNextTrack(guildId, opts = {}) {
             ytdlOpts.remoteComponents = 'ejs:github';
             ytdlOpts.retries = 0;
             ytdlOpts.extractorRetries = 0;
-            Object.assign(ytdlOpts, youtubePoProvider.options(youtubeClientArgs));
+            Object.assign(ytdlOpts, youtubePoProvider.options(youtubeClientArgs, { nativeClient: Boolean(verifiedCookie) }));
         }
         if (seekSec > 0 && seekTransport === 'section') {
             // Tải thẳng từ mốc thời gian khi tua hoặc khi đổi hiệu ứng -> không bắt ffmpeg đọc/bỏ qua hàng MB dữ liệu qua pipe

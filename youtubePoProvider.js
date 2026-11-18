@@ -255,10 +255,14 @@ function createYoutubePoProvider({ install, spawn = spawnProcess, execPath = pro
         terminate(owned);
         return snapshot();
     }
-    function options(clientArgs = 'youtube:player_client=default') {
-        if (state !== 'ready' || !runtime || !child || child.exitCode != null || child.killed) return { extractorArgs: clientArgs };
-        const selected = clientArgs.replace(/(^youtube:[^\n]*?\bplayer_client=)default(?=$|[;,])/i, '$1mweb');
-        return { pluginDirs: runtime.pluginDir, extractorArgs: [selected, `youtubepot-bgutilhttp:base_url=http://127.0.0.1:${port}`] };
+    function options(clientArgs = 'youtube:player_client=default', { nativeClient = false } = {}) {
+        if (state !== 'ready' || !runtime || !child || child.exitCode != null || child.killed) {
+            return nativeClient ? {} : { extractorArgs: clientArgs };
+        }
+        const extractorArgs = [];
+        if (!nativeClient) extractorArgs.push(clientArgs.replace(/(^youtube:[^\n]*?\bplayer_client=)default(?=$|[;,])/i, '$1mweb'));
+        extractorArgs.push(`youtubepot-bgutilhttp:base_url=http://127.0.0.1:${port}`);
+        return { pluginDirs: runtime.pluginDir, extractorArgs };
     }
     return { start, stop, snapshot, options };
 }
