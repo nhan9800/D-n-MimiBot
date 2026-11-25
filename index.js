@@ -54,6 +54,7 @@ const { createYoutubeCookieVerification } = require('./youtubeCookieVerification
 const { classifyMusicSourceError, selectMusicSourceError } = require('./musicSourceErrors');
 const { createYoutubeRequestPolicy, isYoutubeRequest, readYoutubeRequestLimits } = require('./youtubeRequestPolicy');
 const { readYoutubeProxy, readYoutubeTimeouts, checkYoutubeProxy, createProxySessionRotator, wrapYtDlp } = require('./youtubeNetwork');
+const { readTailscaleConfig, createTailscaleRelay } = require('./tailscaleRelay');
 const { resolveYoutubeDirectTrack } = require('./youtubeDirectTrack');
 const { runYoutubeLinkCheck, isVerifiedNativeYoutubeGuest } = require('./youtubeLinkCheck');
 const { runMusicEffectCheck } = require('./musicEffectCheck');
@@ -3252,8 +3253,16 @@ try { ytDlpExec = require('yt-dlp-exec'); } catch {
 }
 // Proxy riêng cho YouTube + bản sao cookies chỉ đọc cho từng tiến trình yt-dlp.
 // Không log URL proxy vì có thể chứa user/password.
-const youtubeProxy = readYoutubeProxy();
-if (youtubeProxy.status.state === 'ready') console.log(`[YouTube] Dùng proxy ${youtubeProxy.status.scheme} cho request YouTube.`);
+// Relay Tailscale (máy nhà làm exit node) được ưu tiên hơn MIMI_YOUTUBE_PROXY.
+const tailscaleConfig = readTailscaleConfig();
+if (tailscaleConfig.state === 'invalid') console.warn('[Tailscale] MIMI_TAILSCALE_EXIT_NODE không hợp lệ (dùng tên máy hoặc IP 100.x); bỏ qua relay.');
+const tailscaleRelay = tailscaleConfig.enabled
+    ? createTailscaleRelay(tailscaleConfig, { rootDir: path.join(__dirname, 'data', 'tailscale'), log: console.log }) : null;
+const youtubeProxy = tailscaleRelay
+    ? { url: tailscaleRelay.proxyUrl, status: { enabled: true, state: 'ready', scheme: 'http', ffmpegCompatible: true, via: 'tailscale' } }
+    : readYoutubeProxy();
+if (tailscaleRelay) console.log('[YouTube] Dùng relay Tailscale (máy nhà) cho request YouTube.');
+else if (youtubeProxy.status.state === 'ready') console.log(`[YouTube] Dùng proxy ${youtubeProxy.status.scheme} cho request YouTube.`);
 else if (youtubeProxy.status.state === 'invalid') console.warn('[YouTube] MIMI_YOUTUBE_PROXY không hợp lệ (dùng http://user:pass@host:port hoặc dòng user:pass:host:port của nhà cung cấp); bỏ qua proxy.');
 // Đi qua proxy chậm hơn IP hosting: nới thời gian chờ byte đầu/metadata/socket cho YouTube.
 const youtubeTimeouts = readYoutubeTimeouts(process.env, Boolean(youtubeProxy.url));
@@ -3262,12 +3271,31 @@ const youtubeProxyRotator = createProxySessionRotator(youtubeProxy.url);
 if (youtubeProxyRotator.status().rotatable) console.log('[YouTube] Proxy có phiên sticky: tự đổi IP khi YouTube chặn (tối đa 6 lần/30 phút).');
 // Kiểm tra 2 kết nối nhẹ lúc khởi động: trang YouTube và CDN audio googlevideo.
 // PROXY_407 = sai user/mật khẩu; PROXY_403/CLOSED ở googlevideo = nhà cung cấp chặn domain video.
-if (youtubeProxy.url) checkYoutubeProxy(youtubeProxyRotator.current()).then(results => {
-    if (!results) return console.log('[YouTube] Bỏ qua kiểm tra proxy (chỉ kiểm tra proxy http://).');
-    for (const result of results) {
-        console.log(`[YouTube] Kiểm tra proxy -> ${result.host}: ${result.ok ? `OK (HTTP ${result.status})` : `LỖI ${result.code}`} sau ${result.ms}ms`);
-    }
-}).catch(() => console.warn('[YouTube] Không kiểm tra được proxy.'));
+function logYoutubeProxyCheck() {
+    return checkYoutubeProxy(youtubeProxyRotator.current()).then(results => {
+        if (!results) return console.log('[YouTube] Bỏ qua kiểm tra proxy (chỉ kiểm tra proxy http://).');
+        for (const result of results) {
+            console.log(`[YouTube] Kiểm tra proxy -> ${result.host}: ${result.ok ? `OK (HTTP ${result.status})` : `LỖI ${result.code}`} sau ${result.ms}ms`);
+        }
+    }).catch(() => console.warn('[YouTube] Không kiểm tra được proxy.'));
+}
+if (tailscaleRelay) {
+    // Relay chưa chạy/máy nhà tắt: request YouTube lỗi kết nối (không lộ IP hosting) và
+    // bài nguồn Tự động chuyển SoundCloud. Kiểm tra lại mỗi phút để báo khi máy nhà bật/tắt.
+    let lastRelayState = null;
+    const reportRelay = status => {
+        const label = status.state === 'running' ? 'running' : `${status.state}:${status.code || ''}`;
+        if (label === lastRelayState) return;
+        lastRelayState = label;
+        if (status.state === 'running') {
+            console.log('[Tailscale] Relay sẵn sàng: YouTube đi qua exit node (máy nhà).');
+            logYoutubeProxyCheck();
+        } else console.warn(`[Tailscale] Relay chưa sẵn sàng: ${status.code || status.state}.`);
+    };
+    tailscaleRelay.start().then(reportRelay);
+    setInterval(() => tailscaleRelay.refresh().then(reportRelay).catch(() => null), 60000).unref();
+    process.once('exit', () => tailscaleRelay.stop());
+} else if (youtubeProxy.url) logYoutubeProxyCheck();
 if (ytDlpExec) ytDlpExec = wrapYtDlp(ytDlpExec, { getProxy: () => youtubeProxyRotator.current(),
     runtimeDir: path.join(__dirname, 'data', 'youtube-cookie-runtime') });
 
@@ -3535,7 +3563,7 @@ function getYoutubePoStatus() {
         'source_failed', 'search_empty', 'invalid_audio', 'invalid_configuration', 'invalid_input',
         'cancelled', 'aborted', 'interrupted'];
     return { ...youtubePoProvider.snapshot(), requestCooldown: youtubeRequests.status(), cookies: youtubeCookieSource.snapshot(),
-        proxy: { ...youtubeProxy.status, session: youtubeProxyRotator.status() },
+        proxy: { ...youtubeProxy.status, session: youtubeProxyRotator.status(), relay: tailscaleRelay?.snapshot() ?? null },
         nativeGuestVerified: isVerifiedNativeYoutubeGuest(youtubeLinkVerification),
         cookieCheck: youtubeCookieVerifier.snapshot(), linkCheck: youtubeLinkVerification, verification: checked ? {
         ok: checked.ok === true,

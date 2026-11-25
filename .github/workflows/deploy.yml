@@ -104,6 +104,7 @@ jobs:
           put musicSourceErrors.js
           put youtubeRequestPolicy.js
           put youtubeNetwork.js
+          put tailscaleRelay.js
           put youtubeDirectTrack.js
           put youtubeLinkCheck.js
           put musicEffectCheck.js

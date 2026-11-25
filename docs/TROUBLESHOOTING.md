@@ -24,6 +24,7 @@
 
 Lỗi `YOUTUBE_BOT_CHECK` ("Sign in to confirm you're not a bot") hoặc `RATE_LIMITED` (HTTP 429) nghĩa là YouTube từ chối **địa chỉ IP** của máy chủ. Điều tiết số request phía bot chỉ giảm tần suất bị phạt; IP datacenter đã bị đánh dấu thì vẫn bị chặn dù gửi rất ít. Thứ tự xử lý:
 
+0. **Relay qua máy ở nhà (khuyến nghị, miễn phí):** đặt `MIMI_TAILSCALE_EXIT_NODE`/`MIMI_TAILSCALE_AUTHKEY`; xem [YOUTUBE-HOME-RELAY.md](YOUTUBE-HOME-RELAY.md).
 1. **Proxy riêng cho YouTube (xử lý tận gốc).** Đặt `MIMI_YOUTUBE_PROXY=http://user:pass@host:port` trong env của hosting rồi restart. Chỉ request YouTube đi qua proxy (tìm kiếm, metadata và luồng audio trong cùng tiến trình yt-dlp, nên URL googlevideo khớp IP); SoundCloud vẫn đi thẳng. Lựa chọn thường dùng:
    - Proxy dân cư/ISP trả phí theo GB (mỗi bài ~3–5 MB audio).
    - Máy ở nhà chạy proxy HTTP (ví dụ `tinyproxy`/`3proxy`), nối với hosting qua Tailscale/WireGuard; IP nhà gần như không bị bot check.
