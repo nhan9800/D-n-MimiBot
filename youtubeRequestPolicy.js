@@ -72,6 +72,13 @@ function createYoutubeRequestPolicy({ now = Date.now, wait = sleep, saved, onCoo
         return true;
     }
 
+    // Gỡ cooldown khi đã chuyển sang IP proxy mới: lỗi chặn thuộc về IP cũ.
+    function clear() {
+        cooldown = null;
+        tokens = Math.max(tokens, 1);
+        updatedAt = now();
+    }
+
     function acquire({ signal, waitMs = refillMs } = {}) {
         signal?.throwIfAborted();
         const cooldownNow = status();
@@ -95,7 +102,7 @@ function createYoutubeRequestPolicy({ now = Date.now, wait = sleep, saved, onCoo
         }).finally(() => { waiting--; });
     }
 
-    return { acquire, observe, status, lastBlockReason };
+    return { acquire, observe, status, lastBlockReason, clear };
 }
 
 module.exports = { createYoutubeRequestPolicy, isYoutubeRequest, readYoutubeRequestLimits };

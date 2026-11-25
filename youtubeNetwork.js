@@ -12,7 +12,7 @@
 
 const fs = require('node:fs');
 const path = require('node:path');
-const { randomBytes } = require('node:crypto');
+const { randomBytes, createHash } = require('node:crypto');
 const http = require('node:http');
 const tls = require('node:tls');
 const { isYoutubeRequest } = require('./youtubeRequestPolicy');
@@ -127,6 +127,51 @@ async function checkYoutubeProxy(proxyUrl, options = {}) {
         .map(host => checkProxyTarget(proxyUrl, host, options)));
 }
 
+// Proxy dân cư dạng "sticky session" (9Proxy, IPRoyal, Smartproxy...) chọn IP
+// theo chuỗi phiên trong tên đăng nhập, ví dụ `user-country-VN-ssid-AbC123`.
+// Đổi chuỗi này là đổi sang IP khác. Khi YouTube chặn IP hiện tại, bot tạo phiên
+// mới thay vì chờ cooldown; giới hạn số lần đổi để không đốt cả kho IP.
+const PROXY_SESSION_PATTERN = /(-(?:ssid|sessid|session|sessionid)-)([A-Za-z0-9]{4,64})/i;
+const SESSION_ALPHABET = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789';
+
+function createProxySessionRotator(proxyUrl, { maxRotations = 6, windowMs = 30 * 60000, now = Date.now, random = randomBytes } = {}) {
+    let current = proxyUrl || null;
+    const history = [];
+    let total = 0;
+    let lastRotatedAt = null;
+    let username = '';
+    try { username = current ? decodeURIComponent(new URL(current).username) : ''; } catch { username = ''; }
+    const rotatable = PROXY_SESSION_PATTERN.test(username);
+
+    function rotate() {
+        if (!rotatable) return false;
+        const at = now();
+        while (history.length && at - history[0] >= windowMs) history.shift();
+        if (history.length >= maxRotations) return false;
+        const url = new URL(current);
+        const name = decodeURIComponent(url.username);
+        const length = PROXY_SESSION_PATTERN.exec(name)[2].length;
+        const bytes = random(length);
+        let id = '';
+        for (let index = 0; index < length; index++) id += SESSION_ALPHABET[bytes[index] % SESSION_ALPHABET.length];
+        url.username = name.replace(PROXY_SESSION_PATTERN, (_, prefix) => `${prefix}${id}`);
+        current = url.href.replace(/\/$/, '');
+        history.push(at);
+        total++;
+        lastRotatedAt = at;
+        return true;
+    }
+
+    return {
+        current: () => current,
+        rotate,
+        rotatedWithin: ms => lastRotatedAt !== null && now() - lastRotatedAt <= ms,
+        // Khóa ngắn gắn với phiên/IP đang dùng để cooldown cũ không áp sang IP mới. Không chứa mật khẩu.
+        networkKey: () => current ? createHash('sha256').update(current).digest('hex').slice(0, 16) : 'direct',
+        status: () => ({ rotatable, rotations: total, recentRotations: history.length, maxRotations })
+    };
+}
+
 function createCookieCopier(runtimeDir) {
     let swept = false;
     function sweep() {
@@ -198,4 +243,4 @@ function wrapYtDlp(raw, { getProxy = () => null, runtimeDir } = {}) {
     return wrapped;
 }
 
-module.exports = { readYoutubeProxy, readYoutubeTimeouts, checkYoutubeProxy, wrapYtDlp };
+module.exports = { readYoutubeProxy, readYoutubeTimeouts, checkYoutubeProxy, createProxySessionRotator, wrapYtDlp };

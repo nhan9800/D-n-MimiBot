@@ -173,3 +173,44 @@ test('Kiểm tra proxy hết giờ khi proxy không trả lời CONNECT', async 
         await new Promise(resolve => server.close(resolve));
     }
 });
+
+test('Đổi phiên sticky của proxy: chỉ đổi chuỗi ssid, giữ user/mật khẩu/host, giới hạn 6 lần trong 30 phút', () => {
+    const { createProxySessionRotator } = require('../youtubeNetwork');
+    let now = 0;
+    let seed = 0;
+    const rotator = createProxySessionRotator('http://user_1-country-VN-ssid-AbCdEf1234:Pa_ss@niceproxy.io:17522', {
+        now: () => now, random: size => Buffer.from(Array.from({ length: size }, () => seed++))
+    });
+    const firstKey = rotator.networkKey();
+    assert.equal(rotator.status().rotatable, true);
+    assert.equal(rotator.rotatedWithin(20000), false);
+    assert.equal(rotator.rotate(), true);
+    const next = new URL(rotator.current());
+    assert.match(next.username, /^user_1-country-VN-ssid-[A-Za-z0-9]{10}$/);
+    assert.notEqual(next.username, 'user_1-country-VN-ssid-AbCdEf1234');
+    assert.equal(next.password, 'Pa_ss');
+    assert.equal(next.host, 'niceproxy.io:17522');
+    assert.notEqual(rotator.networkKey(), firstKey, 'Cooldown cũ không áp sang IP mới');
+    assert.doesNotMatch(rotator.networkKey(), /Pa_ss|user_1/);
+    assert.equal(rotator.rotatedWithin(20000), true);
+    for (let run = 1; run < 6; run++) assert.equal(rotator.rotate(), true);
+    assert.equal(rotator.rotate(), false, 'Không đốt kho IP quá giới hạn');
+    now += 30 * 60000;
+    assert.equal(rotator.rotatedWithin(20000), false);
+    assert.equal(rotator.rotate(), true);
+
+    const fixed = createProxySessionRotator('http://user:pass@host:8080');
+    assert.equal(fixed.status().rotatable, false);
+    assert.equal(fixed.rotate(), false);
+    assert.equal(createProxySessionRotator(null).networkKey(), 'direct');
+});
+
+test('Gỡ cooldown sau khi đổi IP cho phép yêu cầu kế tiếp chạy ngay', () => {
+    let now = 1000000;
+    const policy = createYoutubeRequestPolicy({ now: () => now });
+    policy.observe('ERROR: Sign in to confirm you’re not a bot');
+    assert.throws(() => policy.acquire(), { code: 'YOUTUBE_BOT_CHECK' });
+    policy.clear();
+    assert.equal(policy.status(), null);
+    assert.equal(policy.acquire(), undefined);
+});

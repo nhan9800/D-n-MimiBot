@@ -53,7 +53,7 @@ const { createYoutubeCookieSource } = require('./youtubeCookies');
 const { createYoutubeCookieVerification } = require('./youtubeCookieVerification');
 const { classifyMusicSourceError, selectMusicSourceError } = require('./musicSourceErrors');
 const { createYoutubeRequestPolicy, isYoutubeRequest, readYoutubeRequestLimits } = require('./youtubeRequestPolicy');
-const { readYoutubeProxy, readYoutubeTimeouts, checkYoutubeProxy, wrapYtDlp } = require('./youtubeNetwork');
+const { readYoutubeProxy, readYoutubeTimeouts, checkYoutubeProxy, createProxySessionRotator, wrapYtDlp } = require('./youtubeNetwork');
 const { resolveYoutubeDirectTrack } = require('./youtubeDirectTrack');
 const { runYoutubeLinkCheck, isVerifiedNativeYoutubeGuest } = require('./youtubeLinkCheck');
 const { runMusicEffectCheck } = require('./musicEffectCheck');
@@ -3257,21 +3257,29 @@ if (youtubeProxy.status.state === 'ready') console.log(`[YouTube] Dùng proxy ${
 else if (youtubeProxy.status.state === 'invalid') console.warn('[YouTube] MIMI_YOUTUBE_PROXY không hợp lệ (dùng http://user:pass@host:port hoặc dòng user:pass:host:port của nhà cung cấp); bỏ qua proxy.');
 // Đi qua proxy chậm hơn IP hosting: nới thời gian chờ byte đầu/metadata/socket cho YouTube.
 const youtubeTimeouts = readYoutubeTimeouts(process.env, Boolean(youtubeProxy.url));
+// Proxy sticky session (`-ssid-xxxx` trong user): YouTube chặn IP nào thì tạo phiên/IP mới.
+const youtubeProxyRotator = createProxySessionRotator(youtubeProxy.url);
+if (youtubeProxyRotator.status().rotatable) console.log('[YouTube] Proxy có phiên sticky: tự đổi IP khi YouTube chặn (tối đa 6 lần/30 phút).');
 // Kiểm tra 2 kết nối nhẹ lúc khởi động: trang YouTube và CDN audio googlevideo.
 // PROXY_407 = sai user/mật khẩu; PROXY_403/CLOSED ở googlevideo = nhà cung cấp chặn domain video.
-if (youtubeProxy.url) checkYoutubeProxy(youtubeProxy.url).then(results => {
+if (youtubeProxy.url) checkYoutubeProxy(youtubeProxyRotator.current()).then(results => {
     if (!results) return console.log('[YouTube] Bỏ qua kiểm tra proxy (chỉ kiểm tra proxy http://).');
     for (const result of results) {
         console.log(`[YouTube] Kiểm tra proxy -> ${result.host}: ${result.ok ? `OK (HTTP ${result.status})` : `LỖI ${result.code}`} sau ${result.ms}ms`);
     }
 }).catch(() => console.warn('[YouTube] Không kiểm tra được proxy.'));
-if (ytDlpExec) ytDlpExec = wrapYtDlp(ytDlpExec, { getProxy: () => youtubeProxy.url,
+if (ytDlpExec) ytDlpExec = wrapYtDlp(ytDlpExec, { getProxy: () => youtubeProxyRotator.current(),
     runtimeDir: path.join(__dirname, 'data', 'youtube-cookie-runtime') });
 
 const youtubeCooldownPath = path.join(__dirname, 'data', 'youtube-cooldown.json');
 let savedYoutubeCooldown;
 try { savedYoutubeCooldown = JSON.parse(fs.readFileSync(youtubeCooldownPath, 'utf8')); }
 catch (error) { if (error.code !== 'ENOENT') console.warn('[YouTube] Không đọc được thời gian chờ đã lưu.'); }
+// Cooldown lưu theo IP/proxy đang dùng. Đổi proxy hoặc phiên ssid thì không kế thừa lệnh chặn của IP cũ.
+if (savedYoutubeCooldown && (savedYoutubeCooldown.network || 'direct') !== youtubeProxyRotator.networkKey()) {
+    console.log('[YouTube] Bỏ thời gian chờ đã lưu vì đã đổi proxy/IP.');
+    savedYoutubeCooldown = undefined;
+}
 const youtubeRequests = createYoutubeRequestPolicy({
     ...readYoutubeRequestLimits(),
     saved: savedYoutubeCooldown,
@@ -3279,9 +3287,21 @@ const youtubeRequests = createYoutubeRequestPolicy({
         console.warn(`[YouTube] source=${reason} retryAt=${new Date(until).toISOString()}`);
         try {
             fs.mkdirSync(path.dirname(youtubeCooldownPath), { recursive: true });
-            fs.writeFileSync(youtubeCooldownPath + '.tmp', JSON.stringify({ reason, until }), { mode: 0o600 });
+            fs.writeFileSync(youtubeCooldownPath + '.tmp', JSON.stringify({ reason, until, network: youtubeProxyRotator.networkKey() }), { mode: 0o600 });
             fs.renameSync(youtubeCooldownPath + '.tmp', youtubeCooldownPath);
         } catch { console.warn('[YouTube] Không lưu được thời gian chờ xuống đĩa.'); }
+        // IP proxy bị chặn: đổi sang phiên mới thay vì bắt mọi server chờ hết cooldown.
+        // Lỗi trùng từ các tiến trình mở cùng lúc (trong 20 giây) dùng chung lần đổi đó.
+        const recentlyRotated = youtubeProxyRotator.rotatedWithin(20000);
+        if (recentlyRotated || youtubeProxyRotator.rotate()) {
+            if (!recentlyRotated) {
+                const session = youtubeProxyRotator.status();
+                console.warn(`[YouTube] IP proxy bị ${reason} -> đổi sang phiên IP mới (${session.recentRotations}/${session.maxRotations} trong 30 phút).`);
+            }
+            youtubeRequests.clear();
+            try { fs.rmSync(youtubeCooldownPath, { force: true }); } catch { /* Đã xoá. */ }
+            return;
+        }
         if (reason === 'YOUTUBE_BOT_CHECK' && youtubePoProvider.snapshot().ready) youtubeCookieVerifier.start();
     }
 });
@@ -3515,7 +3535,7 @@ function getYoutubePoStatus() {
         'source_failed', 'search_empty', 'invalid_audio', 'invalid_configuration', 'invalid_input',
         'cancelled', 'aborted', 'interrupted'];
     return { ...youtubePoProvider.snapshot(), requestCooldown: youtubeRequests.status(), cookies: youtubeCookieSource.snapshot(),
-        proxy: youtubeProxy.status,
+        proxy: { ...youtubeProxy.status, session: youtubeProxyRotator.status() },
         nativeGuestVerified: isVerifiedNativeYoutubeGuest(youtubeLinkVerification),
         cookieCheck: youtubeCookieVerifier.snapshot(), linkCheck: youtubeLinkVerification, verification: checked ? {
         ok: checked.ok === true,
@@ -6064,6 +6084,11 @@ async function playNextTrack(guildId, opts = {}) {
 //     spam lỗi khiến người dùng phải xóa kênh mới hết).
 //   • Bài phát THÀNH CÔNG sẽ reset bộ đếm về 0 (xem playNextTrack).
 const MAX_CONSECUTIVE_FAILURES = 5;
+function retryYoutubeWithNewProxy(track) {
+    if (!youtubeProxyRotator.rotatedWithin(20000) || (track.proxyRetries || 0) >= 2) return false;
+    track.proxyRetries = (track.proxyRetries || 0) + 1;
+    return true;
+}
 function handlePlaybackFailure(guildId, mq, failedTrack, shortErr, sourceCode) {
     if (!mq || mq.current !== failedTrack) return; // đã chuyển bài khác -> bỏ qua lỗi cũ
     // Phiên đã bị dừng/xoá (Dừng & Thoát, rời kênh, mất kết nối) -> lỗi tới muộn của phiên cũ
@@ -6084,6 +6109,18 @@ function handlePlaybackFailure(guildId, mq, failedTrack, shortErr, sourceCode) {
     // YouTube chặn/giới hạn cả tiến trình (IP hosting). Với bài chọn nguồn Tự động,
     // phát cùng bài từ SoundCloud thay vì dừng cả hàng đợi tới hết cooldown.
     // Link YouTube hoặc nguồn YouTube chọn tường minh vẫn giữ đúng nguồn.
+    // Bot vừa đổi sang IP proxy mới vì lỗi chặn này: thử lại đúng bài/mốc với IP mới (tối đa 2 lần/bài).
+    if (youtubeLimited && retryYoutubeWithNewProxy(failedTrack)) {
+        const resumeSec = getPlaybackSec(mq);
+        mq.currentResource = null;
+        killCurrentProcess(mq);
+        try { mq.player.stop(); } catch { /* Player có thể đã dừng. */ }
+        console.warn(`🔁 [Music] Thử lại "${failedTrack.title}" bằng IP proxy mới ở server ${guildId}.`);
+        playNextTrack(guildId, { replayCurrent: true, expectedTrack: failedTrack, seekSec: resumeSec,
+            effectKey: mq.effect || 'none' })
+            .catch(error => console.error('❌ [Music] Lỗi thử lại YouTube bằng IP proxy mới:', classifyMusicSourceError(error).code));
+        return;
+    }
     if (youtubeLimited && failedTrack.requestedSource === 'auto' && failedTrack.allowSourceFallback === true
         && !failedTrack.scFallbackAttempted) {
         failedTrack.scFallbackAttempted = true;

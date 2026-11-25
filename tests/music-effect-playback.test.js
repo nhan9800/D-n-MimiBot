@@ -327,7 +327,7 @@ async function fixture({ synchronousPlaying = false, demuxProbe, searchSoundclou
         proc.rejectPlayback = error => { completion.reject(error); return proc.sourceHandled; };
         return proc;
     };
-    const context = vm.createContext({ youtubeTimeouts: { proxied: false, startMs: 16000, metadataMs: 8000, socketTimeoutSec: 6 },
+    const context = vm.createContext({ youtubeProxyRotator: { rotatedWithin: () => false }, youtubeTimeouts: { proxied: false, startMs: 16000, metadataMs: 8000, socketTimeoutSec: 6 },
         AbortController, isYoutubeRequest, youtubeRequests,
         getVerifiedYoutubeCookie: () => null, invalidateYoutubeCookieOnError() {},
         youtubeLinkVerification: null, isVerifiedNativeYoutubeGuest: require('../youtubeLinkCheck').isVerifiedNativeYoutubeGuest,
@@ -514,6 +514,30 @@ test('Proxy YouTube: chờ byte đầu 30 giây và socket 15 giây thay vì c�
         await f.play({ effectKey: 'none', seekSec: 0, seekTransport: 'pipe' });
         assert.equal(f.timers.find(timer => !timer.cleared).delay, 30000);
         assert.equal(f.processes[0].flags.socketTimeout, 15);
+    } finally { f.cleanup(); }
+});
+
+test('YouTube chặn IP proxy: vừa đổi phiên IP thì thử lại đúng bài tối đa 2 lần, không đổi nguồn', async () => {
+    let searches = 0;
+    const f = await fixture({ searchSoundcloud: async () => { searches++; return null; } });
+    try {
+        f.context.youtubeProxyRotator = { rotatedWithin: () => true };
+        await f.play();
+        for (let attempt = 0; attempt < 2; attempt++) {
+            f.context.handlePlaybackFailure('g1', f.mq, f.current, 'YouTube chặn', 'YOUTUBE_BOT_CHECK');
+            await tick();
+            assert.equal(f.processes.length, attempt + 2, 'Mở lại đúng bài bằng IP mới');
+            assert.equal(f.processes.at(-1).url, 'https://www.youtube.com/watch?v=abcdefghijk');
+            assert.equal(f.mq.current, f.current);
+        }
+        assert.equal(f.current.proxyRetries, 2);
+        assert.equal(searches, 0);
+        assert.deepEqual(f.mq.queue, [f.queued]);
+        // Hết lượt thử lại: quay về đường cũ (SoundCloud cho bài Tự động, rồi tạm dừng).
+        f.context.handlePlaybackFailure('g1', f.mq, f.current, 'YouTube chặn', 'YOUTUBE_BOT_CHECK');
+        await tick(); await tick();
+        assert.equal(searches, 1);
+        assert.equal(f.mq.sourceBlocked, true);
     } finally { f.cleanup(); }
 });
 
