@@ -3254,7 +3254,7 @@ try { ytDlpExec = require('yt-dlp-exec'); } catch {
 // Không log URL proxy vì có thể chứa user/password.
 const youtubeProxy = readYoutubeProxy();
 if (youtubeProxy.status.state === 'ready') console.log(`[YouTube] Dùng proxy ${youtubeProxy.status.scheme} cho request YouTube.`);
-else if (youtubeProxy.status.state === 'invalid') console.warn('[YouTube] MIMI_YOUTUBE_PROXY không hợp lệ (cần http/https/socks5://host:port); bỏ qua proxy.');
+else if (youtubeProxy.status.state === 'invalid') console.warn('[YouTube] MIMI_YOUTUBE_PROXY không hợp lệ (dùng http://user:pass@host:port hoặc dòng user:pass:host:port của nhà cung cấp); bỏ qua proxy.');
 if (ytDlpExec) ytDlpExec = wrapYtDlp(ytDlpExec, { getProxy: () => youtubeProxy.url,
     runtimeDir: path.join(__dirname, 'data', 'youtube-cookie-runtime') });
 

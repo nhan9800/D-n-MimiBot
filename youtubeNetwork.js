@@ -17,9 +17,30 @@ const { isYoutubeRequest } = require('./youtubeRequestPolicy');
 
 const PROXY_SCHEMES = new Set(['http:', 'https:', 'socks4:', 'socks4a:', 'socks5:', 'socks5h:']);
 
+// Nhà cung cấp proxy (9Proxy, Webshare...) thường xuất `user:pass:host:port`
+// hoặc `host:port:user:pass` thay vì URL. Đổi về URL chuẩn để người vận hành
+// dán thẳng dòng nhà cung cấp đưa mà không phải tự sửa.
+function normalizeProxyInput(value) {
+    let text = String(value || '').trim().replace(/^(['"])(.*)\1$/, '$2').trim();
+    if (!text) return '';
+    let scheme = 'http:';
+    const schemeMatch = /^([a-z][a-z0-9+.-]*):\/\//i.exec(text);
+    if (schemeMatch) { scheme = `${schemeMatch[1].toLowerCase()}:`; text = text.slice(schemeMatch[0].length); }
+    text = text.replace(/\/+$/, '');
+    if (!text.includes('@')) {
+        const parts = text.split(':');
+        const isPort = part => /^\d{1,5}$/.test(part);
+        let user, pass, host, port;
+        if (parts.length === 4 && isPort(parts[3]) && !isPort(parts[1])) [user, pass, host, port] = parts;
+        else if (parts.length === 4 && isPort(parts[1])) [host, port, user, pass] = parts;
+        if (host) text = `${encodeURIComponent(user)}:${encodeURIComponent(pass)}@${host}:${port}`;
+    }
+    return `${scheme}//${text}`;
+}
+
 /** Đọc proxy YouTube từ môi trường. Không bao giờ trả giá trị gốc ra log/health. */
 function readYoutubeProxy(env = process.env) {
-    const raw = String(env.MIMI_YOUTUBE_PROXY || '').trim();
+    const raw = normalizeProxyInput(env.MIMI_YOUTUBE_PROXY);
     if (!raw) return { url: null, status: { enabled: false, state: 'off' } };
     let parsed;
     try { parsed = new URL(raw); } catch { parsed = null; }

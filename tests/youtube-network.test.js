@@ -37,6 +37,24 @@ test('Proxy YouTube chỉ nhận scheme hợp lệ và không lộ giá trị tr
     assert.equal(readYoutubeProxy({ MIMI_YOUTUBE_PROXY: 'socks5h://127.0.0.1:1080' }).status.ffmpegCompatible, false);
 });
 
+test('Nhận nguyên dòng proxy nhà cung cấp: user:pass:host:port, host:port:user:pass, có dấu ngoặc', () => {
+    const expected = 'http://user_1-ssid-AbC:Pa_ss@niceproxy.io:17522';
+    for (const value of [
+        'user_1-ssid-AbC:Pa_ss:niceproxy.io:17522',
+        'http://user_1-ssid-AbC:Pa_ss:niceproxy.io:17522',
+        'niceproxy.io:17522:user_1-ssid-AbC:Pa_ss',
+        '"http://user_1-ssid-AbC:Pa_ss@niceproxy.io:17522"',
+        'user_1-ssid-AbC:Pa_ss@niceproxy.io:17522/'
+    ]) {
+        const proxy = readYoutubeProxy({ MIMI_YOUTUBE_PROXY: value });
+        assert.equal(proxy.status.state, 'ready', value);
+        assert.equal(proxy.url, expected, value);
+    }
+    const socks = readYoutubeProxy({ MIMI_YOUTUBE_PROXY: 'socks5://u:p:10.0.0.1:1080' });
+    assert.equal(socks.url, 'socks5://u:p@10.0.0.1:1080');
+    assert.equal(readYoutubeProxy({ MIMI_YOUTUBE_PROXY: 'u:p@host:99999' }).status.state, 'invalid');
+});
+
 test('Proxy chỉ gắn vào request YouTube, không đổi SoundCloud hoặc proxy đã chỉ định', async () => {
     const dir = tempDir();
     try {
