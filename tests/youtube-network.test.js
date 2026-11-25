@@ -5,7 +5,7 @@ const assert = require('node:assert/strict');
 const fs = require('node:fs');
 const os = require('node:os');
 const path = require('node:path');
-const { readYoutubeProxy, wrapYtDlp } = require('../youtubeNetwork');
+const { readYoutubeProxy, readYoutubeTimeouts, wrapYtDlp } = require('../youtubeNetwork');
 const { readYoutubeRequestLimits, createYoutubeRequestPolicy } = require('../youtubeRequestPolicy');
 
 function tempDir() {
@@ -53,6 +53,14 @@ test('Nhận nguyên dòng proxy nhà cung cấp: user:pass:host:port, host:port
     const socks = readYoutubeProxy({ MIMI_YOUTUBE_PROXY: 'socks5://u:p:10.0.0.1:1080' });
     assert.equal(socks.url, 'socks5://u:p@10.0.0.1:1080');
     assert.equal(readYoutubeProxy({ MIMI_YOUTUBE_PROXY: 'u:p@host:99999' }).status.state, 'invalid');
+});
+
+test('Đi qua proxy nới thời gian chờ YouTube; có thể ghi đè bằng env trong biên', () => {
+    assert.deepEqual(readYoutubeTimeouts({}, false), { proxied: false, startMs: 16000, metadataMs: 8000, socketTimeoutSec: 6 });
+    assert.deepEqual(readYoutubeTimeouts({}, true), { proxied: true, startMs: 30000, metadataMs: 15000, socketTimeoutSec: 15 });
+    assert.equal(readYoutubeTimeouts({ MIMI_YOUTUBE_START_TIMEOUT_MS: '45000' }, true).startMs, 45000);
+    assert.equal(readYoutubeTimeouts({ MIMI_YOUTUBE_START_TIMEOUT_MS: '999999' }, true).startMs, 60000);
+    assert.equal(readYoutubeTimeouts({ MIMI_YOUTUBE_START_TIMEOUT_MS: 'abc' }, true).startMs, 30000);
 });
 
 test('Proxy chỉ gắn vào request YouTube, không đổi SoundCloud hoặc proxy đã chỉ định', async () => {

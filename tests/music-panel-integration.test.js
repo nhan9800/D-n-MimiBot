@@ -27,7 +27,7 @@ function region(begin, end) {
 
 function fixture({ realBuild = false } = {}) {
     const timers = [];
-    const context = vm.createContext({ createLiveEffectSession, spawn() { throw new Error('Không spawn hiệu ứng trong ca phát none'); }, getFfmpegPath: () => 'ffmpeg',
+    const context = vm.createContext({ youtubeTimeouts: { proxied: false, startMs: 16000, metadataMs: 8000, socketTimeoutSec: 6 }, createLiveEffectSession, spawn() { throw new Error('Không spawn hiệu ứng trong ca phát none'); }, getFfmpegPath: () => 'ffmpeg',
         createMusicPanelWriter, classifyMusicSourceError, AbortController,
         isYoutubeRequest: require('../youtubeRequestPolicy').isYoutubeRequest,
         youtubeRequests: { status: () => null, acquire() {}, observe: () => false },
@@ -80,7 +80,7 @@ function musicQueue(message = null) {
 
 test('Tùy chọn metadata guest tạo argv yt-dlp hợp lệ và chỉ bật cookie khi cần', async () => {
     const calls = [];
-    const context = vm.createContext({ createLiveEffectSession, spawn() { throw new Error('Không spawn hiệu ứng trong ca phát none'); }, getFfmpegPath: () => 'ffmpeg',
+    const context = vm.createContext({ youtubeTimeouts: { proxied: false, startMs: 16000, metadataMs: 8000, socketTimeoutSec: 6 }, createLiveEffectSession, spawn() { throw new Error('Không spawn hiệu ứng trong ca phát none'); }, getFfmpegPath: () => 'ffmpeg',
         YT_EXTRACTOR_ARGS: 'youtube:player_client=android,ios,mweb',
         youtubePoProvider: { options: extractorArgs => ({ extractorArgs }), snapshot: () => ({ clientRevision: 0 }) },
         rankSoundcloudResult,
@@ -178,7 +178,7 @@ test('Phát YouTube, SoundCloud và tua bài dùng argv hợp lệ trước khi 
 });
 
 test('SoundCloud fallback ưu tiên đúng bản theo tên, nghệ sĩ và thời lượng, bỏ bản slowed đầu tiên', async () => {
-    const context = vm.createContext({ createLiveEffectSession, spawn() { throw new Error('Không spawn hiệu ứng trong ca phát none'); }, getFfmpegPath: () => 'ffmpeg',
+    const context = vm.createContext({ youtubeTimeouts: { proxied: false, startMs: 16000, metadataMs: 8000, socketTimeoutSec: 6 }, createLiveEffectSession, spawn() { throw new Error('Không spawn hiệu ứng trong ca phát none'); }, getFfmpegPath: () => 'ffmpeg',
         rankSoundcloudResult,
         ytDlpExec: async () => ({ entries: [
             { title: 'J97 Lưu Niên slowed + reverb', duration: 205, webpage_url: 'https://soundcloud.com/a/slowed' },
@@ -192,7 +192,7 @@ test('SoundCloud fallback ưu tiên đúng bản theo tên, nghệ sĩ và thờ
 
 function resolverFixture({ youtube, soundcloud } = {}) {
     const calls = [];
-    const context = vm.createContext({ createLiveEffectSession, spawn() { throw new Error('Không spawn hiệu ứng trong ca phát none'); }, getFfmpegPath: () => 'ffmpeg',
+    const context = vm.createContext({ youtubeTimeouts: { proxied: false, startMs: 16000, metadataMs: 8000, socketTimeoutSec: 6 }, createLiveEffectSession, spawn() { throw new Error('Không spawn hiệu ứng trong ca phát none'); }, getFfmpegPath: () => 'ffmpeg',
         createMusicSearchCache, applySourcePolicy, validateMusicUrl, URL,
         YT_URL_REGEX: /^https?:\/\/(www\.|m\.)?(youtube\.com|youtu\.be|music\.youtube\.com)\//i,
         SPOTIFY_URL_REGEX: /^https?:\/\/(open\.)?spotify\.com\//i,
@@ -214,7 +214,7 @@ function resolverFixture({ youtube, soundcloud } = {}) {
 
 function directYoutubeResolverFixture({ getMetadata } = {}) {
     const metadata = [], extractions = [], soundcloud = [], timers = [];
-    const context = vm.createContext({ createLiveEffectSession, spawn() { throw new Error('Không spawn hiệu ứng trong ca phát none'); }, getFfmpegPath: () => 'ffmpeg', createMusicSearchCache, applySourcePolicy, validateMusicUrl, URL,
+    const context = vm.createContext({ youtubeTimeouts: { proxied: false, startMs: 16000, metadataMs: 8000, socketTimeoutSec: 6 }, createLiveEffectSession, spawn() { throw new Error('Không spawn hiệu ứng trong ca phát none'); }, getFfmpegPath: () => 'ffmpeg', createMusicSearchCache, applySourcePolicy, validateMusicUrl, URL,
         YT_URL_REGEX: /^https?:\/\/(www\.|m\.)?(youtube\.com|youtu\.be|music\.youtube\.com)\//i,
         SPOTIFY_URL_REGEX: /^https?:\/\/(open\.)?spotify\.com\//i,
         youtubeRequests: { acquire() {}, observe: () => false },

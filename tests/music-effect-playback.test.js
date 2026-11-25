@@ -327,7 +327,7 @@ async function fixture({ synchronousPlaying = false, demuxProbe, searchSoundclou
         proc.rejectPlayback = error => { completion.reject(error); return proc.sourceHandled; };
         return proc;
     };
-    const context = vm.createContext({
+    const context = vm.createContext({ youtubeTimeouts: { proxied: false, startMs: 16000, metadataMs: 8000, socketTimeoutSec: 6 },
         AbortController, isYoutubeRequest, youtubeRequests,
         getVerifiedYoutubeCookie: () => null, invalidateYoutubeCookieOnError() {},
         youtubeLinkVerification: null, isVerifiedNativeYoutubeGuest: require('../youtubeLinkCheck').isVerifiedNativeYoutubeGuest,
@@ -504,6 +504,16 @@ test('YouTube bot check: bài Tự động phát tiếp từ SoundCloud, giữ h
         assert.notEqual(f.mq.sourceBlocked, true);
         assert.deepEqual(f.mq.queue, [f.queued]);
         assert.equal(f.notices.filter(notice => notice.title === 'Tạm dừng nguồn YouTube').length, 0);
+    } finally { f.cleanup(); }
+});
+
+test('Proxy YouTube: chờ byte đầu 30 giây và socket 15 giây thay vì cắt ở 16 giây', async () => {
+    const f = await fixture();
+    try {
+        f.context.youtubeTimeouts = { proxied: true, startMs: 30000, metadataMs: 15000, socketTimeoutSec: 15 };
+        await f.play({ effectKey: 'none', seekSec: 0, seekTransport: 'pipe' });
+        assert.equal(f.timers.find(timer => !timer.cleared).delay, 30000);
+        assert.equal(f.processes[0].flags.socketTimeout, 15);
     } finally { f.cleanup(); }
 });
 

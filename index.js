@@ -53,7 +53,7 @@ const { createYoutubeCookieSource } = require('./youtubeCookies');
 const { createYoutubeCookieVerification } = require('./youtubeCookieVerification');
 const { classifyMusicSourceError, selectMusicSourceError } = require('./musicSourceErrors');
 const { createYoutubeRequestPolicy, isYoutubeRequest, readYoutubeRequestLimits } = require('./youtubeRequestPolicy');
-const { readYoutubeProxy, wrapYtDlp } = require('./youtubeNetwork');
+const { readYoutubeProxy, readYoutubeTimeouts, wrapYtDlp } = require('./youtubeNetwork');
 const { resolveYoutubeDirectTrack } = require('./youtubeDirectTrack');
 const { runYoutubeLinkCheck, isVerifiedNativeYoutubeGuest } = require('./youtubeLinkCheck');
 const { runMusicEffectCheck } = require('./musicEffectCheck');
@@ -3255,6 +3255,8 @@ try { ytDlpExec = require('yt-dlp-exec'); } catch {
 const youtubeProxy = readYoutubeProxy();
 if (youtubeProxy.status.state === 'ready') console.log(`[YouTube] Dùng proxy ${youtubeProxy.status.scheme} cho request YouTube.`);
 else if (youtubeProxy.status.state === 'invalid') console.warn('[YouTube] MIMI_YOUTUBE_PROXY không hợp lệ (dùng http://user:pass@host:port hoặc dòng user:pass:host:port của nhà cung cấp); bỏ qua proxy.');
+// Đi qua proxy chậm hơn IP hosting: nới thời gian chờ byte đầu/metadata/socket cho YouTube.
+const youtubeTimeouts = readYoutubeTimeouts(process.env, Boolean(youtubeProxy.url));
 if (ytDlpExec) ytDlpExec = wrapYtDlp(ytDlpExec, { getProxy: () => youtubeProxy.url,
     runtimeDir: path.join(__dirname, 'data', 'youtube-cookie-runtime') });
 
@@ -3820,7 +3822,7 @@ function prettySourceName(raw) {
 // kết quả riêng tư / giới hạn độ tuổi / cần đăng nhập, chỉ trả về kết quả đầu tiên phát được.
 // ⏱️ Timeout cho mỗi lệnh yt-dlp lấy metadata: nếu YouTube/host chậm hoặc treo, execa sẽ
 // kill tiến trình và ném lỗi thay vì để "Đang tìm bài hát..." kẹt vô hạn.
-const YT_META_TIMEOUT_MS = 8000;
+const YT_META_TIMEOUT_MS = youtubeTimeouts.metadataMs;
 
 async function searchYoutube(query) {
     const isDirectUrl = YT_URL_REGEX.test(query.trim());
@@ -5551,7 +5553,7 @@ async function playNextTrack(guildId, opts = {}) {
     // Giới hạn lượt thử YouTube đầu để phòng voice không im lặng quá lâu khi
     // CDN/PO đã mất nhiều giây mà chưa có byte đầu; lượt fallback SoundCloud
     // vẫn chạy trong cùng một coordinator, không cộng thêm một deadline mới.
-    let sourceDeadline = opts.sourceDeadline || Date.now() + 16000;
+    let sourceDeadline = opts.sourceDeadline || Date.now() + youtubeTimeouts.startMs;
     let sourceFailureCode = opts.sourceRecovery ? opts.sourceFailureCode : null;
     const cleanupTransition = () => {
         if (transitionSafety) clearTimeout(transitionSafety);
@@ -5623,8 +5625,8 @@ async function playNextTrack(guildId, opts = {}) {
     const normalStartupBudgetMs = seekSec === 0
         // Embedded đã đo byte đầu ở13.2s dù không cần PO. Dùng ngân sách16s
         // cho đường này cả khi provider tắt; client PO cũng có thể cần challenge.
-        ? Math.max(1, Math.min(isYoutubePlayback && (youtubePoProvider.snapshot().ready
-            || /player_client=web_embedded(?:$|[;,])/.test(youtubeClientArgs)) ? 16000 : 12000,
+        ? Math.max(1, Math.min(isYoutubePlayback && (youtubeTimeouts.proxied || youtubePoProvider.snapshot().ready
+            || /player_client=web_embedded(?:$|[;,])/.test(youtubeClientArgs)) ? youtubeTimeouts.startMs : 12000,
             sourceDeadline - Date.now()))
         : seekTransport === 'pipe' ? Math.min(180000, 45000 + seekSec * 100) : 45000;
     // Deadline HLS áp dụng cả khi khôi phục giữa bài; không mở lại cửa sổ
@@ -5664,7 +5666,7 @@ async function playNextTrack(guildId, opts = {}) {
             // Audio pipe không nên treo hàng chục giây khi URL YouTube hết hạn
             // hoặc IP host bị từ chối. Hai lượt retry đủ cho một fragment lỗi;
             // sau đó recovery sẽ thử client gộp hoặc chuyển nguồn có kiểm soát.
-            socketTimeout: 6,
+            socketTimeout: isYoutubePlayback ? youtubeTimeouts.socketTimeoutSec : 6,
             // Chunk HTTP nhỏ tránh giữ một socket cho toàn bộ mix nhiều giờ.
             httpChunkSize: '10M',
             retries: 3,
@@ -5727,7 +5729,7 @@ async function playNextTrack(guildId, opts = {}) {
             const recoveryEffect = mq.effect || effectKey;
             // Lỗi giữa bài cần một cửa sổ phục hồi mới; chỉ các lần thử chưa
             // phát được packet nào mới chia sẻ deadline khởi động ban đầu.
-            if (playbackStarted) sourceDeadline = Date.now() + 16000;
+            if (playbackStarted) sourceDeadline = Date.now() + youtubeTimeouts.startMs;
             cleanupTransition();
             sourcePending = false;
             sourceRecovering = true;
@@ -5796,7 +5798,7 @@ async function playNextTrack(guildId, opts = {}) {
                 console.warn(`[Music] YouTube yêu cầu đăng nhập, thử phiên xác thực cho server ${guildId}.`);
                 return playNextTrack(guildId, { ...opts, replayCurrent: true, expectedTrack: next,
                     seekSec: Math.max(seekSec, getPlaybackSec(mq)), effectKey: recoveryEffect,
-                    seekTransport, sourceDeadline: Date.now() + 16000,
+                    seekTransport, sourceDeadline: Date.now() + youtubeTimeouts.startMs,
                     clientAttempt: 0, sourceRecovery: true, sourceFailureCode,
                     youtubeCookieAttempt: true, youtubeCookieTried: true,
                     youtubeGuestAttempt: false, youtubeGuestTried: false,
@@ -5814,7 +5816,7 @@ async function playNextTrack(guildId, opts = {}) {
                 console.warn(`[Music] Thử nguồn YouTube công khai cho server ${guildId}.`);
                 return playNextTrack(guildId, { ...opts, replayCurrent: true, expectedTrack: next,
                     seekSec: guestResumeSec, effectKey: recoveryEffect,
-                    seekTransport: guestResumeSec > 0 ? 'section' : 'pipe', sourceDeadline: Date.now() + 16000,
+                    seekTransport: guestResumeSec > 0 ? 'section' : 'pipe', sourceDeadline: Date.now() + youtubeTimeouts.startMs,
                     clientAttempt: 0, sourceRecovery: true, sourceFailureCode,
                     youtubeGuestAttempt: true, youtubeGuestTried: true,
                     youtubeCookieAttempt: false, youtubeCookieTried: youtubeCookieAttempt || opts.youtubeCookieTried === true,

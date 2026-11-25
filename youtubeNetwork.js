@@ -55,6 +55,21 @@ function readYoutubeProxy(env = process.env) {
     };
 }
 
+// Proxy dân cư thêm độ trễ cho mọi bước của yt-dlp (trang video, player JS,
+// PO token, CDN audio). Ngân sách 16s đo trên IP hosting không đủ khi đi qua
+// proxy: bot bị TIMEOUT dù YouTube không còn chặn. Có thể ghi đè bằng env.
+function readYoutubeTimeouts(env = process.env, proxied = false) {
+    const text = String(env.MIMI_YOUTUBE_START_TIMEOUT_MS ?? '').trim();
+    const override = /^\d+$/.test(text) ? Math.min(60000, Math.max(5000, Number(text))) : null;
+    const startMs = override ?? (proxied ? 30000 : 16000);
+    return {
+        proxied: Boolean(proxied),
+        startMs,
+        metadataMs: proxied ? 15000 : 8000,
+        socketTimeoutSec: proxied ? 15 : 6
+    };
+}
+
 function createCookieCopier(runtimeDir) {
     let swept = false;
     function sweep() {
@@ -126,4 +141,4 @@ function wrapYtDlp(raw, { getProxy = () => null, runtimeDir } = {}) {
     return wrapped;
 }
 
-module.exports = { readYoutubeProxy, wrapYtDlp };
+module.exports = { readYoutubeProxy, readYoutubeTimeouts, wrapYtDlp };
