@@ -133,3 +133,43 @@ test('Giới hạn YouTube đọc từ môi trường có chặn biên, mặc đ
     now += 2000;
     assert.equal(policy.acquire(), undefined);
 });
+
+test('Kiểm tra proxy báo mã 407/403 theo từng domain, gửi Proxy-Authorization và không cần mạng ngoài', async () => {
+    const { checkYoutubeProxy } = require('../youtubeNetwork');
+    const http = require('node:http');
+    const seen = [];
+    const server = http.createServer();
+    server.on('connect', (req, socket) => {
+        seen.push({ target: req.url, auth: req.headers['proxy-authorization'] });
+        const expected = `Basic ${Buffer.from('user-ssid:p@ss').toString('base64')}`;
+        const status = req.headers['proxy-authorization'] !== expected ? 407
+            : req.url.startsWith('redirector.googlevideo.com') ? 403 : 407;
+        socket.end(`HTTP/1.1 ${status} Blocked\r\n\r\n`);
+    });
+    await new Promise(resolve => server.listen(0, '127.0.0.1', resolve));
+    try {
+        const { port } = server.address();
+        const results = await checkYoutubeProxy(`http://user-ssid:p%40ss@127.0.0.1:${port}`, { timeoutMs: 3000 });
+        assert.deepEqual(results.map(result => [result.host, result.ok, result.code]), [
+            ['www.youtube.com', false, 'PROXY_407'], ['redirector.googlevideo.com', false, 'PROXY_403']]);
+        assert.deepEqual(seen.map(item => item.target).sort(), ['redirector.googlevideo.com:443', 'www.youtube.com:443']);
+        assert.ok(results.every(result => Number.isFinite(result.ms)));
+        assert.doesNotMatch(JSON.stringify(results), /p@ss|user-ssid|127\.0\.0\.1/);
+        assert.equal(await checkYoutubeProxy('socks5://127.0.0.1:1080'), null);
+    } finally { await new Promise(resolve => server.close(resolve)); }
+});
+
+test('Kiểm tra proxy hết giờ khi proxy không trả lời CONNECT', async () => {
+    const { checkYoutubeProxy } = require('../youtubeNetwork');
+    const net = require('node:net');
+    const sockets = [];
+    const server = net.createServer(socket => sockets.push(socket));
+    await new Promise(resolve => server.listen(0, '127.0.0.1', resolve));
+    try {
+        const results = await checkYoutubeProxy(`http://127.0.0.1:${server.address().port}`, { timeoutMs: 200 });
+        assert.deepEqual(results.map(result => result.code), ['TIMEOUT', 'TIMEOUT']);
+    } finally {
+        for (const socket of sockets) socket.destroy();
+        await new Promise(resolve => server.close(resolve));
+    }
+});

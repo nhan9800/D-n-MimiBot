@@ -53,7 +53,7 @@ const { createYoutubeCookieSource } = require('./youtubeCookies');
 const { createYoutubeCookieVerification } = require('./youtubeCookieVerification');
 const { classifyMusicSourceError, selectMusicSourceError } = require('./musicSourceErrors');
 const { createYoutubeRequestPolicy, isYoutubeRequest, readYoutubeRequestLimits } = require('./youtubeRequestPolicy');
-const { readYoutubeProxy, readYoutubeTimeouts, wrapYtDlp } = require('./youtubeNetwork');
+const { readYoutubeProxy, readYoutubeTimeouts, checkYoutubeProxy, wrapYtDlp } = require('./youtubeNetwork');
 const { resolveYoutubeDirectTrack } = require('./youtubeDirectTrack');
 const { runYoutubeLinkCheck, isVerifiedNativeYoutubeGuest } = require('./youtubeLinkCheck');
 const { runMusicEffectCheck } = require('./musicEffectCheck');
@@ -3257,6 +3257,14 @@ if (youtubeProxy.status.state === 'ready') console.log(`[YouTube] Dùng proxy ${
 else if (youtubeProxy.status.state === 'invalid') console.warn('[YouTube] MIMI_YOUTUBE_PROXY không hợp lệ (dùng http://user:pass@host:port hoặc dòng user:pass:host:port của nhà cung cấp); bỏ qua proxy.');
 // Đi qua proxy chậm hơn IP hosting: nới thời gian chờ byte đầu/metadata/socket cho YouTube.
 const youtubeTimeouts = readYoutubeTimeouts(process.env, Boolean(youtubeProxy.url));
+// Kiểm tra 2 kết nối nhẹ lúc khởi động: trang YouTube và CDN audio googlevideo.
+// PROXY_407 = sai user/mật khẩu; PROXY_403/CLOSED ở googlevideo = nhà cung cấp chặn domain video.
+if (youtubeProxy.url) checkYoutubeProxy(youtubeProxy.url).then(results => {
+    if (!results) return console.log('[YouTube] Bỏ qua kiểm tra proxy (chỉ kiểm tra proxy http://).');
+    for (const result of results) {
+        console.log(`[YouTube] Kiểm tra proxy -> ${result.host}: ${result.ok ? `OK (HTTP ${result.status})` : `LỖI ${result.code}`} sau ${result.ms}ms`);
+    }
+}).catch(() => console.warn('[YouTube] Không kiểm tra được proxy.'));
 if (ytDlpExec) ytDlpExec = wrapYtDlp(ytDlpExec, { getProxy: () => youtubeProxy.url,
     runtimeDir: path.join(__dirname, 'data', 'youtube-cookie-runtime') });
 

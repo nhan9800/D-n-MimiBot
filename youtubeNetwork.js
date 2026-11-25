@@ -13,6 +13,8 @@
 const fs = require('node:fs');
 const path = require('node:path');
 const { randomBytes } = require('node:crypto');
+const http = require('node:http');
+const tls = require('node:tls');
 const { isYoutubeRequest } = require('./youtubeRequestPolicy');
 
 const PROXY_SCHEMES = new Set(['http:', 'https:', 'socks4:', 'socks4a:', 'socks5:', 'socks5h:']);
@@ -68,6 +70,61 @@ function readYoutubeTimeouts(env = process.env, proxied = false) {
         metadataMs: proxied ? 15000 : 8000,
         socketTimeoutSec: proxied ? 15 : 6
     };
+}
+
+// Kiểm tra proxy lúc khởi động: mở tunnel CONNECT tới trang YouTube và tới
+// googlevideo (CDN phát audio). Nhiều proxy dân cư chặn domain video để tránh
+// tốn băng thông: tìm bài vẫn được nhưng audio không về, bot báo TIMEOUT.
+// Chỉ trả mã/thời gian; không log user, mật khẩu hay địa chỉ proxy.
+function checkProxyTarget(proxyUrl, host, { timeoutMs = 12000, path: requestPath = '/generate_204', now = Date.now } = {}) {
+    return new Promise(resolve => {
+        const began = now();
+        let done = false, req, socket;
+        const finish = result => {
+            if (done) return;
+            done = true;
+            clearTimeout(timer);
+            try { socket?.destroy(); } catch { /* Đã đóng. */ }
+            try { req?.destroy(); } catch { /* Đã đóng. */ }
+            resolve({ host, ms: now() - began, ...result });
+        };
+        const timer = setTimeout(() => finish({ ok: false, code: 'TIMEOUT' }), timeoutMs);
+        timer.unref?.();
+        const proxy = new URL(proxyUrl);
+        const headers = { Host: `${host}:443` };
+        if (proxy.username) {
+            const credentials = `${decodeURIComponent(proxy.username)}:${decodeURIComponent(proxy.password)}`;
+            headers['Proxy-Authorization'] = `Basic ${Buffer.from(credentials).toString('base64')}`;
+        }
+        req = http.request({ host: proxy.hostname, port: Number(proxy.port) || 80, method: 'CONNECT', path: `${host}:443`, headers });
+        req.on('connect', (res, tunnel) => {
+            socket = tunnel;
+            if (res.statusCode !== 200) return finish({ ok: false, code: `PROXY_${res.statusCode}` });
+            const secure = tls.connect({ socket: tunnel, servername: host }, () => {
+                secure.write([`GET ${requestPath} HTTP/1.1`, `Host: ${host}`, 'User-Agent: Mozilla/5.0',
+                    'Connection: close', '', ''].join('\r\n'));
+            });
+            socket = secure;
+            let head = '';
+            secure.on('data', chunk => {
+                head += chunk.toString('latin1');
+                const status = /^HTTP\/1\.[01] (\d{3})/.exec(head);
+                if (status) finish({ ok: true, status: Number(status[1]) });
+                else if (head.length > 2048) finish({ ok: false, code: 'BAD_RESPONSE' });
+            });
+            secure.on('error', error => finish({ ok: false, code: error.code || 'TLS_ERROR' }));
+            secure.on('close', () => finish({ ok: false, code: 'CLOSED' }));
+        });
+        req.on('error', error => finish({ ok: false, code: error.code || 'PROXY_ERROR' }));
+        req.end();
+    });
+}
+
+/** Trả null nếu proxy không phải http:// (SOCKS/HTTPS proxy không kiểm tra ở đây). */
+async function checkYoutubeProxy(proxyUrl, options = {}) {
+    if (typeof proxyUrl !== 'string' || !proxyUrl.startsWith('http://')) return null;
+    return Promise.all(['www.youtube.com', 'redirector.googlevideo.com']
+        .map(host => checkProxyTarget(proxyUrl, host, options)));
 }
 
 function createCookieCopier(runtimeDir) {
@@ -141,4 +198,4 @@ function wrapYtDlp(raw, { getProxy = () => null, runtimeDir } = {}) {
     return wrapped;
 }
 
-module.exports = { readYoutubeProxy, readYoutubeTimeouts, wrapYtDlp };
+module.exports = { readYoutubeProxy, readYoutubeTimeouts, checkYoutubeProxy, wrapYtDlp };
