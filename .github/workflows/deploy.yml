@@ -103,6 +103,7 @@ jobs:
           put youtubeCookieVerification.js
           put musicSourceErrors.js
           put youtubeRequestPolicy.js
+          put youtubeNetwork.js
           put youtubeDirectTrack.js
           put youtubeLinkCheck.js
           put musicEffectCheck.js

@@ -52,7 +52,8 @@ const { runYoutubePoProbe, youtubeProbeOptions } = require('./youtubePoProbe');
 const { createYoutubeCookieSource } = require('./youtubeCookies');
 const { createYoutubeCookieVerification } = require('./youtubeCookieVerification');
 const { classifyMusicSourceError, selectMusicSourceError } = require('./musicSourceErrors');
-const { createYoutubeRequestPolicy, isYoutubeRequest } = require('./youtubeRequestPolicy');
+const { createYoutubeRequestPolicy, isYoutubeRequest, readYoutubeRequestLimits } = require('./youtubeRequestPolicy');
+const { readYoutubeProxy, wrapYtDlp } = require('./youtubeNetwork');
 const { resolveYoutubeDirectTrack } = require('./youtubeDirectTrack');
 const { runYoutubeLinkCheck, isVerifiedNativeYoutubeGuest } = require('./youtubeLinkCheck');
 const { runMusicEffectCheck } = require('./musicEffectCheck');
@@ -3249,12 +3250,20 @@ let ytDlpExec = null;
 try { ytDlpExec = require('yt-dlp-exec'); } catch {
     console.warn('⚠️ [Music] Chưa cài yt-dlp-exec — tính năng nghe nhạc sẽ không hoạt động.');
 }
+// Proxy riêng cho YouTube + bản sao cookies chỉ đọc cho từng tiến trình yt-dlp.
+// Không log URL proxy vì có thể chứa user/password.
+const youtubeProxy = readYoutubeProxy();
+if (youtubeProxy.status.state === 'ready') console.log(`[YouTube] Dùng proxy ${youtubeProxy.status.scheme} cho request YouTube.`);
+else if (youtubeProxy.status.state === 'invalid') console.warn('[YouTube] MIMI_YOUTUBE_PROXY không hợp lệ (cần http/https/socks5://host:port); bỏ qua proxy.');
+if (ytDlpExec) ytDlpExec = wrapYtDlp(ytDlpExec, { getProxy: () => youtubeProxy.url,
+    runtimeDir: path.join(__dirname, 'data', 'youtube-cookie-runtime') });
 
 const youtubeCooldownPath = path.join(__dirname, 'data', 'youtube-cooldown.json');
 let savedYoutubeCooldown;
 try { savedYoutubeCooldown = JSON.parse(fs.readFileSync(youtubeCooldownPath, 'utf8')); }
 catch (error) { if (error.code !== 'ENOENT') console.warn('[YouTube] Không đọc được thời gian chờ đã lưu.'); }
 const youtubeRequests = createYoutubeRequestPolicy({
+    ...readYoutubeRequestLimits(),
     saved: savedYoutubeCooldown,
     onCooldown({ reason, until }) {
         console.warn(`[YouTube] source=${reason} retryAt=${new Date(until).toISOString()}`);
@@ -3496,6 +3505,7 @@ function getYoutubePoStatus() {
         'source_failed', 'search_empty', 'invalid_audio', 'invalid_configuration', 'invalid_input',
         'cancelled', 'aborted', 'interrupted'];
     return { ...youtubePoProvider.snapshot(), requestCooldown: youtubeRequests.status(), cookies: youtubeCookieSource.snapshot(),
+        proxy: youtubeProxy.status,
         nativeGuestVerified: isVerifiedNativeYoutubeGuest(youtubeLinkVerification),
         cookieCheck: youtubeCookieVerifier.snapshot(), linkCheck: youtubeLinkVerification, verification: checked ? {
         ok: checked.ok === true,
@@ -6061,6 +6071,43 @@ function handlePlaybackFailure(guildId, mq, failedTrack, shortErr, sourceCode) {
 
     const youtubeLimited = isYoutubeRequest(failedTrack?.url)
         && ['RATE_LIMITED', 'YOUTUBE_BOT_CHECK', 'YOUTUBE_BUSY'].includes(sourceCode);
+    // YouTube chặn/giới hạn cả tiến trình (IP hosting). Với bài chọn nguồn Tự động,
+    // phát cùng bài từ SoundCloud thay vì dừng cả hàng đợi tới hết cooldown.
+    // Link YouTube hoặc nguồn YouTube chọn tường minh vẫn giữ đúng nguồn.
+    if (youtubeLimited && failedTrack.requestedSource === 'auto' && failedTrack.allowSourceFallback === true
+        && !failedTrack.scFallbackAttempted) {
+        failedTrack.scFallbackAttempted = true;
+        const generation = mq.playGeneration;
+        // currentResource=null để Idle do stop() không tự chuyển bài khi đang tìm nguồn thay thế.
+        mq.currentResource = null;
+        killCurrentProcess(mq);
+        try { mq.player.stop(); } catch { /* Player có thể đã dừng. */ }
+        console.warn(`🔄 [Music] YouTube tạm chặn (${sourceCode}) -> tìm "${failedTrack.title}" trên SoundCloud ở server ${guildId}.`);
+        Promise.resolve()
+            .then(() => searchSoundcloud(buildSoundcloudFallbackQuery(failedTrack.title, failedTrack.author), {
+                author: failedTrack.author, duration: failedTrack.duration, timeoutMs: 5500 }))
+            .catch(() => null)
+            .then(scTrack => {
+                if (musicQueues.get(guildId) !== mq || mq.current !== failedTrack || mq.playGeneration !== generation) return;
+                if (!scTrack?.url) {
+                    // Không có bản thay thế: quay về nhánh tạm dừng YouTube bên dưới (đúng một lần).
+                    mq.failureHandledGen = null;
+                    return handlePlaybackFailure(guildId, mq, failedTrack, shortErr, sourceCode);
+                }
+                failedTrack.originalUrl ||= failedTrack.url;
+                failedTrack.url = scTrack.url;
+                failedTrack.source = 'SoundCloud';
+                failedTrack.title = scTrack.title || failedTrack.title;
+                failedTrack.duration = Number(scTrack.duration) || 0;
+                failedTrack.thumbnail = scTrack.thumbnail || failedTrack.thumbnail;
+                failedTrack.pendingSourceNotice = 'YouTube đang tạm giới hạn máy chủ phát nhạc';
+                persistSession(guildId);
+                return playNextTrack(guildId, { replayCurrent: true, expectedTrack: failedTrack, seekSec: 0,
+                    effectKey: mq.effect || 'none', sourceDeadline: Date.now() + 12000 });
+            })
+            .catch(error => console.error('❌ [Music] Lỗi chuyển bài bị YouTube chặn sang SoundCloud:', classifyMusicSourceError(error).code));
+        return;
+    }
     if (youtubeLimited || sourceCode === 'AUTH_REQUIRED' || sourceCode === 'INVALID_COOKIES') {
         const cooldown = youtubeLimited && youtubeRequests.status();
         if (youtubeLimited) persistSession(guildId);
@@ -7453,7 +7500,7 @@ client.once('clientReady', async () => {
             .setName('play')
             .setDescription('Phát nhạc từ YouTube, Spotify, SoundCloud — tìm theo tên hoặc dán link')
             .addStringOption(o => o.setName('từ_khóa').setDescription('Tên bài, link bài hát hoặc playlist YouTube/SoundCloud (tối đa 50 bài)').setRequired(true))
-            .addStringOption(o => o.setName('nguồn').setDescription('Nguồn tìm kiếm (mặc định: YouTube, giữ đúng nguồn khi phát)').setRequired(false)
+            .addStringOption(o => o.setName('nguồn').setDescription('Nguồn tìm kiếm (mặc định: Tự động — YouTube, bị chặn thì SoundCloud)').setRequired(false)
                 .addChoices(
                     { name: '✨ Tự động (YouTube & SoundCloud)', value: 'auto' },
                     { name: '🔴 YouTube', value: 'youtube' },
@@ -11079,7 +11126,7 @@ async function saveUserBackground(uId, url) {
 
         let track, request;
         try {
-            request = await resolveMusicRequest(query);
+            request = await resolveMusicRequest(query, 'auto');
             track = request?.tracks[0]; // hỗ trợ YouTube, Spotify, SoundCloud, Bandcamp, Twitch, Vimeo, link...
         } catch (err) {
             const safe = classifyMusicSourceError(err);
@@ -14326,7 +14373,8 @@ if (commandName === 'setup') {
             }
 
             const query = options.getString('từ_khóa');
-            const source = options.getString('nguồn') || 'youtube';
+            // Mặc định Tự động: thử YouTube trước, YouTube chặn/lỗi thì phát cùng bài từ SoundCloud.
+            const source = options.getString('nguồn') || 'auto';
             let track, request;
             try {
                 request = await resolveMusicRequest(query, source);

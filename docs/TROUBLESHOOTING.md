@@ -18,6 +18,20 @@
 | License key cũ bị từ chối | Mã phải có trong kho đã phát hành; mã tự ký/không có record không còn được chấp nhận |
 | SFTP workflow lỗi host key | Đặt SFTP_KNOWN_HOSTS đúng host/cổng sau xác minh fingerprint qua nhà cung cấp |
 | Upload xong vẫn bản cũ | Kiểm tra bước restart panel và đối chiếu commit tại `/health/live`; thiếu restart secret thì cần restart thủ công |
+| Nhạc báo "YouTube đang yêu cầu xác minh bot" / "giới hạn tần suất" liên tục | IP hosting bị YouTube đánh dấu; xem mục [YouTube chặn IP hosting](#youtube-chặn-ip-hosting) bên dưới |
+
+## YouTube chặn IP hosting
+
+Lỗi `YOUTUBE_BOT_CHECK` ("Sign in to confirm you're not a bot") hoặc `RATE_LIMITED` (HTTP 429) nghĩa là YouTube từ chối **địa chỉ IP** của máy chủ. Điều tiết số request phía bot chỉ giảm tần suất bị phạt; IP datacenter đã bị đánh dấu thì vẫn bị chặn dù gửi rất ít. Thứ tự xử lý:
+
+1. **Proxy riêng cho YouTube (xử lý tận gốc).** Đặt `MIMI_YOUTUBE_PROXY=http://user:pass@host:port` trong env của hosting rồi restart. Chỉ request YouTube đi qua proxy (tìm kiếm, metadata và luồng audio trong cùng tiến trình yt-dlp, nên URL googlevideo khớp IP); SoundCloud vẫn đi thẳng. Lựa chọn thường dùng:
+   - Proxy dân cư/ISP trả phí theo GB (mỗi bài ~3–5 MB audio).
+   - Máy ở nhà chạy proxy HTTP (ví dụ `tinyproxy`/`3proxy`), nối với hosting qua Tailscale/WireGuard; IP nhà gần như không bị bot check.
+   - Cloudflare WARP qua `wireproxy`: miễn phí, đôi khi cũng bị YouTube chặn.
+   Ưu tiên HTTP: FFmpeg (tua giữa bài, luồng HLS) không hỗ trợ SOCKS. `/health/live` → `youtubePo.proxy` báo `state`/`scheme`/`ffmpegCompatible`, không trả địa chỉ hay mật khẩu.
+2. **Nới bộ điều tiết khi đã có proxy.** Mặc định `MIMI_YOUTUBE_BURST=4`, `MIMI_YOUTUBE_REFILL_MS=15000` (≈4 request/phút cho mọi server, mỗi bài tốn 1–2 request). Bot cộng đồng nhiều server có thể đặt `10`/`4000` khi IP đã sạch; vượt mức sẽ báo `YOUTUBE_BUSY`.
+3. **Cookies tài khoản phụ** (xem [YOUTUBE-COOKIES.md](YOUTUBE-COOKIES.md)). Từ bản này yt-dlp chỉ nhận bản sao tạm trong `data/youtube-cookie-runtime/` và bản sao bị xoá khi tiến trình kết thúc, nên file gốc không còn bị cookie jar ghi đè thành `NETSCAPE_HEADER_REQUIRED`.
+4. **SoundCloud tự thay thế.** `/play` không chọn nguồn giờ mặc định là *Tự động*: tìm YouTube trước; khi YouTube đang bị chặn, bot phát cùng bài từ SoundCloud và giữ hàng đợi thay vì dừng tới hết cooldown. Link YouTube hoặc nguồn *YouTube* chọn tường minh vẫn giữ đúng nguồn và tạm dừng như cũ.
 
 Chạy `npm run check` và `npm test` để kiểm tra mã offline. Test không chứng minh mạng Discord, OAuth hoặc âm thanh trên host đã hoạt động.
 

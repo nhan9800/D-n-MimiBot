@@ -457,13 +457,15 @@ for (const [warning, reason] of [
             assert.equal(policy.status().reason, reason);
             assert.equal(first.processes[0].killed, true);
             assert.equal(first.processes.length, 1);
-            assert.equal(fallbackCalls, 0);
+            assert.equal(fallbackCalls, 1, 'Bài Tự động thử SoundCloud đúng một lần; không có bản thay thế thì tạm dừng');
             assert.equal(first.notices.length, 1);
             assert.match(first.notices[0].content, /<t:\d+:R>/);
             assert.equal(first.mq.sourceBlocked, true);
             assert.deepEqual(first.mq.queue, [first.current, first.queued]);
             assert.deepEqual(stored, { current: first.current, queue: [first.queued] });
 
+            // Server khác chọn YouTube tường minh: bị chặn chung, không đổi nguồn.
+            second.current.requestedSource = 'youtube'; second.current.allowSourceFallback = false;
             const blocked = await second.play();
             assert.equal(blocked.applied, false);
             assert.equal(second.processes.length, 0);
@@ -478,6 +480,48 @@ for (const [warning, reason] of [
         } finally { first.cleanup(); second.cleanup(); }
     });
 }
+
+test('YouTube bot check: bài Tự động phát tiếp từ SoundCloud, giữ hàng đợi và không chờ cooldown', async () => {
+    const policy = createYoutubeRequestPolicy();
+    const queries = [];
+    const f = await fixture({ youtubeRequests: policy, searchSoundcloud: async (query, hints) => {
+        queries.push({ query, hints });
+        return { title: 'Bài hiện tại (SC)', url: 'https://soundcloud.com/a/current', duration: 181 };
+    } });
+    try {
+        f.mq.autoplay = true;
+        f.context.findRadioTrack = async () => { throw new Error('Không được gọi autoplay khi nguồn đang nghỉ'); };
+        await f.play();
+        f.processes[0].stderr.write('ERROR: Sign in to confirm you’re not a bot');
+        await tick(); await tick();
+        assert.equal(policy.status().reason, 'YOUTUBE_BOT_CHECK');
+        assert.equal(queries.length, 1);
+        assert.equal(f.processes.length, 2);
+        assert.equal(f.processes[1].url, 'https://soundcloud.com/a/current');
+        assert.equal(f.mq.current, f.current);
+        assert.equal(f.current.source, 'SoundCloud');
+        assert.equal(f.current.originalUrl, 'https://www.youtube.com/watch?v=abcdefghijk');
+        assert.notEqual(f.mq.sourceBlocked, true);
+        assert.deepEqual(f.mq.queue, [f.queued]);
+        assert.equal(f.notices.filter(notice => notice.title === 'Tạm dừng nguồn YouTube').length, 0);
+    } finally { f.cleanup(); }
+});
+
+test('YouTube bot check: nguồn YouTube chọn tường minh không bị đổi sang SoundCloud', async () => {
+    const policy = createYoutubeRequestPolicy();
+    let fallbackCalls = 0;
+    const f = await fixture({ youtubeRequests: policy, searchSoundcloud: async () => { fallbackCalls++; return null; } });
+    try {
+        f.current.requestedSource = 'youtube'; f.current.allowSourceFallback = false;
+        await f.play();
+        f.processes[0].stderr.write('ERROR: Sign in to confirm you’re not a bot');
+        await tick(); await tick();
+        assert.equal(fallbackCalls, 0);
+        assert.equal(f.processes.length, 1);
+        assert.equal(f.mq.sourceBlocked, true);
+        assert.equal(f.notices[0].title, 'Tạm dừng nguồn YouTube');
+    } finally { f.cleanup(); }
+});
 
 test('Kết quả Opus trên host cho phép dùng client khách trước phiên tài khoản', async () => {
     const f = await fixture();

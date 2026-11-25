@@ -30,6 +30,9 @@ Nguồn: [hướng dẫn xuất phiên YouTube](https://github.com/yt-dlp/yt-dlp
   Tên cũ `cookies.json` chỉ dùng được nếu nội dung thực tế là Netscape.
   File ưu tiên bị lỗi không âm thầm dùng file cũ ở dưới.
 - Có thể đặt `MIMI_YOUTUBE_COOKIE_FILE=data/youtube/youtube_cookies.txt` trong env.
+- File gốc chỉ được đọc: mỗi tiến trình yt-dlp nhận một bản sao tạm trong
+  `data/youtube-cookie-runtime/` (xoá khi tiến trình xong, dọn bản sót lúc khởi động),
+  vì yt-dlp ghi lại cookie jar vào đúng file `--cookies` khi thoát.
   Đường dẫn phải nằm trong thư mục bot; không truyền giá trị cookies qua env.
   Các tên mặc định và `data/` đã bị loại khỏi Git và upload deploy.
 - Probe tải thử bằng cookie chỉ chạy sau khi đã ghi nhận yêu cầu xác minh bot

@@ -17,12 +17,26 @@ function isYoutubeRequest(input) {
     } catch { return false; }
 }
 
-function createYoutubeRequestPolicy({ now = Date.now, wait = sleep, saved, onCooldown } = {}) {
+// Giới hạn mặc định giữ an toàn cho IP hosting dùng chung. Khi đã chạy qua proxy
+// riêng (MIMI_YOUTUBE_PROXY), người vận hành có thể nới bằng biến môi trường.
+function readYoutubeRequestLimits(env = process.env) {
+    const int = (value, min, max, fallback) => {
+        const text = String(value ?? '').trim();
+        if (!/^\d+$/.test(text)) return fallback;
+        return Math.min(max, Math.max(min, Number(text)));
+    };
+    return {
+        burst: int(env.MIMI_YOUTUBE_BURST, 1, 30, BURST),
+        refillMs: int(env.MIMI_YOUTUBE_REFILL_MS, 1000, 120000, REFILL_MS)
+    };
+}
+
+function createYoutubeRequestPolicy({ now = Date.now, wait = sleep, saved, onCooldown, burst = BURST, refillMs = REFILL_MS } = {}) {
     const timestamp = now();
     let cooldown = saved && Object.hasOwn(COOLDOWNS, saved.reason)
         && Number.isSafeInteger(saved.until) && Math.abs(saved.until - timestamp) <= MAX_COOLDOWN_MS
         ? { reason: saved.reason, until: saved.until } : null;
-    let tokens = cooldown ? 1 : BURST;
+    let tokens = cooldown ? 1 : burst;
     let updatedAt = cooldown?.until ?? timestamp;
     let waiting = 0;
 
@@ -58,23 +72,23 @@ function createYoutubeRequestPolicy({ now = Date.now, wait = sleep, saved, onCoo
         return true;
     }
 
-    function acquire({ signal, waitMs = REFILL_MS } = {}) {
+    function acquire({ signal, waitMs = refillMs } = {}) {
         signal?.throwIfAborted();
         const cooldownNow = status();
         if (cooldownNow) throw error(cooldownNow.reason);
         const current = now();
-        tokens = Math.min(BURST, tokens + Math.max(0, current - updatedAt) / REFILL_MS);
+        tokens = Math.min(burst, tokens + Math.max(0, current - updatedAt) / refillMs);
         updatedAt = current;
         if (tokens >= 1) { tokens--; return; }
-        const delay = Math.ceil((1 - tokens) * REFILL_MS);
-        if (waiting >= BURST || delay > waitMs) throw error('YOUTUBE_BUSY');
+        const delay = Math.ceil((1 - tokens) * refillMs);
+        if (waiting >= burst || delay > waitMs) throw error('YOUTUBE_BUSY');
         waiting++;
         return wait(delay, undefined, { signal }).then(() => {
             signal?.throwIfAborted();
             const active = status();
             if (active) throw error(active.reason);
             const at = now();
-            tokens = Math.min(BURST, tokens + Math.max(0, at - updatedAt) / REFILL_MS);
+            tokens = Math.min(burst, tokens + Math.max(0, at - updatedAt) / refillMs);
             updatedAt = at;
             if (tokens < 1) throw error('YOUTUBE_BUSY');
             tokens--;
@@ -84,4 +98,4 @@ function createYoutubeRequestPolicy({ now = Date.now, wait = sleep, saved, onCoo
     return { acquire, observe, status, lastBlockReason };
 }
 
-module.exports = { createYoutubeRequestPolicy, isYoutubeRequest };
+module.exports = { createYoutubeRequestPolicy, isYoutubeRequest, readYoutubeRequestLimits };

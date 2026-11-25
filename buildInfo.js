@@ -20,7 +20,7 @@ RUNTIME_FILES.push('blackjackUi.js', 'musicBuffer.js');
 RUNTIME_FILES.push('musicSearch.js', 'musicEffectTransition.js', 'musicDirectAudio.js');
 RUNTIME_FILES.push('youtubePoProvider.js', 'youtubePoProbe.js', 'scripts/setup-youtube-po.js');
 RUNTIME_FILES.push('youtubeCookies.js', 'youtubeCookieVerification.js');
-RUNTIME_FILES.push('musicSourceErrors.js', 'youtubeRequestPolicy.js');
+RUNTIME_FILES.push('musicSourceErrors.js', 'youtubeRequestPolicy.js', 'youtubeNetwork.js');
 RUNTIME_FILES.push('youtubeDirectTrack.js', 'youtubeLinkCheck.js');
 RUNTIME_FILES.push('musicEffectCheck.js');
 RUNTIME_FILES.push('communityFeatures.js', 'communityCommands.js');
